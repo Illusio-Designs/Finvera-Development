@@ -55,8 +55,76 @@ app.use((req, res, next) => {
   next();
 });
 
-// Static files setup
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+// Static files setup with enhanced logging
+app.use("/uploads", (req, res, next) => {
+  const filePath = path.join(__dirname, "uploads", req.path);
+  console.log(`[Static File Request] ${req.method} ${req.originalUrl}`);
+  console.log(`[Static File Path] ${filePath}`);
+  
+  // Check if file exists
+  const fs = require('fs');
+  fs.access(filePath, fs.constants.F_OK, (err) => {
+    if (err) {
+      console.log(`[Static File] File not found: ${filePath}`);
+      console.log(`[Static File] Error: ${err.message}`);
+    } else {
+      console.log(`[Static File] File exists: ${filePath}`);
+    }
+  });
+  
+  next();
+}, express.static(path.join(__dirname, "uploads"), {
+  // Add options for better error handling
+  dotfiles: 'ignore',
+  etag: false,
+  extensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
+  index: false,
+  maxAge: '1d',
+  redirect: false,
+  setHeaders: function (res, path, stat) {
+    console.log(`[Static File] Serving: ${path}`);
+    res.set('x-timestamp', Date.now());
+  }
+}));
+
+// Fallback handler for uploads that weren't found by static middleware
+app.use("/uploads", (req, res, next) => {
+  const filePath = path.join(__dirname, "uploads", req.path);
+  console.log(`[Static File Fallback] File not found: ${filePath}`);
+  
+  // Try to find the file in subdirectories
+  const fs = require('fs');
+  const possiblePaths = [
+    path.join(__dirname, "uploads", req.path),
+    path.join(__dirname, "uploads", "fire_policies", path.basename(req.path)),
+    path.join(__dirname, "uploads", "health_policies", path.basename(req.path)),
+    path.join(__dirname, "uploads", "life_policies", path.basename(req.path)),
+    path.join(__dirname, "uploads", "vehicle_policies", path.basename(req.path)),
+    path.join(__dirname, "uploads", "employee_policies", path.basename(req.path)),
+  ];
+  
+  console.log(`[Static File Fallback] Trying alternative paths for: ${path.basename(req.path)}`);
+  
+  for (const altPath of possiblePaths) {
+    try {
+      if (fs.existsSync(altPath)) {
+        console.log(`[Static File Fallback] Found file at: ${altPath}`);
+        return res.sendFile(altPath);
+      }
+    } catch (err) {
+      console.log(`[Static File Fallback] Error checking ${altPath}: ${err.message}`);
+    }
+  }
+  
+  // If still not found, return a proper 404
+  console.log(`[Static File Fallback] File not found in any location: ${req.path}`);
+  res.status(404).json({
+    status: "error",
+    message: "File not found",
+    path: req.originalUrl,
+    searched_paths: possiblePaths.map(p => p.replace(__dirname, ''))
+  });
+});
 
 // Root path handler
 app.get("/", (req, res) => {

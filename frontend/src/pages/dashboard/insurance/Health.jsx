@@ -2164,7 +2164,7 @@ function Health({ searchQuery = "" }) {
                             )}
                             <DocumentDownload
                               system="health-policies"
-                              recordId={policy.id}
+                              recordId={policy.original_policy_id || policy.id}
                               buttonText=""
                               buttonClass="action-button action-button-secondary action-button-small"
                               showIcon={true}

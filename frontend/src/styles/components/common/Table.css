@@ -11,7 +11,7 @@ thead {
   background-color: #f3f4f6;
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 0;
 }
 
 th, td {

@@ -865,7 +865,16 @@ exports.renewPolicy = async (req, res) => {
 
       // Step 3: Delete the old policy from the main table (it's now in PreviousPolicies)
       console.log("[VehiclePolicy] Deleting old policy from main table...");
+      
+      // IMPORTANT: Preserve the policy file before deleting the policy record
+      // The file path is already copied to previousPolicy.policy_document_path
+      // The actual file remains in the same location and will be accessible
+      // through the previous policy record for expired policy downloads
+      console.log("[VehiclePolicy] File preservation: Policy document preserved at:", currentPolicy.policy_document_path);
+      console.log("[VehiclePolicy] Previous policy can access file via path:", previousPolicy.policy_document_path);
+      
       await currentPolicy.destroy({ transaction });
+      console.log("[VehiclePolicy] Old policy deleted - file preserved for previous policy access");
 
       // Commit transaction
       await transaction.commit();
@@ -924,9 +933,15 @@ exports.renewPolicy = async (req, res) => {
       }
 
       res.status(201).json({
-        message: "Policy renewed successfully",
+        message: "Policy renewed successfully. Previous policy file preserved for download.",
         previousPolicy: previousPolicy,
         newPolicy: createdPolicy,
+        filePreservation: {
+          previousPolicyFile: currentPolicy.policy_document_path,
+          newPolicyFile: req.file.filename,
+          preserved: true,
+          note: "Expired policy document remains accessible for download"
+        }
       });
     } catch (error) {
       // Rollback transaction on error

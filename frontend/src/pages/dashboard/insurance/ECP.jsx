@@ -2081,7 +2081,7 @@ function ECP({ searchQuery = "" }) {
             )}
             <DocumentDownload
               system="employee-compensation"
-              recordId={policy.id}
+              recordId={policy.original_policy_id || policy.id}
               buttonText=""
               buttonClass="action-button action-button-secondary action-button-small"
               showIcon={true}
@@ -2092,7 +2092,7 @@ function ECP({ searchQuery = "" }) {
               }
               fileName={
                 policy.policy_document_path ||
-                `policy-${policy.id}-document.pdf`
+                `policy-${policy.original_policy_id || policy.id}-document.pdf`
               }
               documentType="documents"
             />

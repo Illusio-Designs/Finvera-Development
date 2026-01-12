@@ -770,8 +770,16 @@ exports.renewPolicy = async (req, res) => {
 
       // Step 3: Delete old policy from main table
       console.log("[HealthPolicy] Deleting old policy from main table...");
+      
+      // IMPORTANT: Preserve the policy file before deleting the policy record
+      // The file path is already copied to previousPolicy.policy_document_path
+      // The actual file remains in the same location and will be accessible
+      // through the previous policy record for expired policy downloads
+      console.log("[HealthPolicy] File preservation: Policy document preserved at:", currentPolicy.policy_document_path);
+      console.log("[HealthPolicy] Previous policy can access file via path:", previousPolicy.policy_document_path);
+      
       await currentPolicy.destroy({ transaction });
-      console.log("[HealthPolicy] Old policy deleted");
+      console.log("[HealthPolicy] Old policy deleted - file preserved for previous policy access");
 
       // Step 4: Log the renewal action
       const targetUserId = currentPolicy.companyPolicyHolder?.user_id || currentPolicy.consumerPolicyHolder?.user_id;
@@ -812,9 +820,15 @@ exports.renewPolicy = async (req, res) => {
       console.log("[HealthPolicy] Policy renewal completed successfully");
       res.status(200).json({
         success: true,
-        message: "Health policy renewed successfully",
+        message: "Health policy renewed successfully. Previous policy file preserved for download.",
         previousPolicy,
         newPolicy: completeNewPolicy,
+        filePreservation: {
+          previousPolicyFile: currentPolicy.policy_document_path,
+          newPolicyFile: req.file.filename,
+          preserved: true,
+          note: "Expired policy document remains accessible for download"
+        }
       });
     } catch (error) {
       // Rollback transaction on error
