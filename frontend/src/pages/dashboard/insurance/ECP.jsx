@@ -479,6 +479,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
       <form onSubmit={handleSubmit} className="insurance-form">
         <div className="insurance-form-grid">
           <div className="insurance-form-group">
+            <label>Company</label>
             <Select
               options={companies.map((company) => ({
                 value: company.company_id,
@@ -511,7 +512,12 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
               isClearable
               isSearchable={true}
               styles={{
-                menu: (provided) => ({ ...provided, zIndex: 9999 }),
+                menu: (provided) => ({ 
+                  ...provided, 
+                  zIndex: 9999,
+                  position: 'absolute'
+                }),
+                menuPortal: (provided) => ({ ...provided, zIndex: 9999 }),
                 control: (provided) => ({
                   ...provided,
                   minHeight: "44px",
@@ -523,6 +529,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
           </div>
 
           <div className="insurance-form-group">
+            <label>Business Type</label>
             <select
               name="businessType"
               value={formData.businessType}
@@ -538,6 +545,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
           </div>
 
           <div className="insurance-form-group">
+            <label>Customer Type</label>
             <select
               name="customerType"
               value={formData.customerType}
@@ -552,6 +560,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
           </div>
 
           <div className="insurance-form-group">
+            <label>Policy Number</label>
             <input
               type="text"
               name="policyNumber"
@@ -564,6 +573,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
           </div>
 
           <div className="insurance-form-group">
+            <label>Email</label>
             <input
               type="email"
               name="email"
@@ -577,6 +587,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
           </div>
 
           <div className="insurance-form-group">
+            <label>Mobile Number</label>
             <PhoneInput
               international
               defaultCountry="IN"
@@ -591,6 +602,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
           </div>
 
           <div className="insurance-form-group">
+            <label>Policy Start Date</label>
             <input
               type="date"
               name="policyStartDate"
@@ -602,6 +614,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
           </div>
 
           <div className="insurance-form-group">
+            <label>Policy End Date</label>
             <input
               type="date"
               name="policyEndDate"
@@ -613,6 +626,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
           </div>
 
           <div className="insurance-form-group">
+            <label>Medical Cover</label>
             <select
               name="medicalCover"
               value={formData.medicalCover}
@@ -632,6 +646,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
           </div>
 
           <div className="insurance-form-group">
+            <label>GST Number</label>
             <input
               type="text"
               name="gstNumber"
@@ -643,6 +658,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
           </div>
 
           <div className="insurance-form-group">
+            <label>PAN Number</label>
             <input
               type="text"
               name="panNumber"
@@ -654,6 +670,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
           </div>
 
           <div className="insurance-form-group">
+            <label>Net Premium</label>
             <input
               type="number"
               name="netPremium"
@@ -666,6 +683,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
           </div>
 
           <div className="insurance-form-group">
+            <label>GST (18%)</label>
             <input
               type="number"
               name="gst"
@@ -677,6 +695,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
           </div>
 
           <div className="insurance-form-group">
+            <label>Gross Premium</label>
             <input
               type="number"
               name="grossPremium"
@@ -688,6 +707,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
           </div>
 
           <div className="insurance-form-group">
+            <label>Insurance Company</label>
             <Select
               options={insuranceCompanyOptions}
               value={
@@ -705,7 +725,12 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
               isClearable
               components={{ MenuList: CustomMenuList }}
               styles={{
-                menu: (provided) => ({ ...provided, zIndex: 9999 }),
+                menu: (provided) => ({ 
+                  ...provided, 
+                  zIndex: 9999,
+                  position: 'absolute'
+                }),
+                menuPortal: (provided) => ({ ...provided, zIndex: 9999 }),
                 control: (provided) => ({
                   ...provided,
                   minHeight: "44px",
@@ -738,6 +763,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             className="insurance-form-group"
             style={{ gridColumn: "span 2" }}
           >
+            <label>Remarks</label>
             <textarea
               name="remarks"
               value={formData.remarks}
@@ -1385,6 +1411,7 @@ const RenewalForm = ({ policy, onClose, onRenewalCompleted }) => {
             className="insurance-form-group"
             style={{ gridColumn: "span 2" }}
           >
+            <label>Remarks</label>
             <textarea
               name="remarks"
               value={formData.remarks}

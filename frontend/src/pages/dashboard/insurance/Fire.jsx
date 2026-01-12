@@ -502,6 +502,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
       <form onSubmit={handleSubmit} className="insurance-form">
         <div className="insurance-form-grid">
           <div className="insurance-form-group">
+            <label>Company/Consumer</label>
             <Select
               options={combinedOptions}
               value={combinedOptions
@@ -518,7 +519,12 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
               isClearable
               isSearchable={true}
               styles={{
-                menu: (provided) => ({ ...provided, zIndex: 9999 }),
+                menu: (provided) => ({ 
+                  ...provided, 
+                  zIndex: 9999,
+                  position: 'absolute'
+                }),
+                menuPortal: (provided) => ({ ...provided, zIndex: 9999 }),
                 control: (provided) => ({
                   ...provided,
                   minHeight: "44px",
@@ -537,6 +543,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Business Type</label>
             <select
               name="businessType"
               value={formData.businessType}
@@ -550,6 +557,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             </select>
           </div>
           <div className="insurance-form-group">
+            <label>Customer Type</label>
             <select
               name="customerType"
               value={formData.customerType}
@@ -562,6 +570,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             </select>
           </div>
           <div className="insurance-form-group">
+            <label>Proposer Name</label>
             <input
               type="text"
               name="proposer_name"
@@ -572,6 +581,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Policy Number</label>
             <input
               type="text"
               name="policyNumber"
@@ -582,6 +592,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Email</label>
             <input
               type="email"
               name="email"
@@ -593,6 +604,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Mobile Number</label>
             <PhoneInput
               international
               defaultCountry="IN"
@@ -606,6 +618,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Policy Start Date</label>
             <input
               type="date"
               name="policyStartDate"
@@ -615,6 +628,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Policy End Date</label>
             <input
               type="date"
               name="policyEndDate"
@@ -624,6 +638,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Total Sum Insured</label>
             <input
               type="text"
               name="totalSumInsured"
@@ -634,6 +649,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>GST Number</label>
             <input
               type="text"
               name="gstNumber"
@@ -644,6 +660,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>PAN Number</label>
             <input
               type="text"
               name="panNumber"
@@ -654,6 +671,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Net Premium</label>
             <input
               type="number"
               name="netPremium"
@@ -664,9 +682,9 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>GST (18%)</label>
             <input
               type="number"
-              name="gst"
               value={gst}
               placeholder="GST (18%)"
               className="insurance-form-input"
@@ -674,9 +692,9 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Gross Premium</label>
             <input
               type="number"
-              name="grossPremium"
               value={grossPremium}
               placeholder="Gross Premium"
               className="insurance-form-input"
@@ -684,6 +702,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Insurance Company</label>
             <Select
               options={insuranceCompanyOptions}
               value={
@@ -700,7 +719,12 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
               placeholder="Select Insurance Company"
               isClearable
               styles={{
-                menu: (provided) => ({ ...provided, zIndex: 9999 }),
+                menu: (provided) => ({ 
+                  ...provided, 
+                  zIndex: 9999,
+                  position: 'absolute'
+                }),
+                menuPortal: (provided) => ({ ...provided, zIndex: 9999 }),
                 control: (provided) => ({
                   ...provided,
                   minHeight: "44px",
@@ -732,6 +756,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             className="insurance-form-group"
             style={{ gridColumn: "span 2" }}
           >
+            <label>Remarks</label>
             <textarea
               name="remarks"
               value={formData.remarks}
@@ -776,9 +801,9 @@ const RenewalForm = ({ policy, onClose, onPolicyRenewed }) => {
     mobileNumber: "",
     policyStartDate: "",
     policyEndDate: "",
-    propertyAddress: "",
-    propertyType: "",
-    sumInsured: "",
+    totalSumInsured: "",
+    gstNumber: "",
+    panNumber: "",
     netPremium: "",
     gst: "",
     grossPremium: "",
@@ -814,9 +839,9 @@ const RenewalForm = ({ policy, onClose, onPolicyRenewed }) => {
         mobileNumber: policy.mobileNumber || policy.mobile_number || "",
         policyStartDate: "", // Clear dates - user must enter new dates
         policyEndDate: "",
-        propertyAddress: policy.propertyAddress || policy.property_address || "",
-        propertyType: policy.propertyType || policy.property_type || "",
-        sumInsured: policy.sumInsured || policy.sum_insured || "",
+        totalSumInsured: policy.totalSumInsured || policy.total_sum_insured || "",
+        gstNumber: policy.gstNumber || policy.gst_number || "",
+        panNumber: policy.panNumber || policy.pan_number || "",
         netPremium: "", // Clear premium - user must enter new values
         gst: "",
         grossPremium: "",
@@ -832,17 +857,34 @@ const RenewalForm = ({ policy, onClose, onPolicyRenewed }) => {
     fetchDropdownData();
   }, []);
 
+  useEffect(() => {
+    const netPremium = parseFloat(formData.netPremium) || 0;
+    const calculatedGst = netPremium * 0.18; // 18% GST
+    const calculatedGross = netPremium + calculatedGst;
+    setGst(calculatedGst.toFixed(2));
+    setGrossPremium(calculatedGross.toFixed(2));
+  }, [formData.netPremium]);
+
   const fetchDropdownData = async () => {
     try {
       const [companiesRes, consumersRes, insuranceRes] = await Promise.all([
         firePolicyAPI.getActiveCompanies(),
         firePolicyAPI.getActiveConsumers(),
-        firePolicyAPI.getActiveInsuranceCompanies(),
+        insuranceCompanyAPI.getAllCompanies({ pageSize: 9999 }),
       ]);
       
       setCompanies(companiesRes || []);
       setConsumers(consumersRes || []);
-      setInsuranceCompanies(insuranceRes || []);
+      
+      // Handle insurance companies response format
+      const companies = Array.isArray(insuranceRes)
+        ? insuranceRes
+        : Array.isArray(insuranceRes.data)
+        ? insuranceRes.data
+        : Array.isArray(insuranceRes.companies)
+        ? insuranceRes.companies
+        : [];
+      setInsuranceCompanies(companies);
 
       // Create combined options like Vehicle component
       const options = [
@@ -876,18 +918,6 @@ const RenewalForm = ({ policy, onClose, onPolicyRenewed }) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     setError("");
-
-    // Auto-calculate GST and gross premium when net premium changes
-    if (name === "netPremium") {
-      const netPremium = parseFloat(value) || 0;
-      const gst = netPremium * 0.18;
-      const grossPremium = netPremium + gst;
-      setFormData((prev) => ({
-        ...prev,
-        gst: gst.toFixed(2),
-        grossPremium: grossPremium.toFixed(2),
-      }));
-    }
   };
 
   const handleFileChange = (e) => {
@@ -968,12 +998,20 @@ const RenewalForm = ({ policy, onClose, onPolicyRenewed }) => {
           formDataToSend.append('sum_insured', value);
         } else if (key === 'netPremium') {
           formDataToSend.append('net_premium', value);
+        } else if (key === 'gst') {
+          // Skip - we'll add the calculated GST value separately
+          return;
         } else if (key === 'grossPremium') {
-          formDataToSend.append('gross_premium', value);
+          // Skip - we'll add the calculated gross premium value separately
+          return;
         } else {
           formDataToSend.append(backendKey, value);
         }
       });
+
+      // Add calculated GST and gross premium values
+      formDataToSend.append('gst', parseFloat(gst).toFixed(2));
+      formDataToSend.append('gross_premium', parseFloat(grossPremium).toFixed(2));
 
       // Add the policy document
       formDataToSend.append('policyDocument', policyDocument);
@@ -1022,242 +1060,299 @@ const RenewalForm = ({ policy, onClose, onPolicyRenewed }) => {
 
   return (
     <form onSubmit={handleSubmit} className="insurance-form">
-      <div className="insurance-form-section">
-        <h3>Renewal Information</h3>
-        <div className="insurance-form-grid">
-          <div className="insurance-form-group">
-            <label>Business Type *</label>
-            <input
-              type="text"
-              name="businessType"
-              value={formData.businessType}
-              readOnly
-              className="insurance-form-input"
-              style={{ backgroundColor: '#f5f5f5' }}
-            />
-          </div>
+      {error && (
+        <div className="insurance-error" style={{ marginBottom: "16px" }}>
+          {error}
+        </div>
+      )}
 
-          <div className="insurance-form-group">
-            <label>Customer Type *</label>
-            <input
-              type="text"
-              name="customerType"
-              value={formData.customerType}
-              readOnly
-              className="insurance-form-input"
-              style={{ backgroundColor: '#f5f5f5' }}
-            />
-          </div>
+      <div className="insurance-form-grid">
+        <div className="insurance-form-group">
+          <label>Business Type</label>
+          <select
+            name="businessType"
+            value={formData.businessType}
+            onChange={handleChange}
+            className="insurance-form-input"
+            required
+            disabled
+          >
+            <option value="Renewal/Rollover">Renewal/Rollover</option>
+          </select>
+        </div>
 
-          <div className="insurance-form-group">
-            <label>Insurance Company *</label>
-            <Select
-              value={insuranceCompanyOptions.find(opt => opt.value === formData.insuranceCompanyId)}
-              onChange={(selected) => setFormData(prev => ({ ...prev, insuranceCompanyId: selected?.value || '' }))}
-              options={insuranceCompanyOptions}
-              placeholder="Select insurance company"
-              className="insurance-form-select"
-              isDisabled={true}
-              styles={{
-                control: (base) => ({
-                  ...base,
-                  backgroundColor: '#f5f5f5'
-                })
-              }}
-            />
-          </div>
+        <div className="insurance-form-group">
+          <label>Customer Type</label>
+          <select
+            name="customerType"
+            value={formData.customerType}
+            onChange={handleChange}
+            className="insurance-form-input"
+            required
+          >
+            <option value="">Select Customer Type</option>
+            <option value="Organisation">Organisation</option>
+            <option value="Individual">Individual</option>
+          </select>
+        </div>
 
-          <div className="insurance-form-group">
-            <label>Proposer Name *</label>
-            <input
-              type="text"
-              name="proposerName"
-              value={formData.proposerName}
-              readOnly
-              className="insurance-form-input"
-              style={{ backgroundColor: '#f5f5f5' }}
-            />
-          </div>
+        <div className="insurance-form-group">
+          <label>Company/Consumer</label>
+          <Select
+            options={combinedOptions}
+            value={combinedOptions
+              .flatMap((group) => group.options)
+              .find(
+                (option) =>
+                  (option.type === "company" &&
+                    option.data.company_id === formData.companyId) ||
+                  (option.type === "consumer" &&
+                    option.data.consumer_id === formData.consumerId)
+              )}
+            onChange={(option) => {
+              if (!option) {
+                setFormData((prev) => ({
+                  ...prev,
+                  companyId: "",
+                  consumerId: "",
+                  email: "",
+                  mobileNumber: "",
+                  proposerName: "",
+                }));
+                return;
+              }
+              const { type, data } = option;
+              if (type === "company") {
+                setFormData((prev) => ({
+                  ...prev,
+                  companyId: data.company_id,
+                  consumerId: "",
+                  email: data.company_email,
+                  mobileNumber: data.contact_number,
+                  proposerName: data.company_name,
+                }));
+              } else if (type === "consumer") {
+                setFormData((prev) => ({
+                  ...prev,
+                  companyId: "",
+                  consumerId: data.consumer_id,
+                  email: data.email,
+                  mobileNumber: data.phone_number,
+                  proposerName: data.name,
+                }));
+              }
+            }}
+            placeholder="Select Company or Consumer"
+            isClearable
+            isSearchable={true}
+            styles={{
+              menu: (provided) => ({ 
+                ...provided, 
+                zIndex: 9999,
+                position: 'absolute'
+              }),
+              menuPortal: (provided) => ({ ...provided, zIndex: 9999 }),
+              control: (provided) => ({
+                ...provided,
+                minHeight: "44px",
+                borderRadius: "8px",
+                borderColor: "#d1d5db",
+              }),
+              groupHeading: (provided) => ({
+                ...provided,
+                fontWeight: "bold",
+                color: "#1F4F9C",
+                backgroundColor: "#f3f4f6",
+                padding: "8px 12px",
+                margin: 0,
+              }),
+            }}
+          />
+        </div>
 
-          <div className="insurance-form-group">
-            <label>New Policy Number *</label>
-            <input
-              type="text"
-              name="policyNumber"
-              value={formData.policyNumber}
-              onChange={handleChange}
-              placeholder="Enter new policy number"
-              required
-              className="insurance-form-input"
-            />
-          </div>
+        <div className="insurance-form-group">
+          <label>Proposer Name</label>
+          <input
+            type="text"
+            name="proposerName"
+            value={formData.proposerName}
+            readOnly
+            className="insurance-form-input"
+            placeholder="Organisation Name / Policy Holder Name"
+          />
+        </div>
 
-          <div className="insurance-form-group">
-            <label>Email *</label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              className="insurance-form-input"
-            />
-          </div>
+        <div className="insurance-form-group">
+          <label>New Policy Number</label>
+          <input
+            type="text"
+            name="policyNumber"
+            value={formData.policyNumber}
+            onChange={handleChange}
+            placeholder="Enter new policy number"
+            required
+            className="insurance-form-input"
+          />
+        </div>
 
-          <div className="insurance-form-group">
-            <label>Mobile Number *</label>
-            <PhoneInput
-              international
-              countryCallingCodeEditable={false}
-              defaultCountry="IN"
-              value={formData.mobileNumber}
-              onChange={(value) => setFormData(prev => ({ ...prev, mobileNumber: value || '' }))}
-              className="insurance-form-phone"
-              flags={flags}
-            />
-          </div>
+        <div className="insurance-form-group">
+          <label>Email</label>
+          <input
+            type="email"
+            name="email"
+            value={formData.email}
+            onChange={handleChange}
+            required
+            className="insurance-form-input"
+            placeholder="Email"
+          />
+        </div>
 
-          <div className="insurance-form-group">
-            <label>Policy Start Date *</label>
-            <input
-              type="date"
-              name="policyStartDate"
-              value={formData.policyStartDate}
-              onChange={handleChange}
-              required
-              className="insurance-form-input"
-            />
-          </div>
+        <div className="insurance-form-group">
+          <label>Mobile Number</label>
+          <PhoneInput
+            international
+            countryCallingCodeEditable={false}
+            defaultCountry="IN"
+            value={formData.mobileNumber}
+            onChange={(value) => setFormData(prev => ({ ...prev, mobileNumber: value || '' }))}
+            className="insurance-form-input phone-input-custom"
+            flags={flags}
+          />
+        </div>
 
-          <div className="insurance-form-group">
-            <label>Policy End Date *</label>
-            <input
-              type="date"
-              name="policyEndDate"
-              value={formData.policyEndDate}
-              onChange={handleChange}
-              required
-              className="insurance-form-input"
-            />
-          </div>
+        <div className="insurance-form-group">
+          <label>Policy Start Date</label>
+          <input
+            type="date"
+            name="policyStartDate"
+            value={formData.policyStartDate}
+            onChange={handleChange}
+            required
+            className="insurance-form-input"
+          />
+        </div>
 
-          <div className="insurance-form-group">
-            <label>Property Address *</label>
-            <input
-              type="text"
-              name="propertyAddress"
-              value={formData.propertyAddress}
-              onChange={handleChange}
-              required
-              className="insurance-form-input"
-            />
-          </div>
+        <div className="insurance-form-group">
+          <label>Policy End Date</label>
+          <input
+            type="date"
+            name="policyEndDate"
+            value={formData.policyEndDate}
+            onChange={handleChange}
+            required
+            className="insurance-form-input"
+          />
+        </div>
 
-          <div className="insurance-form-group">
-            <label>Property Type *</label>
-            <select
-              name="propertyType"
-              value={formData.propertyType}
-              onChange={handleChange}
-              required
-              className="insurance-form-input"
-            >
-              <option value="">Select Property Type</option>
-              <option value="Residential">Residential</option>
-              <option value="Commercial">Commercial</option>
-              <option value="Industrial">Industrial</option>
-              <option value="Institutional">Institutional</option>
-            </select>
-          </div>
+        <div className="insurance-form-group">
+          <label>Total Sum Insured</label>
+          <input
+            type="text"
+            name="totalSumInsured"
+            value={formData.totalSumInsured}
+            onChange={handleChange}
+            required
+            className="insurance-form-input"
+            placeholder="Total Sum Insured"
+          />
+        </div>
 
-          <div className="insurance-form-group">
-            <label>Sum Insured *</label>
-            <input
-              type="number"
-              step="0.01"
-              name="sumInsured"
-              value={formData.sumInsured}
-              onChange={handleChange}
-              required
-              className="insurance-form-input"
-              placeholder="Enter sum insured"
-            />
-          </div>
+        <div className="insurance-form-group">
+          <label>GST Number</label>
+          <input
+            type="text"
+            name="gstNumber"
+            value={formData.gstNumber}
+            onChange={handleChange}
+            className="insurance-form-input"
+            placeholder="GST Number"
+          />
+        </div>
 
-          <div className="insurance-form-group">
-            <label>Net Premium *</label>
-            <input
-              type="number"
-              step="0.01"
-              name="netPremium"
-              value={formData.netPremium}
-              onChange={handleChange}
-              required
-              className="insurance-form-input"
-              placeholder="Enter net premium"
-            />
-          </div>
+        <div className="insurance-form-group">
+          <label>PAN Number</label>
+          <input
+            type="text"
+            name="panNumber"
+            value={formData.panNumber}
+            onChange={handleChange}
+            className="insurance-form-input"
+            placeholder="PAN Number"
+          />
+        </div>
 
-          <div className="insurance-form-group">
-            <label>GST (18%) *</label>
-            <input
-              type="number"
-              step="0.01"
-              name="gst"
-              value={formData.gst}
-              readOnly
-              className="insurance-form-input"
-              style={{ backgroundColor: '#f5f5f5' }}
-            />
-          </div>
+        <div className="insurance-form-group">
+          <label>Net Premium</label>
+          <input
+            type="number"
+            step="0.01"
+            name="netPremium"
+            value={formData.netPremium}
+            onChange={handleChange}
+            required
+            className="insurance-form-input"
+            placeholder="Net Premium"
+          />
+        </div>
 
-          <div className="insurance-form-group">
-            <label>Gross Premium *</label>
-            <input
-              type="number"
-              step="0.01"
-              name="grossPremium"
-              value={formData.grossPremium}
-              readOnly
-              className="insurance-form-input"
-              style={{ backgroundColor: '#f5f5f5' }}
-            />
-          </div>
+        <div className="insurance-form-group">
+          <label>GST (18%)</label>
+          <input
+            type="number"
+            step="0.01"
+            value={gst}
+            readOnly
+            className="insurance-form-input"
+            placeholder="GST (18%)"
+          />
+        </div>
 
-          <div className="insurance-form-group insurance-form-group-full">
-            <label>Policy Document *</label>
-            <div className="insurance-file-upload">
+        <div className="insurance-form-group">
+          <label>Gross Premium</label>
+          <input
+            type="number"
+            step="0.01"
+            value={grossPremium}
+            readOnly
+            className="insurance-form-input"
+            placeholder="Gross Premium"
+          />
+        </div>
+
+        <div className="insurance-form-group file-upload-group">
+          <label className="file-upload-label">
+            <span>Policy Document</span>
+            <div className="file-upload-container">
               <input
                 type="file"
                 accept=".pdf,.doc,.docx"
                 onChange={handleFileChange}
-                className="insurance-form-input"
+                className="file-upload-input"
                 required
               />
-              <small className="insurance-form-help">
-                Upload new policy document (PDF or Word, max 10MB)
-              </small>
-              {documentError && (
-                <div className="insurance-error">{documentError}</div>
-              )}
+              <div className="file-upload-button">
+                <BiUpload /> Upload Policy Document
+              </div>
             </div>
-          </div>
+          </label>
+          {documentError && (
+            <div className="insurance-error">{documentError}</div>
+          )}
+        </div>
 
-          <div className="insurance-form-group insurance-form-group-full">
-            <label>Remarks</label>
-            <textarea
-              name="remarks"
-              value={formData.remarks}
-              onChange={handleChange}
-              placeholder="Enter any remarks for the renewal"
-              className="insurance-form-textarea"
-              rows="3"
-            />
-          </div>
+        <div className="insurance-form-group" style={{ gridColumn: "span 2" }}>
+          <label>Remarks</label>
+          <textarea
+            name="remarks"
+            value={formData.remarks}
+            onChange={handleChange}
+            placeholder="Remarks"
+            className="insurance-form-input"
+            rows={2}
+          />
         </div>
       </div>
-
-      {error && <div className="insurance-error">{error}</div>}
 
       <div className="insurance-form-actions">
         <Button type="button" variant="outlined" onClick={onClose}>
@@ -1560,9 +1655,9 @@ function Fire({ searchQuery = "" }) {
       mobile_number: policy.mobile_number,
       policy_start_date: policy.policy_start_date,
       policy_end_date: policy.policy_end_date,
-      property_address: policy.property_address,
-      property_type: policy.property_type,
-      sum_insured: policy.sum_insured,
+      total_sum_insured: policy.total_sum_insured,
+      gst_number: policy.gst_number,
+      pan_number: policy.pan_number,
       net_premium: policy.net_premium,
     };
     setSelectedPolicyForRenewal(transformedPolicy);
@@ -1657,7 +1752,93 @@ function Fire({ searchQuery = "" }) {
     { key: "email", label: "Email", sortable: true },
     { key: "mobile_number", label: "Mobile Number", sortable: true },
     { key: "net_premium", label: "Net Premium", sortable: true },
-    { key: "status", label: "Status", sortable: true },
+    {
+      key: "policy_type",
+      label: "Policy Type",
+      sortable: true,
+      render: (_, policy) => {
+        const isRunning =
+          policy.status === "active" || policy.policy_type === "running";
+        const isPrevious =
+          policy.status === "expired" || policy.policy_type === "previous";
+
+        if (isRunning) {
+          return (
+            <span
+              style={{
+                display: "inline-block",
+                padding: "6px 14px",
+                borderRadius: "16px",
+                fontSize: "12px",
+                fontWeight: "600",
+                backgroundColor: "#d1fae5",
+                color: "#065f46",
+                border: "1px solid #6ee7b7",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+              }}
+            >
+              Running
+            </span>
+          );
+        } else if (isPrevious) {
+          return (
+            <span
+              style={{
+                display: "inline-block",
+                padding: "6px 14px",
+                borderRadius: "16px",
+                fontSize: "12px",
+                fontWeight: "600",
+                backgroundColor: "#fee2e2",
+                color: "#991b1b",
+                border: "1px solid #fca5a5",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+              }}
+            >
+              Previous
+            </span>
+          );
+        }
+
+        return null;
+      },
+    },
+    {
+      key: "status",
+      label: "Status",
+      sortable: true,
+      render: (value) => {
+        const statusText = value
+          ? value.charAt(0).toUpperCase() + value.slice(1)
+          : "Unknown";
+        const statusColors = {
+          active: { bg: "#d1fae5", color: "#065f46", border: "#6ee7b7" },
+          expired: { bg: "#fee2e2", color: "#991b1b", border: "#fca5a5" },
+          cancelled: { bg: "#f3f4f6", color: "#374151", border: "#d1d5db" },
+        };
+        const colors =
+          statusColors[value?.toLowerCase()] || statusColors.cancelled;
+
+        return (
+          <span
+            style={{
+              display: "inline-block",
+              padding: "4px 12px",
+              borderRadius: "12px",
+              fontSize: "12px",
+              fontWeight: "600",
+              backgroundColor: colors.bg,
+              color: colors.color,
+              border: `1px solid ${colors.border}`,
+            }}
+          >
+            {statusText}
+          </span>
+        );
+      },
+    },
     {
       key: "actions",
       label: "Actions",
@@ -1843,59 +2024,6 @@ function Fire({ searchQuery = "" }) {
                   data={allPoliciesFlat}
                   columns={[
                     ...columns.slice(0, -1), // All columns except actions
-                    {
-                      key: "policy_type",
-                      label: "Policy Type",
-                      sortable: true,
-                      render: (_, policy) => {
-                        const isRunning =
-                          policy.status === "active" || policy.policy_type === "running";
-                        const isPrevious =
-                          policy.status === "expired" || policy.policy_type === "previous";
-
-                        if (isRunning) {
-                          return (
-                            <span
-                              style={{
-                                display: "inline-block",
-                                padding: "6px 14px",
-                                borderRadius: "16px",
-                                fontSize: "12px",
-                                fontWeight: "600",
-                                backgroundColor: "#d1fae5",
-                                color: "#065f46",
-                                border: "1px solid #6ee7b7",
-                                textTransform: "uppercase",
-                                letterSpacing: "0.5px",
-                              }}
-                            >
-                              Running
-                            </span>
-                          );
-                        } else if (isPrevious) {
-                          return (
-                            <span
-                              style={{
-                                display: "inline-block",
-                                padding: "6px 14px",
-                                borderRadius: "16px",
-                                fontSize: "12px",
-                                fontWeight: "600",
-                                backgroundColor: "#fee2e2",
-                                color: "#991b1b",
-                                border: "1px solid #fca5a5",
-                                textTransform: "uppercase",
-                                letterSpacing: "0.5px",
-                              }}
-                            >
-                              Previous
-                            </span>
-                          );
-                        }
-
-                        return null;
-                      },
-                    },
                     {
                       key: "actions",
                       label: "Actions",

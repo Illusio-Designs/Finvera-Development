@@ -215,7 +215,56 @@
 - ✅ **Consistent UI**: All components now match ECP/Vehicle design pattern
 - ✅ **FIXED: Previous Policies Display**: All Policy tab now properly shows both running and previous policies with proper status indicators
 
-## 📋 Database Tables Status
+## ✅ COMPLETED - Task 5: Policy Type and Status Columns with Styled Badges
+
+### 1. Duplicate Policy Type Column Removal
+- ✅ **Fire Component**: Removed duplicate Policy Type column from `frontend/src/pages/dashboard/insurance/Fire.jsx`
+- ✅ **Life Component**: Removed duplicate Policy Type column from `frontend/src/pages/dashboard/insurance/Life.jsx`
+- ✅ **Health Component**: Already had correct structure (Status column only, no duplicate Policy Type)
+
+### 2. Status Column Implementation
+- ✅ All three components (Health, Fire, Life) now have styled Status column with color-coded badges:
+  - **Active**: Green badge (#d1fae5 background, #065f46 text)
+  - **Expired**: Red badge (#fee2e2 background, #991b1b text)  
+  - **Cancelled**: Gray badge (#f3f4f6 background, #374151 text)
+
+### 3. Renewal Form Field Consistency Verification
+- ✅ **Fire Component**: RenewalForm has same fields as PolicyForm (`totalSumInsured`, `gstNumber`, `panNumber`)
+- ✅ **Life Component**: **FIXED** - Added missing fields to RenewalForm to match PolicyForm:
+  - ✅ Added `subProduct` field with label "Sub Product *"
+  - ✅ Added `pt` field with label "PT (Policy Term) *"
+  - ✅ Updated formData state to include `subProduct` and `pt`
+  - ✅ Updated pre-filling logic in useEffect to populate these fields
+  - ✅ Updated handleSubmit field mappings for backend compatibility
+- ✅ **Health Component**: Already had consistent fields between forms
+
+### 4. Final Column Structure (All Components)
+Each component now has this consistent column structure:
+1. Sr No.
+2. Company Name / Consumer Name  
+3. Policy Number
+4. Business Type
+5. Customer Type
+6. Email
+7. Mobile Number
+8. Net Premium
+9. **Status** (with styled badges) - **ONLY STATUS COLUMN, NO DUPLICATE POLICY TYPE**
+10. Actions (Edit, Renew, Delete, Download)
+
+## 🎯 TASK 5 COMPLETE!
+
+### ✅ Summary of Changes Made:
+1. **Removed duplicate Policy Type columns** from Fire and Life components
+2. **Verified Status column styling** is consistent across all components  
+3. **Fixed Life RenewalForm** to have same fields as PolicyForm (`subProduct`, `pt` added)
+4. **Confirmed field consistency** between create/update and renewal forms for all policy types
+
+### 🔧 Components Now Ready:
+- **Health**: ✅ Correct structure, no duplicates
+- **Fire**: ✅ Duplicate Policy Type removed, Status column retained
+- **Life**: ✅ Duplicate Policy Type removed, RenewalForm fields fixed, Status column retained
+
+All three policy components now have identical structure matching ECP/Vehicle pattern with proper Status badges and no duplicate columns!
 
 ### Main Policy Tables (Active Policies)
 - ✅ `HealthPolicies` - Updated with `previous_policy_id`

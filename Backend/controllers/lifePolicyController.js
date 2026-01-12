@@ -759,7 +759,7 @@ exports.renewPolicy = async (req, res) => {
       const targetUserId = currentPolicy.companyPolicyHolder?.user_id || currentPolicy.consumerPolicyHolder?.user_id;
       if (targetUserId) {
         await UserRoleWorkLog.create({
-          user_id: req.user.id,
+          user_id: req.user?.user_id || null,
           target_user_id: targetUserId,
           action: 'renewed_life_policy',
           details: JSON.stringify({

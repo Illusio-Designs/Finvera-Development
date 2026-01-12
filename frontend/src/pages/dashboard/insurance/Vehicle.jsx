@@ -558,7 +558,12 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
               isClearable
               isSearchable={true}
               styles={{
-                menu: (provided) => ({ ...provided, zIndex: 9999 }),
+                menu: (provided) => ({ 
+                  ...provided, 
+                  zIndex: 9999,
+                  position: 'absolute'
+                }),
+                menuPortal: (provided) => ({ ...provided, zIndex: 9999 }),
                 control: (provided) => ({
                   ...provided,
                   minHeight: "44px",
@@ -645,6 +650,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Policy Start Date</label>
             <input
               type="date"
               name="policyStartDate"
@@ -654,6 +660,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Policy End Date</label>
             <input
               type="date"
               name="policyEndDate"
@@ -789,7 +796,12 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
               isClearable
               components={{ MenuList: CustomMenuList }}
               styles={{
-                menu: (provided) => ({ ...provided, zIndex: 9999 }),
+                menu: (provided) => ({ 
+                  ...provided, 
+                  zIndex: 9999,
+                  position: 'absolute'
+                }),
+                menuPortal: (provided) => ({ ...provided, zIndex: 9999 }),
                 control: (provided) => ({
                   ...provided,
                   minHeight: "44px",
@@ -1371,7 +1383,12 @@ const RenewalForm = ({ policy, onClose, onRenewalCompleted }) => {
               isSearchable={true}
               required
               styles={{
-                menu: (provided) => ({ ...provided, zIndex: 9999 }),
+                menu: (provided) => ({ 
+                  ...provided, 
+                  zIndex: 9999,
+                  position: 'absolute'
+                }),
+                menuPortal: (provided) => ({ ...provided, zIndex: 9999 }),
                 control: (provided, state) => ({
                   ...provided,
                   minHeight: "44px",
@@ -1448,7 +1465,12 @@ const RenewalForm = ({ policy, onClose, onRenewalCompleted }) => {
               isClearable
               components={{ MenuList: CustomMenuList }}
               styles={{
-                menu: (provided) => ({ ...provided, zIndex: 9999 }),
+                menu: (provided) => ({ 
+                  ...provided, 
+                  zIndex: 9999,
+                  position: 'absolute'
+                }),
+                menuPortal: (provided) => ({ ...provided, zIndex: 9999 }),
                 control: (provided, state) => ({
                   ...provided,
                   minHeight: "44px",

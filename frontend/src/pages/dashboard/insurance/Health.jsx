@@ -545,6 +545,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
       <form onSubmit={handleSubmit} className="insurance-form">
         <div className="insurance-form-grid">
           <div className="insurance-form-group">
+            <label>Company/Consumer</label>
             <Select
               options={combinedOptions}
               value={combinedOptions
@@ -561,7 +562,12 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
               isClearable
               isSearchable={true}
               styles={{
-                menu: (provided) => ({ ...provided, zIndex: 9999 }),
+                menu: (provided) => ({ 
+                  ...provided, 
+                  zIndex: 9999,
+                  position: 'absolute'
+                }),
+                menuPortal: (provided) => ({ ...provided, zIndex: 9999 }),
                 control: (provided) => ({
                   ...provided,
                   minHeight: "44px",
@@ -580,6 +586,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Business Type</label>
             <select
               name="businessType"
               value={formData.businessType}
@@ -593,6 +600,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             </select>
           </div>
           <div className="insurance-form-group">
+            <label>Customer Type</label>
             <select
               name="customerType"
               value={formData.customerType}
@@ -605,6 +613,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             </select>
           </div>
           <div className="insurance-form-group">
+            <label>Policy Number</label>
             <input
               type="text"
               name="policyNumber"
@@ -615,6 +624,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Email</label>
             <input
               type="email"
               name="email"
@@ -626,6 +636,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Mobile Number</label>
             <PhoneInput
               international
               defaultCountry="IN"
@@ -638,6 +649,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Proposer Name</label>
             <input
               type="text"
               name="proposer_name"
@@ -648,6 +660,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Policy Start Date</label>
             <input
               type="date"
               name="policyStartDate"
@@ -657,6 +670,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Policy End Date</label>
             <input
               type="date"
               name="policyEndDate"
@@ -666,6 +680,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Plan Name</label>
             <input
               type="text"
               name="planName"
@@ -676,6 +691,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Medical Cover (in lac)</label>
             <select
               name="medicalCover"
               value={formData.medicalCover}
@@ -692,6 +708,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             </select>
           </div>
           <div className="insurance-form-group">
+            <label>Net Premium</label>
             <input
               type="number"
               name="netPremium"
@@ -702,9 +719,9 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>GST (18%)</label>
             <input
               type="number"
-              name="gst"
               value={gst}
               placeholder="GST (18%)"
               className="insurance-form-input"
@@ -712,9 +729,9 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Gross Premium</label>
             <input
               type="number"
-              name="grossPremium"
               value={grossPremium}
               placeholder="Gross Premium"
               className="insurance-form-input"
@@ -722,6 +739,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Insurance Company</label>
             <Select
               options={insuranceCompanyOptions}
               value={
@@ -738,7 +756,12 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
               placeholder="Select Insurance Company"
               isClearable
               styles={{
-                menu: (provided) => ({ ...provided, zIndex: 9999 }),
+                menu: (provided) => ({ 
+                  ...provided, 
+                  zIndex: 9999,
+                  position: 'absolute'
+                }),
+                menuPortal: (provided) => ({ ...provided, zIndex: 9999 }),
                 control: (provided) => ({
                   ...provided,
                   minHeight: "44px",
@@ -770,6 +793,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             className="insurance-form-group"
             style={{ gridColumn: "span 2" }}
           >
+            <label>Remarks</label>
             <textarea
               name="remarks"
               value={formData.remarks}
@@ -869,17 +893,34 @@ const RenewalForm = ({ policy, onClose, onPolicyRenewed }) => {
     fetchDropdownData();
   }, []);
 
+  useEffect(() => {
+    const netPremium = parseFloat(formData.netPremium) || 0;
+    const calculatedGst = netPremium * 0.18; // 18% GST
+    const calculatedGross = netPremium + calculatedGst;
+    setGst(calculatedGst.toFixed(2));
+    setGrossPremium(calculatedGross.toFixed(2));
+  }, [formData.netPremium]);
+
   const fetchDropdownData = async () => {
     try {
       const [companiesRes, consumersRes, insuranceRes] = await Promise.all([
         healthPolicyAPI.getActiveCompanies(),
         healthPolicyAPI.getActiveConsumers(),
-        healthPolicyAPI.getActiveInsuranceCompanies(),
+        insuranceCompanyAPI.getAllCompanies({ pageSize: 9999 }),
       ]);
       
       setCompanies(companiesRes || []);
       setConsumers(consumersRes || []);
-      setInsuranceCompanies(insuranceRes || []);
+      
+      // Handle insurance companies response format
+      const companies = Array.isArray(insuranceRes)
+        ? insuranceRes
+        : Array.isArray(insuranceRes.data)
+        ? insuranceRes.data
+        : Array.isArray(insuranceRes.companies)
+        ? insuranceRes.companies
+        : [];
+      setInsuranceCompanies(companies);
 
       // Create combined options like Vehicle component
       const options = [
@@ -913,18 +954,6 @@ const RenewalForm = ({ policy, onClose, onPolicyRenewed }) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     setError("");
-
-    // Auto-calculate GST and gross premium when net premium changes
-    if (name === "netPremium") {
-      const netPremium = parseFloat(value) || 0;
-      const gst = netPremium * 0.18;
-      const grossPremium = netPremium + gst;
-      setFormData((prev) => ({
-        ...prev,
-        gst: gst.toFixed(2),
-        grossPremium: grossPremium.toFixed(2),
-      }));
-    }
   };
 
   const handleFileChange = (e) => {
@@ -1003,12 +1032,20 @@ const RenewalForm = ({ policy, onClose, onPolicyRenewed }) => {
           formDataToSend.append('medical_cover', value);
         } else if (key === 'netPremium') {
           formDataToSend.append('net_premium', value);
+        } else if (key === 'gst') {
+          // Skip - we'll add the calculated GST value separately
+          return;
         } else if (key === 'grossPremium') {
-          formDataToSend.append('gross_premium', value);
+          // Skip - we'll add the calculated gross premium value separately
+          return;
         } else {
           formDataToSend.append(backendKey, value);
         }
       });
+
+      // Add calculated GST and gross premium values
+      formDataToSend.append('gst', parseFloat(gst).toFixed(2));
+      formDataToSend.append('gross_premium', parseFloat(grossPremium).toFixed(2));
 
       // Add the policy document
       formDataToSend.append('policyDocument', policyDocument);
@@ -1144,7 +1181,12 @@ const RenewalForm = ({ policy, onClose, onPolicyRenewed }) => {
             isClearable
             isSearchable={true}
             styles={{
-              menu: (provided) => ({ ...provided, zIndex: 9999 }),
+              menu: (provided) => ({ 
+                ...provided, 
+                zIndex: 9999,
+                position: 'absolute'
+              }),
+              menuPortal: (provided) => ({ ...provided, zIndex: 9999 }),
               control: (provided) => ({
                 ...provided,
                 minHeight: "44px",
@@ -1292,7 +1334,6 @@ const RenewalForm = ({ policy, onClose, onPolicyRenewed }) => {
           <input
             type="number"
             step="0.01"
-            name="gst"
             value={gst}
             placeholder="GST (18%)"
             className="insurance-form-input"
@@ -1305,7 +1346,6 @@ const RenewalForm = ({ policy, onClose, onPolicyRenewed }) => {
           <input
             type="number"
             step="0.01"
-            name="grossPremium"
             value={grossPremium}
             placeholder="Gross Premium"
             className="insurance-form-input"
@@ -1335,7 +1375,12 @@ const RenewalForm = ({ policy, onClose, onPolicyRenewed }) => {
             placeholder="Select Insurance Company"
             isClearable
             styles={{
-              menu: (provided) => ({ ...provided, zIndex: 9999 }),
+              menu: (provided) => ({ 
+                ...provided, 
+                zIndex: 9999,
+                position: 'absolute'
+              }),
+              menuPortal: (provided) => ({ ...provided, zIndex: 9999 }),
               control: (provided) => ({
                 ...provided,
                 minHeight: "44px",
@@ -1804,7 +1849,93 @@ function Health({ searchQuery = "" }) {
     { key: "email", label: "Email", sortable: true },
     { key: "mobile_number", label: "Mobile Number", sortable: true },
     { key: "net_premium", label: "Net Premium", sortable: true },
-    { key: "status", label: "Status", sortable: true },
+    {
+      key: "policy_type",
+      label: "Policy Type",
+      sortable: true,
+      render: (_, policy) => {
+        const isRunning =
+          policy.status === "active" || policy.policy_type === "running";
+        const isPrevious =
+          policy.status === "expired" || policy.policy_type === "previous";
+
+        if (isRunning) {
+          return (
+            <span
+              style={{
+                display: "inline-block",
+                padding: "6px 14px",
+                borderRadius: "16px",
+                fontSize: "12px",
+                fontWeight: "600",
+                backgroundColor: "#d1fae5",
+                color: "#065f46",
+                border: "1px solid #6ee7b7",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+              }}
+            >
+              Running
+            </span>
+          );
+        } else if (isPrevious) {
+          return (
+            <span
+              style={{
+                display: "inline-block",
+                padding: "6px 14px",
+                borderRadius: "16px",
+                fontSize: "12px",
+                fontWeight: "600",
+                backgroundColor: "#fee2e2",
+                color: "#991b1b",
+                border: "1px solid #fca5a5",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+              }}
+            >
+              Previous
+            </span>
+          );
+        }
+
+        return null;
+      },
+    },
+    {
+      key: "status",
+      label: "Status",
+      sortable: true,
+      render: (value) => {
+        const statusText = value
+          ? value.charAt(0).toUpperCase() + value.slice(1)
+          : "Unknown";
+        const statusColors = {
+          active: { bg: "#d1fae5", color: "#065f46", border: "#6ee7b7" },
+          expired: { bg: "#fee2e2", color: "#991b1b", border: "#fca5a5" },
+          cancelled: { bg: "#f3f4f6", color: "#374151", border: "#d1d5db" },
+        };
+        const colors =
+          statusColors[value?.toLowerCase()] || statusColors.cancelled;
+
+        return (
+          <span
+            style={{
+              display: "inline-block",
+              padding: "4px 12px",
+              borderRadius: "12px",
+              fontSize: "12px",
+              fontWeight: "600",
+              backgroundColor: colors.bg,
+              color: colors.color,
+              border: `1px solid ${colors.border}`,
+            }}
+          >
+            {statusText}
+          </span>
+        );
+      },
+    },
     {
       key: "actions",
       label: "Actions",
@@ -1989,59 +2120,6 @@ function Health({ searchQuery = "" }) {
                   data={allPoliciesFlat}
                   columns={[
                     ...columns.slice(0, -1), // All columns except actions
-                    {
-                      key: "policy_type",
-                      label: "Policy Type",
-                      sortable: true,
-                      render: (_, policy) => {
-                        const isRunning =
-                          policy.status === "active" || policy.policy_type === "running";
-                        const isPrevious =
-                          policy.status === "expired" || policy.policy_type === "previous";
-
-                        if (isRunning) {
-                          return (
-                            <span
-                              style={{
-                                display: "inline-block",
-                                padding: "6px 14px",
-                                borderRadius: "16px",
-                                fontSize: "12px",
-                                fontWeight: "600",
-                                backgroundColor: "#d1fae5",
-                                color: "#065f46",
-                                border: "1px solid #6ee7b7",
-                                textTransform: "uppercase",
-                                letterSpacing: "0.5px",
-                              }}
-                            >
-                              Running
-                            </span>
-                          );
-                        } else if (isPrevious) {
-                          return (
-                            <span
-                              style={{
-                                display: "inline-block",
-                                padding: "6px 14px",
-                                borderRadius: "16px",
-                                fontSize: "12px",
-                                fontWeight: "600",
-                                backgroundColor: "#fee2e2",
-                                color: "#991b1b",
-                                border: "1px solid #fca5a5",
-                                textTransform: "uppercase",
-                                letterSpacing: "0.5px",
-                              }}
-                            >
-                              Previous
-                            </span>
-                          );
-                        }
-
-                        return null;
-                      },
-                    },
                     {
                       key: "actions",
                       label: "Actions",
