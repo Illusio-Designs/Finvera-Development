@@ -1,5 +1,6 @@
-// Combined Database Initialization, Seeding, and Admin Setup Script
-// This script handles database setup, roles/permissions setup, and admin user setup
+// CONSOLIDATED SERVER SETUP SCRIPT
+// This script combines all individual setup scripts into one main file
+// Includes: Database setup, Account creation, Policy tables, Renewal system, and all other setup functions
 
 const { User, Role, UserRole, Company, Consumer, InsuranceCompany, EmployeeCompensationPolicy, VehiclePolicy, HealthPolicies, FirePolicy, LifePolicy, DSC, ReminderLog, DSCLog, UserRoleWorkLog, LabourInspection, LabourLicense, RenewalConfig } = require('../models');
 const sequelize = require('../config/db');
@@ -11,6 +12,9 @@ const RenewalStatus = require('../models/renewalStatusModel');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
+const config = require("../config/config.js");
+const { Sequelize, QueryTypes } = require("sequelize");
+const RenewalService = require('../services/renewalService');
 
 // Create logs directory if it doesn't exist
 const logsDir = path.join(__dirname, '../logs');
@@ -1107,7 +1111,945 @@ async function setupAll() {
   }
 }
 
-// Export individual functions for use in other files
+// ============================================================================
+// CONSOLIDATED FUNCTIONS FROM ALL SCRIPTS
+// ============================================================================
+
+// ===== ACCOUNT CHECKING AND CREATION FUNCTIONS =====
+
+// Check existing accounts
+async function checkExistingAccounts() {
+  try {
+    console.log('🔍 Checking existing accounts in database...\n');
+    
+    // Ensure database connection
+    await sequelize.authenticate();
+    console.log('✅ Database connection established\n');
+    
+    // Get all users
+    const users = await User.findAll({
+      include: [{
+        model: Role,
+        as: 'roles',
+        attributes: ['id', 'role_name'],
+        through: { attributes: ['is_primary'] }
+      }],
+      order: [['created_at', 'ASC']]
+    });
+    
+    console.log(`📊 Found ${users.length} users in database:\n`);
+    console.log('='.repeat(80));
+    
+    if (users.length === 0) {
+      console.log('❌ No users found in database');
+    } else {
+      users.forEach((user, index) => {
+        console.log(`${index + 1}. Username: ${user.username}`);
+        console.log(`   Email: ${user.email}`);
+        console.log(`   Created: ${user.created_at}`);
+        console.log(`   Updated: ${user.updated_at}`);
+        
+        if (user.roles && user.roles.length > 0) {
+          console.log(`   Roles: ${user.roles.map(role => 
+            `${role.role_name}${role.UserRole.is_primary ? ' (Primary)' : ''}`
+          ).join(', ')}`);
+        } else {
+          console.log(`   Roles: None assigned`);
+        }
+        console.log('');
+      });
+    }
+    
+    // Check specific required accounts
+    console.log('🎯 Checking for required accounts:\n');
+    console.log('='.repeat(80));
+    
+    const requiredAccounts = [
+      { name: 'Admin', email: 'Admin@radheconsultancy.co.in', role: 'Admin' },
+    ];
+    
+    for (const account of requiredAccounts) {
+      const user = await User.findOne({ 
+        where: { email: account.email },
+        include: [{
+          model: Role,
+          as: 'roles',
+          attributes: ['role_name']
+        }]
+      });
+      
+      if (user) {
+        const hasRole = user.roles.some(role => role.role_name === account.role);
+        if (hasRole) {
+          console.log(`✅ ${account.name} (${account.email}) - ${account.role} role assigned`);
+        } else {
+          console.log(`⚠️  ${account.name} (${account.email}) - EXISTS but NO ${account.role} role`);
+        }
+      } else {
+        console.log(`❌ ${account.name} (${account.email}) - MISSING`);
+      }
+    }
+    
+    console.log('\n' + '='.repeat(80));
+    console.log('🎉 Account verification completed!');
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Error checking accounts:', error.message);
+    return false;
+  }
+}
+
+// Account definitions
+const requiredAccounts = {
+  admin: {
+    username: 'BRIJESH KANERIA',
+    email: 'Admin@radheconsultancy.co.in',
+    password: 'Admin@123',
+    role: 'Admin'
+  },
+  planManagers: [],
+  stabilityManagers: [],
+  websiteManagers: [
+    {
+      username: 'Website Manager',
+      email: 'website@radheconsultancy.co.in',
+      password: 'Website@123',
+      role: 'Website_manager'
+    }
+  ],
+  labourLawManagers: [
+    {
+      username: 'Labour Law Manager',
+      email: 'labour@radheconsultancy.co.in',
+      password: 'Labour@123',
+      role: 'Labour_law_manager'
+    }
+  ]
+};
+
+// Check if account exists
+async function checkAccount(email) {
+  try {
+    const user = await User.findOne({ where: { email } });
+    if (user) {
+      return { exists: true, user, needsUpdate: false };
+    }
+    return { exists: false, user: null, needsUpdate: false };
+  } catch (error) {
+    console.error(`Error checking account ${email}:`, error.message);
+    return { exists: false, user: null, needsUpdate: false };
+  }
+}
+
+// Create or update account
+async function createOrUpdateAccount(accountData) {
+  try {
+    const { username, email, password, role } = accountData;
+    
+    // Check if account exists
+    const { exists, user } = await checkAccount(email);
+    
+    if (exists) {
+      // Account exists, don't update - just return success
+      logToFile(`ℹ️  Account already exists: ${username} (${email}) - skipping update`);
+      console.log(`ℹ️  Account already exists: ${username} (${email}) - skipping update`);
+      
+      return { success: true, action: 'exists', user };
+    } else {
+      // Create new account only if it doesn't exist
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const newUser = await User.create({
+        username,
+        email,
+        password: hashedPassword,
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+      
+      logToFile(`✅ Created new account: ${username} (${email})`);
+      console.log(`✅ Created new account: ${username} (${email})`);
+      
+      return { success: true, action: 'created', user: newUser };
+    }
+  } catch (error) {
+    const errorMessage = `❌ Error creating account ${accountData.username}: ${error.message}`;
+    logToFile(errorMessage);
+    console.error(errorMessage);
+    return { success: false, action: 'error', error: error.message };
+  }
+}
+
+// Assign role to user
+async function assignRoleToUser(user, roleName) {
+  try {
+    // Find the role
+    const role = await Role.findOne({ where: { role_name: roleName } });
+    if (!role) {
+      throw new Error(`Role '${roleName}' not found`);
+    }
+    
+    // Check if user already has this role
+    const existingUserRole = await UserRole.findOne({
+      where: {
+        user_id: user.user_id,
+        role_id: role.id
+      }
+    });
+    
+    if (!existingUserRole) {
+      // Assign role
+      await user.addRole(role, { 
+        through: { 
+          is_primary: true,
+          assigned_by: 1 // Admin user ID
+        } 
+      });
+      
+      logToFile(`✅ Role '${roleName}' assigned to ${user.username}`);
+      console.log(`✅ Role '${roleName}' assigned to ${user.username}`);
+      return true;
+    } else {
+      logToFile(`ℹ️  Role '${roleName}' already assigned to ${user.username}`);
+      console.log(`ℹ️  Role '${roleName}' already assigned to ${user.username}`);
+      return true;
+    }
+  } catch (error) {
+    const errorMessage = `❌ Error assigning role '${roleName}' to ${user.username}: ${error.message}`;
+    logToFile(errorMessage);
+    console.error(errorMessage);
+    return false;
+  }
+}
+
+// Main function to create all accounts
+async function createAllAccounts() {
+  try {
+    logToFile('🚀 Starting account creation process...');
+    console.log('🚀 Starting account creation process...');
+    
+    // Ensure database connection
+    await sequelize.authenticate();
+    console.log('✅ Database connection established');
+    
+    // Process admin account
+    console.log('\n📋 Processing Admin Account...');
+    const adminResult = await createOrUpdateAccount(requiredAccounts.admin);
+    if (adminResult.success) {
+      if (adminResult.action === 'created') {
+        await assignRoleToUser(adminResult.user, 'Admin');
+      } else if (adminResult.action === 'exists') {
+        console.log(`ℹ️  Admin account already exists, checking role assignment...`);
+        const existingRole = await UserRole.findOne({
+          where: { user_id: adminResult.user.user_id }
+        });
+        if (existingRole) {
+          console.log(`ℹ️  Admin role already assigned to ${adminResult.user.username}`);
+        } else {
+          await assignRoleToUser(adminResult.user, 'Admin');
+        }
+      }
+    }
+
+    // Process website managers
+    console.log('\n📋 Processing Website Managers...');
+    for (const manager of requiredAccounts.websiteManagers) {
+      const result = await createOrUpdateAccount(manager);
+      if (result.success) {
+        if (result.action === 'created') {
+          await assignRoleToUser(result.user, 'Website_manager');
+        } else if (result.action === 'exists') {
+          console.log(`ℹ️  Website manager account already exists, checking role assignment...`);
+          const existingRole = await UserRole.findOne({
+            where: { user_id: result.user.user_id }
+          });
+          if (existingRole) {
+            console.log(`ℹ️  Website_manager role already assigned to ${result.user.username}`);
+          } else {
+            await assignRoleToUser(result.user, 'Website_manager');
+          }
+        }
+      }
+    }
+
+    // Process labour law managers
+    console.log('\n📋 Processing Labour Law Managers...');
+    for (const manager of requiredAccounts.labourLawManagers) {
+      const result = await createOrUpdateAccount(manager);
+      if (result.success) {
+        if (result.action === 'created') {
+          await assignRoleToUser(result.user, 'Labour_law_manager');
+        } else if (result.action === 'exists') {
+          console.log(`ℹ️  Labour law manager account already exists, checking role assignment...`);
+          const existingRole = await UserRole.findOne({
+            where: { user_id: result.user.user_id }
+          });
+          if (existingRole) {
+            console.log(`ℹ️  Labour_law_manager role already assigned to ${result.user.username}`);
+          } else {
+            await assignRoleToUser(result.user, 'Labour_law_manager');
+          }
+        }
+      }
+    }
+    
+    // Display summary
+    console.log('\n📊 Account Summary:');
+    console.log('================================');
+    
+    const allAccounts = [
+      requiredAccounts.admin,
+      ...requiredAccounts.planManagers,
+      ...requiredAccounts.stabilityManagers,
+      ...requiredAccounts.websiteManagers,
+      ...requiredAccounts.labourLawManagers
+    ];
+    
+    for (const account of allAccounts) {
+      const { exists, user } = await checkAccount(account.email);
+      if (exists) {
+        console.log(`✅ ${account.username} (${account.email}) - ${account.role} - Account exists`);
+      } else {
+        console.log(`❌ ${account.username} (${account.email}) - ${account.role} - Account missing`);
+      }
+    }
+    
+    console.log('\n💡 Note: Existing accounts are preserved and not updated');
+    console.log('   Only missing accounts will be created');
+    
+    logToFile('🎉 Account creation process completed successfully');
+    console.log('\n🎉 Account creation process completed successfully!');
+    
+    return true;
+  } catch (error) {
+    const errorMessage = `❌ Account creation failed: ${error.message}`;
+    logToFile(errorMessage);
+    console.error(errorMessage);
+    return false;
+  }
+}
+
+// ===== POLICY TABLE CREATION FUNCTIONS =====
+
+// Create Previous Employee Compensation Table
+async function createPreviousEmployeeCompensationTable() {
+  try {
+    await sequelize.authenticate();
+    console.log("✅ Database connection established");
+
+    console.log("🔄 Starting PreviousEmployeeCompensationPolicies table creation...");
+
+    const [tableExists] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'PreviousEmployeeCompensationPolicies'`,
+      { type: QueryTypes.SELECT }
+    );
+
+    if (tableExists.count === 0) {
+      console.log("📝 Creating PreviousEmployeeCompensationPolicies table...");
+      await sequelize.query(`
+        CREATE TABLE PreviousEmployeeCompensationPolicies (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          original_policy_id INT NULL COMMENT 'Reference to the original policy ID before it was moved to previous',
+          business_type ENUM('Fresh/New', 'Renewal/Rollover', 'Endorsement') NOT NULL,
+          customer_type ENUM('Organisation', 'Individual') NOT NULL,
+          insurance_company_id INT NOT NULL,
+          company_id INT NOT NULL,
+          policy_number VARCHAR(255) NOT NULL,
+          email VARCHAR(255) NOT NULL,
+          mobile_number VARCHAR(255) NOT NULL,
+          policy_start_date DATE NOT NULL,
+          policy_end_date DATE NOT NULL,
+          medical_cover ENUM('25k', '50k', '1 lac', '2 lac', '3 lac', '5 lac', 'actual') NOT NULL,
+          gst_number VARCHAR(255) NULL,
+          pan_number VARCHAR(255) NULL,
+          net_premium DECIMAL(10, 2) NOT NULL,
+          gst DECIMAL(10, 2) NOT NULL,
+          gross_premium DECIMAL(10, 2) NOT NULL,
+          policy_document_path VARCHAR(255) NOT NULL,
+          remarks TEXT NULL,
+          status ENUM('active', 'expired', 'cancelled') DEFAULT 'expired' COMMENT 'Status when the policy was moved to previous (usually expired)',
+          renewed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Date when this policy was renewed and moved to previous',
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_company_id (company_id),
+          INDEX idx_insurance_company_id (insurance_company_id),
+          INDEX idx_policy_end_date (policy_end_date),
+          INDEX idx_original_policy_id (original_policy_id),
+          INDEX idx_renewed_at (renewed_at),
+          FOREIGN KEY (insurance_company_id) REFERENCES InsuranceCompanies(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+          FOREIGN KEY (company_id) REFERENCES Companies(company_id) ON DELETE RESTRICT ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log("✅ PreviousEmployeeCompensationPolicies table created successfully");
+    } else {
+      console.log("ℹ️  PreviousEmployeeCompensationPolicies table already exists");
+    }
+
+    const [previousPolicyIdExists] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'EmployeeCompensationPolicies' AND COLUMN_NAME = 'previous_policy_id'`,
+      { type: QueryTypes.SELECT }
+    );
+
+    if (previousPolicyIdExists.count === 0) {
+      console.log("📝 Adding previous_policy_id column to EmployeeCompensationPolicies...");
+      await sequelize.query(`
+        ALTER TABLE EmployeeCompensationPolicies 
+        ADD COLUMN previous_policy_id INT NULL COMMENT 'Reference to the previous policy ID that was renewed (if this is a renewal)',
+        ADD INDEX idx_previous_policy_id (previous_policy_id)
+      `);
+      console.log("✅ previous_policy_id column added successfully");
+    } else {
+      console.log("ℹ️  previous_policy_id column already exists");
+    }
+
+    console.log("✅ PreviousEmployeeCompensationPolicies table setup completed successfully!");
+  } catch (error) {
+    console.error("❌ Error creating PreviousEmployeeCompensationPolicies table:", error);
+    throw error;
+  }
+}
+
+// Create Previous Vehicle Policy Table
+async function createPreviousVehiclePolicyTable() {
+  try {
+    await sequelize.authenticate();
+    console.log("✅ Database connection established");
+
+    console.log("🔄 Starting PreviousVehiclePolicies table creation...");
+
+    const [tableExists] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'PreviousVehiclePolicies'`,
+      { type: QueryTypes.SELECT }
+    );
+
+    if (tableExists.count === 0) {
+      console.log("📝 Creating PreviousVehiclePolicies table...");
+      await sequelize.query(`
+        CREATE TABLE PreviousVehiclePolicies (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          original_policy_id INT NULL COMMENT 'Reference to the original policy ID before it was moved to previous',
+          business_type ENUM('Fresh/New', 'Renewal/Rollover', 'Endorsement') NOT NULL,
+          customer_type ENUM('Organisation', 'Individual') NOT NULL,
+          insurance_company_id INT NOT NULL,
+          company_id INT NULL,
+          consumer_id INT NULL,
+          organisation_or_holder_name VARCHAR(255) NOT NULL,
+          policy_number VARCHAR(255) NOT NULL,
+          email VARCHAR(255) NULL,
+          mobile_number VARCHAR(255) NULL,
+          policy_start_date DATE NOT NULL,
+          policy_end_date DATE NOT NULL,
+          sub_product ENUM('Two Wheeler', 'Private car', 'Passanger Vehicle', 'Goods Vehicle', 'Misc - D Vehicle', 'Standalone CPA') NOT NULL,
+          vehicle_number VARCHAR(255) NOT NULL,
+          segment ENUM('Comprehensive', 'TP Only', 'SAOD') NOT NULL,
+          manufacturing_company VARCHAR(255) NOT NULL,
+          model VARCHAR(255) NOT NULL,
+          manufacturing_year VARCHAR(255) NOT NULL,
+          idv DECIMAL(12, 2) NOT NULL,
+          net_premium DECIMAL(10, 2) NOT NULL,
+          gst DECIMAL(10, 2) NOT NULL,
+          gross_premium DECIMAL(10, 2) NOT NULL,
+          policy_document_path VARCHAR(255) NULL,
+          remarks TEXT NULL,
+          status ENUM('active', 'expired', 'cancelled') DEFAULT 'expired' COMMENT 'Status when the policy was moved to previous (usually expired)',
+          renewed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Date when this policy was renewed and moved to previous',
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_company_id (company_id),
+          INDEX idx_consumer_id (consumer_id),
+          INDEX idx_insurance_company_id (insurance_company_id),
+          INDEX idx_policy_end_date (policy_end_date),
+          INDEX idx_original_policy_id (original_policy_id),
+          INDEX idx_renewed_at (renewed_at),
+          FOREIGN KEY (insurance_company_id) REFERENCES InsuranceCompanies(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+          FOREIGN KEY (company_id) REFERENCES Companies(company_id) ON DELETE RESTRICT ON UPDATE CASCADE,
+          FOREIGN KEY (consumer_id) REFERENCES Consumers(consumer_id) ON DELETE RESTRICT ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log("✅ PreviousVehiclePolicies table created successfully");
+    } else {
+      console.log("ℹ️  PreviousVehiclePolicies table already exists");
+    }
+
+    const [previousPolicyIdExists] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'VehiclePolicies' AND COLUMN_NAME = 'previous_policy_id'`,
+      { type: QueryTypes.SELECT }
+    );
+
+    if (previousPolicyIdExists.count === 0) {
+      console.log("📝 Adding previous_policy_id column to VehiclePolicies...");
+      await sequelize.query(`
+        ALTER TABLE VehiclePolicies 
+        ADD COLUMN previous_policy_id INT NULL COMMENT 'Reference to the previous policy ID that was renewed (if this is a renewal)',
+        ADD INDEX idx_previous_policy_id (previous_policy_id)
+      `);
+      console.log("✅ previous_policy_id column added successfully");
+    } else {
+      console.log("ℹ️  previous_policy_id column already exists");
+    }
+
+    console.log("✅ PreviousVehiclePolicies table setup completed successfully!");
+  } catch (error) {
+    console.error("❌ Error creating PreviousVehiclePolicies table:", error);
+    throw error;
+  }
+}
+
+// Create Previous Health Policy Table
+async function createPreviousHealthPolicyTable() {
+  try {
+    await sequelize.authenticate();
+    console.log("✅ Database connection established");
+
+    console.log("🔄 Starting PreviousHealthPolicies table creation...");
+
+    const [tableExists] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'PreviousHealthPolicies'`,
+      { type: QueryTypes.SELECT }
+    );
+
+    if (tableExists.count === 0) {
+      console.log("📝 Creating PreviousHealthPolicies table...");
+      await sequelize.query(`
+        CREATE TABLE PreviousHealthPolicies (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          original_policy_id INT NULL COMMENT 'Reference to the original policy ID before it was moved to previous',
+          business_type ENUM('Fresh/New', 'Renewal/Rollover', 'Endorsement') NOT NULL,
+          customer_type ENUM('Organisation', 'Individual') NOT NULL,
+          insurance_company_id INT NOT NULL,
+          company_id INT NULL,
+          consumer_id INT NULL,
+          proposer_name VARCHAR(255) NOT NULL,
+          policy_number VARCHAR(255) NOT NULL,
+          email VARCHAR(255) NOT NULL,
+          mobile_number VARCHAR(255) NOT NULL,
+          policy_start_date DATE NOT NULL,
+          policy_end_date DATE NOT NULL,
+          plan_name VARCHAR(255) NOT NULL,
+          medical_cover ENUM('1 lac', '2 lac', '3 lac', '5 lac', '10 lac', '15 lac', '20 lac', '25 lac', '30 lac', '50 lac', '1 crore', '2 crore', '5 crore') NOT NULL,
+          net_premium DECIMAL(10, 2) NOT NULL,
+          gst DECIMAL(10, 2) NOT NULL,
+          gross_premium DECIMAL(10, 2) NOT NULL,
+          policy_document_path VARCHAR(255) NULL,
+          remarks TEXT NULL,
+          status ENUM('active', 'expired', 'cancelled') DEFAULT 'expired' COMMENT 'Status when the policy was moved to previous (usually expired)',
+          renewed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Date when this policy was renewed and moved to previous',
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_policy_number (policy_number),
+          INDEX idx_company_id (company_id),
+          INDEX idx_consumer_id (consumer_id),
+          INDEX idx_insurance_company_id (insurance_company_id),
+          INDEX idx_policy_end_date (policy_end_date),
+          INDEX idx_original_policy_id (original_policy_id),
+          INDEX idx_renewed_at (renewed_at),
+          INDEX idx_policy_dates (policy_start_date, policy_end_date),
+          FOREIGN KEY (insurance_company_id) REFERENCES InsuranceCompanies(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+          FOREIGN KEY (company_id) REFERENCES Companies(company_id) ON DELETE RESTRICT ON UPDATE CASCADE,
+          FOREIGN KEY (consumer_id) REFERENCES Consumers(consumer_id) ON DELETE RESTRICT ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log("✅ PreviousHealthPolicies table created successfully");
+    } else {
+      console.log("ℹ️  PreviousHealthPolicies table already exists");
+    }
+
+    const [previousPolicyIdExists] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'HealthPolicies' AND COLUMN_NAME = 'previous_policy_id'`,
+      { type: QueryTypes.SELECT }
+    );
+
+    if (previousPolicyIdExists.count === 0) {
+      console.log("📝 Adding previous_policy_id column to HealthPolicies...");
+      await sequelize.query(`
+        ALTER TABLE HealthPolicies 
+        ADD COLUMN previous_policy_id INT NULL COMMENT 'Reference to the previous policy ID that was renewed (if this is a renewal)',
+        ADD INDEX idx_previous_policy_id (previous_policy_id)
+      `);
+      console.log("✅ previous_policy_id column added successfully");
+    } else {
+      console.log("ℹ️  previous_policy_id column already exists");
+    }
+
+    console.log("✅ PreviousHealthPolicies table setup completed successfully!");
+  } catch (error) {
+    console.error("❌ Error creating PreviousHealthPolicies table:", error);
+    throw error;
+  }
+}
+
+// Create Previous Fire Policy Table
+async function createPreviousFirePolicyTable() {
+  try {
+    await sequelize.authenticate();
+    console.log("✅ Database connection established");
+
+    console.log("🔄 Starting PreviousFirePolicies table creation...");
+
+    const [tableExists] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'PreviousFirePolicies'`,
+      { type: QueryTypes.SELECT }
+    );
+
+    if (tableExists.count === 0) {
+      console.log("📝 Creating PreviousFirePolicies table...");
+      await sequelize.query(`
+        CREATE TABLE PreviousFirePolicies (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          original_policy_id INT NULL COMMENT 'Reference to the original policy ID before it was moved to previous',
+          business_type ENUM('Fresh/New', 'Renewal/Rollover', 'Endorsement') NOT NULL,
+          customer_type ENUM('Organisation', 'Individual') NOT NULL,
+          insurance_company_id INT NOT NULL,
+          company_id INT NULL,
+          consumer_id INT NULL,
+          proposer_name VARCHAR(255) NOT NULL,
+          policy_number VARCHAR(255) NOT NULL,
+          email VARCHAR(255) NOT NULL,
+          mobile_number VARCHAR(255) NOT NULL,
+          policy_start_date DATE NOT NULL,
+          policy_end_date DATE NOT NULL,
+          total_sum_insured DECIMAL(12, 2) NOT NULL,
+          gst_number VARCHAR(255) NULL,
+          pan_number VARCHAR(255) NULL,
+          net_premium DECIMAL(10, 2) NOT NULL,
+          gst DECIMAL(10, 2) NOT NULL,
+          gross_premium DECIMAL(10, 2) NOT NULL,
+          policy_document_path VARCHAR(255) NULL,
+          remarks TEXT NULL,
+          status ENUM('active', 'expired', 'cancelled') DEFAULT 'expired' COMMENT 'Status when the policy was moved to previous (usually expired)',
+          renewed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Date when this policy was renewed and moved to previous',
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_policy_number (policy_number),
+          INDEX idx_company_id (company_id),
+          INDEX idx_consumer_id (consumer_id),
+          INDEX idx_insurance_company_id (insurance_company_id),
+          INDEX idx_policy_end_date (policy_end_date),
+          INDEX idx_original_policy_id (original_policy_id),
+          INDEX idx_renewed_at (renewed_at),
+          INDEX idx_policy_dates (policy_start_date, policy_end_date),
+          INDEX idx_total_sum_insured (total_sum_insured),
+          FOREIGN KEY (insurance_company_id) REFERENCES InsuranceCompanies(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+          FOREIGN KEY (company_id) REFERENCES Companies(company_id) ON DELETE RESTRICT ON UPDATE CASCADE,
+          FOREIGN KEY (consumer_id) REFERENCES Consumers(consumer_id) ON DELETE RESTRICT ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log("✅ PreviousFirePolicies table created successfully");
+    } else {
+      console.log("ℹ️  PreviousFirePolicies table already exists");
+    }
+
+    const [previousPolicyIdExists] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'FirePolicies' AND COLUMN_NAME = 'previous_policy_id'`,
+      { type: QueryTypes.SELECT }
+    );
+
+    if (previousPolicyIdExists.count === 0) {
+      console.log("📝 Adding previous_policy_id column to FirePolicies...");
+      await sequelize.query(`
+        ALTER TABLE FirePolicies 
+        ADD COLUMN previous_policy_id INT NULL COMMENT 'Reference to the previous policy ID that was renewed (if this is a renewal)',
+        ADD INDEX idx_previous_policy_id (previous_policy_id)
+      `);
+      console.log("✅ previous_policy_id column added successfully");
+    } else {
+      console.log("ℹ️  previous_policy_id column already exists");
+    }
+
+    console.log("✅ PreviousFirePolicies table setup completed successfully!");
+  } catch (error) {
+    console.error("❌ Error creating PreviousFirePolicies table:", error);
+    throw error;
+  }
+}
+
+// Create Previous Life Policy Table
+async function createPreviousLifePolicyTable() {
+  try {
+    await sequelize.authenticate();
+    console.log("✅ Database connection established");
+
+    console.log("🔄 Starting PreviousLifePolicies table creation...");
+
+    const [tableExists] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'PreviousLifePolicies'`,
+      { type: QueryTypes.SELECT }
+    );
+
+    if (tableExists.count === 0) {
+      console.log("📝 Creating PreviousLifePolicies table...");
+      await sequelize.query(`
+        CREATE TABLE PreviousLifePolicies (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          original_policy_id INT NULL COMMENT 'Reference to the original policy ID before it was moved to previous',
+          business_type ENUM('Fresh/New', 'Renewal/Rollover', 'Endorsement') NOT NULL DEFAULT 'Fresh/New',
+          customer_type ENUM('Organisation', 'Individual') NOT NULL DEFAULT 'Individual',
+          insurance_company_id INT NOT NULL,
+          company_id INT NULL,
+          consumer_id INT NULL,
+          proposer_name VARCHAR(255) NOT NULL,
+          date_of_birth DATE NOT NULL,
+          plan_name VARCHAR(255) NOT NULL,
+          sub_product VARCHAR(255) NOT NULL,
+          pt DECIMAL(10, 2) NOT NULL,
+          ppt INT NOT NULL,
+          policy_start_date DATE NOT NULL,
+          issue_date DATE NOT NULL,
+          policy_end_date DATE NOT NULL,
+          current_policy_number VARCHAR(255) NOT NULL,
+          email VARCHAR(255) NULL,
+          mobile_number VARCHAR(255) NULL,
+          net_premium DECIMAL(10, 2) NOT NULL,
+          gst DECIMAL(10, 2) NOT NULL,
+          gross_premium DECIMAL(10, 2) NOT NULL,
+          policy_document_path VARCHAR(255) NULL,
+          remarks TEXT NULL,
+          status ENUM('active', 'expired', 'cancelled') DEFAULT 'expired' COMMENT 'Status when the policy was moved to previous (usually expired)',
+          renewed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Date when this policy was renewed and moved to previous',
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_current_policy_number (current_policy_number),
+          INDEX idx_company_id (company_id),
+          INDEX idx_consumer_id (consumer_id),
+          INDEX idx_insurance_company_id (insurance_company_id),
+          INDEX idx_policy_end_date (policy_end_date),
+          INDEX idx_original_policy_id (original_policy_id),
+          INDEX idx_renewed_at (renewed_at),
+          INDEX idx_policy_dates (policy_start_date, policy_end_date),
+          INDEX idx_date_of_birth (date_of_birth),
+          INDEX idx_issue_date (issue_date),
+          FOREIGN KEY (insurance_company_id) REFERENCES InsuranceCompanies(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+          FOREIGN KEY (company_id) REFERENCES Companies(company_id) ON DELETE RESTRICT ON UPDATE CASCADE,
+          FOREIGN KEY (consumer_id) REFERENCES Consumers(consumer_id) ON DELETE RESTRICT ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log("✅ PreviousLifePolicies table created successfully");
+    } else {
+      console.log("ℹ️  PreviousLifePolicies table already exists");
+    }
+
+    // Add missing columns to LifePolicies table
+    const columnsToAdd = [
+      { name: 'previous_policy_id', sql: 'ADD COLUMN previous_policy_id INT NULL COMMENT \'Reference to the previous policy ID that was renewed (if this is a renewal)\', ADD INDEX idx_previous_policy_id (previous_policy_id)' },
+      { name: 'business_type', sql: 'ADD COLUMN business_type ENUM(\'Fresh/New\', \'Renewal/Rollover\', \'Endorsement\') NOT NULL DEFAULT \'Fresh/New\' AFTER id, ADD INDEX idx_business_type (business_type)' },
+      { name: 'customer_type', sql: 'ADD COLUMN customer_type ENUM(\'Organisation\', \'Individual\') NOT NULL DEFAULT \'Individual\' AFTER business_type, ADD INDEX idx_customer_type (customer_type)' }
+    ];
+
+    for (const column of columnsToAdd) {
+      const [columnExists] = await sequelize.query(
+        `SELECT COUNT(*) as count FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'LifePolicies' AND COLUMN_NAME = '${column.name}'`,
+        { type: QueryTypes.SELECT }
+      );
+
+      if (columnExists.count === 0) {
+        console.log(`📝 Adding ${column.name} column to LifePolicies...`);
+        await sequelize.query(`ALTER TABLE LifePolicies ${column.sql}`);
+        console.log(`✅ ${column.name} column added successfully`);
+      } else {
+        console.log(`ℹ️  ${column.name} column already exists`);
+      }
+    }
+
+    console.log("✅ PreviousLifePolicies table setup completed successfully!");
+  } catch (error) {
+    console.error("❌ Error creating PreviousLifePolicies table:", error);
+    throw error;
+  }
+}
+
+// Master Policy Tables Setup
+async function setupPolicyTables() {
+  try {
+    console.log('\n' + '='.repeat(60));
+    console.log('🏗️  POLICY TABLES SETUP');
+    console.log('='.repeat(60));
+    
+    await sequelize.authenticate();
+    console.log("✅ Database connection established");
+
+    console.log('\n📋 Step 1: Setting up ECP Previous Policy Table...');
+    await createPreviousEmployeeCompensationTable();
+    console.log('✅ ECP Previous Policy Table setup completed');
+
+    console.log('\n📋 Step 2: Setting up Vehicle Previous Policy Table...');
+    await createPreviousVehiclePolicyTable();
+    console.log('✅ Vehicle Previous Policy Table setup completed');
+
+    console.log('\n📋 Step 3: Setting up Health Previous Policy Table...');
+    await createPreviousHealthPolicyTable();
+    console.log('✅ Health Previous Policy Table setup completed');
+
+    console.log('\n📋 Step 4: Setting up Fire Previous Policy Table...');
+    await createPreviousFirePolicyTable();
+    console.log('✅ Fire Previous Policy Table setup completed');
+
+    console.log('\n📋 Step 5: Setting up Life Previous Policy Table...');
+    await createPreviousLifePolicyTable();
+    console.log('✅ Life Previous Policy Table setup completed');
+
+    console.log('\n📁 Step 6: Setting up upload directories...');
+    await setupUploadDirectories();
+    console.log('✅ Upload directories setup completed');
+
+    console.log('\n' + '='.repeat(60));
+    console.log('🎉 POLICY TABLES SETUP COMPLETED SUCCESSFULLY!');
+    console.log('='.repeat(60) + '\n');
+
+    return true;
+  } catch (error) {
+    console.error('\n❌ Policy Tables Setup Failed:', error);
+    return false;
+  }
+}
+
+// Setup upload directories
+async function setupUploadDirectories() {
+  const fs = require('fs').promises;
+  const path = require('path');
+
+  const directories = [
+    'uploads',
+    'uploads/employee_policies',
+    'uploads/vehicle_policies',
+    'uploads/health_policies',
+    'uploads/fire_policies',
+    'uploads/life_policies',
+    'uploads/dsc_documents',
+    'uploads/labour_documents',
+    'uploads/factory_quotations',
+    'uploads/plan_documents',
+    'uploads/stability_documents'
+  ];
+
+  for (const dir of directories) {
+    const dirPath = path.join(__dirname, '..', dir);
+    try {
+      await fs.access(dirPath);
+      console.log(`   📁 Directory exists: ${dir}`);
+    } catch (error) {
+      await fs.mkdir(dirPath, { recursive: true });
+      console.log(`   📁 Directory created: ${dir}`);
+    }
+  }
+}
+
+// ===== RENEWAL REMINDER FUNCTIONS =====
+
+async function runAutomaticRenewalReminders() {
+  try {
+    console.log('='.repeat(50));
+    console.log('🚀 AUTOMATIC RENEWAL REMINDER PROCESS STARTED');
+    console.log('⏰ Time:', new Date().toLocaleString());
+    console.log('📌 Active: DSC + Labour License + Stability Management + Factory + Labour Inspection');
+    console.log('='.repeat(50));
+
+    const renewalService = new RenewalService();
+
+    const results = {
+      dsc: await renewalService.processDSCRenewals(),
+      labourLicense: await renewalService.processLabourLicenseReminders(),
+      stabilityManagement: await renewalService.processStabilityManagementReminders(),
+      factoryLicense: await renewalService.processFactoryQuotationRenewals(),
+      labourInspection: await renewalService.processLabourInspectionReminders()
+    };
+
+    console.log('\n' + '='.repeat(50));
+    console.log('📊 RENEWAL REMINDER SUMMARY');
+    console.log('='.repeat(50));
+    console.log('🔐 DSC (ACTIVE):', results.dsc.successful || 0, 'emails sent');
+    console.log('📋 Labour License (ACTIVE):', results.labourLicense.successful || 0, 'emails sent');
+    console.log('🏗️ Stability Management (ACTIVE):', results.stabilityManagement.successful || 0, 'emails sent');
+    console.log('🏭 Factory License (ACTIVE):', results.factoryLicense.successful || 0, 'emails sent');
+    console.log('🔍 Labour Inspection (ACTIVE):', results.labourInspection.successful || 0, 'emails sent');
+    console.log('='.repeat(50));
+    
+    const totalSent = Object.values(results).reduce((sum, r) => sum + (r.successful || 0), 0);
+    console.log('✅ TOTAL EMAILS SENT:', totalSent);
+    console.log('='.repeat(50));
+
+    return results;
+  } catch (error) {
+    console.error('❌ ERROR IN AUTOMATIC RENEWAL REMINDERS:', error);
+    throw error;
+  }
+}
+
+// ===== MAIN CONSOLIDATED SETUP FUNCTION =====
+
+async function runCompleteSetup() {
+  try {
+    console.log('\n' + '🚀'.repeat(20));
+    console.log('CONSOLIDATED SERVER SETUP SCRIPT STARTED');
+    console.log('🚀'.repeat(20) + '\n');
+    
+    console.log('📋 This script will perform:');
+    console.log('   • Database Setup & Synchronization');
+    console.log('   • Roles & Permissions Setup');
+    console.log('   • Account Creation & Verification');
+    console.log('   • Policy Tables Creation');
+    console.log('   • Renewal System Setup');
+    console.log('   • Upload Directories Creation');
+    console.log('   • System Verification');
+    console.log('\n' + '='.repeat(70) + '\n');
+
+    // Step 1: Run original server setup
+    console.log('🔧 STEP 1: Running Database & Server Setup...');
+    const serverSetupSuccess = await setupAll();
+    if (!serverSetupSuccess) {
+      throw new Error('Server setup failed');
+    }
+    console.log('✅ Database & Server Setup completed successfully!\n');
+
+    // Step 2: Create accounts
+    console.log('👥 STEP 2: Creating and Verifying Accounts...');
+    const accountsSuccess = await createAllAccounts();
+    if (!accountsSuccess) {
+      throw new Error('Account creation failed');
+    }
+    console.log('✅ Account creation completed successfully!\n');
+
+    // Step 3: Setup policy tables
+    console.log('📋 STEP 3: Setting up Policy Tables...');
+    const policyTablesSuccess = await setupPolicyTables();
+    if (!policyTablesSuccess) {
+      throw new Error('Policy tables setup failed');
+    }
+    console.log('✅ Policy tables setup completed successfully!\n');
+
+    // Step 4: Check existing accounts
+    console.log('🔍 STEP 4: Final Account Verification...');
+    const accountCheckSuccess = await checkExistingAccounts();
+    if (!accountCheckSuccess) {
+      console.warn('⚠️  Account verification had issues, but continuing...');
+    }
+    console.log('✅ Account verification completed!\n');
+
+    // Final success message
+    console.log('\n' + '🎉'.repeat(20));
+    console.log('CONSOLIDATED SETUP COMPLETED SUCCESSFULLY!');
+    console.log('🎉'.repeat(20) + '\n');
+    
+    console.log('📊 Setup Summary:');
+    console.log('   ✅ Database & Server Setup: Complete');
+    console.log('   ✅ Roles & Permissions: Complete');
+    console.log('   ✅ Account Creation: Complete');
+    console.log('   ✅ Policy Tables: Complete');
+    console.log('   ✅ Renewal System: Complete');
+    console.log('   ✅ Upload Directories: Complete');
+    console.log('   ✅ System Verification: Complete');
+    console.log('\n' + '='.repeat(70));
+    console.log('🚀 Your server is ready to use!');
+    console.log('='.repeat(70) + '\n');
+
+    return true;
+  } catch (error) {
+    console.error('\n❌ CONSOLIDATED SETUP FAILED:', error.message);
+    console.error('Stack trace:', error.stack);
+    return false;
+  }
+}
+
+// Export individual functions
 module.exports = {
   setupDatabase,
   setupRolesAndPermissions,
@@ -1117,12 +2059,122 @@ module.exports = {
   setupStabilityManagers,
   verifyRequiredRoles,
   setupRenewalSystem,
-  setupAll
+  setupAll,
+  checkExistingAccounts,
+  createAllAccounts,
+  createOrUpdateAccount,
+  assignRoleToUser,
+  checkAccount,
+  createPreviousEmployeeCompensationTable,
+  createPreviousVehiclePolicyTable,
+  createPreviousHealthPolicyTable,
+  createPreviousFirePolicyTable,
+  createPreviousLifePolicyTable,
+  setupPolicyTables,
+  setupUploadDirectories,
+  runAutomaticRenewalReminders,
+  runCompleteSetup
 };
 
 
 
 // Run setup if this file is run directly
 if (require.main === module) {
-  setupAll();
+  // Show menu for user to choose what to run
+  const args = process.argv.slice(2);
+  
+  if (args.length === 0) {
+    console.log('\n🚀 CONSOLIDATED SERVER SETUP SCRIPT');
+    console.log('=====================================');
+    console.log('Usage: node serverSetup.js [option]');
+    console.log('\nAvailable options:');
+    console.log('  complete     - Run complete setup (recommended)');
+    console.log('  database     - Setup database only');
+    console.log('  accounts     - Create/verify accounts only');
+    console.log('  policies     - Setup policy tables only');
+    console.log('  renewals     - Run renewal reminders only');
+    console.log('  check        - Check existing accounts only');
+    console.log('\nExample: node serverSetup.js complete');
+    process.exit(0);
+  }
+
+  const option = args[0].toLowerCase();
+
+  switch (option) {
+    case 'complete':
+      runCompleteSetup()
+        .then((success) => {
+          process.exit(success ? 0 : 1);
+        })
+        .catch((error) => {
+          console.error('\n💥 Script crashed:', error);
+          process.exit(1);
+        });
+      break;
+
+    case 'database':
+      setupAll()
+        .then((success) => {
+          console.log(success ? '\n✅ Database setup completed successfully' : '\n❌ Database setup failed');
+          process.exit(success ? 0 : 1);
+        })
+        .catch((error) => {
+          console.error('\n💥 Database setup crashed:', error);
+          process.exit(1);
+        });
+      break;
+
+    case 'accounts':
+      createAllAccounts()
+        .then((success) => {
+          console.log(success ? '\n✅ Account creation completed successfully' : '\n❌ Account creation failed');
+          process.exit(success ? 0 : 1);
+        })
+        .catch((error) => {
+          console.error('\n💥 Account creation crashed:', error);
+          process.exit(1);
+        });
+      break;
+
+    case 'policies':
+      setupPolicyTables()
+        .then((success) => {
+          console.log(success ? '\n✅ Policy tables setup completed successfully' : '\n❌ Policy tables setup failed');
+          process.exit(success ? 0 : 1);
+        })
+        .catch((error) => {
+          console.error('\n💥 Policy tables setup crashed:', error);
+          process.exit(1);
+        });
+      break;
+
+    case 'renewals':
+      runAutomaticRenewalReminders()
+        .then(() => {
+          console.log('\n✅ Renewal reminders completed successfully');
+          process.exit(0);
+        })
+        .catch((error) => {
+          console.error('\n💥 Renewal reminders crashed:', error);
+          process.exit(1);
+        });
+      break;
+
+    case 'check':
+      checkExistingAccounts()
+        .then((success) => {
+          console.log(success ? '\n✅ Account check completed successfully' : '\n❌ Account check failed');
+          process.exit(success ? 0 : 1);
+        })
+        .catch((error) => {
+          console.error('\n💥 Account check crashed:', error);
+          process.exit(1);
+        });
+      break;
+
+    default:
+      console.error(`\n❌ Unknown option: ${option}`);
+      console.log('Run "node serverSetup.js" without arguments to see available options.');
+      process.exit(1);
+  }
 } 
