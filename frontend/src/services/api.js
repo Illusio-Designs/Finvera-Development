@@ -2484,8 +2484,79 @@ export const stabilityManagementAPI = {
   // Get statistics
   getStatistics: async () => {
     const response = await api.get('/stability-management/statistics');
+    return response.data;
+  },
+
+  // ===== RENEWAL SYSTEM FUNCTIONS =====
+
+  // Renew stability
+  renewStability: async (id, formData) => {
+    try {
+      console.log('[API] Renewing stability with ID:', id);
+      console.log('[API] Form data keys:', Array.from(formData.keys()));
+      
+      const response = await api.post(`/stability-management/${id}/renew`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      console.log('[API] Stability renewal response:', response.data);
       return response.data;
+    } catch (error) {
+      console.error('[API] Error renewing stability:', error.response?.data || error.message);
+      throw error.response?.data || error;
     }
+  },
+
+  // Get previous stabilities
+  getPreviousStabilities: async (params = {}) => {
+    try {
+      const queryParams = new URLSearchParams({
+        ...(params.page && { page: params.page }),
+        ...(params.pageSize && { pageSize: params.pageSize }),
+        ...(params.limit && { limit: params.limit })
+      }).toString();
+      const url = queryParams ? `/stability-management/previous?${queryParams}` : '/stability-management/previous';
+      
+      const response = await api.get(url);
+      console.log('[API] Previous stabilities response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Error fetching previous stabilities:', error.response?.data || error.message);
+      throw error.response?.data || error;
+    }
+  },
+
+  // Get previous stability by ID
+  getPreviousStabilityById: async (id) => {
+    try {
+      const response = await api.get(`/stability-management/previous/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Error fetching previous stability:', error.response?.data || error.message);
+      throw error.response?.data || error;
+    }
+  },
+
+  // Get all stabilities grouped (running + previous)
+  getAllStabilitiesGrouped: async (params = {}) => {
+    try {
+      const queryParams = new URLSearchParams({
+        ...(params.page && { page: params.page }),
+        ...(params.pageSize && { pageSize: params.pageSize }),
+        ...(params.limit && { limit: params.limit })
+      }).toString();
+      const url = queryParams ? `/stability-management/all-grouped?${queryParams}` : '/stability-management/all-grouped';
+      
+      const response = await api.get(url);
+      console.log('[API] Grouped stabilities response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Error fetching grouped stabilities:', error.response?.data || error.message);
+      throw error.response?.data || error;
+    }
+  }
 };
 
 export const applicationManagementAPI = {

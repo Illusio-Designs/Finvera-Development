@@ -6,6 +6,8 @@ exports.downloadDocument = async (req, res) => {
   try {
     const { system, recordId, documentType, filename } = req.params;
     
+    console.log('📥 Download request:', { system, recordId, documentType, filename });
+    
     if (!system || !recordId || !documentType || !filename) {
       return res.status(400).json({
         success: false,
@@ -51,33 +53,81 @@ exports.downloadDocument = async (req, res) => {
         const StabilityManagement = require('../models/stabilityManagementModel');
         const stabilityRecord = await StabilityManagement.findOne({ where: { id: recordId } });
         
-        if (!stabilityRecord || !stabilityRecord.files) {
+        console.log('🔍 Stability record found:', !!stabilityRecord);
+        console.log('📋 Record ID:', recordId);
+        console.log('📁 Files field:', stabilityRecord?.files);
+        
+        if (!stabilityRecord) {
           return res.status(404).json({
             success: false,
-            message: 'Record not found or has no files'
+            message: 'Stability record not found'
+          });
+        }
+
+        if (!stabilityRecord.files) {
+          return res.status(404).json({
+            success: false,
+            message: 'No files found for this stability record'
           });
         }
 
         // Parse files from database
         let recordFiles = [];
         try {
-          recordFiles = typeof stabilityRecord.files === 'string' 
-            ? JSON.parse(stabilityRecord.files) 
-            : stabilityRecord.files;
+          let parsedFiles;
+          if (typeof stabilityRecord.files === 'string') {
+            console.log('🔧 Parsing JSON string:', stabilityRecord.files);
+            parsedFiles = JSON.parse(stabilityRecord.files);
+            console.log('✅ JSON parsed successfully:', parsedFiles);
+          } else {
+            console.log('📄 Files is not a string:', typeof stabilityRecord.files);
+            parsedFiles = stabilityRecord.files;
+          }
+          
+          // Ensure it's an array
+          if (Array.isArray(parsedFiles)) {
+            recordFiles = parsedFiles;
+          } else if (parsedFiles && typeof parsedFiles === 'object') {
+            // If it's a single object, wrap it in an array
+            recordFiles = [parsedFiles];
+          } else {
+            recordFiles = [];
+          }
+          
+          console.log('📋 Parsed files:', parsedFiles);
+          console.log('📋 Final recordFiles:', recordFiles);
+          console.log('📊 Is array:', Array.isArray(recordFiles));
+          console.log('📏 Array length:', recordFiles.length);
         } catch (e) {
-          console.error('Error parsing stability files:', e);
+          console.error('❌ Error parsing stability files:', e);
+          return res.status(500).json({
+            success: false,
+            message: 'Error parsing file data'
+          });
         }
 
         // Verify the requested filename exists in this record's files
-        const fileExists = recordFiles.some(file => file.filename === filename);
+        console.log('🔍 About to check file existence. recordFiles type:', typeof recordFiles, 'isArray:', Array.isArray(recordFiles));
+        
+        if (!Array.isArray(recordFiles)) {
+          console.error('❌ recordFiles is not an array:', recordFiles);
+          return res.status(500).json({
+            success: false,
+            message: 'Invalid file data format'
+          });
+        }
+        
+        const fileExists = recordFiles.some(file => file && file.filename === filename);
+        console.log('🔎 File exists in record:', fileExists, 'Looking for:', filename);
+        
         if (!fileExists) {
           return res.status(404).json({
             success: false,
-            message: 'File not found for this record'
+            message: `File '${filename}' not found for this record`
           });
         }
       } catch (error) {
-        console.error('Error verifying stability file:', error);
+        console.error('❌ Error verifying stability file:', error);
         return res.status(500).json({
           success: false,
           message: 'Error verifying file ownership'

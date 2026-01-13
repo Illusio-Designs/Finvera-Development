@@ -7,6 +7,7 @@ const sequelize = require('../config/db');
 const FactoryQuotation = require('../models/factoryQuotationModel');
 const PlanManagement = require('../models/planManagementModel');
 const StabilityManagement = require('../models/stabilityManagementModel');
+const PreviousStabilityManagement = require('../models/previousStabilityManagementModel');
 const ApplicationManagement = require('../models/applicationManagementModel');
 const RenewalStatus = require('../models/renewalStatusModel');
 const bcrypt = require('bcryptjs');
@@ -268,6 +269,7 @@ async function setupDatabase() {
       { model: FactoryQuotation, name: 'FactoryQuotation' },
       { model: PlanManagement, name: 'PlanManagement' },
       { model: StabilityManagement, name: 'StabilityManagement' },
+      { model: PreviousStabilityManagement, name: 'PreviousStabilityManagement' },
       { model: ApplicationManagement, name: 'ApplicationManagement' },
       { model: RenewalStatus, name: 'RenewalStatus' },
       { model: LabourInspection, name: 'LabourInspection' },
@@ -326,7 +328,6 @@ async function setupDatabase() {
 
     // Setup policy tables and renewal system
     console.log('🏗️  Setting up policy tables and renewal system...');
-    const { setupPolicyTables } = require('./setupPolicyTables');
     const policyTablesSetup = await setupPolicyTables();
     
     if (!policyTablesSetup) {
@@ -1115,6 +1116,107 @@ async function setupAll() {
 // CONSOLIDATED FUNCTIONS FROM ALL SCRIPTS
 // ============================================================================
 
+// ===== LOGIN AND AUTHENTICATION SETUP FUNCTIONS =====
+
+// Setup authentication system
+async function setupAuthenticationSystem() {
+  try {
+    console.log('🔐 Setting up authentication system...');
+    
+    // Check if UserType table exists
+    const [userTypeTableExists] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'UserTypes'`,
+      { type: QueryTypes.SELECT }
+    );
+
+    if (userTypeTableExists.count === 0) {
+      console.log('📝 Creating UserTypes table...');
+      await sequelize.query(`
+        CREATE TABLE UserTypes (
+          user_type_id INT AUTO_INCREMENT PRIMARY KEY,
+          type_name VARCHAR(50) NOT NULL UNIQUE,
+          description TEXT,
+          is_active BOOLEAN DEFAULT TRUE,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_type_name (type_name),
+          INDEX idx_is_active (is_active)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ UserTypes table created successfully');
+    } else {
+      console.log('ℹ️  UserTypes table already exists');
+    }
+
+    // Create default user types
+    const defaultUserTypes = [
+      { type_name: 'Office', description: 'Office staff and employees' },
+      { type_name: 'Company', description: 'Company/Organization users' },
+      { type_name: 'Consumer', description: 'Individual consumers' },
+      { type_name: 'Vendor', description: 'Vendor/Supplier users' }
+    ];
+
+    for (const userType of defaultUserTypes) {
+      try {
+        await sequelize.query(
+          `INSERT IGNORE INTO UserTypes (type_name, description) VALUES (?, ?)`,
+          {
+            replacements: [userType.type_name, userType.description],
+            type: QueryTypes.INSERT
+          }
+        );
+        console.log(`✅ UserType '${userType.type_name}' ensured`);
+      } catch (error) {
+        console.log(`⚠️ UserType '${userType.type_name}' may already exist:`, error.message);
+      }
+    }
+
+    // Check if user_type_id column exists in Users table
+    const [userTypeColumnExists] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Users' AND COLUMN_NAME = 'user_type_id'`,
+      { type: QueryTypes.SELECT }
+    );
+
+    if (userTypeColumnExists.count === 0) {
+      console.log('📝 Adding user_type_id column to Users table...');
+      await sequelize.query(`
+        ALTER TABLE Users 
+        ADD COLUMN user_type_id INT NULL,
+        ADD COLUMN google_id VARCHAR(255) NULL,
+        ADD COLUMN profile_image VARCHAR(500) NULL,
+        ADD INDEX idx_user_type_id (user_type_id),
+        ADD INDEX idx_google_id (google_id)
+      `);
+      console.log('✅ Authentication columns added to Users table');
+    } else {
+      console.log('ℹ️  Authentication columns already exist in Users table');
+    }
+
+    // Set default user_type_id for existing users without one
+    const [officeUserType] = await sequelize.query(
+      `SELECT user_type_id FROM UserTypes WHERE type_name = 'Office'`,
+      { type: QueryTypes.SELECT }
+    );
+
+    if (officeUserType) {
+      await sequelize.query(
+        `UPDATE Users SET user_type_id = ? WHERE user_type_id IS NULL`,
+        {
+          replacements: [officeUserType.user_type_id],
+          type: QueryTypes.UPDATE
+        }
+      );
+      console.log('✅ Default user type assigned to existing users');
+    }
+
+    console.log('✅ Authentication system setup completed');
+    return true;
+  } catch (error) {
+    console.error('❌ Error setting up authentication system:', error);
+    return false;
+  }
+}
+
 // ===== ACCOUNT CHECKING AND CREATION FUNCTIONS =====
 
 // Check existing accounts
@@ -1857,7 +1959,80 @@ async function createPreviousLifePolicyTable() {
   }
 }
 
-// Master Policy Tables Setup
+// Create Previous Stability Management Table
+async function createPreviousStabilityManagementTable() {
+  try {
+    await sequelize.authenticate();
+    console.log("✅ Database connection established");
+
+    console.log("🔄 Starting PreviousStabilityManagement table creation...");
+
+    const [tableExists] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'previous_stability_management'`,
+      { type: QueryTypes.SELECT }
+    );
+
+    if (tableExists.count === 0) {
+      console.log("📝 Creating previous_stability_management table...");
+      await sequelize.query(`
+        CREATE TABLE previous_stability_management (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          original_stability_id INT NULL COMMENT 'Reference to the original stability ID before it was moved to previous',
+          factory_quotation_id INT NOT NULL,
+          stability_manager_id INT NOT NULL,
+          status ENUM('stability', 'submit', 'Approved', 'Reject') NOT NULL DEFAULT 'Approved' COMMENT 'Status when the stability was moved to previous (usually Approved)',
+          load_type ENUM('with_load', 'without_load') NOT NULL,
+          stability_date DATE NULL COMMENT 'Date when stability certificate was issued',
+          renewal_date DATE NULL COMMENT 'Original renewal date (5 years after stability date)',
+          remarks TEXT NULL,
+          files JSON NULL DEFAULT (JSON_ARRAY()),
+          submitted_at DATETIME NULL,
+          reviewed_at DATETIME NULL,
+          reviewed_by INT NULL,
+          renewed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Date when this stability was renewed and moved to previous',
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_factory_quotation_id (factory_quotation_id),
+          INDEX idx_stability_manager_id (stability_manager_id),
+          INDEX idx_original_stability_id (original_stability_id),
+          INDEX idx_renewed_at (renewed_at),
+          INDEX idx_renewal_date (renewal_date),
+          INDEX idx_stability_dates (stability_date, renewal_date),
+          FOREIGN KEY (factory_quotation_id) REFERENCES FactoryQuotations(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+          FOREIGN KEY (stability_manager_id) REFERENCES Users(user_id) ON DELETE RESTRICT ON UPDATE CASCADE,
+          FOREIGN KEY (reviewed_by) REFERENCES Users(user_id) ON DELETE RESTRICT ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log("✅ previous_stability_management table created successfully");
+    } else {
+      console.log("ℹ️  previous_stability_management table already exists");
+    }
+
+    const [previousStabilityIdExists] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'stability_management' AND COLUMN_NAME = 'previous_stability_id'`,
+      { type: QueryTypes.SELECT }
+    );
+
+    if (previousStabilityIdExists.count === 0) {
+      console.log("📝 Adding previous_stability_id column to stability_management...");
+      await sequelize.query(`
+        ALTER TABLE stability_management 
+        ADD COLUMN previous_stability_id INT NULL COMMENT 'Reference to the previous stability ID that was renewed (if this is a renewal)',
+        ADD INDEX idx_previous_stability_id (previous_stability_id)
+      `);
+      console.log("✅ previous_stability_id column added successfully");
+    } else {
+      console.log("ℹ️  previous_stability_id column already exists");
+    }
+
+    console.log("✅ PreviousStabilityManagement table setup completed successfully!");
+  } catch (error) {
+    console.error("❌ Error creating PreviousStabilityManagement table:", error);
+    throw error;
+  }
+}
+
+// Setup policy tables and renewal system
 async function setupPolicyTables() {
   try {
     console.log('\n' + '='.repeat(60));
@@ -1984,6 +2159,7 @@ async function runCompleteSetup() {
     
     console.log('📋 This script will perform:');
     console.log('   • Database Setup & Synchronization');
+    console.log('   • Authentication System Setup');
     console.log('   • Roles & Permissions Setup');
     console.log('   • Account Creation & Verification');
     console.log('   • Policy Tables Creation');
@@ -2000,24 +2176,32 @@ async function runCompleteSetup() {
     }
     console.log('✅ Database & Server Setup completed successfully!\n');
 
-    // Step 2: Create accounts
-    console.log('👥 STEP 2: Creating and Verifying Accounts...');
+    // Step 2: Setup authentication system
+    console.log('🔐 STEP 2: Setting up Authentication System...');
+    const authSuccess = await setupAuthenticationSystem();
+    if (!authSuccess) {
+      console.warn('⚠️  Authentication setup had issues, but continuing...');
+    }
+    console.log('✅ Authentication system setup completed!\n');
+
+    // Step 3: Create accounts
+    console.log('👥 STEP 3: Creating and Verifying Accounts...');
     const accountsSuccess = await createAllAccounts();
     if (!accountsSuccess) {
       throw new Error('Account creation failed');
     }
     console.log('✅ Account creation completed successfully!\n');
 
-    // Step 3: Setup policy tables
-    console.log('📋 STEP 3: Setting up Policy Tables...');
+    // Step 4: Setup policy tables
+    console.log('📋 STEP 4: Setting up Policy Tables...');
     const policyTablesSuccess = await setupPolicyTables();
     if (!policyTablesSuccess) {
       throw new Error('Policy tables setup failed');
     }
     console.log('✅ Policy tables setup completed successfully!\n');
 
-    // Step 4: Check existing accounts
-    console.log('🔍 STEP 4: Final Account Verification...');
+    // Step 5: Check existing accounts
+    console.log('🔍 STEP 5: Final Account Verification...');
     const accountCheckSuccess = await checkExistingAccounts();
     if (!accountCheckSuccess) {
       console.warn('⚠️  Account verification had issues, but continuing...');
@@ -2031,6 +2215,7 @@ async function runCompleteSetup() {
     
     console.log('📊 Setup Summary:');
     console.log('   ✅ Database & Server Setup: Complete');
+    console.log('   ✅ Authentication System: Complete');
     console.log('   ✅ Roles & Permissions: Complete');
     console.log('   ✅ Account Creation: Complete');
     console.log('   ✅ Policy Tables: Complete');
@@ -2059,6 +2244,7 @@ module.exports = {
   setupStabilityManagers,
   verifyRequiredRoles,
   setupRenewalSystem,
+  setupAuthenticationSystem,
   setupAll,
   checkExistingAccounts,
   createAllAccounts,
@@ -2070,6 +2256,7 @@ module.exports = {
   createPreviousHealthPolicyTable,
   createPreviousFirePolicyTable,
   createPreviousLifePolicyTable,
+  createPreviousStabilityManagementTable,
   setupPolicyTables,
   setupUploadDirectories,
   runAutomaticRenewalReminders,

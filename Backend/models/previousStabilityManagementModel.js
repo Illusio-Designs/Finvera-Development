@@ -1,11 +1,16 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/db');
 
-const StabilityManagement = sequelize.define('StabilityManagement', {
+const PreviousStabilityManagement = sequelize.define('PreviousStabilityManagement', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
     autoIncrement: true
+  },
+  original_stability_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: 'Reference to the original stability ID before it was moved to previous'
   },
   factory_quotation_id: {
     type: DataTypes.INTEGER,
@@ -26,7 +31,8 @@ const StabilityManagement = sequelize.define('StabilityManagement', {
   status: {
     type: DataTypes.ENUM('stability', 'submit', 'Approved', 'Reject', 'Expired'),
     allowNull: false,
-    defaultValue: 'stability'
+    defaultValue: 'Approved',
+    comment: 'Status when the stability was moved to previous (usually Approved)'
   },
   load_type: {
     type: DataTypes.ENUM('with_load', 'without_load'),
@@ -35,12 +41,12 @@ const StabilityManagement = sequelize.define('StabilityManagement', {
   stability_date: {
     type: DataTypes.DATEONLY,
     allowNull: true,
-    comment: 'Date when stability certificate is issued'
+    comment: 'Date when stability certificate was issued'
   },
   renewal_date: {
     type: DataTypes.DATEONLY,
     allowNull: true,
-    comment: 'Renewal date (5 years after stability date)'
+    comment: 'Original renewal date (5 years after stability date)'
   },
   remarks: {
     type: DataTypes.TEXT,
@@ -67,15 +73,36 @@ const StabilityManagement = sequelize.define('StabilityManagement', {
       key: 'user_id'
     }
   },
-  previous_stability_id: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-    comment: 'Reference to the previous stability ID that was renewed (if this is a renewal)'
+  renewed_at: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW,
+    comment: 'Date when this stability was renewed and moved to previous'
   }
 }, {
-  tableName: 'stability_management',
+  tableName: 'previous_stability_management',
   timestamps: true,
-  underscored: true
+  underscored: true,
+  indexes: [
+    {
+      fields: ['factory_quotation_id']
+    },
+    {
+      fields: ['stability_manager_id']
+    },
+    {
+      fields: ['original_stability_id']
+    },
+    {
+      fields: ['renewed_at']
+    },
+    {
+      fields: ['renewal_date']
+    },
+    {
+      fields: ['stability_date', 'renewal_date']
+    }
+  ]
 });
 
-module.exports = StabilityManagement; 
+module.exports = PreviousStabilityManagement;

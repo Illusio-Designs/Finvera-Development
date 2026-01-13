@@ -18,7 +18,6 @@ const {
 } = require("./config/cors");
 const { registerRoutes } = require("./routes");
 const config = require("./config/config");
-const runAutomaticRenewalReminders = require("./scripts/sendRenewalReminders");
 
 // Initialize Express app
 const app = express();
@@ -236,11 +235,6 @@ const startServer = async () => {
         setupRenewalSystem,
       } = require("./scripts/serverSetup");
 
-      // Import account creation functions
-      const {
-        createAllAccounts
-      } = require("./scripts/createAccounts");
-
       console.log("🚀 Starting complete server setup...");
       
       // Step 1: Database Setup
@@ -268,15 +262,7 @@ const startServer = async () => {
     console.log("✅ All required roles verified");
 
     // Step 4: Create All User Accounts
-    console.log("👥 Creating/updating all user accounts...");
-    const accountsCreated = await createAllAccounts();
-    if (!accountsCreated) {
-      console.warn("⚠️  Warning: Account creation failed, but continuing...");
-    } else {
-      console.log("✅ All user accounts created/updated successfully");
-    }
-
-      // Step 5: Setup Renewal Management System
+      // Step 4: Setup Renewal Management System
       console.log("🔧 Setting up Renewal Management System...");
       await setupRenewalSystem();
       console.log("✅ Renewal Management System setup completed");
@@ -315,20 +301,7 @@ const startServer = async () => {
       console.log(`🕐 Next run: Every day at 9:00 AM IST`);
       console.log('='.repeat(50) + '\n');
       
-      cron.schedule(cronSchedule, async () => {
-        console.log('\n🔔 CRON JOB TRIGGERED - Running automatic renewal reminders...');
-        try {
-          await runAutomaticRenewalReminders();
-          console.log('✅ Automatic renewal reminders completed successfully\n');
-        } catch (error) {
-          console.error('❌ Error in automatic renewal reminders:', error);
-        }
-      }, {
-        scheduled: true,
-        timezone: "Asia/Kolkata"
-      });
-      
-      console.log('✅ Automatic renewal reminder scheduler activated!');
+      console.log('✅ Server setup completed successfully!');
     });
   } catch (error) {
     console.error("❌ Failed to start server:", error);

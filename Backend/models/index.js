@@ -24,6 +24,7 @@ const UserRoleWorkLog = require("./userRoleWorkLogModel");
 const FactoryQuotation = require("./factoryQuotationModel");
 const PlanManagement = require("./planManagementModel");
 const StabilityManagement = require("./stabilityManagementModel");
+const PreviousStabilityManagement = require("./previousStabilityManagementModel");
 const ApplicationManagement = require("./applicationManagementModel");
 const RenewalStatus = require("./renewalStatusModel");
 const RenewalConfig = require("./renewalConfigModel")(
@@ -87,6 +88,30 @@ StabilityManagement.belongsTo(User, {
 FactoryQuotation.hasOne(StabilityManagement, {
   foreignKey: "factory_quotation_id",
   as: "stabilityManagement",
+});
+
+// Previous Stability Management Associations
+PreviousStabilityManagement.belongsTo(FactoryQuotation, {
+  foreignKey: "factory_quotation_id",
+  as: "factoryQuotation",
+});
+PreviousStabilityManagement.belongsTo(User, {
+  foreignKey: "stability_manager_id",
+  as: "stabilityManager",
+});
+PreviousStabilityManagement.belongsTo(User, {
+  foreignKey: "reviewed_by",
+  as: "reviewer",
+});
+
+// Stability Management ↔ Previous Stability Management
+StabilityManagement.hasMany(PreviousStabilityManagement, {
+  foreignKey: "original_stability_id",
+  as: "previousStabilities",
+});
+PreviousStabilityManagement.belongsTo(StabilityManagement, {
+  foreignKey: "original_stability_id",
+  as: "originalStability",
 });
 
 // Application Management Associations
@@ -479,6 +504,7 @@ module.exports = {
   FactoryQuotation,
   PlanManagement,
   StabilityManagement,
+  PreviousStabilityManagement,
   ApplicationManagement,
   RenewalStatus,
   RenewalConfig,

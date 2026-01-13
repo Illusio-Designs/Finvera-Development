@@ -23,12 +23,18 @@ const DocumentDownload = ({
 
     setIsLoading(true);
     try {
-      // Use direct file path if provided, otherwise fall back to API
-      if (filePath && fileName) {
-        await downloadDirectFile(filePath, fileName);
-      } else {
-        // Fallback to API method (for backward compatibility)
+      // For stability-management, always use API method to ensure we get the correct filename from database
+      if (system === 'stability-management') {
+        console.log(`🔄 Using API method for stability-management download`);
         await downloadViaAPI();
+      } else {
+        // Use direct file path if provided, otherwise fall back to API
+        if (filePath && fileName) {
+          await downloadDirectFile(filePath, fileName);
+        } else {
+          // Fallback to API method (for backward compatibility)
+          await downloadViaAPI();
+        }
       }
     } catch (error) {
       console.error('Error downloading document:', error);
@@ -177,17 +183,23 @@ const DocumentDownload = ({
 
   const downloadViaAPI = async () => {
     try {
-      // This is the old API method - keeping for backward compatibility
+      console.log(`🔄 downloadViaAPI called for system: ${system}, recordId: ${recordId}`);
+      
+      // This is the API method - get document list first to ensure we have the correct filename
       const { documentDownloadAPI } = await import('../../../services/api');
       
+      console.log(`🔄 Getting document list for ${system} record ${recordId}`);
       // Get document list for this specific record
       const response = await documentDownloadAPI.getDocumentList(system, recordId);
+      console.log(`📋 Document list response:`, response);
       
       if (response.success && response.data && response.data.length > 0) {
         // If there are documents, download the first one directly
         const document = response.data[0];
+        console.log(`📄 Downloading first document: ${document.filename}`);
         await downloadDocument(document.filename);
       } else {
+        console.log(`⚠️ No documents found in response:`, response);
         toast.info('No documents found for this record');
       }
     } catch (error) {

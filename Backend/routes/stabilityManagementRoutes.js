@@ -4,6 +4,7 @@ const stabilityManagementController = require('../controllers/stabilityManagemen
 const { auth } = require('../middleware/auth');
 const checkUserRole = require('../middleware/checkUserRole');
 const { uploadStabilityFiles } = require('../config/multerConfig');
+const { body } = require('express-validator');
 
 // Apply authentication middleware
 router.use(auth);
@@ -40,5 +41,29 @@ router.delete('/:id/files/:filename', checkUserRole(['Stability_manager', 'Admin
 
 // Get statistics
 router.get('/statistics', auth, stabilityManagementController.getStatistics);
+
+// ===== RENEWAL SYSTEM ROUTES =====
+
+// Renew stability - Admin and Stability Manager only
+router.post('/:id/renew', 
+  checkUserRole(['Admin', 'Stability_manager']),
+  uploadStabilityFiles,
+  [
+    body('stability_manager_id').notEmpty().withMessage('Stability manager ID is required'),
+    body('load_type').isIn(['with_load', 'without_load']).withMessage('Load type must be with_load or without_load'),
+    body('stability_date').isISO8601().withMessage('Valid stability date is required'),
+    body('remarks').optional().isString()
+  ],
+  stabilityManagementController.renewStability
+);
+
+// Get previous stabilities
+router.get('/previous', checkUserRole(['Admin', 'Stability_manager']), stabilityManagementController.getPreviousStabilities);
+
+// Get previous stability by ID
+router.get('/previous/:id', checkUserRole(['Admin', 'Stability_manager']), stabilityManagementController.getPreviousStabilityById);
+
+// Get all stabilities grouped (running + previous)
+router.get('/all-grouped', checkUserRole(['Admin', 'Stability_manager']), stabilityManagementController.getAllStabilitiesGrouped);
 
 module.exports = router; 

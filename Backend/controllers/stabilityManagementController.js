@@ -1,10 +1,13 @@
 const StabilityManagement = require('../models/stabilityManagementModel');
+const PreviousStabilityManagement = require('../models/previousStabilityManagementModel');
 const FactoryQuotation = require('../models/factoryQuotationModel');
 const ApplicationManagement = require('../models/applicationManagementModel');
 const User = require('../models/userModel');
 const Role = require('../models/roleModel');
 const UserRole = require('../models/userRoleModel');
+const UserRoleWorkLog = require('../models/userRoleWorkLogModel');
 const { Op } = require('sequelize');
+const sequelize = require('../config/db');
 const fs = require('fs');
 const path = require('path');
 
@@ -355,10 +358,10 @@ const updateStabilityStatus = async (req, res) => {
     const { user } = req;
 
     // Validate status
-    if (!['stability', 'submit', 'Approved', 'Reject'].includes(status)) {
+    if (!['stability', 'submit', 'Approved', 'Reject', 'Expired'].includes(status)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid status. Must be "stability", "submit", "Approved", or "Reject"'
+        message: 'Invalid status. Must be "stability", "submit", "Approved", "Reject", or "Expired"'
       });
     }
 
@@ -761,6 +764,398 @@ const getStatistics = async (req, res) => {
   }
 };
 
+// Renew stability management
+const renewStability = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const { id } = req.params;
+    const { user } = req;
+    const {
+      stability_manager_id,
+      load_type,
+      stability_date,
+      remarks
+    } = req.body;
+
+    console.log('🔄 Starting stability renewal process for ID:', id);
+    console.log('📋 Renewal data:', { stability_manager_id, load_type, stability_date, remarks });
+
+    // Validate required fields
+    if (!stability_manager_id || !load_type || !stability_date) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Stability manager ID, load type, and stability date are required'
+      });
+    }
+
+    // Find the original stability record
+    const originalStability = await StabilityManagement.findByPk(id, {
+      include: [
+        {
+          model: FactoryQuotation,
+          as: 'factoryQuotation',
+          attributes: ['id', 'companyName', 'companyAddress', 'email', 'phone']
+        },
+        {
+          model: User,
+          as: 'stabilityManager',
+          attributes: ['user_id', 'username', 'email']
+        }
+      ],
+      transaction
+    });
+
+    if (!originalStability) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: 'Original stability record not found'
+      });
+    }
+
+    // Check if stability manager exists and has the correct role
+    const stabilityManager = await User.findOne({
+      where: { user_id: stability_manager_id },
+      include: [{
+        model: Role,
+        as: 'roles',
+        through: UserRole,
+        where: { role_name: 'Stability_manager' }
+      }],
+      transaction
+    });
+
+    if (!stabilityManager) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: 'Stability manager not found or does not have the correct role'
+      });
+    }
+
+    // Calculate renewal date (5 years after stability date, minus 1 day)
+    const stabilityDateObj = new Date(stability_date);
+    const renewalDate = new Date(stabilityDateObj);
+    renewalDate.setFullYear(renewalDate.getFullYear() + 5);
+    renewalDate.setDate(renewalDate.getDate() - 1);
+
+    console.log('📅 Calculated renewal date:', renewalDate.toISOString().split('T')[0]);
+
+    // Move original stability to previous table
+    const previousStabilityData = {
+      original_stability_id: originalStability.id,
+      factory_quotation_id: originalStability.factory_quotation_id,
+      stability_manager_id: originalStability.stability_manager_id,
+      status: originalStability.status,
+      load_type: originalStability.load_type,
+      stability_date: originalStability.stability_date,
+      renewal_date: originalStability.renewal_date,
+      remarks: originalStability.remarks,
+      files: originalStability.files,
+      submitted_at: originalStability.submitted_at,
+      reviewed_at: originalStability.reviewed_at,
+      reviewed_by: originalStability.reviewed_by,
+      renewed_at: new Date(),
+      created_at: originalStability.created_at,
+      updated_at: originalStability.updated_at
+    };
+
+    const previousStability = await PreviousStabilityManagement.create(previousStabilityData, { transaction });
+    console.log('✅ Previous stability record created with ID:', previousStability.id);
+
+    // Handle file upload if provided
+    let uploadedFiles = [];
+    if (req.file) {
+      uploadedFiles = [{
+        originalName: req.file.originalname,
+        filename: req.file.filename,
+        path: req.file.path,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+        uploadedAt: new Date()
+      }];
+      console.log('📁 File uploaded:', req.file.filename);
+    }
+
+    // Update original stability with new renewal data
+    const updatedStabilityData = {
+      stability_manager_id,
+      load_type,
+      stability_date,
+      renewal_date: renewalDate.toISOString().split('T')[0],
+      remarks: remarks || null,
+      files: uploadedFiles.length > 0 ? JSON.stringify(uploadedFiles) : originalStability.files,
+      status: 'Approved', // Set to approved for renewed stability
+      previous_stability_id: previousStability.id,
+      reviewed_at: new Date(),
+      reviewed_by: user.user_id,
+      updated_at: new Date()
+    };
+
+    await originalStability.update(updatedStabilityData, { transaction });
+    console.log('✅ Original stability record updated');
+
+    // Create audit log entry
+    await UserRoleWorkLog.create({
+      user_id: user.user_id,
+      target_user_id: stability_manager_id, // Use the stability manager as target user
+      action: 'renewed_stability',
+      details: `Renewed stability for ${originalStability.factoryQuotation?.companyName || 'Unknown Company'}. Previous stability ID: ${previousStability.id}, New stability date: ${stability_date}, New renewal date: ${renewalDate.toISOString().split('T')[0]}`,
+      ip_address: req.ip || req.connection.remoteAddress,
+      user_agent: req.get('User-Agent') || 'Unknown'
+    }, { transaction });
+
+    console.log('📝 Audit log created for stability renewal');
+
+    await transaction.commit();
+    console.log('✅ Stability renewal completed successfully');
+
+    // Fetch updated record with associations
+    const renewedStability = await StabilityManagement.findByPk(id, {
+      include: [
+        {
+          model: FactoryQuotation,
+          as: 'factoryQuotation',
+          attributes: ['id', 'companyName', 'companyAddress', 'email', 'phone']
+        },
+        {
+          model: User,
+          as: 'stabilityManager',
+          attributes: ['user_id', 'username', 'email']
+        },
+        {
+          model: User,
+          as: 'reviewer',
+          attributes: ['user_id', 'username', 'email']
+        }
+      ]
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Stability renewed successfully',
+      data: renewedStability
+    });
+
+  } catch (error) {
+    await transaction.rollback();
+    console.error('❌ Error renewing stability:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to renew stability',
+      error: error.message
+    });
+  }
+};
+
+// Get previous stabilities
+const getPreviousStabilities = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || parseInt(req.query.pageSize) || 10;
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await PreviousStabilityManagement.findAndCountAll({
+      include: [
+        {
+          model: FactoryQuotation,
+          as: 'factoryQuotation',
+          attributes: ['id', 'companyName', 'companyAddress', 'email', 'phone']
+        },
+        {
+          model: User,
+          as: 'stabilityManager',
+          attributes: ['user_id', 'username', 'email']
+        },
+        {
+          model: User,
+          as: 'reviewer',
+          attributes: ['user_id', 'username', 'email']
+        }
+      ],
+      limit,
+      offset,
+      order: [['renewed_at', 'DESC']]
+    });
+
+    res.json({
+      success: true,
+      data: rows,
+      currentPage: page,
+      pageSize: limit,
+      totalPages: Math.ceil(count / limit),
+      totalItems: count
+    });
+  } catch (error) {
+    console.error('Error fetching previous stabilities:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch previous stabilities',
+      error: error.message
+    });
+  }
+};
+
+// Get previous stability by ID
+const getPreviousStabilityById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const previousStability = await PreviousStabilityManagement.findByPk(id, {
+      include: [
+        {
+          model: FactoryQuotation,
+          as: 'factoryQuotation',
+          attributes: ['id', 'companyName', 'companyAddress', 'email', 'phone']
+        },
+        {
+          model: User,
+          as: 'stabilityManager',
+          attributes: ['user_id', 'username', 'email']
+        },
+        {
+          model: User,
+          as: 'reviewer',
+          attributes: ['user_id', 'username', 'email']
+        }
+      ]
+    });
+
+    if (!previousStability) {
+      return res.status(404).json({
+        success: false,
+        message: 'Previous stability record not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: previousStability
+    });
+  } catch (error) {
+    console.error('Error fetching previous stability:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch previous stability',
+      error: error.message
+    });
+  }
+};
+
+// Get all stabilities grouped (running + previous)
+const getAllStabilitiesGrouped = async (req, res) => {
+  try {
+    const { user } = req;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || parseInt(req.query.pageSize) || 10;
+    const offset = (page - 1) * limit;
+
+    // Handle both array and object formats for user roles
+    let userRoles = [];
+    if (Array.isArray(user.roles)) {
+      userRoles = user.roles.map(role => role.role_name || role);
+    } else if (user.roles) {
+      userRoles = [user.roles];
+    }
+    
+    const isAdmin = userRoles.includes('Admin');
+    const isStabilityManager = userRoles.includes('Stability_manager');
+
+    let whereClause = {};
+    
+    // If user is stability manager, only show their assigned records
+    if (isStabilityManager && !isAdmin) {
+      whereClause.stability_manager_id = user.user_id;
+    }
+
+    // Get running stabilities
+    const runningStabilities = await StabilityManagement.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: FactoryQuotation,
+          as: 'factoryQuotation',
+          attributes: ['id', 'companyName', 'companyAddress', 'email', 'phone']
+        },
+        {
+          model: User,
+          as: 'stabilityManager',
+          attributes: ['user_id', 'username', 'email']
+        },
+        {
+          model: User,
+          as: 'reviewer',
+          attributes: ['user_id', 'username', 'email']
+        }
+      ],
+      order: [['created_at', 'DESC']]
+    });
+
+    // Get previous stabilities
+    const previousStabilities = await PreviousStabilityManagement.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: FactoryQuotation,
+          as: 'factoryQuotation',
+          attributes: ['id', 'companyName', 'companyAddress', 'email', 'phone']
+        },
+        {
+          model: User,
+          as: 'stabilityManager',
+          attributes: ['user_id', 'username', 'email']
+        },
+        {
+          model: User,
+          as: 'reviewer',
+          attributes: ['user_id', 'username', 'email']
+        }
+      ],
+      order: [['renewed_at', 'DESC']]
+    });
+
+    // Mark records with their type
+    const runningWithType = runningStabilities.map(stability => ({
+      ...stability.toJSON(),
+      record_type: 'running'
+    }));
+
+    const previousWithType = previousStabilities.map(stability => ({
+      ...stability.toJSON(),
+      record_type: 'previous'
+    }));
+
+    // Combine and sort all records
+    const allStabilities = [...runningWithType, ...previousWithType];
+    allStabilities.sort((a, b) => {
+      const dateA = new Date(a.record_type === 'running' ? a.created_at : a.renewed_at);
+      const dateB = new Date(b.record_type === 'running' ? b.created_at : b.renewed_at);
+      return dateB - dateA;
+    });
+
+    // Apply pagination
+    const totalItems = allStabilities.length;
+    const paginatedStabilities = allStabilities.slice(offset, offset + limit);
+
+    res.json({
+      success: true,
+      data: paginatedStabilities,
+      currentPage: page,
+      pageSize: limit,
+      totalPages: Math.ceil(totalItems / limit),
+      totalItems: totalItems
+    });
+  } catch (error) {
+    console.error('Error fetching grouped stabilities:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch grouped stabilities',
+      error: error.message
+    });
+  }
+};
 // Delete stability file (Stability Manager and Admin only)
 const deleteStabilityFile = async (req, res) => {
   try {
@@ -840,5 +1235,9 @@ module.exports = {
   uploadStabilityFiles,
   getStabilityFiles,
   deleteStabilityFile,
-  getStatistics
+  getStatistics,
+  renewStability,
+  getPreviousStabilities,
+  getPreviousStabilityById,
+  getAllStabilitiesGrouped
 }; 

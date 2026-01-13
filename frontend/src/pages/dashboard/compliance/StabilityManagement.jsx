@@ -11,14 +11,17 @@ import {
   BiTrendingUp,
   BiErrorCircle,
   BiAnchor,
+  BiRefresh,
 } from "react-icons/bi";
 import { stabilityManagementAPI } from "../../../services/api";
 import TableWithControl from "../../../components/common/Table/TableWithControl";
 import Button from "../../../components/common/Button/Button";
+import ActionButton from "../../../components/common/ActionButton/ActionButton";
 import Modal from "../../../components/common/Modal/Modal";
 import Loader from "../../../components/common/Loader/Loader";
 import "../../../styles/pages/dashboard/compliance/Compliance.css";
 import "../../../styles/components/StatCards.css";
+import "../../../styles/pages/dashboard/insurance/Insurance.css";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { useAuth } from "../../../contexts/AuthContext";
@@ -125,6 +128,200 @@ const FileUploadModal = memo(({ onClose, onUpload }) => {
 });
 
 FileUploadModal.displayName = 'FileUploadModal';
+
+// Renewal Form Component
+const RenewalForm = memo(({ onClose, onRenewal, stabilityData, stabilityManagers }) => {
+  const [formData, setFormData] = useState({
+    stability_manager_id: '',
+    load_type: 'with_load',
+    stability_date: '',
+    remarks: ''
+  });
+  const [file, setFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // Pre-fill form with existing stability data
+  useEffect(() => {
+    if (stabilityData) {
+      console.log('Pre-filling renewal form with data:', stabilityData);
+      setFormData({
+        stability_manager_id: stabilityData.stability_manager_id || '',
+        load_type: stabilityData.load_type || 'with_load',
+        stability_date: '',
+        remarks: stabilityData.remarks || ''
+      });
+    }
+  }, [stabilityData]);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files[0];
+    if (selectedFile) {
+      // Validate file type
+      const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      if (!allowedTypes.includes(selectedFile.type)) {
+        toast.error('Please select a PDF or Word document');
+        return;
+      }
+      
+      // Validate file size (10MB)
+      if (selectedFile.size > 10 * 1024 * 1024) {
+        toast.error('File size must be less than 10MB');
+        return;
+      }
+      
+      setFile(selectedFile);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.stability_manager_id || !formData.load_type || !formData.stability_date) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    if (!file) {
+      toast.error('Please select a stability document');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const renewalFormData = new FormData();
+      renewalFormData.append('stability_manager_id', formData.stability_manager_id);
+      renewalFormData.append('load_type', formData.load_type);
+      renewalFormData.append('stability_date', formData.stability_date);
+      if (formData.remarks) {
+        renewalFormData.append('remarks', formData.remarks);
+      }
+      renewalFormData.append('files', file);
+
+      console.log('Submitting renewal form with data:', {
+        stability_manager_id: formData.stability_manager_id,
+        load_type: formData.load_type,
+        stability_date: formData.stability_date,
+        remarks: formData.remarks,
+        file: file?.name
+      });
+
+      await onRenewal(renewalFormData);
+      toast.success('Stability renewed successfully');
+      onClose();
+    } catch (error) {
+      console.error('Error renewing stability:', error);
+      toast.error(error.message || 'Failed to renew stability');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={true} onClose={onClose} title="Renew Stability Certificate">
+      <form onSubmit={handleSubmit} className="insurance-form">
+        <div className="insurance-form-grid">
+          <div className="insurance-form-group">
+            <label className="insurance-form-label">Stability Manager *</label>
+            <select
+              name="stability_manager_id"
+              value={formData.stability_manager_id}
+              onChange={handleInputChange}
+              className="insurance-form-input"
+              required
+            >
+              <option value="">Select Stability Manager</option>
+              {stabilityManagers.map(manager => (
+                <option key={manager.user_id} value={manager.user_id}>
+                  {manager.username} ({manager.email})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="insurance-form-group">
+            <label className="insurance-form-label">Load Type *</label>
+            <select
+              name="load_type"
+              value={formData.load_type}
+              onChange={handleInputChange}
+              className="insurance-form-input"
+              required
+            >
+              <option value="with_load">With Load</option>
+              <option value="without_load">Without Load</option>
+            </select>
+          </div>
+
+          <div className="insurance-form-group">
+            <label className="insurance-form-label">New Stability Date *</label>
+            <input
+              type="date"
+              name="stability_date"
+              value={formData.stability_date}
+              onChange={handleInputChange}
+              className="insurance-form-input"
+              required
+            />
+            <small className="text-gray-500">
+              Renewal date will be automatically calculated (5 years after stability date)
+            </small>
+          </div>
+
+          <div className="insurance-form-group">
+            <label className="insurance-form-label">Remarks</label>
+            <textarea
+              name="remarks"
+              value={formData.remarks}
+              onChange={handleInputChange}
+              className="insurance-form-input"
+              rows="3"
+              placeholder="Enter any remarks for the renewal..."
+            />
+          </div>
+
+          <div className="insurance-form-group">
+            <label className="insurance-form-label">Stability Document *</label>
+            <input
+              type="file"
+              onChange={handleFileChange}
+              className="insurance-form-input"
+              accept=".pdf,.doc,.docx"
+              required
+            />
+            <small className="text-gray-500">
+              Upload new stability certificate (PDF or Word document, max 10MB)
+            </small>
+            {file && (
+              <div className="selected-file">
+                <BiFile className="mr-2" />
+                {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="insurance-form-actions">
+          <Button type="button" onClick={onClose} variant="outlined">
+            Cancel
+          </Button>
+          <Button type="submit" variant="contained" disabled={loading}>
+            {loading ? 'Renewing...' : 'Renew Stability'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+});
+
+RenewalForm.displayName = 'RenewalForm';
 
 // Reject Modal
 const RejectModal = ({ onClose, onReject }) => {
@@ -357,6 +554,7 @@ const StabilityDateModal = ({ onClose, onUpdate, currentDate }) => {
 // Main Stability Management Component
 const StabilityManagement = ({ searchQuery = "" }) => {
   const [stabilityRecords, setStabilityRecords] = useState([]);
+  const [groupedStabilities, setGroupedStabilities] = useState([]);
   const [filteredStabilityRecords, setFilteredStabilityRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -364,12 +562,15 @@ const StabilityManagement = ({ searchQuery = "" }) => {
   const [showFileUploadModal, setShowFileUploadModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showDateModal, setShowDateModal] = useState(false);
+  const [showRenewalModal, setShowRenewalModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [selectedStability, setSelectedStability] = useState(null);
+  const [selectedStabilityForRenewal, setSelectedStabilityForRenewal] = useState(null);
   const [stabilityManagers, setStabilityManagers] = useState([]);
   const [statistics, setStatistics] = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState('running');
   const { user } = useAuth();
   const [pagination, setPagination] = useState({
     currentPage: 1,
@@ -383,9 +584,14 @@ const StabilityManagement = ({ searchQuery = "" }) => {
     if (searchQuery && searchQuery.trim() !== "") {
       handleSearchStabilityRecords(searchQuery);
     } else {
-      setFilteredStabilityRecords(stabilityRecords);
+      // Reset to appropriate data based on active tab
+      if (activeTab === 'running') {
+        setFilteredStabilityRecords(stabilityRecords);
+      } else {
+        setFilteredStabilityRecords(groupedStabilities);
+      }
     }
-  }, [searchQuery, stabilityRecords]);
+  }, [searchQuery, stabilityRecords, groupedStabilities, activeTab]);
 
   const handleSearchStabilityRecords = async (query) => {
     try {
@@ -396,7 +602,8 @@ const StabilityManagement = ({ searchQuery = "" }) => {
     } catch (error) {
       console.error('Error searching stability records:', error);
       // Fallback to local search
-      const filtered = stabilityRecords.filter(record => 
+      const dataToSearch = activeTab === 'running' ? stabilityRecords : groupedStabilities;
+      const filtered = dataToSearch.filter(record => 
         record.factoryQuotation?.companyName?.toLowerCase().includes(query.toLowerCase()) ||
         record.status?.toLowerCase().includes(query.toLowerCase()) ||
         record.stabilityManager?.username?.toLowerCase().includes(query.toLowerCase())
@@ -407,8 +614,73 @@ const StabilityManagement = ({ searchQuery = "" }) => {
 
   useEffect(() => {
     fetchStabilityManagementRecords(1, 10);
+    fetchGroupedStabilities(1, 10);
+    fetchStabilityManagers();
     fetchStabilityStatistics();
   }, []);
+
+  // Set initial filtered records when data loads
+  useEffect(() => {
+    console.log('🔄 Setting initial filtered records:', {
+      activeTab,
+      stabilityRecordsLength: stabilityRecords.length,
+      groupedStabilitiesLength: groupedStabilities.length
+    });
+    
+    if (activeTab === 'running' && stabilityRecords.length > 0) {
+      console.log('✅ Setting filtered records to stabilityRecords');
+      setFilteredStabilityRecords(stabilityRecords);
+    } else if (activeTab === 'all') {
+      if (groupedStabilities.length > 0) {
+        console.log('✅ Setting filtered records to groupedStabilities');
+        setFilteredStabilityRecords(groupedStabilities);
+      } else if (stabilityRecords.length > 0) {
+        console.log('📋 Using running records as fallback for all tab (no grouped data)');
+        setFilteredStabilityRecords(stabilityRecords.map(record => ({
+          ...record,
+          record_type: 'running'
+        })));
+      } else {
+        console.log('⚠️ No data available for all tab');
+      }
+    } else {
+      console.log('⚠️ No data to set for current tab');
+    }
+  }, [stabilityRecords, groupedStabilities, activeTab]);
+
+  const fetchStabilityManagers = async () => {
+    try {
+      const response = await stabilityManagementAPI.getStabilityManagers();
+      if (response.success) {
+        setStabilityManagers(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching stability managers:', error);
+    }
+  };
+
+  const fetchGroupedStabilities = async (page = 1, pageSize = 10) => {
+    try {
+      console.log('🔄 Fetching grouped stabilities...');
+      const response = await stabilityManagementAPI.getAllStabilitiesGrouped({ page, pageSize });
+      console.log('📡 Grouped stabilities API response:', response);
+      
+      if (response.success) {
+        console.log('✅ Grouped stabilities loaded:', response.data.length, 'records');
+        console.log('📊 Grouped stabilities data:', response.data.map(record => ({
+          id: record.id,
+          record_type: record.record_type,
+          company: record.factoryQuotation?.companyName || 'N/A',
+          status: record.status
+        })));
+        setGroupedStabilities(response.data);
+      } else {
+        console.error('❌ Grouped stabilities API returned success: false');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching grouped stabilities:', error);
+    }
+  };
 
   const fetchStabilityManagementRecords = async (page = 1, pageSize = 10) => {
     console.log('🔄 Stability Management - Fetching records for page:', page, 'pageSize:', pageSize);
@@ -424,15 +696,25 @@ const StabilityManagement = ({ searchQuery = "" }) => {
       });
       
       if (response.success) {
+        console.log('📊 Raw Stability Management Records from API:', response.data);
         console.log('📊 Stability Management Records:', response.data.map(record => ({
           id: record.id,
           company: record.factoryQuotation?.companyName || 'N/A',
           manager: record.stabilityManager?.username || 'N/A',
           status: record.status,
-          loadType: record.load_type
+          loadType: record.load_type,
+          filesType: typeof record.files,
+          filesContent: record.files,
+          filesLength: record.files ? (typeof record.files === 'string' ? 'string' : Array.isArray(record.files) ? record.files.length : 'object') : 'null'
         })));
         
         setStabilityRecords(response.data);
+        
+        // Update filtered records if we're on running tab
+        if (activeTab === 'running') {
+          setFilteredStabilityRecords(response.data);
+        }
+        
         if (response.currentPage) {
           setPagination({
             currentPage: response.currentPage || page,
@@ -605,6 +887,89 @@ const StabilityManagement = ({ searchQuery = "" }) => {
     }
   };
 
+  // ===== RENEWAL SYSTEM FUNCTIONS =====
+
+  const handleRenewal = (stability) => {
+    console.log('🔄 Starting renewal for stability:', stability);
+    
+    // Transform stability data for renewal form
+    const transformedData = {
+      id: stability.id,
+      stability_manager_id: stability.stability_manager_id,
+      load_type: stability.load_type,
+      stability_date: stability.stability_date,
+      remarks: stability.remarks,
+      factoryQuotation: stability.factoryQuotation,
+      stabilityManager: stability.stabilityManager
+    };
+    
+    setSelectedStabilityForRenewal(transformedData);
+    setShowRenewalModal(true);
+  };
+
+  const handleRenewalModalClose = () => {
+    setShowRenewalModal(false);
+    setSelectedStabilityForRenewal(null);
+  };
+
+  const handleRenewalCompleted = async (formData) => {
+    if (!selectedStabilityForRenewal) return;
+    
+    try {
+      console.log('🔄 Processing stability renewal...');
+      await stabilityManagementAPI.renewStability(selectedStabilityForRenewal.id, formData);
+      
+      // Refresh both running and grouped data
+      await Promise.all([
+        fetchStabilityManagementRecords(pagination.currentPage, pagination.pageSize),
+        fetchGroupedStabilities(pagination.currentPage, pagination.pageSize),
+        fetchStabilityStatistics()
+      ]);
+      
+      console.log('✅ Stability renewal completed and data refreshed');
+    } catch (error) {
+      console.error('❌ Error in renewal completion:', error);
+      throw error;
+    }
+  };
+
+  // Handle tab switching
+  const handleTabSwitch = (tab) => {
+    console.log('🔄 Switching to tab:', tab);
+    console.log('📊 Current data state:', {
+      stabilityRecordsLength: stabilityRecords.length,
+      groupedStabilitiesLength: groupedStabilities.length,
+      filteredStabilityRecordsLength: filteredStabilityRecords.length
+    });
+    
+    setActiveTab(tab);
+    
+    if (tab === 'running') {
+      console.log('✅ Setting filtered records to stabilityRecords for running tab');
+      setFilteredStabilityRecords(stabilityRecords);
+    } else {
+      console.log('✅ Setting filtered records to groupedStabilities for all tab');
+      
+      // If we have grouped stabilities, use them
+      if (groupedStabilities.length > 0) {
+        setFilteredStabilityRecords(groupedStabilities);
+      } else {
+        // Fetch grouped data if not already loaded
+        console.log('🔄 Fetching grouped stabilities as none are loaded');
+        fetchGroupedStabilities(1, pagination.pageSize);
+        
+        // As a fallback, show running records until grouped data loads
+        if (stabilityRecords.length > 0) {
+          console.log('📋 Using running records as fallback for all tab');
+          setFilteredStabilityRecords(stabilityRecords.map(record => ({
+            ...record,
+            record_type: 'running'
+          })));
+        }
+      }
+    }
+  };
+
   const getStatusBadgeClass = (status) => {
     switch (status) {
       case 'stability':
@@ -615,6 +980,8 @@ const StabilityManagement = ({ searchQuery = "" }) => {
         return 'status-badge-approved';
       case 'Reject':
         return 'status-badge-reject';
+      case 'Expired':
+        return 'status-badge-expired';
       default:
         return 'status-badge-maked';
     }
@@ -637,6 +1004,63 @@ const StabilityManagement = ({ searchQuery = "" }) => {
     return date.toLocaleDateString('en-GB'); // DD/MM/YYYY format
   };
 
+  const getFirstFileName = (record) => {
+    try {
+      console.log('🔍 Getting first filename for record:', record.id, 'files:', record.files);
+      
+      if (!record.files) {
+        console.log('❌ No files field found');
+        return null;
+      }
+
+      let files;
+      if (typeof record.files === 'string') {
+        try {
+          files = JSON.parse(record.files);
+          console.log('📋 Parsed files from string:', files);
+        } catch (parseError) {
+          console.error('❌ Error parsing JSON string:', parseError);
+          return null;
+        }
+      } else {
+        files = record.files;
+        console.log('📋 Files already parsed:', files);
+      }
+      
+      // Ensure files is an array
+      if (!Array.isArray(files)) {
+        console.log('❌ Files is not an array:', typeof files, files);
+        return null;
+      }
+
+      // Check if array has elements
+      if (files.length === 0) {
+        console.log('❌ Files array is empty');
+        return null;
+      }
+
+      // Get first file and validate it has filename
+      const firstFile = files[0];
+      if (!firstFile || typeof firstFile !== 'object') {
+        console.log('❌ First file is invalid:', firstFile);
+        return null;
+      }
+
+      if (!firstFile.filename) {
+        console.log('❌ First file has no filename property:', firstFile);
+        return null;
+      }
+
+      const filename = firstFile.filename;
+      console.log('✅ First filename found:', filename);
+      return filename;
+      
+    } catch (error) {
+      console.error('❌ Error in getFirstFileName:', error);
+      return null;
+    }
+  };
+
   const columns = [
     {
       key: "sr_no",
@@ -650,10 +1074,10 @@ const StabilityManagement = ({ searchQuery = "" }) => {
       sortable: true,
       render: (_, record) => (
         <div>
-          <div className="text-sm text-gray-500"><strong>Name:</strong>{record.factoryQuotation?.companyName || "-"}</div>
-          <div className="text-sm"><strong>Address:</strong> {record.factoryQuotation?.companyAddress || "-"}</div>
-          <div className="text-sm"><strong>Email:</strong> {record.factoryQuotation?.email || "-"}</div>
-          <div className="text-sm"><strong>Phone:</strong> {record.factoryQuotation?.phone || "-"}</div>
+          <div className="text-sm text-gray-500"><strong>Name: </strong>{record.factoryQuotation?.companyName || "-"}</div>
+          <div className="text-sm"><strong>Address: </strong> {record.factoryQuotation?.companyAddress || "-"}</div>
+          <div className="text-sm"><strong>Email: </strong> {record.factoryQuotation?.email || "-"}</div>
+          <div className="text-sm"><strong>Phone: </strong> {record.factoryQuotation?.phone || "-"}</div>
         </div>
       ),
     },
@@ -669,19 +1093,30 @@ const StabilityManagement = ({ searchQuery = "" }) => {
     },
     {
       key: "status",
-      label: "Stability Status",
+      label: "Status",
       sortable: true,
       render: (_, record) => (
-        <select
-          value={record.status}
-          onChange={(e) => handleStatusChange(record.id, e.target.value)}
-          className={`status-badge-dropdown ${getStatusBadgeClass(record.status)}`}
-        >
-          <option value="stability">Stability</option>
-          <option value="submit">Submit</option>
-          <option value="Approved">Approved</option>
-          <option value="Reject">Reject</option>
-        </select>
+        <div className="flex flex-col gap-1">
+          {/* For Running tab or running records - show dropdown */}
+          {activeTab === 'running' || record.record_type === 'running' ? (
+            <select
+              value={record.status}
+              onChange={(e) => handleStatusChange(record.id, e.target.value)}
+              className={`status-badge-dropdown ${getStatusBadgeClass(record.status)}`}
+            >
+              <option value="stability">Stability</option>
+              <option value="submit">Submit</option>
+              <option value="Approved">Approved</option>
+              <option value="Reject">Reject</option>
+              <option value="Expired">Expired</option>
+            </select>
+          ) : (
+            /* For All tab with previous records OR records manually set to Expired */
+            <span className="status-badge status-badge-expired">
+              Expired
+            </span>
+          )}
+        </div>
       ),
     },
     {
@@ -729,24 +1164,27 @@ const StabilityManagement = ({ searchQuery = "" }) => {
       label: "Stability Date",
       sortable: true,
       render: (_, record) => (
-        <div className="flex items-center gap-2">
+        <div className="insurance-actions">
           {record.stability_date ? (
             <div className="flex items-center gap-1">
               <BiCalendar />
               {formatDate(record.stability_date)}
             </div>
           ) : (
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={() => {
-                setSelectedStability(record);
-                setShowDateModal(true);
-              }}
-              icon={<BiEdit />}
-            >
-              Set Date
-            </Button>
+            // Only show "Set Date" button for running records
+            (activeTab === 'running' || record.record_type === 'running') && (
+              <ActionButton
+                onClick={() => {
+                  setSelectedStability(record);
+                  setShowDateModal(true);
+                }}
+                variant="secondary"
+                size="small"
+                title="Set Stability Date"
+              >
+                <BiEdit />
+              </ActionButton>
+            )
           )}
         </div>
       ),
@@ -768,25 +1206,49 @@ const StabilityManagement = ({ searchQuery = "" }) => {
       key: "actions",
       label: "Actions",
       sortable: false,
-      render: (_, record) => (
-        <div className="flex items-center gap-2">
-          <DocumentDownload 
-            system="stability-management" 
-            recordId={record.id}
-            buttonText=""
-            buttonClass="action-button action-button-secondary action-button-small"
-            showIcon={true}
-            filePath={record.upload_option ? `/uploads/stability_management/${record.upload_option}` : null}
-            fileName={record.upload_option || 'stability-document.pdf'}
-          />
-        </div>
-      ),
+      render: (_, record) => {
+        const filename = getFirstFileName(record);
+        console.log(`🔍 DocumentDownload for record ${record.id}: filename="${filename}", files="${record.files}"`);
+        
+        return (
+          <div className="insurance-actions">
+            {/* Renewal Button - only for running records with Approved status */}
+            {(activeTab === 'running' || record.record_type === 'running') && record.status === 'Approved' && (
+              <ActionButton
+                onClick={() => handleRenewal(record)}
+                variant="secondary"
+                size="small"
+                title="Renew Stability"
+              >
+                <BiRefresh />
+              </ActionButton>
+            )}
+            
+            <DocumentDownload 
+              system="stability-management" 
+              recordId={record.id}
+              buttonText=""
+              buttonClass="action-button action-button-secondary action-button-small"
+              showIcon={true}
+              filePath={filename ? `/uploads/stability/${filename}` : null}
+              fileName={filename || `stability-record-${record.id}.pdf`}
+              disabled={!filename}
+            />
+          </div>
+        );
+      },
     },
   ];
 
   const filteredRecords = React.useMemo(() => {
+    console.log('🔍 Computing filtered records:', {
+      activeTab,
+      stabilityRecordsLength: stabilityRecords.length,
+      groupedStabilitiesLength: groupedStabilities.length,
+      filteredStabilityRecordsLength: filteredStabilityRecords.length
+    });
     return filteredStabilityRecords;
-  }, [filteredStabilityRecords]);
+  }, [filteredStabilityRecords, activeTab, stabilityRecords.length, groupedStabilities.length]);
 
   return (
     <div className="insurance">
@@ -798,7 +1260,7 @@ const StabilityManagement = ({ searchQuery = "" }) => {
 
           {error && (
             <div className="insurance-error">
-              <BiX className="inline mr-2" /> {error}
+              <BiErrorCircle className="inline mr-2" /> {error}
             </div>
           )}
 
@@ -808,21 +1270,58 @@ const StabilityManagement = ({ searchQuery = "" }) => {
             <StatisticsCards statistics={statistics} loading={statsLoading} />
           </div>
 
-        {loading ? (
-          <Loader size="large" color="primary" />
-        ) : (
-          <TableWithControl
-            data={filteredRecords}
-            columns={columns}
-            defaultPageSize={pagination.pageSize}
-            currentPage={pagination.currentPage}
-            totalPages={pagination.totalPages}
-            totalItems={pagination.totalItems}
-            onPageChange={handlePageChange}
-            onPageSizeChange={handlePageSizeChange}
-            serverSidePagination={true}
-          />
-        )}
+          {/* Tab Navigation */}
+          <div className="tab-navigation" style={{ marginBottom: "24px" }}>
+            <button
+              className={`tab-button ${
+                activeTab === "running" ? "active" : ""
+              }`}
+              onClick={() => handleTabSwitch("running")}
+            >
+              <BiTrendingUp className="tab-icon" />
+              Running
+            </button>
+            <button
+              className={`tab-button ${activeTab === "all" ? "active" : ""}`}
+              onClick={() => handleTabSwitch("all")}
+            >
+              <BiShield className="tab-icon" />
+              All Stabilities
+            </button>
+          </div>
+
+          {/* Tab Content */}
+          {activeTab === "running" ? (
+            loading ? (
+              <Loader size="large" color="primary" />
+            ) : (
+              <TableWithControl
+                data={filteredRecords}
+                columns={columns}
+                defaultPageSize={pagination.pageSize}
+                currentPage={pagination.currentPage}
+                totalPages={pagination.totalPages}
+                totalItems={pagination.totalItems}
+                onPageChange={handlePageChange}
+                onPageSizeChange={handlePageSizeChange}
+                serverSidePagination={true}
+              />
+            )
+          ) : loading ? (
+            <Loader size="large" color="primary" />
+          ) : (
+            <TableWithControl
+              data={filteredRecords}
+              columns={columns}
+              defaultPageSize={pagination.pageSize}
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              totalItems={pagination.totalItems}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+              serverSidePagination={false}
+            />
+          )}
         </div>
 
         {showFileUploadModal && (
@@ -853,6 +1352,15 @@ const StabilityManagement = ({ searchQuery = "" }) => {
             }}
             onUpdate={handleUpdateStabilityDates}
             currentDate={selectedStability?.stability_date}
+          />
+        )}
+
+        {showRenewalModal && (
+          <RenewalForm
+            onClose={handleRenewalModalClose}
+            onRenewal={handleRenewalCompleted}
+            stabilityData={selectedStabilityForRenewal}
+            stabilityManagers={stabilityManagers}
           />
         )}
       </div>
