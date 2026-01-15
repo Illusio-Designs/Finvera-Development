@@ -1,6 +1,7 @@
-const { LabourLicense, Company } = require('../models');
+const { LabourLicense, Company, PreviousLabourLicense } = require('../models');
 const { Op } = require('sequelize');
 const emailService = require('../services/emailService');
+const sequelize = require('../config/db');
 
 // Create labour license
 const createLabourLicense = async (req, res) => {
@@ -113,9 +114,38 @@ const getAllLabourLicenses = async (req, res) => {
       order: [['created_at', 'DESC']]
     });
 
+    // Update expired licenses automatically
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    for (const license of rows) {
+      const expiryDate = new Date(license.expiry_date);
+      expiryDate.setHours(0, 0, 0, 0);
+      
+      // If expiry date has passed and status is not already expired, update it
+      if (expiryDate < today && license.status !== 'expired') {
+        await license.update({ status: 'expired' });
+      }
+    }
+
+    // Fetch updated data
+    const updatedRows = await LabourLicense.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: Company,
+          as: 'company',
+          attributes: ['company_id', 'company_name', 'company_code']
+        }
+      ],
+      limit: actualLimit,
+      offset: parseInt(offset),
+      order: [['created_at', 'DESC']]
+    });
+
     res.json({
       success: true,
-      data: rows,
+      data: updatedRows,
       pagination: {
         totalItems: count,
         currentPage: parseInt(page),
@@ -422,6 +452,392 @@ const getLabourLicenseStatsOverview = async (req, res) => {
   }
 };
 
+// Renew labour license
+const renewLabourLicense = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const { id } = req.params;
+    const {
+      license_number,
+      expiry_date,
+      type,
+      remarks
+    } = req.body;
+
+    console.log('🔄 Starting labour license renewal for ID:', id);
+
+    // Validate required fields
+    if (!license_number || !expiry_date || !type) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: license_number, expiry_date, type'
+      });
+    }
+
+    // Get the current license
+    const currentLicense = await LabourLicense.findByPk(id, {
+      include: [{
+        model: Company,
+        as: 'company'
+      }],
+      transaction
+    });
+
+    if (!currentLicense) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: 'Labour license not found'
+      });
+    }
+
+    console.log('📋 Current license found:', currentLicense.license_number);
+
+    // Create previous license record
+    const previousLicenseData = {
+      original_license_id: currentLicense.license_id,
+      company_id: currentLicense.company_id,
+      license_number: currentLicense.license_number,
+      expiry_date: currentLicense.expiry_date,
+      status: 'expired',
+      type: currentLicense.type
+    };
+
+    const previousLicense = await PreviousLabourLicense.create(previousLicenseData, { transaction });
+    console.log('✅ Previous license record created with ID:', previousLicense.id);
+
+    // Update current license with new details
+    await currentLicense.update({
+      license_number,
+      expiry_date,
+      type,
+      status: 'active',
+      remarks: remarks || currentLicense.remarks,
+      previous_license_id: previousLicense.id,
+      updated_by: req.user.user_id
+    }, { transaction });
+
+    console.log('✅ Current license updated with new details');
+
+    await transaction.commit();
+    console.log('✅ Labour license renewal completed successfully');
+
+    // Fetch updated license with associations
+    const updatedLicense = await LabourLicense.findByPk(id, {
+      include: [{
+        model: Company,
+        as: 'company'
+      }]
+    });
+
+    res.json({
+      success: true,
+      message: 'Labour license renewed successfully',
+      data: updatedLicense
+    });
+
+  } catch (error) {
+    await transaction.rollback();
+    console.error('❌ Error renewing labour license:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to renew labour license',
+      error: error.message
+    });
+  }
+};
+
+// Get previous licences for a specific license
+const getPreviousLicenses = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+
+    // Get the current license to find its company
+    const currentLicense = await LabourLicense.findByPk(id);
+    
+    if (!currentLicense) {
+      return res.status(404).json({
+        success: false,
+        message: 'Labour license not found'
+      });
+    }
+
+    // Get all previous licenses for this company
+    const { count, rows } = await PreviousLabourLicense.findAndCountAll({
+      where: {
+        company_id: currentLicense.company_id
+      },
+      include: [{
+        model: Company,
+        as: 'company',
+        attributes: ['company_id', 'company_name', 'company_code']
+      }],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [['created_at', 'DESC']]
+    });
+
+    res.json({
+      success: true,
+      data: rows,
+      pagination: {
+        totalItems: count,
+        currentPage: parseInt(page),
+        itemsPerPage: parseInt(limit),
+        totalPages: Math.ceil(count / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching previous licenses:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch previous licenses',
+      error: error.message
+    });
+  }
+};
+
+// Get all licenses grouped (running + previous)
+const getAllLicensesGrouped = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, pageSize } = req.query;
+    const actualLimit = parseInt(limit) || parseInt(pageSize) || 10;
+    const offset = (page - 1) * actualLimit;
+
+    // Get all running licenses (both active and expired)
+    const runningLicenses = await LabourLicense.findAll({
+      include: [{
+        model: Company,
+        as: 'company',
+        attributes: ['company_id', 'company_name', 'company_code']
+      }],
+      order: [['created_at', 'DESC']]
+    });
+
+    // Update expired licenses automatically
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    for (const license of runningLicenses) {
+      const expiryDate = new Date(license.expiry_date);
+      expiryDate.setHours(0, 0, 0, 0);
+      
+      // If expiry date has passed and status is not already expired, update it
+      if (expiryDate < today && license.status !== 'expired') {
+        await license.update({ status: 'expired' });
+      }
+    }
+
+    // Fetch updated running licenses
+    const updatedRunningLicenses = await LabourLicense.findAll({
+      include: [{
+        model: Company,
+        as: 'company',
+        attributes: ['company_id', 'company_name', 'company_code']
+      }],
+      order: [['created_at', 'DESC']]
+    });
+
+    // Get previous licenses
+    const previousLicenses = await PreviousLabourLicense.findAll({
+      include: [{
+        model: Company,
+        as: 'company',
+        attributes: ['company_id', 'company_name', 'company_code']
+      }],
+      order: [['created_at', 'DESC']]
+    });
+
+    // Mark records with their type
+    const runningWithType = updatedRunningLicenses.map(license => ({
+      ...license.toJSON(),
+      record_type: 'running'
+    }));
+
+    const previousWithType = previousLicenses.map(license => ({
+      ...license.toJSON(),
+      record_type: 'previous',
+      status: 'expired' // Ensure previous records always show as expired
+    }));
+
+    // Combine and sort all records
+    const allLicenses = [...runningWithType, ...previousWithType];
+    allLicenses.sort((a, b) => {
+      const dateA = new Date(a.record_type === 'running' ? a.created_at : a.created_at);
+      const dateB = new Date(b.record_type === 'running' ? b.created_at : b.created_at);
+      return dateB - dateA;
+    });
+
+    // Apply pagination
+    const totalItems = allLicenses.length;
+    const paginatedLicenses = allLicenses.slice(offset, offset + actualLimit);
+
+    console.log(`✅ Grouped licenses: ${runningWithType.length} running (all statuses), ${previousWithType.length} previous`);
+
+    res.json({
+      success: true,
+      data: paginatedLicenses,
+      currentPage: parseInt(page),
+      pageSize: actualLimit,
+      totalPages: Math.ceil(totalItems / actualLimit),
+      totalItems: totalItems
+    });
+  } catch (error) {
+    console.error('Error fetching grouped licenses:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch grouped licenses',
+      error: error.message
+    });
+  }
+};
+
+// Search labour licenses
+const searchLabourLicenses = async (req, res) => {
+  try {
+    const { query } = req.query;
+    
+    if (!query || query.trim().length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: 'Search query must be at least 2 characters long'
+      });
+    }
+
+    const licenses = await LabourLicense.findAll({
+      where: {
+        [Op.or]: [
+          { license_number: { [Op.like]: `%${query}%` } },
+          { '$company.company_name$': { [Op.like]: `%${query}%` } },
+          { '$company.company_code$': { [Op.like]: `%${query}%` } }
+        ]
+      },
+      include: [{
+        model: Company,
+        as: 'company',
+        attributes: ['company_id', 'company_name', 'company_code']
+      }],
+      limit: 50
+    });
+
+    res.json({
+      success: true,
+      data: licenses
+    });
+  } catch (error) {
+    console.error('Error searching labour licenses:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to search labour licenses',
+      error: error.message
+    });
+  }
+};
+
+// Get statistics
+const getStatistics = async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const thirtyDaysFromNow = new Date(today.getTime() + (30 * 24 * 60 * 60 * 1000));
+
+    // Update expired licenses first
+    await LabourLicense.update(
+      { status: 'expired' },
+      {
+        where: {
+          expiry_date: {
+            [Op.lt]: today
+          },
+          status: {
+            [Op.ne]: 'expired'
+          }
+        }
+      }
+    );
+
+    const total = await LabourLicense.count();
+    
+    const byStatus = {
+      active: await LabourLicense.count({ where: { status: 'active' } }),
+      expired: await LabourLicense.count({ where: { status: 'expired' } }),
+      suspended: await LabourLicense.count({ where: { status: 'suspended' } }),
+      renewed: await LabourLicense.count({ where: { status: 'renewed' } })
+    };
+
+    const expiringSoon = await LabourLicense.count({
+      where: {
+        expiry_date: {
+          [Op.between]: [today, thirtyDaysFromNow]
+        },
+        status: 'active' // Only count active licenses that are expiring soon
+      }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        total,
+        byStatus,
+        expiringSoon
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching statistics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch statistics',
+      error: error.message
+    });
+  }
+};
+
+// Check and update expired licenses
+const checkAndUpdateExpiredLicenses = async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Find all licenses that are expired by date but not marked as expired
+    const expiredLicenses = await LabourLicense.findAll({
+      where: {
+        expiry_date: {
+          [Op.lt]: today
+        },
+        status: {
+          [Op.ne]: 'expired'
+        }
+      }
+    });
+
+    console.log(`Found ${expiredLicenses.length} licenses to mark as expired`);
+
+    // Update all expired licenses
+    const updatePromises = expiredLicenses.map(license => 
+      license.update({ status: 'expired' })
+    );
+
+    await Promise.all(updatePromises);
+
+    res.json({
+      success: true,
+      message: `Updated ${expiredLicenses.length} expired licenses`,
+      count: expiredLicenses.length
+    });
+  } catch (error) {
+    console.error('Error checking expired licenses:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check expired licenses',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   createLabourLicense,
   getAllLabourLicenses,
@@ -430,5 +846,11 @@ module.exports = {
   deleteLabourLicense,
   uploadLicenseDocuments,
   sendLabourLicenseReminder,
-  getLabourLicenseStatsOverview
+  getLabourLicenseStatsOverview,
+  renewLabourLicense,
+  getPreviousLicenses,
+  getAllLicensesGrouped,
+  searchLabourLicenses,
+  getStatistics,
+  checkAndUpdateExpiredLicenses
 };

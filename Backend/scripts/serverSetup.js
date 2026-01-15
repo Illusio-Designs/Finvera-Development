@@ -2,7 +2,7 @@
 // This script combines all individual setup scripts into one main file
 // Includes: Database setup, Account creation, Policy tables, Renewal system, and all other setup functions
 
-const { User, Role, UserRole, Company, Consumer, InsuranceCompany, EmployeeCompensationPolicy, VehiclePolicy, HealthPolicies, FirePolicy, LifePolicy, DSC, ReminderLog, DSCLog, UserRoleWorkLog, LabourInspection, LabourLicense, RenewalConfig } = require('../models');
+const { User, Role, UserRole, Company, Consumer, InsuranceCompany, EmployeeCompensationPolicy, VehiclePolicy, HealthPolicies, FirePolicy, LifePolicy, DSC, ReminderLog, DSCLog, UserRoleWorkLog, LabourInspection, LabourLicense, PreviousLabourLicense, RenewalConfig } = require('../models');
 const sequelize = require('../config/db');
 const FactoryQuotation = require('../models/factoryQuotationModel');
 const PlanManagement = require('../models/planManagementModel');
@@ -2032,6 +2032,68 @@ async function createPreviousStabilityManagementTable() {
   }
 }
 
+// Create Previous Labour License table
+async function createPreviousLabourLicenseTable() {
+  try {
+    console.log('\n📋 Creating Previous Labour License Table...');
+    
+    // Check if table exists
+    const [tableExists] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'previous_labour_licenses'`,
+      { type: QueryTypes.SELECT }
+    );
+
+    if (tableExists.count === 0) {
+      console.log("📝 Creating previous_labour_licenses table...");
+      await sequelize.query(`
+        CREATE TABLE previous_labour_licenses (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          original_license_id INT NULL COMMENT 'Reference to the original license ID before it was moved to previous',
+          company_id INT NOT NULL COMMENT 'Reference to the company that held this license',
+          license_number VARCHAR(100) NOT NULL COMMENT 'Official license number issued by authorities',
+          expiry_date DATE NOT NULL COMMENT 'Date when the license expired',
+          status ENUM('active', 'expired', 'suspended', 'renewed') NOT NULL DEFAULT 'expired' COMMENT 'Status when the license was moved to previous (usually expired)',
+          type ENUM('Central', 'State') NOT NULL COMMENT 'Type of labour license - Central or State',
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Date when this record was created (renewal date)',
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_company_id (company_id),
+          INDEX idx_license_number (license_number),
+          INDEX idx_original_license_id (original_license_id),
+          INDEX idx_created_at (created_at),
+          INDEX idx_expiry_date (expiry_date),
+          FOREIGN KEY (company_id) REFERENCES Companies(company_id) ON DELETE RESTRICT ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log("✅ previous_labour_licenses table created successfully");
+    } else {
+      console.log("ℹ️  previous_labour_licenses table already exists");
+    }
+
+    // Check if previous_license_id column exists in labour_licenses table
+    const [previousLicenseIdExists] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'labour_licenses' AND COLUMN_NAME = 'previous_license_id'`,
+      { type: QueryTypes.SELECT }
+    );
+
+    if (previousLicenseIdExists.count === 0) {
+      console.log("📝 Adding previous_license_id column to labour_licenses...");
+      await sequelize.query(`
+        ALTER TABLE labour_licenses 
+        ADD COLUMN previous_license_id INT NULL COMMENT 'Reference to the previous license ID that was renewed (if this is a renewal)',
+        ADD INDEX idx_previous_license_id (previous_license_id)
+      `);
+      console.log("✅ previous_license_id column added successfully");
+    } else {
+      console.log("ℹ️  previous_license_id column already exists");
+    }
+
+    console.log("✅ PreviousLabourLicense table setup completed successfully!");
+  } catch (error) {
+    console.error("❌ Error creating PreviousLabourLicense table:", error);
+    throw error;
+  }
+}
+
 // Setup policy tables and renewal system
 async function setupPolicyTables() {
   try {
@@ -2062,7 +2124,11 @@ async function setupPolicyTables() {
     await createPreviousLifePolicyTable();
     console.log('✅ Life Previous Policy Table setup completed');
 
-    console.log('\n📁 Step 6: Setting up upload directories...');
+    console.log('\n📋 Step 6: Setting up Previous Labour License Table...');
+    await createPreviousLabourLicenseTable();
+    console.log('✅ Previous Labour License Table setup completed');
+
+    console.log('\n📁 Step 7: Setting up upload directories...');
     await setupUploadDirectories();
     console.log('✅ Upload directories setup completed');
 

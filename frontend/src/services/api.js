@@ -2321,8 +2321,18 @@ export const labourLicenseAPI = {
   },
   // Get license statistics
   getStatistics: async () => {
-    const response = await api.get('/labour-license/stats/overview');
+    const response = await api.get('/labour-license/statistics');
     return response.data;
+  },
+  // Check and update expired licenses
+  checkExpiredLicenses: async () => {
+    try {
+      const response = await api.post('/labour-license/check-expired');
+      return response.data;
+    } catch (error) {
+      console.error('[API] Error checking expired licenses:', error.response?.data || error.message);
+      throw error.response?.data || error;
+    }
   },
   // Search licenses
   searchLicenses: async (query) => {
@@ -2331,6 +2341,47 @@ export const labourLicenseAPI = {
       return response.data;
     } catch (error) {
       console.error('[API] Error searching labour licenses:', error.response?.data || error.message);
+      throw error.response?.data || error;
+    }
+  },
+  
+  // Renew labour license
+  renewLicense: async (id, data) => {
+    try {
+      const response = await api.post(`/labour-license/${id}/renew`, data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Error renewing labour license:', error.response?.data || error.message);
+      throw error.response?.data || error;
+    }
+  },
+  
+  // Get previous licenses
+  getPreviousLicenses: async (id, params = {}) => {
+    try {
+      const response = await api.get(`/labour-license/${id}/previous`, { params });
+      return response.data;
+    } catch (error) {
+      console.error('[API] Error fetching previous licenses:', error.response?.data || error.message);
+      throw error.response?.data || error;
+    }
+  },
+  
+  // Get all licenses grouped (running + previous)
+  getAllLicensesGrouped: async (params = {}) => {
+    try {
+      const queryParams = new URLSearchParams({
+        ...(params.page && { page: params.page }),
+        ...(params.pageSize && { pageSize: params.pageSize }),
+        ...(params.limit && { limit: params.limit })
+      }).toString();
+      const url = queryParams ? `/labour-license/all-grouped?${queryParams}` : '/labour-license/all-grouped';
+      
+      const response = await api.get(url);
+      console.log('[API] Grouped licenses response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Error fetching grouped licenses:', error.response?.data || error.message);
       throw error.response?.data || error;
     }
   }

@@ -221,7 +221,29 @@
   border: 1px solid #10b981;
 }
 
+.status-badge-active {
+  background-color: #d1fae5;
+  color: #065f46;
+  border: 1px solid #10b981;
+}
 
+.status-badge-expired {
+  background-color: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.status-badge-suspended {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+}
+
+.status-badge-renewed {
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #3b82f6;
+}
 
 .status-badge-default {
   background-color: #f3f4f6;
@@ -245,6 +267,30 @@
   font-family: inherit;
   min-width: 100px;
   text-align: center;
+}
+
+.status-badge-dropdown.status-badge-active {
+  background-color: #d1fae5;
+  color: #065f46;
+  border: 1px solid #10b981;
+}
+
+.status-badge-dropdown.status-badge-expired {
+  background-color: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.status-badge-dropdown.status-badge-suspended {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+}
+
+.status-badge-dropdown.status-badge-renewed {
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #3b82f6;
 }
 
 .status-badge-dropdown:focus {
@@ -523,5 +569,61 @@
   
   .labour-title {
     font-size: 24px;
+  }
+}
+
+/* Tab Navigation */
+.tab-navigation {
+  display: flex;
+  gap: 8px;
+  background: white;
+  padding: 8px;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 24px;
+}
+
+.tab-button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-button:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.tab-button.active {
+  background: #3b82f6;
+  color: white;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+}
+
+.tab-icon {
+  width: 18px;
+  height: 18px;
+}
+
+@media (max-width: 640px) {
+  .tab-button {
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+  
+  .tab-icon {
+    width: 16px;
+    height: 16px;
   }
 }

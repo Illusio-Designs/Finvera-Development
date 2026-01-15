@@ -36,6 +36,7 @@ const LabourLicense = require("./labourLicenseModel")(
   sequelize,
   require("sequelize").DataTypes
 );
+const PreviousLabourLicense = require("./previousLabourLicenseModel")(sequelize);
 
 // Define associations
 User.belongsToMany(Role, {
@@ -475,9 +476,27 @@ User.hasMany(LabourInspection, {
 
 // Labour License Associations
 LabourLicense.belongsTo(Company, { foreignKey: "company_id", as: "company" });
+LabourLicense.belongsTo(PreviousLabourLicense, {
+  foreignKey: "previous_license_id",
+  as: "previousLicense",
+});
 Company.hasMany(LabourLicense, {
   foreignKey: "company_id",
   as: "labourLicenses",
+});
+
+// Previous Labour License Associations
+PreviousLabourLicense.belongsTo(Company, {
+  foreignKey: "company_id",
+  as: "company",
+});
+PreviousLabourLicense.hasOne(LabourLicense, {
+  foreignKey: "previous_license_id",
+  as: "renewedLicense",
+});
+Company.hasMany(PreviousLabourLicense, {
+  foreignKey: "company_id",
+  as: "previousLabourLicenses",
 });
 
 module.exports = {
@@ -510,5 +529,6 @@ module.exports = {
   RenewalConfig,
   LabourInspection,
   LabourLicense,
+  PreviousLabourLicense,
   sequelize,
 };

@@ -35,8 +35,11 @@ module.exports = (sequelize) => {
       defaultValue: 'State',
       comment: 'Type of labour license - Central or State'
     },
-
-
+    previous_license_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      comment: 'Reference to the previous license ID that was renewed (if this is a renewal)'
+    }
   }, {
     tableName: 'labour_licenses',
     timestamps: true,
@@ -71,14 +74,44 @@ module.exports = (sequelize) => {
   LabourLicense.addHook('beforeSave', (license) => {
     if (license.expiry_date) {
       const today = new Date();
+      today.setHours(0, 0, 0, 0);
       const expiryDate = new Date(license.expiry_date);
+      expiryDate.setHours(0, 0, 0, 0);
       
-      if (expiryDate < today) {
+      // If expiry date has passed, automatically set status to expired
+      if (expiryDate < today && license.status !== 'expired') {
+        console.log(`Auto-updating license ${license.license_id} status to expired (expiry date: ${license.expiry_date})`);
         license.status = 'expired';
-      } else if (license.status === 'expired' && expiryDate > today) {
+      }
+      // If expiry date is in the future and status is expired, set to active
+      else if (expiryDate >= today && license.status === 'expired') {
+        console.log(`Auto-updating license ${license.license_id} status to active (expiry date: ${license.expiry_date})`);
         license.status = 'active';
       }
     }
+  });
+
+  // Hook to check expiry on find
+  LabourLicense.addHook('afterFind', (result) => {
+    if (!result) return;
+    
+    const licenses = Array.isArray(result) ? result : [result];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    licenses.forEach(license => {
+      if (license && license.expiry_date) {
+        const expiryDate = new Date(license.expiry_date);
+        expiryDate.setHours(0, 0, 0, 0);
+        
+        // If expired by date but not marked as expired, update it
+        if (expiryDate < today && license.status !== 'expired') {
+          license.update({ status: 'expired' }).catch(err => {
+            console.error('Error auto-updating expired license:', err);
+          });
+        }
+      }
+    });
   });
 
   return LabourLicense;

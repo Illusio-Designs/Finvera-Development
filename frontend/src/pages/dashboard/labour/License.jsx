@@ -11,7 +11,7 @@ import Loader from "../../../components/common/Loader/Loader";
 import Dropdown from "../../../components/common/Dropdown/Dropdown";
 import "../../../styles/pages/dashboard/labour/Labour.css";
 import "../../../styles/components/StatCards.css";
-import { BiPlus, BiEdit, BiErrorCircle, BiFile, BiTrash, BiShield, BiTrendingUp, BiCalendar, BiCheckCircle, BiDownload } from "react-icons/bi";
+import { BiPlus, BiEdit, BiErrorCircle, BiFile, BiTrash, BiShield, BiTrendingUp, BiCalendar, BiCheckCircle, BiDownload, BiRefresh } from "react-icons/bi";
 import DocumentDownload from "../../../components/common/DocumentDownload/DocumentDownload";
 
 // Statistics Cards Component
@@ -41,6 +41,13 @@ const StatisticsCards = ({ statistics, loading }) => {
   }
 
   const stats = statistics || {};
+  
+  console.log('📊 Stats object:', stats);
+  console.log('📊 Total:', stats.total);
+  console.log('📊 byStatus:', stats.byStatus);
+  console.log('📊 Active:', stats.byStatus?.active);
+  console.log('📊 Expired:', stats.byStatus?.expired);
+  console.log('📊 Expiring Soon:', stats.expiringSoon);
 
   return (
     <div className="statistics-section">
@@ -104,6 +111,10 @@ const LabourLicense = ({ searchQuery = "" }) => {
   const [updatingStatus, setUpdatingStatus] = useState({});
   const [companies, setCompanies] = useState([]);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
+  const [showRenewalModal, setShowRenewalModal] = useState(false);
+  const [selectedLicenseForRenewal, setSelectedLicenseForRenewal] = useState(null);
+  const [activeTab, setActiveTab] = useState('running');
+  const [groupedLicenses, setGroupedLicenses] = useState([]);
   const [pagination, setPagination] = useState({
     currentPage: 1,
     pageSize: 10,
@@ -121,16 +132,39 @@ const LabourLicense = ({ searchQuery = "" }) => {
   const fetchLicenses = async (page = 1, pageSize = 10) => {
     try {
       setLoading(true);
-      console.log('License: Fetching licenses for page:', page, 'pageSize:', pageSize);
-      const response = await labourLicenseAPI.getAllLicenses({
+      
+      // Build filters - Running tab ALWAYS shows only active licenses
+      const filters = {
         page,
         pageSize,
-        status: statusFilter === 'all' ? undefined : statusFilter
-      });
+        status: 'active'  // Always filter for active status in running tab
+      };
+      
+      const response = await labourLicenseAPI.getAllLicenses(filters);
       
       if (response.success) {
-        setLicenses(response.data || []);
-        setFilteredLicenses(response.data || []);
+        // Check and update expired licenses on the frontend
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const updatedLicenses = response.data.map(license => {
+          const expiryDate = new Date(license.expiry_date);
+          expiryDate.setHours(0, 0, 0, 0);
+          
+          // If expiry date has passed but status is not expired, mark it as expired
+          if (expiryDate < today && license.status !== 'expired') {
+            return { ...license, status: 'expired' };
+          }
+          return license;
+        });
+        
+        setLicenses(updatedLicenses || []);
+        
+        // Only set filteredLicenses if we're on the running tab
+        if (activeTab === 'running') {
+          setFilteredLicenses(updatedLicenses || []);
+        }
+        
         if (response.pagination) {
           setPagination({
             currentPage: response.pagination.currentPage || page,
@@ -154,7 +188,9 @@ const LabourLicense = ({ searchQuery = "" }) => {
     try {
       setStatsLoading(true);
       const response = await labourLicenseAPI.getStatistics();
+      console.log('📊 Statistics API response:', response);
       if (response.success) {
+        console.log('📊 Statistics data:', response.data);
         setStatistics(response.data);
       }
     } catch (error) {
@@ -179,22 +215,156 @@ const LabourLicense = ({ searchQuery = "" }) => {
 
   // Handle search when searchQuery changes
   useEffect(() => {
-    console.log('[LabourLicense] searchQuery changed:', searchQuery);
     if (searchQuery && searchQuery.trim() !== "") {
-      console.log('[LabourLicense] Calling handleSearchLicenses with:', searchQuery);
       handleSearchLicenses(searchQuery);
     } else {
-      console.log('[LabourLicense] Setting filteredLicenses to all licenses');
-      setFilteredLicenses(licenses);
+      // Only update filteredLicenses for running tab
+      // For all tab, the client-side filtering useEffect handles it
+      if (activeTab === 'running' && licenses.length > 0) {
+        setFilteredLicenses(licenses);
+      }
     }
-  }, [searchQuery, licenses]);
+  }, [searchQuery, licenses, activeTab]);
 
   // Initial data fetch
   useEffect(() => {
-    fetchLicenses(1, 10);
-    fetchStatistics();
-    fetchCompanies();
+    // First check and update expired licenses, then fetch data
+    const initializeData = async () => {
+      try {
+        // Check for expired licenses first
+        await labourLicenseAPI.checkExpiredLicenses();
+      } catch (error) {
+        console.error('Error checking expired licenses:', error);
+      }
+      
+      // Then fetch all data
+      fetchLicenses(1, 10);
+      fetchStatistics();
+      fetchCompanies();
+    };
+    
+    initializeData();
+    // Don't fetch grouped licenses on initial load - only when user switches to "All" tab
   }, []);
+
+  // Fetch grouped licenses
+  const fetchGroupedLicenses = async (page = 1, pageSize = 10) => {
+    try {
+      setLoading(true);
+      console.log('🔍 DEBUG: Fetching grouped licenses...');
+      const response = await labourLicenseAPI.getAllLicensesGrouped({ page, pageSize });
+      console.log('🔍 DEBUG: API Response:', response);
+      console.log('🔍 DEBUG: Response data length:', response.data?.length);
+      console.log('🔍 DEBUG: First 3 records:', response.data?.slice(0, 3));
+      
+      if (response.success) {
+        // Store the original data
+        setGroupedLicenses(response.data);
+        console.log('🔍 DEBUG: Set groupedLicenses with', response.data.length, 'records');
+        
+        // Apply status filter
+        let filteredData = response.data;
+        if (statusFilter !== 'all') {
+          filteredData = response.data.filter(license => {
+            // For previous records, they're always expired
+            if (license.record_type === 'previous') {
+              return statusFilter === 'expired';
+            }
+            // For running records, check their status
+            return license.status === statusFilter;
+          });
+        }
+        
+        // Update filtered licenses for display
+        setFilteredLicenses(filteredData);
+        console.log('🔍 DEBUG: Set filteredLicenses with', filteredData.length, 'records');
+        
+        // Update pagination
+        setPagination({
+          currentPage: response.currentPage || page,
+          pageSize: response.pageSize || pageSize,
+          totalPages: response.totalPages || 1,
+          totalItems: response.totalItems || response.data.length,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching grouped licenses:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle renewal
+  const handleRenewal = (license) => {
+    console.log('🔄 Starting renewal for license:', license);
+    setSelectedLicenseForRenewal(license);
+    setShowRenewalModal(true);
+  };
+
+  const handleRenewalModalClose = () => {
+    setShowRenewalModal(false);
+    setSelectedLicenseForRenewal(null);
+  };
+
+  const handleRenewalCompleted = async (formData) => {
+    if (!selectedLicenseForRenewal) return;
+    
+    try {
+      console.log('🔄 Processing labour license renewal...');
+      await labourLicenseAPI.renewLicense(selectedLicenseForRenewal.license_id, formData);
+      
+      // Refresh both running and grouped data
+      await Promise.all([
+        fetchLicenses(pagination.currentPage, pagination.pageSize),
+        fetchGroupedLicenses(pagination.currentPage, pagination.pageSize),
+        fetchStatistics()
+      ]);
+      
+      console.log('✅ Labour license renewal completed and data refreshed');
+      toast.success('Labour license renewed successfully');
+      handleRenewalModalClose();
+    } catch (error) {
+      console.error('❌ Error in renewal completion:', error);
+      toast.error(error.message || 'Failed to renew labour license');
+      throw error;
+    }
+  };
+
+  // Handle tab switching
+  const handleTabSwitch = (tab) => {
+    setActiveTab(tab);
+    // Reset status filter to 'all' when switching tabs
+    setStatusFilter('all');
+    
+    if (tab === 'running') {
+      fetchLicenses(1, pagination.pageSize);
+    } else {
+      fetchGroupedLicenses(1, pagination.pageSize);
+    }
+  };
+
+  // Apply client-side filtering when grouped licenses or status filter changes
+  useEffect(() => {
+    console.log('🔍 DEBUG: useEffect triggered - activeTab:', activeTab, 'groupedLicenses.length:', groupedLicenses.length, 'statusFilter:', statusFilter);
+    
+    if (activeTab === 'all' && groupedLicenses.length > 0) {
+      let filteredData = groupedLicenses;
+      
+      if (statusFilter !== 'all') {
+        filteredData = groupedLicenses.filter(license => {
+          // For previous records, they're always expired
+          if (license.record_type === 'previous') {
+            return statusFilter === 'expired';
+          }
+          // For running records, check their status
+          return license.status === statusFilter;
+        });
+      }
+      
+      console.log('🔍 DEBUG: Setting filteredLicenses from useEffect with', filteredData.length, 'records');
+      setFilteredLicenses(filteredData);
+    }
+  }, [groupedLicenses, statusFilter, activeTab]);
 
   // Handle search
   const handleSearchLicenses = async (query) => {
@@ -212,8 +382,18 @@ const LabourLicense = ({ searchQuery = "" }) => {
   // Handle status filter
   const handleStatusFilter = (status) => {
     setStatusFilter(status);
-    // Refetch licenses with new status filter
-    fetchLicenses(1, pagination.pageSize);
+    
+    // Reset to page 1 when filter changes
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
+    
+    // Refetch data based on active tab
+    if (activeTab === 'running') {
+      // For running tab, refetch with the new status filter
+      fetchLicenses(1, pagination.pageSize);
+    } else {
+      // For all tab, client-side filtering will be applied via useEffect
+      // No need to refetch, just let the useEffect handle it
+    }
   };
 
   // Handle status update
@@ -295,11 +475,6 @@ const LabourLicense = ({ searchQuery = "" }) => {
     }
   };
 
-  const handleDownloadDocuments = (license) => {
-    setSelectedLicense(license);
-    setShowDocumentModal(true);
-  };
-
   const canEdit = userRoles?.includes('admin') || userRoles?.includes('compliance_manager') || userRoles?.includes('labour_law_manager');
   const canDelete = userRoles?.includes('admin');
 
@@ -309,7 +484,10 @@ const LabourLicense = ({ searchQuery = "" }) => {
       key: "sr_no",
       label: "Sr No.",
       sortable: true,
-      render: (_, __, index) => index + 1,
+      render: (_, __, index) => {
+        // Calculate serial number based on current page and page size
+        return (pagination.currentPage - 1) * pagination.pageSize + index + 1;
+      },
     },
     {
       key: "company",
@@ -396,20 +574,54 @@ const LabourLicense = ({ searchQuery = "" }) => {
       label: "Status",
       sortable: true,
       render: (value, license) => {
+        // Use license_id for running records, id for previous records
+        const licenseId = license.license_id || license.id;
+        
+        // Check if license is expired based on expiry date
+        const expiryDate = new Date(license.expiry_date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        expiryDate.setHours(0, 0, 0, 0);
+        const isExpiredByDate = expiryDate < today;
+        
+        // For "All Licenses" tab with previous records, show "Expired" badge
+        if (activeTab === 'all' && license.record_type === 'previous') {
+          return (
+            <span className="status-badge status-badge-expired">
+              Expired
+            </span>
+          );
+        }
+        
+        // If expired by date, show expired status regardless of database status
+        if (isExpiredByDate) {
+          // Auto-update status in background if it's not already expired
+          if (value !== 'expired') {
+            handleStatusUpdate(licenseId, 'expired');
+          }
+          
+          return (
+            <span className="status-badge status-badge-expired">
+              Expired
+            </span>
+          );
+        }
+        
+        // For running records, show interactive dropdown if user can edit
         const statusClass = 
           value === 'active' ? 'status-badge-active' :
           value === 'expired' ? 'status-badge-expired' :
           value === 'suspended' ? 'status-badge-suspended' :
           value === 'renewed' ? 'status-badge-renewed' : 'status-badge-default';
         
-        // If user can edit, show interactive dropdown
-        if (canEdit) {
-          const isUpdating = updatingStatus[license.license_id];
+        // If user can edit and it's a running record, show interactive dropdown
+        if (canEdit && (activeTab === 'running' || license.record_type === 'running')) {
+          const isUpdating = updatingStatus[licenseId];
           return (
             <div className="status-dropdown-container">
               <select
                 value={value || 'active'}
-                onChange={(e) => handleStatusUpdate(license.license_id, e.target.value)}
+                onChange={(e) => handleStatusUpdate(licenseId, e.target.value)}
                 className={`status-badge-dropdown ${statusClass}`}
                 disabled={isUpdating}
               >
@@ -427,10 +639,10 @@ const LabourLicense = ({ searchQuery = "" }) => {
           );
         }
         
-        // For read-only users, show status badge
+        // For read-only users or previous records, show status badge
         return (
           <span className={`status-badge ${statusClass}`}>
-            {value.charAt(0).toUpperCase() + value.slice(1)}
+            {value ? value.charAt(0).toUpperCase() + value.slice(1) : 'Active'}
           </span>
         );
       },
@@ -438,37 +650,57 @@ const LabourLicense = ({ searchQuery = "" }) => {
     {
       key: "actions",
       label: "Actions",
-      render: (_, license) => (
-        <div className="insurance-actions">
-          {canEdit && (
-            <ActionButton
-              onClick={() => {
-                setSelectedLicense(license);
-                setShowModal(true);
-              }}
-              variant="secondary"
-              size="small"
-              title="Edit"
-            >
-              <BiEdit />
-            </ActionButton>
-          )}
-          
-          {canDelete && (
-            <ActionButton
-              onClick={() => handleDelete(license.license_id)}
-              variant="danger"
-              size="small"
-              title="Delete"
-            >
-              <BiTrash />
-            </ActionButton>
-          )}
-        </div>
-      ),
+      render: (_, license) => {
+        // Use license_id for running records, id for previous records
+        const licenseId = license.license_id || license.id;
+        
+        return (
+          <div className="insurance-actions">
+            {/* Edit Button - show for all licenses */}
+            {canEdit && (
+              <ActionButton
+                onClick={() => {
+                  setSelectedLicense(license);
+                  setShowModal(true);
+                }}
+                variant="secondary"
+                size="small"
+                title="Edit"
+              >
+                <BiEdit />
+              </ActionButton>
+            )}
+            
+            {/* Renewal Button - show for all active licenses */}
+            {license.status === 'active' && canEdit && (
+              <ActionButton
+                onClick={() => handleRenewal(license)}
+                variant="secondary"
+                size="small"
+                title="Renew License"
+              >
+                <BiRefresh />
+              </ActionButton>
+            )}
+            
+            {/* Delete Button - show for all licenses */}
+            {canDelete && (
+              <ActionButton
+                onClick={() => handleDelete(licenseId)}
+                variant="danger"
+                size="small"
+                title="Delete"
+              >
+                <BiTrash />
+              </ActionButton>
+            )}
+          </div>
+        );
+      },
     }
   ];
 
+  // Status options for All Licenses tab only
   const statusOptions = [
     { value: "all", label: "All Status" },
     { value: "active", label: "Active" },
@@ -477,13 +709,7 @@ const LabourLicense = ({ searchQuery = "" }) => {
     { value: "renewed", label: "Renewed" }
   ];
 
-  const handleFilterChange = () => {
-    fetchLicenses();
-  };
 
-  const handleSearch = () => {
-    fetchLicenses();
-  };
 
   if (loading) {
     return <Loader />;
@@ -509,21 +735,43 @@ const LabourLicense = ({ searchQuery = "" }) => {
                 </Button>
               )}
               
-              <div className="dashboard-header-dropdown-container">
-                <Dropdown
-                  options={statusOptions}
-                  value={statusOptions.find((opt) => opt.value === statusFilter)}
-                  onChange={(option) => {
-                    setStatusFilter(option ? option.value : "all");
-                    handleFilterChange();
-                  }}
-                  placeholder="Filter by Status"
-                />
-              </div>
+              {/* Status filter only for All Licenses tab */}
+              {activeTab === 'all' && (
+                <div className="dashboard-header-dropdown-container">
+                  <Dropdown
+                    options={statusOptions}
+                    value={statusOptions.find((opt) => opt.value === statusFilter)}
+                    onChange={(option) => {
+                      handleStatusFilter(option ? option.value : "all");
+                    }}
+                    placeholder="Filter by Status"
+                  />
+                </div>
+              )}
             </div>
           </div>
 
           <StatisticsCards statistics={statistics} loading={statsLoading} />
+          
+          {/* Tab Navigation */}
+          <div className="tab-navigation" style={{ marginBottom: "24px" }}>
+            <button
+              className={`tab-button ${
+                activeTab === "running" ? "active" : ""
+              }`}
+              onClick={() => handleTabSwitch("running")}
+            >
+              <BiTrendingUp className="tab-icon" />
+              Running Licenses
+            </button>
+            <button
+              className={`tab-button ${activeTab === "all" ? "active" : ""}`}
+              onClick={() => handleTabSwitch("all")}
+            >
+              <BiShield className="tab-icon" />
+              All Licenses
+            </button>
+          </div>
           
           {error && (
             <div className="insurance-error">
@@ -531,9 +779,10 @@ const LabourLicense = ({ searchQuery = "" }) => {
             </div>
           )}
 
+          {/* Tab Content */}
           {loading ? (
             <Loader size="large" color="primary" />
-          ) : (
+          ) : activeTab === "running" ? (
             <TableWithControl
               data={filteredLicenses}
               columns={columns}
@@ -543,6 +792,21 @@ const LabourLicense = ({ searchQuery = "" }) => {
               totalItems={pagination.totalItems}
               onPageChange={handlePageChange}
               onPageSizeChange={handlePageSizeChange}
+              serverSidePagination={true}
+            />
+          ) : (
+            <TableWithControl
+              data={filteredLicenses}
+              columns={columns}
+              defaultPageSize={pagination.pageSize}
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              totalItems={pagination.totalItems}
+              onPageChange={(page) => fetchGroupedLicenses(page, pagination.pageSize)}
+              onPageSizeChange={(newPageSize) => {
+                setPagination(prev => ({ ...prev, pageSize: newPageSize, currentPage: 1 }));
+                fetchGroupedLicenses(1, newPageSize);
+              }}
               serverSidePagination={true}
             />
           )}
@@ -578,8 +842,159 @@ const LabourLicense = ({ searchQuery = "" }) => {
           recordName={selectedLicense.company?.company_name || selectedLicense.company_name}
         />
       )}
+
+      {/* Renewal Modal */}
+      {showRenewalModal && selectedLicenseForRenewal && (
+        <RenewalForm
+          onClose={handleRenewalModalClose}
+          onRenewal={handleRenewalCompleted}
+          licenseData={selectedLicenseForRenewal}
+          companies={companies}
+        />
+      )}
       </div>
     </div>
+  );
+};
+
+// Renewal Form Component
+const RenewalForm = ({ onClose, onRenewal, licenseData, companies }) => {
+  const [formData, setFormData] = useState({
+    license_number: '',
+    expiry_date: '',
+    type: '',
+    remarks: ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  // Pre-fill form with existing license data
+  useEffect(() => {
+    if (licenseData) {
+      console.log('Pre-filling renewal form with data:', licenseData);
+      setFormData({
+        license_number: '',
+        expiry_date: '',
+        type: licenseData.type || '',
+        remarks: licenseData.remarks || ''
+      });
+    }
+  }, [licenseData]);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.license_number || !formData.expiry_date || !formData.type) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log('Submitting renewal form with data:', formData);
+      await onRenewal(formData);
+    } catch (error) {
+      console.error('Error renewing license:', error);
+      toast.error(error.message || 'Failed to renew license');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={true} onClose={onClose} title="Renew Labour License">
+      <form onSubmit={handleSubmit} className="insurance-form">
+        <div className="insurance-form-grid">
+          <div className="insurance-form-group">
+            <label className="insurance-form-label">Company</label>
+            <input
+              type="text"
+              value={licenseData?.company?.company_name || 'N/A'}
+              className="insurance-form-input"
+              disabled
+            />
+          </div>
+
+          <div className="insurance-form-group">
+            <label className="insurance-form-label">Previous License Number</label>
+            <input
+              type="text"
+              value={licenseData?.license_number || 'N/A'}
+              className="insurance-form-input"
+              disabled
+            />
+          </div>
+
+          <div className="insurance-form-group">
+            <label className="insurance-form-label">New License Number *</label>
+            <input
+              type="text"
+              name="license_number"
+              value={formData.license_number}
+              onChange={handleInputChange}
+              className="insurance-form-input"
+              placeholder="Enter new license number"
+              required
+            />
+          </div>
+
+          <div className="insurance-form-group">
+            <label className="insurance-form-label">New Expiry Date *</label>
+            <input
+              type="date"
+              name="expiry_date"
+              value={formData.expiry_date}
+              onChange={handleInputChange}
+              className="insurance-form-input"
+              required
+            />
+          </div>
+
+          <div className="insurance-form-group">
+            <label className="insurance-form-label">License Type *</label>
+            <select
+              name="type"
+              value={formData.type}
+              onChange={handleInputChange}
+              className="insurance-form-input"
+              required
+            >
+              <option value="">Select License Type</option>
+              <option value="Central">Central</option>
+              <option value="State">State</option>
+            </select>
+          </div>
+
+          <div className="insurance-form-group">
+            <label className="insurance-form-label">Remarks</label>
+            <textarea
+              name="remarks"
+              value={formData.remarks}
+              onChange={handleInputChange}
+              className="insurance-form-input"
+              rows="3"
+              placeholder="Enter any remarks for the renewal..."
+            />
+          </div>
+        </div>
+
+        <div className="insurance-form-actions">
+          <Button type="button" onClick={onClose} variant="outlined">
+            Cancel
+          </Button>
+          <Button type="submit" variant="contained" disabled={loading}>
+            {loading ? 'Renewing...' : 'Renew License'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 };
 
