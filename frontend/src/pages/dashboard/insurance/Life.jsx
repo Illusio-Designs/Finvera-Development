@@ -118,6 +118,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
     subProduct: "",
     pt: "",
     ppt: "",
+    paymentMode: "Yearly",
     netPremium: "",
     gst: 0,
     grossPremium: 0,
@@ -177,6 +178,7 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
         subProduct: policy.sub_product || "",
         pt: policy.pt || "",
         ppt: policy.ppt || "",
+        paymentMode: policy.payment_mode || "Yearly",
         netPremium: policy.net_premium || "",
         gst: policy.gst || 0,
         grossPremium: policy.gross_premium || 0,
@@ -886,6 +888,22 @@ const PolicyForm = ({ policy, onClose, onPolicyUpdated }) => {
             />
           </div>
           <div className="insurance-form-group">
+            <label>Payment Mode</label>
+            <select
+              name="paymentMode"
+              value={formData.paymentMode}
+              onChange={handleChange}
+              required
+              className="insurance-form-input"
+              title="Select premium payment frequency"
+            >
+              <option value="Monthly">Monthly</option>
+              <option value="Quarterly">Quarterly (Every 3 months)</option>
+              <option value="Half-Yearly">Half-Yearly (Every 6 months)</option>
+              <option value="Yearly">Yearly</option>
+            </select>
+          </div>
+          <div className="insurance-form-group">
             <label>Net Premium</label>
             <input
               type="number"
@@ -1093,6 +1111,7 @@ const RenewalForm = ({ policy, onClose, onPolicyRenewed }) => {
     subProduct: "",
     pt: "",
     ppt: "",
+    paymentMode: "Yearly",
     netPremium: "",
     gst: "",
     grossPremium: "",
@@ -1134,6 +1153,7 @@ const RenewalForm = ({ policy, onClose, onPolicyRenewed }) => {
         subProduct: policy.subProduct || policy.sub_product || "",
         pt: policy.pt || "",
         ppt: policy.ppt || "",
+        paymentMode: policy.paymentMode || policy.payment_mode || "Yearly",
         netPremium: "", // Clear premium - user must enter new values
         gst: "",
         grossPremium: "",
@@ -1846,6 +1866,10 @@ function Life({ searchQuery = "" }) {
     totalPages: 1,
     totalItems: 0,
   });
+  const [groupedPagination, setGroupedPagination] = useState({
+    currentPage: 1,
+    pageSize: 10,
+  });
   const { user, userRoles } = useAuth();
   const isCompany = userRoles.includes("company");
   const isConsumer = userRoles.includes("consumer");
@@ -2345,6 +2369,7 @@ function Life({ searchQuery = "" }) {
                 onPageChange={handlePageChange}
                 onPageSizeChange={handlePageSizeChange}
                 serverSidePagination={true}
+                pageSizeOptions={[10, 25, 50, 100]}
               />
             )
           ) : groupedLoading ? (
@@ -2488,6 +2513,7 @@ function Life({ searchQuery = "" }) {
                   ]}
                   defaultPageSize={10}
                   serverSidePagination={false}
+                  pageSizeOptions={[10, 25, 50, 100]}
                 />
               );
             })()

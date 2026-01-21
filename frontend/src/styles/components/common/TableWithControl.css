@@ -41,7 +41,8 @@
 .table-container table {
   margin: 0;
   width: 100%;
-  table-layout: auto;
+  table-layout: fixed;
+  min-width: 1640px; /* Increased to accommodate wider Contact Details column */
 }
 
 .table-container::-webkit-scrollbar {

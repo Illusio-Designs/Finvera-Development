@@ -2,7 +2,7 @@
 // This script combines all individual setup scripts into one main file
 // Includes: Database setup, Account creation, Policy tables, Renewal system, and all other setup functions
 
-const { User, Role, UserRole, Company, Consumer, InsuranceCompany, EmployeeCompensationPolicy, VehiclePolicy, HealthPolicies, FirePolicy, LifePolicy, DSC, ReminderLog, DSCLog, UserRoleWorkLog, LabourInspection, LabourLicense, PreviousLabourLicense, RenewalConfig } = require('../models');
+const { User, Role, UserRole, Company, Consumer, InsuranceCompany, EmployeeCompensationPolicy, VehiclePolicy, HealthPolicies, FirePolicy, LifePolicy, DSC, ReminderLog, DSCLog, UserRoleWorkLog, LabourInspection, LabourLicense, PreviousLabourLicense, PreviousFactoryQuotation, RenewalConfig } = require('../models');
 const sequelize = require('../config/db');
 const FactoryQuotation = require('../models/factoryQuotationModel');
 const PlanManagement = require('../models/planManagementModel');
@@ -2094,6 +2094,164 @@ async function createPreviousLabourLicenseTable() {
   }
 }
 
+// Create Previous Factory Quotation table
+async function createPreviousFactoryQuotationTable() {
+  try {
+    console.log('\n📋 Creating Previous Factory Quotation Table...');
+    
+    // Check if table exists
+    const [tableExists] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'previous_factory_quotations'`,
+      { type: QueryTypes.SELECT }
+    );
+
+    if (tableExists.count === 0) {
+      console.log("📝 Creating previous_factory_quotations table...");
+      await sequelize.query(`
+        CREATE TABLE previous_factory_quotations (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          original_quotation_id INT NULL COMMENT 'Reference to the original quotation ID before it was moved to previous',
+          company_id INT NOT NULL COMMENT 'Reference to the company',
+          companyName VARCHAR(255) NOT NULL,
+          companyAddress TEXT NULL,
+          phone VARCHAR(20) NULL,
+          email VARCHAR(255) NULL,
+          factoryAddress TEXT NULL,
+          pincode VARCHAR(10) NULL,
+          district VARCHAR(100) NULL,
+          taluka VARCHAR(100) NULL,
+          village VARCHAR(100) NULL,
+          surveyNumber VARCHAR(100) NULL,
+          plotNumber VARCHAR(100) NULL,
+          noOfWorkers VARCHAR(50) NULL,
+          horsePower VARCHAR(50) NULL,
+          calculatedAmount DECIMAL(10, 2) NULL,
+          totalAmount DECIMAL(10, 2) NULL,
+          year INT NULL,
+          stabilityCertificateType VARCHAR(50) NULL,
+          stabilityCertificateAmount DECIMAL(10, 2) NULL,
+          administrationCharge DECIMAL(10, 2) NULL,
+          consultancyFees DECIMAL(10, 2) NULL,
+          planCharge DECIMAL(10, 2) NULL,
+          renewal_date DATE NOT NULL COMMENT 'Original renewal date when the quotation expired',
+          status ENUM('pending', 'approved', 'rejected', 'completed') NOT NULL DEFAULT 'completed' COMMENT 'Status when moved to previous (usually completed)',
+          documents JSON NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Date when this record was created (renewal date)',
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_company_id (company_id),
+          INDEX idx_original_quotation_id (original_quotation_id),
+          INDEX idx_created_at (created_at),
+          INDEX idx_renewal_date (renewal_date),
+          FOREIGN KEY (company_id) REFERENCES Companies(company_id) ON DELETE RESTRICT ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log("✅ previous_factory_quotations table created successfully");
+    } else {
+      console.log("ℹ️  previous_factory_quotations table already exists");
+      
+      // Check if company_id column needs to be updated to allow NULL
+      try {
+        await sequelize.query(`
+          ALTER TABLE previous_factory_quotations 
+          MODIFY COLUMN company_id INT NULL COMMENT 'Reference to the company'
+        `);
+        console.log("✅ Updated company_id column to allow NULL");
+      } catch (alterError) {
+        console.log("ℹ️  company_id column already allows NULL or update not needed");
+      }
+      
+      // Update companyName to allow NULL
+      try {
+        await sequelize.query(`
+          ALTER TABLE previous_factory_quotations 
+          MODIFY COLUMN companyName VARCHAR(255) NULL
+        `);
+        console.log("✅ Updated companyName column to allow NULL");
+      } catch (alterError) {
+        console.log("ℹ️  companyName column already allows NULL or update not needed");
+      }
+      
+      // Add quotation detail columns if they don't exist
+      const columnsToAdd = [
+        { name: 'noOfWorkers', type: 'VARCHAR(50) NULL' },
+        { name: 'horsePower', type: 'VARCHAR(50) NULL' },
+        { name: 'calculatedAmount', type: 'DECIMAL(10, 2) NULL' },
+        { name: 'totalAmount', type: 'DECIMAL(10, 2) NULL' },
+        { name: 'year', type: 'INT NULL' },
+        { name: 'stabilityCertificateType', type: 'VARCHAR(50) NULL' },
+        { name: 'stabilityCertificateAmount', type: 'DECIMAL(10, 2) NULL' },
+        { name: 'administrationCharge', type: 'DECIMAL(10, 2) NULL' },
+        { name: 'consultancyFees', type: 'DECIMAL(10, 2) NULL' },
+        { name: 'planCharge', type: 'DECIMAL(10, 2) NULL' }
+      ];
+      
+      for (const column of columnsToAdd) {
+        try {
+          await sequelize.query(`
+            ALTER TABLE previous_factory_quotations 
+            ADD COLUMN ${column.name} ${column.type}
+          `);
+          console.log(`✅ Added column: ${column.name}`);
+        } catch (alterError) {
+          if (alterError.message.includes('Duplicate column')) {
+            console.log(`ℹ️  Column ${column.name} already exists`);
+          } else {
+            console.log(`⚠️  Error adding column ${column.name}:`, alterError.message);
+          }
+        }
+      }
+      
+      // Drop foreign key constraint to avoid Company table issues
+      try {
+        // First, find the foreign key name
+        const [fkResults] = await sequelize.query(`
+          SELECT CONSTRAINT_NAME 
+          FROM information_schema.KEY_COLUMN_USAGE 
+          WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'previous_factory_quotations' 
+          AND COLUMN_NAME = 'company_id' 
+          AND REFERENCED_TABLE_NAME = 'Companies'
+        `, { type: QueryTypes.SELECT });
+        
+        if (fkResults && fkResults.CONSTRAINT_NAME) {
+          await sequelize.query(`
+            ALTER TABLE previous_factory_quotations 
+            DROP FOREIGN KEY ${fkResults.CONSTRAINT_NAME}
+          `);
+          console.log(`✅ Dropped foreign key constraint: ${fkResults.CONSTRAINT_NAME}`);
+        } else {
+          console.log("ℹ️  No foreign key constraint found on company_id");
+        }
+      } catch (fkError) {
+        console.log("ℹ️  Foreign key constraint already dropped or doesn't exist");
+      }
+    }
+
+    // Check if previous_quotation_id column exists in FactoryQuotations table
+    const [previousQuotationIdExists] = await sequelize.query(
+      `SELECT COUNT(*) as count FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'FactoryQuotations' AND COLUMN_NAME = 'previous_quotation_id'`,
+      { type: QueryTypes.SELECT }
+    );
+
+    if (previousQuotationIdExists.count === 0) {
+      console.log("📝 Adding previous_quotation_id column to FactoryQuotations...");
+      await sequelize.query(`
+        ALTER TABLE FactoryQuotations 
+        ADD COLUMN previous_quotation_id INT NULL COMMENT 'Reference to the previous quotation ID that was renewed (if this is a renewal)',
+        ADD INDEX idx_previous_quotation_id (previous_quotation_id)
+      `);
+      console.log("✅ previous_quotation_id column added successfully");
+    } else {
+      console.log("ℹ️  previous_quotation_id column already exists");
+    }
+
+    console.log("✅ PreviousFactoryQuotation table setup completed successfully!");
+  } catch (error) {
+    console.error("❌ Error creating PreviousFactoryQuotation table:", error);
+    throw error;
+  }
+}
+
 // Setup policy tables and renewal system
 async function setupPolicyTables() {
   try {
@@ -2128,7 +2286,11 @@ async function setupPolicyTables() {
     await createPreviousLabourLicenseTable();
     console.log('✅ Previous Labour License Table setup completed');
 
-    console.log('\n📁 Step 7: Setting up upload directories...');
+    console.log('\n📋 Step 7: Setting up Previous Factory Quotation Table...');
+    await createPreviousFactoryQuotationTable();
+    console.log('✅ Previous Factory Quotation Table setup completed');
+
+    console.log('\n📁 Step 8: Setting up upload directories...');
     await setupUploadDirectories();
     console.log('✅ Upload directories setup completed');
 

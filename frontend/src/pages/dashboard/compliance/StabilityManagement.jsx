@@ -1305,6 +1305,7 @@ const StabilityManagement = ({ searchQuery = "" }) => {
                 onPageChange={handlePageChange}
                 onPageSizeChange={handlePageSizeChange}
                 serverSidePagination={true}
+                pageSizeOptions={[10, 25, 50, 100]}
               />
             )
           ) : loading ? (
@@ -1313,13 +1314,9 @@ const StabilityManagement = ({ searchQuery = "" }) => {
             <TableWithControl
               data={filteredRecords}
               columns={columns}
-              defaultPageSize={pagination.pageSize}
-              currentPage={pagination.currentPage}
-              totalPages={pagination.totalPages}
-              totalItems={pagination.totalItems}
-              onPageChange={handlePageChange}
-              onPageSizeChange={handlePageSizeChange}
+              defaultPageSize={10}
               serverSidePagination={false}
+              pageSizeOptions={[10, 25, 50, 100]}
             />
           )}
         </div>

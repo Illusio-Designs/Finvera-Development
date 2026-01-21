@@ -302,6 +302,7 @@ const Companies = ({ searchQuery = "" }) => {
               onPageChange={handlePageChange}
               onPageSizeChange={handlePageSizeChange}
               serverSidePagination={true}
+              pageSizeOptions={[10, 25, 50, 100]}
               emptyMessage="No insurance companies found"
               className="insurance-table"
             />

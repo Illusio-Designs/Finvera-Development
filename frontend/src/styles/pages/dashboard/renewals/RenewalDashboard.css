@@ -549,16 +549,18 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #e5e7eb;
+  gap: 24px;
 }
 
 .tab-header h2 {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 700;
   color: #111827;
   margin: 0;
+  flex-shrink: 0;
 }
 
 /* Service Info */
@@ -820,53 +822,101 @@
 .tab-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 /* Service Filter Select */
 .service-filter-select {
-  min-width: 280px;
+  min-width: 300px;
+  max-width: 400px;
 }
 
 .service-filter-select .select__control {
   border-radius: 8px;
-  border: 1px solid #d1d5db;
-  padding: 2px 4px;
+  border: 2px solid #e5e7eb;
+  padding: 8px 12px;
   transition: all 0.2s ease;
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  min-height: 44px;
 }
 
 .service-filter-select .select__control:hover {
-  border-color: #9ca3af;
+  border-color: #1F4F9C;
+  box-shadow: 0 2px 8px rgba(31, 79, 156, 0.15);
 }
 
 .service-filter-select .select__control--is-focused {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border-color: #1F4F9C;
+  box-shadow: 0 0 0 3px rgba(31, 79, 156, 0.1);
+}
+
+.service-filter-select .select__value-container {
+  padding: 0 8px;
+}
+
+.service-filter-select .select__single-value {
+  color: #111827;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.service-filter-select .select__placeholder {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.service-filter-select .select__indicator-separator {
+  background-color: #e5e7eb;
+}
+
+.service-filter-select .select__dropdown-indicator {
+  color: #6b7280;
+  padding: 0 8px;
+}
+
+.service-filter-select .select__dropdown-indicator:hover {
+  color: #1F4F9C;
 }
 
 .service-filter-select .select__menu {
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   overflow: hidden;
+  border: 1px solid #e5e7eb;
+  margin-top: 4px;
+  z-index: 9999 !important;
+  position: relative;
+}
+
+.service-filter-select .select__menu-list {
+  padding: 8px 0;
 }
 
 .service-filter-select .select__option {
-  padding: 10px 12px;
+  padding: 12px 16px;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: all 0.2s ease;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
 }
 
 .service-filter-select .select__option:hover {
-  background-color: #f3f4f6;
+  background-color: #f8f9fa;
+  color: #1F4F9C;
 }
 
 .service-filter-select .select__option--is-selected {
   background-color: #1F4F9C;
   color: white;
+  font-weight: 600;
 }
 
 .service-filter-select .select__option--is-focused {
-  background-color: #e5e7eb;
+  background-color: #f3f4f6;
+  color: #1F4F9C;
 }
 
 /* List Content */
@@ -992,173 +1042,289 @@
   .tab-controls {
     flex-direction: column;
     width: 100%;
+    gap: 12px;
   }
   
   .service-filter-select {
     width: 100%;
     min-width: unset;
+    max-width: unset;
   }
   
-  .service-results-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .renewal-meta {
+  .tab-header {
     flex-direction: column;
-    gap: 8px;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .tab-header h2 {
+    font-size: 20px;
+  }
+  
+  .renewals-count-info {
+    padding: 20px 24px;
+  }
+  
+  .renewals-count-info h3 {
+    font-size: 18px;
+  }
+  
+  .renewals-count-info p {
+    font-size: 14px;
+  }
+  
+  .renewals-list-section .table-container table {
+    min-width: 1000px;
+  }
+  
+  .renewals-list-section .table-container th,
+  .renewals-list-section .table-container td {
+    padding: 12px 16px;
+  }
+  
+  .service-icon-small {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+  
+  .service-name-text {
+    font-size: 13px;
+  }
+  
+  .days-badge {
+    padding: 6px 12px;
+    font-size: 11px;
+    min-width: 70px;
   }
 }
 
-/* Clean Table Design for Renewals */
-.renewals-table-container {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
+@media (max-width: 480px) {
+  .renewals-list-section .table-container table {
+    min-width: 800px;
+  }
+  
+  .renewals-list-section .table-container th:nth-child(1), 
+  .renewals-list-section .table-container td:nth-child(1) {
+    width: 200px;
+    min-width: 180px;
+  }
+  
+  .renewals-list-section .table-container th:nth-child(4), 
+  .renewals-list-section .table-container td:nth-child(4) {
+    width: 200px;
+    min-width: 180px;
+  }
 }
 
-.renewals-table-header {
-  padding: 20px 24px;
+/* Renewals List Section */
+.renewals-list-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.renewals-count-info {
   background: linear-gradient(135deg, #1F4F9C 0%, #3b82f6 100%);
-  border-bottom: 3px solid #1a3d7a;
-}
-
-.renewals-table-header h3 {
-  margin: 0;
+  padding: 24px 28px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(31, 79, 156, 0.2);
   color: white;
-  font-size: 18px;
-  font-weight: 600;
+  margin-bottom: 24px;
 }
 
-.renewals-table-wrapper {
-  overflow-x: auto;
-  max-width: 100%;
-}
-
-.renewals-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-
-.renewals-table thead {
-  background: #f8f9fa;
-  border-bottom: 2px solid #e5e7eb;
-}
-
-.renewals-table thead th {
-  padding: 16px 20px;
-  text-align: left;
-  font-weight: 600;
-  color: #374151;
-  text-transform: uppercase;
-  font-size: 12px;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
-}
-
-.renewals-table tbody tr {
-  border-bottom: 1px solid #e5e7eb;
-  transition: background-color 0.2s ease;
-}
-
-.renewals-table tbody tr:hover {
-  background: #f8f9fa;
-}
-
-.renewals-table tbody tr:last-child {
-  border-bottom: none;
-}
-
-.renewals-table tbody td {
-  padding: 16px 20px;
-  vertical-align: middle;
-  color: #111827;
-}
-
-.service-cell {
+.renewals-count-info h3 {
+  margin: 0 0 6px 0;
+  font-size: 20px;
+  font-weight: 700;
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
+.renewals-count-info p {
+  margin: 0;
+  font-size: 15px;
+  opacity: 0.9;
+  font-weight: 500;
+}
+
+/* Service Cell Styling for TableWithControl */
+.service-cell {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 260px;
+}
+
 .service-icon-small {
-  font-size: 24px;
+  font-size: 22px;
   width: 40px;
   height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #f3f4f6;
-  border-radius: 8px;
+  border-radius: 10px;
   color: #1F4F9C;
   flex-shrink: 0;
+  border: 2px solid #e5e7eb;
+  transition: all 0.2s ease;
+}
+
+.service-cell:hover .service-icon-small {
+  background: #e5e7eb;
+  border-color: #1F4F9C;
+  transform: scale(1.05);
 }
 
 .service-name-text {
-  font-weight: 500;
   color: #111827;
   white-space: nowrap;
+  font-size: 14px;
+  line-height: 1.4;
 }
 
 .policy-cell {
-  font-weight: 500;
   color: #6b7280;
+  font-size: 14px;
 }
 
 .client-cell {
-  font-weight: 500;
   color: #111827;
+  font-size: 14px;
+  line-height: 1.4;
 }
 
 .email-cell {
   color: #6b7280;
   font-size: 13px;
+  word-wrap: break-word;
+  white-space: normal;
+  line-height: 1.4;
 }
 
 .date-cell {
-  font-weight: 500;
   color: #1F4F9C;
   white-space: nowrap;
-}
-
-.days-cell {
-  text-align: center;
+  font-size: 14px;
 }
 
 .days-badge {
-  display: inline-block;
-  padding: 6px 14px;
-  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border-radius: 24px;
   font-size: 12px;
-  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
   white-space: nowrap;
+  min-width: 90px;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.days-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .days-badge.priority-high {
-  background: #fee2e2;
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
   color: #dc2626;
-  border: 1px solid #fecaca;
+  border: 2px solid #dc2626;
 }
 
 .days-badge.priority-medium {
-  background: #fef3c7;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
   color: #d97706;
-  border: 1px solid #fde68a;
+  border: 2px solid #d97706;
 }
 
 .days-badge.priority-low {
-  background: #dbeafe;
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
   color: #1e40af;
-  border: 1px solid #bfdbfe;
+  border: 2px solid #1e40af;
 }
 
 .days-badge.priority-none {
-  background: #f3f4f6;
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
   color: #6b7280;
-  border: 1px solid #e5e7eb;
+  border: 2px solid #6b7280;
+}
+
+/* Specific column widths for renewal dashboard tables */
+.renewals-list-section .table-container table {
+  min-width: 1400px;
+  table-layout: fixed;
+}
+
+/* Override column widths for renewal dashboard specifically */
+.renewals-list-section .table-container th:nth-child(1), 
+.renewals-list-section .table-container td:nth-child(1) { /* Service Type */
+  width: 280px;
+  min-width: 260px;
+}
+
+.renewals-list-section .table-container th:nth-child(2), 
+.renewals-list-section .table-container td:nth-child(2) { /* Policy Number */
+  width: 220px;
+  min-width: 200px;
+}
+
+.renewals-list-section .table-container th:nth-child(3), 
+.renewals-list-section .table-container td:nth-child(3) { /* Client Name */
+  width: 200px;
+  min-width: 180px;
+}
+
+.renewals-list-section .table-container th:nth-child(4), 
+.renewals-list-section .table-container td:nth-child(4) { /* Email */
+  width: 280px;
+  min-width: 250px;
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+.renewals-list-section .table-container th:nth-child(5), 
+.renewals-list-section .table-container td:nth-child(5) { /* Expiry Date */
+  width: 160px;
+  min-width: 140px;
+}
+
+.renewals-list-section .table-container th:nth-child(6), 
+.renewals-list-section .table-container td:nth-child(6) { /* Days Left */
+  width: 140px;
+  min-width: 120px;
+  text-align: center;
+}
+
+/* Ensure dropdown appears above everything */
+.service-filter-select {
+  position: relative;
+  z-index: 1000;
+}
+
+.service-filter-select .select__menu-portal {
+  z-index: 9999 !important;
+}
+
+/* Additional z-index fixes */
+.tab-controls {
+  position: relative;
+  z-index: 1000;
+}
+
+.renewals-list-section {
+  position: relative;
+  z-index: 1;
+}
+
+/* Table container z-index */
+.renewals-list-section .table-container {
+  position: relative;
+  z-index: 10;
 }
 
 /* Responsive Table */

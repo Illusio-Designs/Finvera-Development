@@ -5,6 +5,8 @@ const ApplicationManagement = require('../models/applicationManagementModel');
 const User = require('../models/userModel');
 const Role = require('../models/roleModel');
 const UserRole = require('../models/userRoleModel');
+const sequelize = require('../config/db');
+const { QueryTypes } = require('sequelize');
 const path = require('path');
 const { 
   calculateBaseAmount, 
@@ -673,3 +675,148 @@ exports.getStatistics = async (req, res) => {
     });
   }
 }; 
+
+// Renew factory quotation
+exports.renewQuotation = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const { id } = req.params;
+    const renewalData = req.body;
+
+    console.log('🔄 Starting factory quotation renewal for ID:', id);
+
+    // Validate required fields
+    if (!renewalData.renewal_date) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required field: renewal_date'
+      });
+    }
+
+    // Get the current quotation using raw query (FactoryQuotations has snake_case columns)
+    const [currentQuotation] = await sequelize.query(
+      'SELECT * FROM FactoryQuotations WHERE id = ?',
+      { 
+        replacements: [id],
+        type: QueryTypes.SELECT,
+        transaction
+      }
+    );
+
+    if (!currentQuotation) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: 'Factory quotation not found'
+      });
+    }
+
+    console.log('📋 Current quotation found:', currentQuotation.id);
+    console.log('📋 Current quotation company_id:', currentQuotation.company_id);
+    console.log('📋 Current quotation data:', JSON.stringify(currentQuotation, null, 2));
+
+    // Check if company_id exists, if not, we need to handle it
+    if (!currentQuotation.company_id) {
+      console.log('⚠️ Warning: Quotation does not have a company_id, using default value 1');
+    }
+
+    // Check for null/undefined values in important fields (FactoryQuotations uses snake_case)
+    const importantFields = ['company_name', 'company_address', 'phone', 'email', 'no_of_workers', 'horse_power', 'total_amount'];
+    importantFields.forEach(field => {
+      if (!currentQuotation[field]) {
+        console.log(`⚠️ Warning: Field '${field}' is null/undefined in original quotation`);
+      }
+    });
+
+
+
+    console.log('✅ Quotation renewed successfully with new renewal date');
+
+    // Update current quotation using raw SQL (FactoryQuotations uses snake_case columns)
+    await sequelize.query(
+      'UPDATE FactoryQuotations SET renewal_date = ?, status = ? WHERE id = ?',
+      {
+        replacements: [renewalData.renewal_date, 'maked', id],
+        type: QueryTypes.UPDATE,
+        transaction
+      }
+    );
+
+    console.log('✅ Current quotation updated with new renewal date and status changed to maked');
+
+    await transaction.commit();
+    console.log('✅ Factory quotation renewal completed successfully');
+
+    // Fetch updated quotation using raw query for response
+    const [updatedQuotation] = await sequelize.query(
+      'SELECT * FROM FactoryQuotations WHERE id = ?',
+      { 
+        replacements: [id],
+        type: QueryTypes.SELECT
+      }
+    );
+
+    res.json({
+      success: true,
+      message: 'Factory quotation renewed successfully',
+      data: updatedQuotation
+    });
+
+  } catch (error) {
+    await transaction.rollback();
+    console.error('❌ Error renewing factory quotation:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to renew factory quotation',
+      error: error.message
+    });
+  }
+};
+
+// Get quotations for renewal page (only status='renewal')
+
+// Get quotations for renewal page (only status='renewal')
+exports.getAllQuotationsGrouped = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, pageSize } = req.query;
+    const actualLimit = parseInt(limit) || parseInt(pageSize) || 10;
+    const offset = (page - 1) * actualLimit;
+
+    console.log('📋 Fetching renewal quotations...');
+    console.log('📋 Page:', page, 'Limit:', actualLimit, 'Offset:', offset);
+
+    // Get only quotations with status='renewal' (ready to be renewed)
+    const renewalQuotations = await sequelize.query(
+      "SELECT * FROM FactoryQuotations WHERE status = 'renewal' ORDER BY created_at DESC",
+      { type: QueryTypes.SELECT }
+    );
+
+    console.log(`✅ Found ${renewalQuotations.length} quotations with status='renewal'`);
+
+    // Apply pagination
+    const totalItems = renewalQuotations.length;
+    const paginatedQuotations = renewalQuotations.slice(offset, offset + actualLimit);
+
+    console.log(`✅ Returning ${paginatedQuotations.length} renewal quotations (page ${page}/${Math.ceil(totalItems / actualLimit)})`);
+
+    res.json({
+      success: true,
+      data: paginatedQuotations,
+      currentPage: parseInt(page),
+      pageSize: actualLimit,
+      totalPages: Math.ceil(totalItems / actualLimit),
+      totalItems: totalItems
+    });
+  } catch (error) {
+    console.error('❌ Error fetching renewal quotations:', error);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch renewal quotations',
+      error: error.message
+    });
+  }
+};

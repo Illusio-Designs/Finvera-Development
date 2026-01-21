@@ -134,6 +134,217 @@
   overflow: hidden;
 }
 
+/* Insurance Table Column Width Fixes - Applied to ALL pages with tables */
+.insurance .table-container table,
+.table-container table,
+.renewal-dashboard .table-container table {
+  min-width: 1900px;
+  table-layout: fixed;
+  width: 100%;
+}
+
+/* Universal column width fixes for all tables - Higher specificity */
+/* Sr No. Column */
+.insurance .table-container th:nth-child(1), 
+.insurance .table-container td:nth-child(1),
+.table-container th:nth-child(1), 
+.table-container td:nth-child(1),
+.renewal-dashboard .table-container th:nth-child(1), 
+.renewal-dashboard .table-container td:nth-child(1),
+.renewals-list-section .table-container th:nth-child(1), 
+.renewals-list-section .table-container td:nth-child(1) {
+  width: 80px !important;
+  min-width: 80px !important;
+  max-width: 80px !important;
+  text-align: center;
+}
+
+/* Company Name / Consumer Name / Service Type Column */
+.insurance .table-container th:nth-child(2), 
+.insurance .table-container td:nth-child(2),
+.table-container th:nth-child(2), 
+.table-container td:nth-child(2),
+.renewal-dashboard .table-container th:nth-child(2), 
+.renewal-dashboard .table-container td:nth-child(2),
+.renewals-list-section .table-container th:nth-child(2), 
+.renewals-list-section .table-container td:nth-child(2) {
+  width: 250px !important;
+  min-width: 230px !important;
+  max-width: 280px !important;
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+/* Policy Number Column */
+.insurance .table-container th:nth-child(3), 
+.insurance .table-container td:nth-child(3),
+.table-container th:nth-child(3), 
+.table-container td:nth-child(3),
+.renewal-dashboard .table-container th:nth-child(3), 
+.renewal-dashboard .table-container td:nth-child(3),
+.renewals-list-section .table-container th:nth-child(3), 
+.renewals-list-section .table-container td:nth-child(3) {
+  width: 200px !important;
+  min-width: 180px !important;
+  max-width: 220px !important;
+}
+
+/* Business Type / Client Name Column */
+.insurance .table-container th:nth-child(4), 
+.insurance .table-container td:nth-child(4),
+.table-container th:nth-child(4), 
+.table-container td:nth-child(4),
+.renewal-dashboard .table-container th:nth-child(4), 
+.renewal-dashboard .table-container td:nth-child(4),
+.renewals-list-section .table-container th:nth-child(4), 
+.renewals-list-section .table-container td:nth-child(4) {
+  width: 180px !important;
+  min-width: 160px !important;
+  max-width: 200px !important;
+}
+
+/* Customer Type Column */
+.insurance .table-container th:nth-child(5), 
+.insurance .table-container td:nth-child(5),
+.table-container th:nth-child(5), 
+.table-container td:nth-child(5),
+.renewal-dashboard .table-container th:nth-child(5), 
+.renewal-dashboard .table-container td:nth-child(5),
+.renewals-list-section .table-container th:nth-child(5), 
+.renewals-list-section .table-container td:nth-child(5) {
+  width: 160px !important;
+  min-width: 140px !important;
+  max-width: 180px !important;
+}
+
+/* Email Column - MOST IMPORTANT FIX */
+.insurance .table-container th:nth-child(6), 
+.insurance .table-container td:nth-child(6),
+.table-container th:nth-child(6), 
+.table-container td:nth-child(6),
+.renewal-dashboard .table-container th:nth-child(6), 
+.renewal-dashboard .table-container td:nth-child(6),
+.renewals-list-section .table-container th:nth-child(6), 
+.renewals-list-section .table-container td:nth-child(6) {
+  width: 320px !important;
+  min-width: 300px !important;
+  max-width: 350px !important;
+  word-wrap: break-word !important;
+  white-space: normal !important;
+  overflow-wrap: break-word !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Mobile Number Column - SECOND MOST IMPORTANT FIX */
+.insurance .table-container th:nth-child(7), 
+.insurance .table-container td:nth-child(7),
+.table-container th:nth-child(7), 
+.table-container td:nth-child(7),
+.renewal-dashboard .table-container th:nth-child(7), 
+.renewal-dashboard .table-container td:nth-child(7),
+.renewals-list-section .table-container th:nth-child(7), 
+.renewals-list-section .table-container td:nth-child(7) {
+  width: 220px !important;
+  min-width: 200px !important;
+  max-width: 240px !important;
+}
+
+/* Medical Cover / Other field Column */
+.insurance .table-container th:nth-child(8), 
+.insurance .table-container td:nth-child(8),
+.table-container th:nth-child(8), 
+.table-container td:nth-child(8),
+.renewal-dashboard .table-container th:nth-child(8), 
+.renewal-dashboard .table-container td:nth-child(8),
+.renewals-list-section .table-container th:nth-child(8), 
+.renewals-list-section .table-container td:nth-child(8) {
+  width: 160px !important;
+  min-width: 140px !important;
+  max-width: 180px !important;
+}
+
+/* Net Premium Column */
+.insurance .table-container th:nth-child(9), 
+.insurance .table-container td:nth-child(9),
+.table-container th:nth-child(9), 
+.table-container td:nth-child(9),
+.renewal-dashboard .table-container th:nth-child(9), 
+.renewal-dashboard .table-container td:nth-child(9),
+.renewals-list-section .table-container th:nth-child(9), 
+.renewals-list-section .table-container td:nth-child(9) {
+  width: 160px !important;
+  min-width: 140px !important;
+  max-width: 180px !important;
+}
+
+/* Policy Type / Status Column */
+.insurance .table-container th:nth-child(10), 
+.insurance .table-container td:nth-child(10),
+.table-container th:nth-child(10), 
+.table-container td:nth-child(10),
+.renewal-dashboard .table-container th:nth-child(10), 
+.renewal-dashboard .table-container td:nth-child(10),
+.renewals-list-section .table-container th:nth-child(10), 
+.renewals-list-section .table-container td:nth-child(10) {
+  width: 160px !important;
+  min-width: 140px !important;
+  max-width: 180px !important;
+}
+
+/* Status / Actions Column */
+.insurance .table-container th:nth-child(11), 
+.insurance .table-container td:nth-child(11),
+.table-container th:nth-child(11), 
+.table-container td:nth-child(11),
+.renewal-dashboard .table-container th:nth-child(11), 
+.renewal-dashboard .table-container td:nth-child(11),
+.renewals-list-section .table-container th:nth-child(11), 
+.renewals-list-section .table-container td:nth-child(11) {
+  width: 160px !important;
+  min-width: 140px !important;
+  max-width: 180px !important;
+}
+
+/* Actions Column */
+.insurance .table-container th:nth-child(12), 
+.insurance .table-container td:nth-child(12),
+.table-container th:nth-child(12), 
+.table-container td:nth-child(12),
+.renewal-dashboard .table-container th:nth-child(12), 
+.renewal-dashboard .table-container td:nth-child(12),
+.renewals-list-section .table-container th:nth-child(12), 
+.renewals-list-section .table-container td:nth-child(12) {
+  width: 160px !important;
+  min-width: 140px !important;
+  max-width: 180px !important;
+}
+
+/* Ensure proper text wrapping for long emails */
+.insurance .table-container td:nth-child(6),
+.table-container td:nth-child(6),
+.renewal-dashboard .table-container td:nth-child(6),
+.renewals-list-section .table-container td:nth-child(6) {
+  word-break: break-all !important;
+  hyphens: auto !important;
+}
+
+/* Fix for RenewalDashboard specific columns */
+.renewal-dashboard .renewals-list-section .table-container th:nth-child(6), 
+.renewal-dashboard .renewals-list-section .table-container td:nth-child(6) {
+  width: 180px !important; /* Expiry Date */
+  min-width: 160px !important;
+  max-width: 200px !important;
+}
+
+.renewal-dashboard .renewals-list-section .table-container th:nth-child(7), 
+.renewal-dashboard .renewals-list-section .table-container td:nth-child(7) {
+  width: 140px !important; /* Days Left */
+  min-width: 120px !important;
+  max-width: 160px !important;
+  text-align: center;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .insurance {

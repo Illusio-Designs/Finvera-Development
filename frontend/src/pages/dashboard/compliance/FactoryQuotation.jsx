@@ -1932,6 +1932,8 @@ function FactoryQuotation({ searchQuery = "" }) {
   const [selectedQuotation, setSelectedQuotation] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
   const [pendingStatusChange, setPendingStatusChange] = useState(null);
+  const [activeTab, setActiveTab] = useState('all'); // 'all' or 'completed'
+  const [groupedQuotations, setGroupedQuotations] = useState([]);
   const { user, userRoles } = useAuth();
   const isAdmin = userRoles.includes("admin");
   const isComplianceManager = userRoles.includes("compliance_manager");
@@ -1990,11 +1992,22 @@ function FactoryQuotation({ searchQuery = "" }) {
     }
   };
 
-  const fetchQuotations = async (page = 1, pageSize = 10) => {
+  const fetchQuotations = async (page = 1, pageSize = 10, filterStatus = null) => {
     try {
-      console.log("Fetching factory quotations...", { page, pageSize });
+      console.log("Fetching factory quotations...", { page, pageSize, filterStatus });
       setLoading(true);
-      const response = await factoryQuotationAPI.getAllQuotations({ page, pageSize });
+      
+      // Filter based on active tab
+      let params = { page, pageSize };
+      if (activeTab === 'all') {
+        // For 'all' tab, apply status filter if provided
+        const currentFilter = filterStatus !== null ? filterStatus : statusFilter;
+        if (currentFilter !== 'all') {
+          params.status = currentFilter;
+        }
+      }
+      
+      const response = await factoryQuotationAPI.getAllQuotations(params);
       console.log("Factory Quotation API response:", response);
 
       if (response && response.quotations && Array.isArray(response.quotations)) {
@@ -2025,6 +2038,49 @@ function FactoryQuotation({ searchQuery = "" }) {
       setQuotations([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch grouped quotations (completed + previous)
+  const fetchGroupedQuotations = async (page = 1, pageSize = 10) => {
+    try {
+      setLoading(true);
+      // Fetch quotations with status='renewal' for Completed tab
+      const response = await factoryQuotationAPI.getAllQuotations({ 
+        page, 
+        pageSize,
+        status: 'renewal' // Only fetch quotations with renewal status
+      });
+      
+      if (response.success) {
+        setGroupedQuotations(response.quotations || response.data);
+        setQuotations(response.quotations || response.data); // Set to quotations for display
+        
+        setPagination({
+          currentPage: response.currentPage || page,
+          pageSize: response.pageSize || pageSize,
+          totalPages: response.totalPages || 1,
+          totalItems: response.totalItems || 0,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching grouped quotations:', error);
+      setError('Failed to fetch grouped quotations');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle tab switching
+  const handleTabSwitch = (tab) => {
+    setActiveTab(tab);
+    setStatusFilter('all'); // Reset filter when switching tabs
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
+    
+    if (tab === 'all') {
+      fetchQuotations(1, pagination.pageSize);
+    } else if (tab === 'completed') {
+      fetchGroupedQuotations(1, pagination.pageSize);
     }
   };
 
@@ -2089,7 +2145,11 @@ function FactoryQuotation({ searchQuery = "" }) {
 
   const handlePageChange = async (page) => {
     console.log("FactoryQuotation: Page changed to:", page);
-    await fetchQuotations(page, pagination.pageSize);
+    if (activeTab === 'completed') {
+      await fetchGroupedQuotations(page, pagination.pageSize);
+    } else {
+      await fetchQuotations(page, pagination.pageSize);
+    }
   };
 
   const handlePageSizeChange = async (newPageSize) => {
@@ -2099,7 +2159,11 @@ function FactoryQuotation({ searchQuery = "" }) {
       currentPage: 1,
       pageSize: newPageSize,
     }));
-    await fetchQuotations(1, newPageSize);
+    if (activeTab === 'completed') {
+      await fetchGroupedQuotations(1, newPageSize);
+    } else {
+      await fetchQuotations(1, newPageSize);
+    }
   };
 
   const handleStatusChange = async (quotationId, newStatus) => {
@@ -2152,14 +2216,6 @@ function FactoryQuotation({ searchQuery = "" }) {
           toast.success(`Status updated to ${newStatus} successfully`);
           await fetchQuotations(pagination.currentPage, pagination.pageSize);
         }
-        return;
-      }
-
-      if (newStatus === 'renewal') {
-        // Show renewal modal
-        const quotation = quotations.find(q => q.id === quotationId);
-        setSelectedQuotation(quotation);
-        setShowRenewalModal(true);
         return;
       }
 
@@ -2382,13 +2438,21 @@ function FactoryQuotation({ searchQuery = "" }) {
     return date.toLocaleDateString('en-GB'); // DD/MM/YYYY format
   };
 
-  const columns = [
+  // Base columns that are always shown
+  const baseColumns = [
     {
       key: "sr_no",
       label: "Sr No.",
       sortable: true,
-      render: (_, __, index) => index + 1,
+      render: (_, __, index) => {
+        // Calculate serial number based on current page and page size
+        return (pagination.currentPage - 1) * pagination.pageSize + index + 1;
+      },
     },
+  ];
+
+  // Rest of the columns
+  const restColumns = [
     {
       key: "companyName",
       label: "Company Name",
@@ -2461,6 +2525,16 @@ function FactoryQuotation({ searchQuery = "" }) {
             : quotation.status === "renewal"
             ? "status-badge-renewal"
             : "status-badge-maked";
+        
+        // If status is renewal, always show as badge (not editable)
+        if (quotation.status === "renewal") {
+          return (
+            <span className={`status-badge ${statusClass}`}>
+              Renewal
+            </span>
+          );
+        }
+        
         return canEdit ? (
           <select
             value={quotation.status || "maked"}
@@ -2472,12 +2546,11 @@ function FactoryQuotation({ searchQuery = "" }) {
             <option value="plan">Plan</option>
             <option value="stability">Stability</option>
             <option value="application">Application</option>
-            <option value="renewal">Renewal</option>
           </select>
         ) : (
-          <span className={`status-badge-dropdown ${statusClass}`}>{
-            quotation.status?.charAt(0).toUpperCase() + quotation.status?.slice(1) || "-"
-          }</span>
+          <span className={`status-badge-dropdown ${statusClass}`}>
+            {quotation.status?.charAt(0).toUpperCase() + quotation.status?.slice(1) || "-"}
+          </span>
         );
       },
     },
@@ -2600,70 +2673,71 @@ function FactoryQuotation({ searchQuery = "" }) {
     {
       key: "actions",
       label: "Actions",
-      render: (_, quotation) => (
-        <div className="insurance-actions">
-          <ActionButton
-            onClick={() => handleViewQuotation(quotation)}
-            variant="secondary"
-            size="small"
-            title="View Quotation Details"
-          >
-            <BiShow />
-          </ActionButton>
-          <ActionButton
-            onClick={() => handleEdit(quotation)}
-            variant="secondary"
-            size="small"
-            disabled={!canEdit}
-          >
-            <BiEdit />
-          </ActionButton>
-          <ActionButton
-            onClick={async () => {
-              try {
-                const response = await factoryQuotationAPI.downloadPDF(quotation.id);
-                const blob = new Blob([response], { type: 'application/pdf' });
-                const url = window.URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `factory-quotation-${quotation.id}.pdf`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                window.URL.revokeObjectURL(url);
-                toast.success('PDF downloaded successfully');
-              } catch (error) {
-                console.error('Error downloading PDF:', error);
-                toast.error('Failed to download PDF');
-              }
-            }}
-            variant="secondary"
-            size="small"
-            title="Download PDF"
-          >
-            <BiDownload />
-          </ActionButton>
-
-          
-
-        </div>
-      ),
+      render: (_, quotation) => {
+        return (
+          <div className="insurance-actions">
+            {/* Only show View and Edit buttons for non-completed tabs */}
+            {activeTab !== 'completed' && (
+              <>
+                <ActionButton
+                  onClick={() => handleViewQuotation(quotation)}
+                  variant="secondary"
+                  size="small"
+                  title="View Quotation Details"
+                >
+                  <BiShow />
+                </ActionButton>
+                
+                <ActionButton
+                  onClick={() => handleEdit(quotation)}
+                  variant="secondary"
+                  size="small"
+                  disabled={!canEdit}
+                  title="Edit Quotation"
+                >
+                  <BiEdit />
+                </ActionButton>
+              </>
+            )}
+            
+            <ActionButton
+              onClick={async () => {
+                try {
+                  const response = await factoryQuotationAPI.downloadPDF(quotation.id);
+                  const blob = new Blob([response], { type: 'application/pdf' });
+                  const url = window.URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = `factory-quotation-${quotation.id}.pdf`;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  window.URL.revokeObjectURL(url);
+                  toast.success('PDF downloaded successfully');
+                } catch (error) {
+                  console.error('Error downloading PDF:', error);
+                  toast.error('Failed to download PDF');
+                }
+              }}
+              variant="secondary"
+              size="small"
+              title="Download PDF"
+            >
+              <BiDownload />
+            </ActionButton>
+          </div>
+        );
+      },
     },
   ];
 
-  const filteredQuotations = React.useMemo(() => {
-    let filtered = quotations;
-    
-    // Filter out renewal records (they will be managed in separate page)
-    filtered = filtered.filter((q) => q.status !== 'renewal');
-    
-    // Apply status filtering
-    if (statusFilter && statusFilter !== "all") {
-      filtered = filtered.filter((q) => q.status === statusFilter);
-    }
-    
-    return filtered;
-  }, [quotations, statusFilter]);
+  // Combine columns based on active tab
+  // Don't add Type column for Completed tab - not needed
+  const columns = [...baseColumns, ...restColumns];
+
+  // Don't filter client-side when using server-side pagination
+  // The filtering is already done on the server
+  const displayQuotations = quotations;
 
   const statusOptions = [
     { value: "all", label: "All Status" },
@@ -2672,6 +2746,7 @@ function FactoryQuotation({ searchQuery = "" }) {
     { value: "plan", label: "Plan" },
     { value: "stability", label: "Stability" },
     { value: "application", label: "Application" },
+    { value: "renewal", label: "Renewal" },
   ];
 
 
@@ -2691,20 +2766,44 @@ function FactoryQuotation({ searchQuery = "" }) {
                   Add Quotation
                 </Button>
               )}
-              <div className="dashboard-header-dropdown-container">
-                <Dropdown
-                  options={statusOptions}
-                  value={statusOptions.find((opt) => opt.value === statusFilter)}
-                  onChange={(option) =>
-                    setStatusFilter(option ? option.value : "all")
-                  }
-                  placeholder="Filter by Status"
-                />
-              </div>
+              {/* Show status filter only on All Quotations tab */}
+              {activeTab === 'all' && (
+                <div className="dashboard-header-dropdown-container">
+                  <Dropdown
+                    options={statusOptions}
+                    value={statusOptions.find((opt) => opt.value === statusFilter)}
+                    onChange={(option) => {
+                      const newStatus = option ? option.value : "all";
+                      setStatusFilter(newStatus);
+                      // Refetch with new filter - pass the new status directly
+                      fetchQuotations(1, pagination.pageSize, newStatus);
+                    }}
+                    placeholder="Filter by Status"
+                  />
+                </div>
+              )}
             </div>
           </div>
           
           <StatisticsCards statistics={statistics} loading={statsLoading} />
+          
+          {/* Tab Navigation */}
+          <div className="tab-navigation" style={{ marginBottom: "24px" }}>
+            <button
+              className={`tab-button ${activeTab === "all" ? "active" : ""}`}
+              onClick={() => handleTabSwitch("all")}
+            >
+              <BiShield className="tab-icon" />
+              All Quotations
+            </button>
+            <button
+              className={`tab-button ${activeTab === "completed" ? "active" : ""}`}
+              onClick={() => handleTabSwitch("completed")}
+            >
+              <BiTrendingUp className="tab-icon" />
+              Completed
+            </button>
+          </div>
           
           {error && (
             <div className="insurance-error">
@@ -2716,7 +2815,7 @@ function FactoryQuotation({ searchQuery = "" }) {
         <Loader size="large" color="primary" />
       ) : (
           <TableWithControl
-            data={filteredQuotations}
+            data={displayQuotations}
             columns={columns}
             defaultPageSize={pagination.pageSize}
             currentPage={pagination.currentPage}
@@ -2725,6 +2824,7 @@ function FactoryQuotation({ searchQuery = "" }) {
             onPageChange={handlePageChange}
             onPageSizeChange={handlePageSizeChange}
             serverSidePagination={true}
+            pageSizeOptions={[10, 25, 50, 100]}
           />
         )}
         </div>

@@ -170,23 +170,16 @@ function ConsumerUserList({ searchQuery = "" }) {
   });
 
   // Fetch consumer users function
-  const fetchConsumerUsers = async (page = 1, pageSize = 10) => {
+  const fetchConsumerUsers = async () => {
     try {
       setLocalLoading(true);
-      const response = await userAPI.getConsumerUsers({ page, pageSize });
+      const response = await userAPI.getConsumerUsers();
       console.log("Consumer users response:", response);
       
       if (response && response.users && Array.isArray(response.users)) {
         setConsumerUsers(response.users);
-        setPagination({
-          currentPage: response.currentPage || page,
-          pageSize: response.pageSize || pageSize,
-          totalPages: response.totalPages || 1,
-          totalItems: response.totalItems || 0,
-        });
       } else if (Array.isArray(response)) {
         setConsumerUsers(response);
-        setPagination((prev) => ({ ...prev, currentPage: page }));
       } else {
         setConsumerUsers([]);
       }
@@ -205,7 +198,7 @@ function ConsumerUserList({ searchQuery = "" }) {
     const initializeData = async () => {
       try {
         await refreshData();
-        await fetchConsumerUsers(1, 10);
+        await fetchConsumerUsers();
       } catch (err) {
         console.error("Error initializing data:", err);
         setError("Failed to load users");
@@ -253,25 +246,12 @@ function ConsumerUserList({ searchQuery = "" }) {
     return userRole ? userRole.role_name : "Unknown";
   };
 
-  const filteredUsers = consumerUsers.filter((user) => {
-    const matchesStatus =
-      !filters.status || (user.status || "Active") === filters.status;
-
-    // Add search functionality
-    const matchesSearch =
-      !searchQuery ||
-      user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchQuery.toLowerCase());
-
-    return matchesStatus && matchesSearch;
-  });
-
   const handleDelete = async (userId) => {
     if (window.confirm("Are you sure you want to delete this consumer user?")) {
       try {
         await userAPI.deleteUser(userId);
         await refreshData();
-        await fetchConsumerUsers(pagination.currentPage, pagination.pageSize);
+        await fetchConsumerUsers();
         toast.success("User deleted successfully!");
       } catch (err) {
         setError("Failed to delete user");
@@ -295,26 +275,13 @@ function ConsumerUserList({ searchQuery = "" }) {
   const handleUserUpdated = async () => {
     try {
       await refreshData();
-      await fetchConsumerUsers(pagination.currentPage, pagination.pageSize);
+      await fetchConsumerUsers();
       toast.success("User updated successfully!");
     } catch (err) {
       console.error("Error refreshing users:", err);
       toast.error("An error occurred. Please try again.");
     }
     handleModalClose();
-  };
-
-  const handlePageChange = async (page) => {
-    await fetchConsumerUsers(page, pagination.pageSize);
-  };
-
-  const handlePageSizeChange = async (newPageSize) => {
-    setPagination((prev) => ({
-      ...prev,
-      currentPage: 1,
-      pageSize: newPageSize,
-    }));
-    await fetchConsumerUsers(1, newPageSize);
   };
 
   const columns = [
@@ -375,23 +342,6 @@ function ConsumerUserList({ searchQuery = "" }) {
     },
   ];
 
-  // Add effect to handle initial data loading
-  useEffect(() => {
-    const initializeData = async () => {
-      try {
-        setLocalLoading(true);
-        await refreshData();
-      } catch (err) {
-        console.error("Error initializing data:", err);
-        setError("Failed to load users");
-      } finally {
-        setLocalLoading(false);
-      }
-    };
-
-    initializeData();
-  }, []);
-
   if (
     !user ||
     !user.roles?.some((role) =>
@@ -425,15 +375,11 @@ function ConsumerUserList({ searchQuery = "" }) {
             <Loader size="large" color="primary" />
           ) : (
             <TableWithControl
-              data={filteredUsers}
+              data={consumerUsers}
               columns={columns}
-              defaultPageSize={pagination.pageSize}
-              currentPage={pagination.currentPage}
-              totalPages={pagination.totalPages}
-              totalItems={pagination.totalItems}
-              onPageChange={handlePageChange}
-              onPageSizeChange={handlePageSizeChange}
-              serverSidePagination={true}
+              defaultPageSize={10}
+              serverSidePagination={false}
+              pageSizeOptions={[10, 25, 50, 100]}
             />
           )}
         </div>

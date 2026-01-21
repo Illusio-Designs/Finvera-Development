@@ -1464,6 +1464,10 @@ function ECP({ searchQuery = "" }) {
     totalPages: 1,
     totalItems: 0,
   });
+  const [groupedPagination, setGroupedPagination] = useState({
+    currentPage: 1,
+    pageSize: 10,
+  });
 
   const { user, userRoles } = useAuth();
   const isCompany = userRoles.includes("company");
@@ -1813,8 +1817,19 @@ function ECP({ searchQuery = "" }) {
     try {
       setGroupedLoading(true);
       const response = await employeeCompensationAPI.getAllPoliciesGrouped();
+      console.log("[ECP] Grouped policies response:", response);
       if (response.success && response.policies) {
         setGroupedPolicies(response.policies);
+        
+        // Debug: Count total policies in grouped response
+        let totalCount = 0;
+        response.policies.forEach((companyGroup) => {
+          const runningCount = companyGroup.running?.length || 0;
+          const previousCount = companyGroup.previous?.length || 0;
+          totalCount += runningCount + previousCount;
+          console.log(`[ECP] Company ${companyGroup.company_name}: ${runningCount} running + ${previousCount} previous = ${runningCount + previousCount} total`);
+        });
+        console.log(`[ECP] Total policies in grouped response: ${totalCount}`);
       } else {
         setGroupedPolicies([]);
       }
@@ -2161,6 +2176,7 @@ function ECP({ searchQuery = "" }) {
                 onPageChange={handlePageChange}
                 onPageSizeChange={handlePageSizeChange}
                 serverSidePagination={true}
+                pageSizeOptions={[10, 25, 50, 100]}
               />
             )
           ) : groupedLoading ? (
@@ -2199,6 +2215,8 @@ function ECP({ searchQuery = "" }) {
                   });
                 });
               });
+
+              console.log(`[ECP] All Policy tab - Total flattened policies: ${allPoliciesFlat.length}`);
 
               // Apply search filter if searchQuery exists
               if (searchQuery && searchQuery.length >= 3) {
@@ -2264,20 +2282,9 @@ function ECP({ searchQuery = "" }) {
                 <TableWithControl
                   data={allPoliciesFlat}
                   columns={groupedColumns}
-                  defaultPageSize={pagination.pageSize}
-                  currentPage={1}
-                  totalPages={Math.ceil(
-                    allPoliciesFlat.length / pagination.pageSize
-                  )}
-                  totalItems={allPoliciesFlat.length}
-                  onPageChange={(page) => {}}
-                  onPageSizeChange={(newSize) => {
-                    setPagination((prev) => ({
-                      ...prev,
-                      pageSize: newSize,
-                    }));
-                  }}
+                  defaultPageSize={10}
                   serverSidePagination={false}
+                  pageSizeOptions={[10, 25, 50, 100]}
                 />
               );
             })()

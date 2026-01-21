@@ -28,8 +28,14 @@ router.get('/search', factoryQuotationController.searchQuotations);
 // Get statistics
 router.get('/statistics', factoryQuotationController.getStatistics);
 
+// Get all quotations grouped (running + previous) - must be before /:id
+router.get('/all-grouped', factoryQuotationController.getAllQuotationsGrouped);
+
 // Get a quotation by ID
 router.get('/:id', factoryQuotationController.getQuotationById);
+
+// Renew factory quotation
+router.post('/:id/renew', factoryQuotationController.renewQuotation);
 
 // Update a quotation
 router.put('/:id', factoryQuotationController.updateQuotation);

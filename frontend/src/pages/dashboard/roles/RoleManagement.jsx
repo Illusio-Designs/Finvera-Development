@@ -247,6 +247,7 @@ function RoleManagement() {
               onPageChange={handlePageChange}
               onPageSizeChange={handlePageSizeChange}
               serverSidePagination={true}
+              pageSizeOptions={[10, 25, 50, 100]}
             />
           )}
         </div>

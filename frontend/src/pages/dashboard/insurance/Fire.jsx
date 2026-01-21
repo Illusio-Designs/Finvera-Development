@@ -1457,6 +1457,10 @@ function Fire({ searchQuery = "" }) {
     totalPages: 1,
     totalItems: 0,
   });
+  const [groupedPagination, setGroupedPagination] = useState({
+    currentPage: 1,
+    pageSize: 10,
+  });
   const { user, userRoles } = useAuth();
   const isCompany = userRoles.includes("company");
   const isConsumer = userRoles.includes("consumer");
@@ -1938,6 +1942,7 @@ function Fire({ searchQuery = "" }) {
                 onPageChange={handlePageChange}
                 onPageSizeChange={handlePageSizeChange}
                 serverSidePagination={true}
+                pageSizeOptions={[10, 25, 50, 100]}
               />
             )
           ) : groupedLoading ? (
@@ -2082,6 +2087,7 @@ function Fire({ searchQuery = "" }) {
                   ]}
                   defaultPageSize={10}
                   serverSidePagination={false}
+                  pageSizeOptions={[10, 25, 50, 100]}
                 />
               );
             })()

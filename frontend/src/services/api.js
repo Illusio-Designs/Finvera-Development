@@ -2235,6 +2235,44 @@ export const factoryQuotationAPI = {
     } catch (error) {
       throw error;
     }
+  },
+  // Renew factory quotation
+  renewQuotation: async (id, data) => {
+    try {
+      const response = await api.post(`/factory-quotations/${id}/renew`, data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Error renewing factory quotation:', error.response?.data || error.message);
+      throw error.response?.data || error;
+    }
+  },
+  // Get previous quotations
+  getPreviousQuotations: async (id, params = {}) => {
+    try {
+      const response = await api.get(`/factory-quotations/${id}/previous`, { params });
+      return response.data;
+    } catch (error) {
+      console.error('[API] Error fetching previous quotations:', error.response?.data || error.message);
+      throw error.response?.data || error;
+    }
+  },
+  // Get all quotations grouped (running + previous)
+  getAllQuotationsGrouped: async (params = {}) => {
+    try {
+      const queryParams = new URLSearchParams({
+        ...(params.page && { page: params.page }),
+        ...(params.pageSize && { pageSize: params.pageSize }),
+        ...(params.limit && { limit: params.limit })
+      }).toString();
+      const url = queryParams ? `/factory-quotations/all-grouped?${queryParams}` : '/factory-quotations/all-grouped';
+      
+      const response = await api.get(url);
+      console.log('[API] Grouped quotations response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[API] Error fetching grouped quotations:', error.response?.data || error.message);
+      throw error.response?.data || error;
+    }
   }
 };
 

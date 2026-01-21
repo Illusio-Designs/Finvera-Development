@@ -221,6 +221,8 @@ const WidgetPage = () => {
             { key: "name", label: "Name" },
             { key: "email", label: "Email" },
           ]}
+          defaultPageSize={10}
+          pageSizeOptions={[10, 25, 50, 100]}
           onRowClick={(row) => alert(`Row clicked: ${row.name}`)}
         />
       </section>

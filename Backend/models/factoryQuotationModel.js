@@ -112,6 +112,7 @@ const FactoryQuotation = sequelize.define('FactoryQuotation', {
 }, {
   tableName: 'FactoryQuotations',
   timestamps: true,
+  underscored: true, // This makes Sequelize use snake_case column names
   modelName: 'FactoryQuotation'
 });
 

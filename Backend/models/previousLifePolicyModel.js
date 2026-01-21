@@ -83,6 +83,12 @@ const PreviousLifePolicy = sequelize.define('PreviousLifePolicy', {
       min: 1
     }
   },
+  payment_mode: {
+    type: DataTypes.ENUM('Monthly', 'Quarterly', 'Half-Yearly', 'Yearly'),
+    allowNull: true,
+    defaultValue: 'Yearly',
+    comment: 'Premium payment frequency'
+  },
   policy_start_date: {
     type: DataTypes.DATE,
     allowNull: false

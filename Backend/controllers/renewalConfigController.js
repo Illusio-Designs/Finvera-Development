@@ -91,7 +91,10 @@ const createConfig = async (req, res) => {
       serviceName,
       reminderTimes,
       reminderDays,
-      reminderIntervals: reminderIntervals || (serviceType === 'labour_inspection' ? [15, 10, 7, 3, 1] : [30, 21, 14, 7, 1]),
+      reminderIntervals: reminderIntervals || (
+        serviceType === 'labour_inspection' ? [15, 10, 7, 3, 1] : 
+        [30, 15, 7]
+      ),
       isActive: isActive !== undefined ? isActive : true,
       createdBy: req.user.user_id,
       updatedBy: req.user.user_id
@@ -218,7 +221,7 @@ const getLabourInspectionLiveData = async (config, today) => {
   startOfNextWeek.setDate(endOfWeek.getDate() + 1);
   
   const endOfNextWeek = new Date(startOfNextWeek);
-  startOfNextWeek.setDate(startOfNextWeek.getDate() + 6);
+  endOfNextWeek.setDate(startOfNextWeek.getDate() + 6);
   
   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
   const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
@@ -282,7 +285,7 @@ const getLabourLicenseLiveData = async (config, today) => {
   startOfNextWeek.setDate(endOfWeek.getDate() + 1);
   
   const endOfNextWeek = new Date(startOfNextWeek);
-  startOfNextWeek.setDate(startOfNextWeek.getDate() + 6);
+  endOfNextWeek.setDate(startOfNextWeek.getDate() + 6);
   
   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
   const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
@@ -346,7 +349,7 @@ const getVehiclePolicyLiveData = async (config, today) => {
   startOfNextWeek.setDate(endOfWeek.getDate() + 1);
   
   const endOfNextWeek = new Date(startOfNextWeek);
-  startOfNextWeek.setDate(startOfNextWeek.getDate() + 6);
+  endOfNextWeek.setDate(startOfNextWeek.getDate() + 6);
   
   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
   const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
@@ -398,7 +401,7 @@ const getVehiclePolicyLiveData = async (config, today) => {
   };
 };
 
-// Helper function to get life insurance counts with monthly payment term logic
+// Helper function to get life insurance counts with PPT-based payment logic
 const getLifeInsuranceCount = async (config, today, days = null) => {
   try {
     const endDate = days ? new Date(today.getTime() + (days * 24 * 60 * 60 * 1000)) : 
@@ -409,28 +412,46 @@ const getLifeInsuranceCount = async (config, today, days = null) => {
       where: {
         status: 'active',
         policy_start_date: { [Op.not]: null },
-        pt: { [Op.not]: null }
+        ppt: { [Op.not]: null }
       },
-      attributes: ['id', 'policy_start_date', 'pt', 'policy_end_date']
+      attributes: ['id', 'policy_start_date', 'ppt', 'payment_mode', 'policy_end_date']
     });
 
     let count = 0;
     
     for (const policy of policies) {
       const startDate = new Date(policy.policy_start_date);
-      const policyTerm = parseInt(policy.pt); // Policy term in years
+      const pptYears = parseInt(policy.ppt); // Premium Paying Term in years
+      const paymentMode = policy.payment_mode || 'Yearly';
       
-      // Calculate all monthly payment dates within the specified period
-      for (let year = 0; year < policyTerm; year++) {
-        for (let month = 0; month < 12; month++) {
-          const paymentDate = new Date(startDate);
-          paymentDate.setFullYear(startDate.getFullYear() + year);
-          paymentDate.setMonth(startDate.getMonth() + month);
-          
-          // Check if this payment date falls within our target period
-          if (paymentDate >= today && paymentDate <= endDate) {
-            count++;
-          }
+      // Calculate payment frequency in months
+      let paymentFrequencyMonths;
+      switch (paymentMode) {
+        case 'Monthly':
+          paymentFrequencyMonths = 1;
+          break;
+        case 'Quarterly':
+          paymentFrequencyMonths = 3;
+          break;
+        case 'Half-Yearly':
+          paymentFrequencyMonths = 6;
+          break;
+        case 'Yearly':
+        default:
+          paymentFrequencyMonths = 12;
+          break;
+      }
+      
+      // Calculate all payment dates within the PPT period
+      const totalPayments = Math.floor((pptYears * 12) / paymentFrequencyMonths);
+      
+      for (let i = 0; i < totalPayments; i++) {
+        const paymentDate = new Date(startDate);
+        paymentDate.setMonth(startDate.getMonth() + (i * paymentFrequencyMonths));
+        
+        // Check if this payment date falls within our target period
+        if (paymentDate >= today && paymentDate <= endDate) {
+          count++;
         }
       }
     }
@@ -438,6 +459,65 @@ const getLifeInsuranceCount = async (config, today, days = null) => {
     return count;
   } catch (error) {
     console.error('Error getting life insurance count:', error);
+    return 0;
+  }
+};
+
+// Helper function to get life insurance counts between two specific dates
+const getLifeInsuranceCountBetween = async (config, startDate, endDate) => {
+  try {
+    // Get all active life policies
+    const policies = await LifePolicy.findAll({
+      where: {
+        status: 'active',
+        policy_start_date: { [Op.not]: null },
+        ppt: { [Op.not]: null }
+      },
+      attributes: ['id', 'policy_start_date', 'ppt', 'payment_mode', 'policy_end_date']
+    });
+
+    let count = 0;
+    
+    for (const policy of policies) {
+      const policyStartDate = new Date(policy.policy_start_date);
+      const pptYears = parseInt(policy.ppt); // Premium Paying Term in years
+      const paymentMode = policy.payment_mode || 'Yearly';
+      
+      // Calculate payment frequency in months
+      let paymentFrequencyMonths;
+      switch (paymentMode) {
+        case 'Monthly':
+          paymentFrequencyMonths = 1;
+          break;
+        case 'Quarterly':
+          paymentFrequencyMonths = 3;
+          break;
+        case 'Half-Yearly':
+          paymentFrequencyMonths = 6;
+          break;
+        case 'Yearly':
+        default:
+          paymentFrequencyMonths = 12;
+          break;
+      }
+      
+      // Calculate all payment dates within the PPT period
+      const totalPayments = Math.floor((pptYears * 12) / paymentFrequencyMonths);
+      
+      for (let i = 0; i < totalPayments; i++) {
+        const paymentDate = new Date(policyStartDate);
+        paymentDate.setMonth(policyStartDate.getMonth() + (i * paymentFrequencyMonths));
+        
+        // Check if this payment date falls within our target period
+        if (paymentDate >= startDate && paymentDate <= endDate) {
+          count++;
+        }
+      }
+    }
+    
+    return count;
+  } catch (error) {
+    console.error('Error getting life insurance count between dates:', error);
     return 0;
   }
 };
@@ -494,10 +574,51 @@ const getPolicyCount = async (config, today, dateField, days = null) => {
   }
 };
 
+// Helper function to get policy counts between two specific dates
+const getPolicyCountBetween = async (config, dateField, startDate, endDate) => {
+  let Model;
+  
+  // Map service types to models
+  switch (config.serviceType) {
+    case 'ecp':
+      Model = EmployeeCompensationPolicy;
+      break;
+    case 'health':
+      Model = HealthPolicies;
+      break;
+    case 'fire':
+      Model = FirePolicy;
+      break;
+    case 'dsc':
+      Model = DSC;
+      break;
+    case 'factory':
+      Model = FactoryQuotation;
+      break;
+    case 'stability':
+      Model = StabilityManagement;
+      break;
+    case 'life':
+      Model = LifePolicy;
+      break;
+    default:
+      return 0;
+  }
+
+  return await Model.count({
+    where: {
+      [dateField]: {
+        [Op.between]: [startDate, endDate]
+      }
+    }
+  });
+};
+
 // Get live renewal counts and upcoming renewals for dashboard
 const getLiveRenewalData = async (req, res) => {
   try {
     const today = new Date();
+    console.log('[getLiveRenewalData] Fetching live data for all services');
     
     // Get all active renewal configs (exclude reminderIntervals if column doesn't exist)
     const configs = await RenewalConfig.findAll({
@@ -507,10 +628,13 @@ const getLiveRenewalData = async (req, res) => {
       }
     });
 
+    console.log('[getLiveRenewalData] Found configs:', configs.length);
+
     const liveData = {};
 
     for (const config of configs) {
       try {
+        console.log(`[getLiveRenewalData] Processing service: ${config.serviceType}`);
         let upcomingCount = 0;
         let expiringThisWeek = 0;
         let expiringNextWeek = 0;
@@ -544,43 +668,108 @@ const getLiveRenewalData = async (req, res) => {
           case 'ecp':
           case 'health':
           case 'fire':
-            // These use policy_end_date
+            // These use policy_end_date - need proper week/month calculations
+            const ecpStartOfWeek = new Date(today);
+            ecpStartOfWeek.setDate(today.getDate() - today.getDay());
+            const ecpEndOfWeek = new Date(ecpStartOfWeek);
+            ecpEndOfWeek.setDate(ecpStartOfWeek.getDate() + 6);
+            
+            const ecpStartOfNextWeek = new Date(ecpEndOfWeek);
+            ecpStartOfNextWeek.setDate(ecpEndOfWeek.getDate() + 1);
+            const ecpEndOfNextWeek = new Date(ecpStartOfNextWeek);
+            ecpEndOfNextWeek.setDate(ecpStartOfNextWeek.getDate() + 6);
+            
+            const ecpStartOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const ecpEndOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            
             upcomingCount = await getPolicyCount(config, today, 'policy_end_date');
-            expiringThisWeek = await getPolicyCount(config, today, 'policy_end_date', 7);
-            expiringNextWeek = await getPolicyCount(config, today, 'policy_end_date', 14);
-            expiringThisMonth = await getPolicyCount(config, today, 'policy_end_date', 30);
+            expiringThisWeek = await getPolicyCountBetween(config, 'policy_end_date', ecpStartOfWeek, ecpEndOfWeek);
+            expiringNextWeek = await getPolicyCountBetween(config, 'policy_end_date', ecpStartOfNextWeek, ecpEndOfNextWeek);
+            expiringThisMonth = await getPolicyCountBetween(config, 'policy_end_date', ecpStartOfMonth, ecpEndOfMonth);
             break;
 
           case 'dsc':
-            // DSC uses expiry_date
+            // DSC uses expiry_date - need proper week/month calculations
+            const dscStartOfWeek = new Date(today);
+            dscStartOfWeek.setDate(today.getDate() - today.getDay());
+            const dscEndOfWeek = new Date(dscStartOfWeek);
+            dscEndOfWeek.setDate(dscStartOfWeek.getDate() + 6);
+            
+            const dscStartOfNextWeek = new Date(dscEndOfWeek);
+            dscStartOfNextWeek.setDate(dscEndOfWeek.getDate() + 1);
+            const dscEndOfNextWeek = new Date(dscStartOfNextWeek);
+            dscEndOfNextWeek.setDate(dscStartOfNextWeek.getDate() + 6);
+            
+            const dscStartOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const dscEndOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            
             upcomingCount = await getPolicyCount(config, today, 'expiry_date');
-            expiringThisWeek = await getPolicyCount(config, today, 'expiry_date', 7);
-            expiringNextWeek = await getPolicyCount(config, today, 'expiry_date', 14);
-            expiringThisMonth = await getPolicyCount(config, today, 'expiry_date', 30);
+            expiringThisWeek = await getPolicyCountBetween(config, 'expiry_date', dscStartOfWeek, dscEndOfWeek);
+            expiringNextWeek = await getPolicyCountBetween(config, 'expiry_date', dscStartOfNextWeek, dscEndOfNextWeek);
+            expiringThisMonth = await getPolicyCountBetween(config, 'expiry_date', dscStartOfMonth, dscEndOfMonth);
             break;
 
           case 'factory':
-            // Factory uses renewal_date
+            // Factory uses renewal_date - need proper week/month calculations
+            const factoryStartOfWeek = new Date(today);
+            factoryStartOfWeek.setDate(today.getDate() - today.getDay());
+            const factoryEndOfWeek = new Date(factoryStartOfWeek);
+            factoryEndOfWeek.setDate(factoryStartOfWeek.getDate() + 6);
+            
+            const factoryStartOfNextWeek = new Date(factoryEndOfWeek);
+            factoryStartOfNextWeek.setDate(factoryEndOfWeek.getDate() + 1);
+            const factoryEndOfNextWeek = new Date(factoryStartOfNextWeek);
+            factoryEndOfNextWeek.setDate(factoryStartOfNextWeek.getDate() + 6);
+            
+            const factoryStartOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const factoryEndOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            
             upcomingCount = await getPolicyCount(config, today, 'renewal_date');
-            expiringThisWeek = await getPolicyCount(config, today, 'renewal_date', 7);
-            expiringNextWeek = await getPolicyCount(config, today, 'renewal_date', 14);
-            expiringThisMonth = await getPolicyCount(config, today, 'renewal_date', 30);
+            expiringThisWeek = await getPolicyCountBetween(config, 'renewal_date', factoryStartOfWeek, factoryEndOfWeek);
+            expiringNextWeek = await getPolicyCountBetween(config, 'renewal_date', factoryStartOfNextWeek, factoryEndOfNextWeek);
+            expiringThisMonth = await getPolicyCountBetween(config, 'renewal_date', factoryStartOfMonth, factoryEndOfMonth);
             break;
 
           case 'stability':
-            // Stability uses renewal_date
+            // Stability uses renewal_date - need proper week/month calculations
+            const stabilityStartOfWeek = new Date(today);
+            stabilityStartOfWeek.setDate(today.getDate() - today.getDay());
+            const stabilityEndOfWeek = new Date(stabilityStartOfWeek);
+            stabilityEndOfWeek.setDate(stabilityStartOfWeek.getDate() + 6);
+            
+            const stabilityStartOfNextWeek = new Date(stabilityEndOfWeek);
+            stabilityStartOfNextWeek.setDate(stabilityEndOfWeek.getDate() + 1);
+            const stabilityEndOfNextWeek = new Date(stabilityStartOfNextWeek);
+            stabilityEndOfNextWeek.setDate(stabilityStartOfNextWeek.getDate() + 6);
+            
+            const stabilityStartOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const stabilityEndOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            
             upcomingCount = await getPolicyCount(config, today, 'renewal_date');
-            expiringThisWeek = await getPolicyCount(config, today, 'renewal_date', 7);
-            expiringNextWeek = await getPolicyCount(config, today, 'renewal_date', 14);
-            expiringThisMonth = await getPolicyCount(config, today, 'renewal_date', 30);
+            expiringThisWeek = await getPolicyCountBetween(config, 'renewal_date', stabilityStartOfWeek, stabilityEndOfWeek);
+            expiringNextWeek = await getPolicyCountBetween(config, 'renewal_date', stabilityStartOfNextWeek, stabilityEndOfNextWeek);
+            expiringThisMonth = await getPolicyCountBetween(config, 'renewal_date', stabilityStartOfMonth, stabilityEndOfMonth);
             break;
 
           case 'life':
-            // Life insurance uses monthly payment term logic
+            // Life insurance uses monthly payment term logic - need proper week/month calculations
+            const lifeStartOfWeek = new Date(today);
+            lifeStartOfWeek.setDate(today.getDate() - today.getDay());
+            const lifeEndOfWeek = new Date(lifeStartOfWeek);
+            lifeEndOfWeek.setDate(lifeStartOfWeek.getDate() + 6);
+            
+            const lifeStartOfNextWeek = new Date(lifeEndOfWeek);
+            lifeStartOfNextWeek.setDate(lifeEndOfWeek.getDate() + 1);
+            const lifeEndOfNextWeek = new Date(lifeStartOfNextWeek);
+            lifeEndOfNextWeek.setDate(lifeStartOfNextWeek.getDate() + 6);
+            
+            const lifeStartOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const lifeEndOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            
             upcomingCount = await getLifeInsuranceCount(config, today);
-            expiringThisWeek = await getLifeInsuranceCount(config, today, 7);
-            expiringNextWeek = await getLifeInsuranceCount(config, today, 14);
-            expiringThisMonth = await getLifeInsuranceCount(config, today, 30);
+            expiringThisWeek = await getLifeInsuranceCountBetween(config, lifeStartOfWeek, lifeEndOfWeek);
+            expiringNextWeek = await getLifeInsuranceCountBetween(config, lifeStartOfNextWeek, lifeEndOfNextWeek);
+            expiringThisMonth = await getLifeInsuranceCountBetween(config, lifeStartOfMonth, lifeEndOfMonth);
             break;
         }
 
@@ -592,11 +781,21 @@ const getLiveRenewalData = async (req, res) => {
           expiringThisMonth,
           reminderDays: config.reminderDays,
           reminderTimes: config.reminderTimes,
-          reminderIntervals: config.reminderIntervals || (config.serviceType === 'labour_inspection' ? [15, 10, 7, 3, 1] : [30, 21, 14, 7, 1])
+          reminderIntervals: config.reminderIntervals || (
+            config.serviceType === 'labour_inspection' ? [15, 10, 7, 3, 1] : 
+            [30, 15, 7]
+          )
         };
 
+        console.log(`[getLiveRenewalData] ${config.serviceType} data:`, {
+          upcomingCount,
+          expiringThisWeek,
+          expiringNextWeek,
+          expiringThisMonth
+        });
+
       } catch (error) {
-        console.error(`Error getting live data for ${config.serviceType}:`, error);
+        console.error(`[getLiveRenewalData] Error for ${config.serviceType}:`, error.message);
         liveData[config.serviceType] = {
           serviceName: config.serviceName,
           upcomingCount: 0,
@@ -608,12 +807,17 @@ const getLiveRenewalData = async (req, res) => {
       }
     }
 
+    console.log('[getLiveRenewalData] Result:', {
+      servicesProcessed: Object.keys(liveData).length,
+      services: Object.keys(liveData)
+    });
+
     res.json({
       success: true,
       data: liveData
     });
   } catch (error) {
-    console.error('Error fetching live renewal data:', error);
+    console.error('[getLiveRenewalData] Error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Error fetching live renewal data',

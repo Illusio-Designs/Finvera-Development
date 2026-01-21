@@ -264,23 +264,16 @@ function OtherUserList({ searchQuery = "" }) {
   });
 
   // Fetch other users function
-  const fetchOtherUsers = async (page = 1, pageSize = 10) => {
+  const fetchOtherUsers = async () => {
     try {
       setLocalLoading(true);
-      const response = await userAPI.getOtherUsers({ page, pageSize });
+      const response = await userAPI.getOtherUsers();
       console.log("Other users response:", response);
       
       if (response && response.users && Array.isArray(response.users)) {
         setOtherUsers(response.users);
-        setPagination({
-          currentPage: response.currentPage || page,
-          pageSize: response.pageSize || pageSize,
-          totalPages: response.totalPages || 1,
-          totalItems: response.totalItems || 0,
-        });
       } else if (Array.isArray(response)) {
         setOtherUsers(response);
-        setPagination((prev) => ({ ...prev, currentPage: page }));
       } else {
         setOtherUsers([]);
       }
@@ -299,7 +292,7 @@ function OtherUserList({ searchQuery = "" }) {
     const initializeData = async () => {
       try {
         await refreshData();
-        await fetchOtherUsers(1, 10);
+        await fetchOtherUsers();
       } catch (err) {
         console.error("Error initializing data:", err);
         setError("Failed to load users");
@@ -347,25 +340,12 @@ function OtherUserList({ searchQuery = "" }) {
     return userRole ? userRole.role_name : "Unknown";
   };
 
-  const filteredUsers = otherUsers.filter((user) => {
-    const matchesStatus =
-      !filters.status || (user.status || "Active") === filters.status;
-
-    // Add search functionality
-    const matchesSearch =
-      !searchQuery ||
-      user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchQuery.toLowerCase());
-
-    return matchesStatus && matchesSearch;
-  });
-
   const handleDelete = async (userId) => {
     if (window.confirm("Are you sure you want to delete this user?")) {
       try {
         await userAPI.deleteUser(userId);
         await refreshData();
-        await fetchOtherUsers(pagination.currentPage, pagination.pageSize);
+        await fetchOtherUsers();
         toast.success("User deleted successfully!");
       } catch (err) {
         setError("Failed to delete user");
@@ -389,26 +369,13 @@ function OtherUserList({ searchQuery = "" }) {
   const handleUserUpdated = async () => {
     try {
       await refreshData();
-      await fetchOtherUsers(pagination.currentPage, pagination.pageSize);
+      await fetchOtherUsers();
       toast.success("User updated successfully!");
     } catch (err) {
       console.error("Error refreshing users:", err);
       toast.error("An error occurred. Please try again.");
     }
     handleModalClose();
-  };
-
-  const handlePageChange = async (page) => {
-    await fetchOtherUsers(page, pagination.pageSize);
-  };
-
-  const handlePageSizeChange = async (newPageSize) => {
-    setPagination((prev) => ({
-      ...prev,
-      currentPage: 1,
-      pageSize: newPageSize,
-    }));
-    await fetchOtherUsers(1, newPageSize);
   };
 
   const columns = [
@@ -495,15 +462,11 @@ function OtherUserList({ searchQuery = "" }) {
             <Loader size="large" color="primary" />
           ) : (
             <TableWithControl
-              data={filteredUsers}
+              data={otherUsers}
               columns={columns}
-              defaultPageSize={pagination.pageSize}
-              currentPage={pagination.currentPage}
-              totalPages={pagination.totalPages}
-              totalItems={pagination.totalItems}
-              onPageChange={handlePageChange}
-              onPageSizeChange={handlePageSizeChange}
-              serverSidePagination={true}
+              defaultPageSize={10}
+              serverSidePagination={false}
+              pageSizeOptions={[10, 25, 50, 100]}
             />
           )}
         </div>

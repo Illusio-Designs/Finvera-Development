@@ -159,6 +159,10 @@
   opacity: 0.7;
 }
 
+.css-tr4s17-option{
+  background-color: #1F4F9C !important;
+}
+
 @media (max-width: 768px) {
   .dropdown-menu {
     position: fixed;

@@ -3,11 +3,12 @@ import { factoryQuotationAPI } from "../../../services/api";
 import Loader from "../../../components/common/Loader/Loader";
 import TableWithControl from "../../../components/common/Table/TableWithControl";
 import { toast } from "react-toastify";
-import { BiErrorCircle, BiShow } from "react-icons/bi";
+import { BiErrorCircle, BiShow, BiRefresh, BiDownload } from "react-icons/bi";
 import "../../../styles/pages/dashboard/home/CombinedDashboard.css";
 import DocumentDownload from "../../../components/common/DocumentDownload/DocumentDownload";
 import Modal from "../../../components/common/Modal/Modal";
 import ActionButton from "../../../components/common/ActionButton/ActionButton";
+import Button from "../../../components/common/Button/Button";
 import "../../../styles/pages/dashboard/compliance/Compliance.css";
 
 // View Quotation Modal Component
@@ -34,7 +35,7 @@ const ViewQuotationModal = ({ isOpen, onClose, quotation }) => {
             >
               Company Name
             </label>
-            <div className="view-field">{quotation.companyName || "-"}</div>
+            <div className="view-field">{quotation.company_name || quotation.companyName || "-"}</div>
           </div>
 
           <div className="insurance-form-group">
@@ -66,7 +67,7 @@ const ViewQuotationModal = ({ isOpen, onClose, quotation }) => {
               Company Address
             </label>
             <div className="view-field" style={{ whiteSpace: "pre-line" }}>
-              {quotation.companyAddress || "-"}
+              {quotation.company_address || quotation.companyAddress || "-"}
             </div>
           </div>
 
@@ -106,7 +107,7 @@ const ViewQuotationModal = ({ isOpen, onClose, quotation }) => {
             >
               Number of Workers
             </label>
-            <div className="view-field">{quotation.noOfWorkers || "-"}</div>
+            <div className="view-field">{quotation.no_of_workers || quotation.noOfWorkers || "-"}</div>
           </div>
 
           <div className="insurance-form-group">
@@ -119,7 +120,7 @@ const ViewQuotationModal = ({ isOpen, onClose, quotation }) => {
             >
               Horse Power
             </label>
-            <div className="view-field">{quotation.horsePower || "-"}</div>
+            <div className="view-field">{quotation.horse_power || quotation.horsePower || "-"}</div>
           </div>
 
           <div className="insurance-form-group">
@@ -133,7 +134,7 @@ const ViewQuotationModal = ({ isOpen, onClose, quotation }) => {
               Calculated Amount
             </label>
             <div className="view-field">
-              ₹{quotation.calculatedAmount?.toLocaleString() || "0"}
+              ₹{(quotation.calculated_amount || quotation.calculatedAmount || 0).toLocaleString()}
             </div>
           </div>
 
@@ -163,11 +164,15 @@ const ViewQuotationModal = ({ isOpen, onClose, quotation }) => {
               Stability Certificate Type
             </label>
             <div className="view-field">
-              {quotation.stabilityCertificateType === "with load"
+              {quotation.stability_certificate_type === "with load"
+                ? "With Load"
+                : quotation.stability_certificate_type === "without load"
+                ? "Without Load"
+                : quotation.stabilityCertificateType === "with load"
                 ? "With Load"
                 : quotation.stabilityCertificateType === "without load"
                 ? "Without Load"
-                : quotation.stabilityCertificateType || "-"}
+                : quotation.stability_certificate_type || quotation.stabilityCertificateType || "-"}
             </div>
           </div>
 
@@ -182,7 +187,7 @@ const ViewQuotationModal = ({ isOpen, onClose, quotation }) => {
               Stability Certificate Amount
             </label>
             <div className="view-field">
-              ₹{quotation.stabilityCertificateAmount?.toLocaleString() || "0"}
+              ₹{(quotation.stability_certificate_amount || quotation.stabilityCertificateAmount || 0).toLocaleString()}
             </div>
           </div>
 
@@ -197,7 +202,7 @@ const ViewQuotationModal = ({ isOpen, onClose, quotation }) => {
               Administration Charge
             </label>
             <div className="view-field">
-              ₹{quotation.administrationCharge?.toLocaleString() || "0"}
+              ₹{(quotation.administration_charge || quotation.administrationCharge || 0).toLocaleString()}
             </div>
           </div>
 
@@ -212,7 +217,7 @@ const ViewQuotationModal = ({ isOpen, onClose, quotation }) => {
               Consultancy Fees
             </label>
             <div className="view-field">
-              ₹{quotation.consultancyFees?.toLocaleString() || "0"}
+              ₹{(quotation.consultancy_fees || quotation.consultancyFees || 0).toLocaleString()}
             </div>
           </div>
 
@@ -227,7 +232,7 @@ const ViewQuotationModal = ({ isOpen, onClose, quotation }) => {
               Plan Charge
             </label>
             <div className="view-field">
-              ₹{quotation.planCharge?.toLocaleString() || "0"}
+              ₹{(quotation.plan_charge || quotation.planCharge || 0).toLocaleString()}
             </div>
           </div>
 
@@ -245,7 +250,7 @@ const ViewQuotationModal = ({ isOpen, onClose, quotation }) => {
               className="view-field"
               style={{ fontWeight: "bold", fontSize: "1.1em" }}
             >
-              ₹{quotation.totalAmount?.toLocaleString() || "0"}
+              ₹{parseFloat(quotation.total_amount || quotation.totalAmount || 0).toLocaleString('en-IN')}
             </div>
           </div>
 
@@ -328,6 +333,7 @@ const FactoryQuotationRenewal = memo(() => {
   const [error, setError] = useState(null);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [showRenewalModal, setShowRenewalModal] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState(null);
   const [pagination, setPagination] = useState({
     currentPage: 1,
@@ -336,40 +342,37 @@ const FactoryQuotationRenewal = memo(() => {
     totalItems: 0,
   });
 
+  // Fetch all quotations for renewal page (renewal, running, and previous)
   const fetchRenewals = useCallback(async (page = 1, pageSize = 10) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await factoryQuotationAPI.getAllQuotations({
+      // Use the enhanced grouped quotations endpoint that includes everything
+      const response = await factoryQuotationAPI.getAllQuotationsGrouped({
         page,
-        pageSize,
-        status: "renewal",
+        pageSize
       });
-      if (
-        response &&
-        response.quotations &&
-        Array.isArray(response.quotations)
-      ) {
-        setRenewals(response.quotations);
+      
+      console.log('📋 Factory Renewal - API Response:', response);
+      
+      if (response && response.success) {
+        console.log('📋 Factory Renewal - Data received:', response.data);
+        console.log('📋 Factory Renewal - Total items:', response.totalItems);
+        setRenewals(response.data || []);
         setPagination({
           currentPage: response.currentPage || page,
           pageSize: response.pageSize || pageSize,
           totalPages: response.totalPages || 1,
           totalItems: response.totalItems || 0,
         });
-      } else if (response.data && Array.isArray(response.data)) {
-        const renewalQuotations = response.data.filter(
-          (quotation) => quotation.status === "renewal"
-        );
-        setRenewals(renewalQuotations);
-        setPagination((prev) => ({ ...prev, currentPage: page }));
       } else {
         setRenewals([]);
       }
     } catch (err) {
-      setError("Failed to fetch renewals");
+      console.error('Error fetching renewal quotations:', err);
+      setError("Failed to fetch renewal quotations");
       setRenewals([]);
-      toast.error("Failed to fetch renewals");
+      toast.error("Failed to fetch renewal quotations");
     } finally {
       setLoading(false);
     }
@@ -410,6 +413,12 @@ const FactoryQuotationRenewal = memo(() => {
     setShowViewModal(true);
   }, []);
 
+  // Handle renewal
+  const handleRenewal = useCallback((quotation) => {
+    setSelectedQuotation(quotation);
+    setShowRenewalModal(true);
+  }, []);
+
   // Memoize columns to prevent recreation on every render
   const columns = useMemo(
     () => [
@@ -417,31 +426,22 @@ const FactoryQuotationRenewal = memo(() => {
         key: "sr_no",
         label: "Sr No.",
         sortable: true,
-        render: (_, __, index) => index + 1,
+        render: (_, __, index) => {
+          // Calculate serial number based on current page and page size
+          return (pagination.currentPage - 1) * pagination.pageSize + index + 1;
+        },
       },
       {
         key: "companyName",
         label: "Company Name",
         sortable: true,
-        render: (_, quotation) => quotation.companyName || "-",
-      },
-      {
-        key: "companyCode",
-        label: "Company Code",
-        sortable: true,
-        render: (_, quotation) => {
-          // Try to get company code from linked company
-          if (quotation.company && quotation.company.company_code) {
-            return quotation.company.company_code;
-          }
-          return "-";
-        },
+        render: (_, quotation) => quotation.company_name || quotation.companyName || "-",
       },
       {
         key: "companyAddress",
         label: "Address",
         sortable: true,
-        render: (_, quotation) => quotation.companyAddress || "-",
+        render: (_, quotation) => quotation.company_address || quotation.companyAddress || "-",
       },
       {
         key: "contact",
@@ -458,56 +458,88 @@ const FactoryQuotationRenewal = memo(() => {
       },
       {
         key: "totalAmount",
-        label: "Original Amount",
+        label: "Total Amount",
         sortable: true,
-        render: (_, quotation) =>
-          `₹${quotation.totalAmount?.toLocaleString() || "0"}`,
+        render: (_, quotation) => {
+          // Ensure consistent formatting by converting to number first
+          const amount = parseFloat(quotation.total_amount || quotation.totalAmount) || 0;
+          return `₹${amount.toLocaleString('en-IN')}`;
+        },
+      },
+      {
+        key: "status",
+        label: "Status",
+        sortable: true,
+        render: (_, quotation) => (
+          <span className="status-badge status-badge-renewal">
+            Renewal
+          </span>
+        ),
       },
       {
         key: "renewalDate",
-        label: "Renewal Created",
+        label: "Expiry Date",
         sortable: true,
         render: (_, quotation) => {
-          // Try to get the most appropriate date
-          const renewalDate =
-            quotation.renewal_date ||
-            quotation.renewalDate ||
-            quotation.created_at;
-          return formatDate(renewalDate);
+          return quotation.renewal_date ? formatDate(quotation.renewal_date) : "Not Set";
         },
       },
       {
         key: "actions",
         label: "Actions",
         sortable: false,
-        render: (_, quotation) => (
-          <div className="flex items-center gap-2">
-            <ActionButton
-              onClick={() => handleViewQuotation(quotation)}
-              variant="secondary"
-              size="small"
-              title="View Quotation Details"
-            >
-              <BiShow />
-            </ActionButton>
-            <DocumentDownload
-              system="renewal-status"
-              recordId={quotation.id}
-              buttonText=""
-              buttonClass="action-button action-button-secondary action-button-small"
-              showIcon={true}
-              filePath={
-                quotation.upload_option
-                  ? `/uploads/renewal_status/${quotation.upload_option}`
-                  : null
-              }
-              fileName={quotation.upload_option || "renewal-document.pdf"}
-            />
-          </div>
-        ),
+        render: (_, quotation) => {
+          return (
+            <div className="insurance-actions">
+              <ActionButton
+                onClick={() => handleViewQuotation(quotation)}
+                variant="secondary"
+                size="small"
+                title="View Quotation Details"
+              >
+                <BiShow />
+              </ActionButton>
+              
+              <ActionButton
+                onClick={() => handleRenewal(quotation)}
+                variant="secondary"
+                size="small"
+                title="Renew Quotation"
+              >
+                <BiRefresh />
+              </ActionButton>
+              
+              <ActionButton
+                onClick={async () => {
+                  try {
+                    const response = await factoryQuotationAPI.downloadPDF(quotation.id);
+                    const blob = new Blob([response], { type: 'application/pdf' });
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `factory-quotation-${quotation.id}.pdf`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(url);
+                    toast.success('PDF downloaded successfully');
+                  } catch (error) {
+                    console.error('Error downloading PDF:', error);
+                    toast.error('Failed to download PDF');
+                  }
+                }}
+                variant="secondary"
+                size="small"
+                title="Download PDF"
+              >
+                <BiDownload />
+              </ActionButton>
+            </div>
+          );
+        },
       },
     ],
-    [formatDate, handleViewQuotation]
+    [formatDate, handleViewQuotation, pagination]
   );
 
   return (
@@ -537,6 +569,7 @@ const FactoryQuotationRenewal = memo(() => {
               onPageChange={handlePageChange}
               onPageSizeChange={handlePageSizeChange}
               serverSidePagination={true}
+              pageSizeOptions={[10, 25, 50, 100]}
             />
           )}
         </div>
@@ -564,11 +597,104 @@ const FactoryQuotationRenewal = memo(() => {
           }}
           quotation={selectedQuotation}
         />
+
+        {/* Renewal Modal */}
+        <RenewalModal
+          isOpen={showRenewalModal}
+          onClose={() => {
+            setShowRenewalModal(false);
+            setSelectedQuotation(null);
+          }}
+          quotation={selectedQuotation}
+          onRenewalSuccess={() => {
+            setShowRenewalModal(false);
+            setSelectedQuotation(null);
+            fetchRenewals(pagination.currentPage, pagination.pageSize);
+          }}
+        />
       </div>
     </div>
   );
 });
 
 FactoryQuotationRenewal.displayName = "FactoryQuotationRenewal";
+
+// Simple Renewal Modal Component
+const RenewalModal = ({ isOpen, onClose, quotation, onRenewalSuccess }) => {
+  const [newExpiryDate, setNewExpiryDate] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!newExpiryDate) {
+      toast.error('Please select a new expiry date');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Use the proper renewal endpoint that creates previous record and updates current
+      await factoryQuotationAPI.renewQuotation(quotation.id, {
+        renewal_date: newExpiryDate
+      });
+      
+      toast.success('Quotation renewed successfully');
+      onRenewalSuccess();
+    } catch (error) {
+      console.error('Error renewing quotation:', error);
+      toast.error('Failed to renew quotation');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Renew Factory Quotation">
+      <form onSubmit={handleSubmit} className="insurance-form">
+        <div className="insurance-form-grid">
+          <div className="insurance-form-group">
+            <label className="insurance-form-label">Company Name</label>
+            <div className="view-field">{quotation?.company_name || quotation?.companyName || "-"}</div>
+          </div>
+
+          <div className="insurance-form-group">
+            <label className="insurance-form-label">Current Status</label>
+            <div className="view-field">
+              <span className="status-badge status-badge-renewal">Renewal</span>
+            </div>
+          </div>
+
+          <div className="insurance-form-group">
+            <label className="insurance-form-label">Total Amount</label>
+            <div className="view-field">
+              ₹{parseFloat(quotation?.total_amount || quotation?.totalAmount || 0).toLocaleString('en-IN')}
+            </div>
+          </div>
+
+          <div className="insurance-form-group">
+            <label className="insurance-form-label">New Expiry Date *</label>
+            <input
+              type="date"
+              value={newExpiryDate}
+              onChange={(e) => setNewExpiryDate(e.target.value)}
+              className="insurance-form-input"
+              required
+            />
+          </div>
+        </div>
+
+        <div className="insurance-form-actions">
+          <Button type="button" onClick={onClose} variant="outlined">
+            Cancel
+          </Button>
+          <Button type="submit" variant="contained" disabled={loading}>
+            {loading ? 'Renewing...' : 'Renew Quotation'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+};
 
 export default FactoryQuotationRenewal;

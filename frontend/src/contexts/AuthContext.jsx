@@ -80,6 +80,29 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const register = async (username, email, password, role_id = 2) => {
+    try {
+      console.log("AuthContext: Starting registration process for:", email);
+      setError(null);
+      const response = await api.post("/auth/register", { 
+        username, 
+        email, 
+        password, 
+        role_id 
+      });
+      
+      console.log("AuthContext: Registration response:", response.data);
+      
+      // Registration successful, but don't auto-login
+      // User needs to login manually after registration
+      return response.data;
+    } catch (error) {
+      console.error("AuthContext: Registration error:", error);
+      setError(error.response?.data?.error || "Registration failed");
+      throw error;
+    }
+  };
+
   const logout = () => {
     console.log("AuthContext: Logging out user");
     localStorage.removeItem("token");
@@ -103,6 +126,7 @@ export const AuthProvider = ({ children }) => {
     error,
     login,
     loginWithGoogle,
+    register,
     logout,
     isAuthenticated: !!user,
     hasRole,

@@ -7,8 +7,8 @@ const envPath = path.resolve(__dirname, '../.env');
 console.log('Loading .env file from:', envPath);
 
 try {
-  // Read file as UTF-16
-  const envFile = fs.readFileSync(envPath, 'utf16le');
+  // Read file as UTF-8
+  const envFile = fs.readFileSync(envPath, 'utf8');
   console.log('✅ Successfully read .env file');
   
   // Parse .env file manually

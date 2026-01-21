@@ -76,8 +76,8 @@ const createLabourLicense = async (req, res) => {
 // Get all labour licenses
 const getAllLabourLicenses = async (req, res) => {
   try {
-    const { page = 1, limit = 10, pageSize, search, type, status } = req.query;
-    const actualLimit = parseInt(limit) || parseInt(pageSize) || 10;
+    const { page = 1, limit, pageSize, search, type, status } = req.query;
+    const actualLimit = parseInt(pageSize) || parseInt(limit) || 10;
     const offset = (page - 1) * actualLimit;
 
     let whereClause = {};
@@ -604,8 +604,8 @@ const getPreviousLicenses = async (req, res) => {
 // Get all licenses grouped (running + previous)
 const getAllLicensesGrouped = async (req, res) => {
   try {
-    const { page = 1, limit = 10, pageSize } = req.query;
-    const actualLimit = parseInt(limit) || parseInt(pageSize) || 10;
+    const { page = 1, limit, pageSize } = req.query;
+    const actualLimit = parseInt(pageSize) || parseInt(limit) || 10;
     const offset = (page - 1) * actualLimit;
 
     // Get all running licenses (both active and expired)

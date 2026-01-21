@@ -1768,6 +1768,10 @@ function Vehicle({ searchQuery = "" }) {
     totalPages: 1,
     totalItems: 0,
   });
+  const [groupedPagination, setGroupedPagination] = useState({
+    currentPage: 1,
+    pageSize: 10,
+  });
   const { user, userRoles } = useAuth();
   const isCompany = userRoles.includes("company");
   const isConsumer = userRoles.includes("consumer");
@@ -2412,6 +2416,7 @@ function Vehicle({ searchQuery = "" }) {
                 onPageChange={handlePageChange}
                 onPageSizeChange={handlePageSizeChange}
                 serverSidePagination={true}
+                pageSizeOptions={[10, 25, 50, 100]}
               />
             )
           ) : groupedLoading ? (
@@ -2517,20 +2522,9 @@ function Vehicle({ searchQuery = "" }) {
                 <TableWithControl
                   data={allPoliciesFlat}
                   columns={groupedColumns}
-                  defaultPageSize={pagination.pageSize}
-                  currentPage={1}
-                  totalPages={Math.ceil(
-                    allPoliciesFlat.length / pagination.pageSize
-                  )}
-                  totalItems={allPoliciesFlat.length}
-                  onPageChange={(page) => {}}
-                  onPageSizeChange={(newSize) => {
-                    setPagination((prev) => ({
-                      ...prev,
-                      pageSize: newSize,
-                    }));
-                  }}
+                  defaultPageSize={10}
                   serverSidePagination={false}
+                  pageSizeOptions={[10, 25, 50, 100]}
                 />
               );
             })()

@@ -34,7 +34,7 @@ const RenewalForm = memo(({ config, onClose, onConfigUpdated }) => {
     serviceName: '',
     reminderTimes: 3,
     reminderDays: 30,
-    reminderIntervals: [30, 21, 14, 7, 1]
+    reminderIntervals: [30, 15, 7]
   });
 
   const [error, setError] = useState("");
@@ -92,10 +92,26 @@ const RenewalForm = memo(({ config, onClose, onConfigUpdated }) => {
   };
 
   const handleServiceTypeChange = (selectedOption) => {
+    let reminderTimes = 3;
+    let reminderDays = 30;
+    let reminderIntervals = [30, 15, 7];
+    
+    // Set defaults based on service type
+    if (selectedOption.value === 'labour_inspection') {
+      reminderTimes = 5;
+      reminderDays = 15;
+      reminderIntervals = [15, 10, 7, 3, 1];
+    }
+    // Life insurance uses same defaults as other services (3 reminders)
+    // Actual reminders will be based on payment_mode (Monthly/Quarterly/Half-Yearly/Yearly)
+    
     setFormData({
       ...formData,
       serviceType: selectedOption.value,
-      serviceName: selectedOption.label
+      serviceName: selectedOption.label,
+      reminderTimes,
+      reminderDays,
+      reminderIntervals
     });
   };
 
@@ -299,12 +315,13 @@ const RenewalDashboard = () => {
     try {
       setLoading(true);
       const response = await renewalAPI.getAllConfigs();
+      console.log('[fetchRenewalConfigs] Result:', response);
       if (response.success) {
         setConfigs(response.data || []);
         calculateStatistics(response.data || []);
       }
     } catch (err) {
-      console.error("Error fetching renewal configs:", err);
+      console.error('[fetchRenewalConfigs] Error:', err.message);
       setError("Failed to fetch renewal configurations");
     } finally {
       setLoading(false);
@@ -316,11 +333,13 @@ const RenewalDashboard = () => {
   const fetchLiveData = async () => {
     try {
       const response = await renewalAPI.getLiveData();
+      console.log('[fetchLiveData] Result:', response);
       if (response.success) {
         setLiveData(response.data);
+        console.log('[fetchLiveData] Live data set:', Object.keys(response.data).length, 'services');
       }
     } catch (err) {
-      console.error("Error fetching live data:", err);
+      console.error('[fetchLiveData] Error:', err.message);
     }
   };
 
@@ -611,14 +630,26 @@ const RenewalDashboard = () => {
   const renderSettingsTab = () => {
     const columns = [
       {
+        key: "srNo",
+        label: "Sr. No.",
+        render: (_, config, index, pagination) => {
+          const serialNumber = pagination && pagination.currentPage && pagination.pageSize
+            ? (pagination.currentPage - 1) * pagination.pageSize + index + 1
+            : index + 1;
+          return (
+            <div className="serial-number-cell">
+              {serialNumber}
+            </div>
+          );
+        },
+      },
+      {
         key: "serviceName",
         label: "Service Name",
         render: (_, config) => (
-          <div className="service-info">
-            <div className="service-icon">{getServiceIcon(config.serviceType)}</div>
-            <div className="service-details">
-              <div className="font-medium">{config.serviceName}</div>
-            </div>
+          <div className="service-cell">
+            <span className="service-icon-small">{getServiceIcon(config.serviceType)}</span>
+            <span className="service-name-text">{config.serviceName}</span>
           </div>
         ),
       },
@@ -708,6 +739,7 @@ const RenewalDashboard = () => {
           data={configs}
           columns={columns}
           defaultPageSize={10}
+          pageSizeOptions={[10, 25, 50, 100]}
         />
       </div>
     );
@@ -729,6 +761,84 @@ const RenewalDashboard = () => {
       { value: 'life', label: 'Life Insurance' }
     ];
 
+    // Define columns for the renewals table
+    const renewalsColumns = [
+      {
+        key: "srNo",
+        label: "Sr. No.",
+        sortable: false,
+        render: (_, renewal, index, pagination) => {
+          const serialNumber = pagination && pagination.currentPage && pagination.pageSize
+            ? (pagination.currentPage - 1) * pagination.pageSize + index + 1
+            : index + 1;
+          return (
+            <div className="serial-number-cell">
+              {serialNumber}
+            </div>
+          );
+        },
+      },
+      {
+        key: "serviceType",
+        label: "Service Type",
+        sortable: true,
+        render: (_, renewal) => (
+          <div className="service-cell">
+            <span className="service-icon-small">{getServiceIcon(renewal.serviceType)}</span>
+            <span className="service-name-text">{getServiceName(renewal.serviceType)}</span>
+          </div>
+        ),
+      },
+      {
+        key: "policyNumber",
+        label: "Policy/Certificate Number",
+        sortable: true,
+        render: (_, renewal) => (
+          <span className="policy-cell">{renewal.policyNumber || "-"}</span>
+        ),
+      },
+      {
+        key: "clientName",
+        label: "Client Name",
+        sortable: true,
+        render: (_, renewal) => (
+          <span className="client-cell">{renewal.clientName || "-"}</span>
+        ),
+      },
+      {
+        key: "clientEmail",
+        label: "Email",
+        sortable: true,
+        render: (_, renewal) => (
+          <span className="email-cell">{renewal.clientEmail || "-"}</span>
+        ),
+      },
+      {
+        key: "expiryDate",
+        label: "Expiry Date",
+        sortable: true,
+        render: (_, renewal) => (
+          <span className="date-cell">
+            {new Date(renewal.expiryDate).toLocaleDateString('en-IN', { 
+              year: 'numeric', 
+              month: 'short', 
+              day: 'numeric' 
+            })}
+          </span>
+        ),
+      },
+      {
+        key: "daysUntilExpiry",
+        label: "Days Left",
+        sortable: true,
+        render: (_, renewal) => (
+          <span className={`days-badge ${getPriorityClass(renewal.daysUntilExpiry)}`}>
+            {renewal.daysUntilExpiry} {renewal.daysUntilExpiry === 1 ? 'day' : 'days'}
+          </span>
+        ),
+      },
+    ];
+
     return (
       <div className="tab-content">
         <div className="tab-header">
@@ -745,6 +855,8 @@ const RenewalDashboard = () => {
               className="service-filter-select"
               classNamePrefix="select"
               isSearchable
+              menuPortalTarget={document.body}
+              menuPosition="fixed"
             />
             <Button
               variant="outlined"
@@ -762,53 +874,19 @@ const RenewalDashboard = () => {
           </div>
         ) : (
           <div className="list-content">
-            {/* Main Renewals List */}
+            {/* Main Renewals List using TableWithControl */}
             {renewalsList.length > 0 ? (
-              <div className="renewals-table-container">
-                <div className="renewals-table-header">
+              <div className="renewals-list-section">
+                <div className="renewals-count-info">
                   <h3>Renewal Certificates ({renewalsList.length} Total)</h3>
+                  <p>Showing upcoming renewals for the next 30 days</p>
                 </div>
-                <div className="renewals-table-wrapper">
-                  <table className="renewals-table">
-                    <thead>
-                      <tr>
-                        <th>Service Type</th>
-                        <th>Policy/Certificate Number</th>
-                        <th>Client Name</th>
-                        <th>Email</th>
-                        <th>Expiry Date</th>
-                        <th>Days Left</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {renewalsList.map((renewal, index) => (
-                        <tr key={renewal.id || index} className="renewal-row">
-                          <td>
-                            <div className="service-cell">
-                              <span className="service-icon-small">{getServiceIcon(renewal.serviceType)}</span>
-                              <span className="service-name-text">{getServiceName(renewal.serviceType)}</span>
-                            </div>
-                          </td>
-                          <td className="policy-cell">{renewal.policyNumber}</td>
-                          <td className="client-cell">{renewal.clientName}</td>
-                          <td className="email-cell">{renewal.clientEmail}</td>
-                          <td className="date-cell">
-                            {new Date(renewal.expiryDate).toLocaleDateString('en-IN', { 
-                              year: 'numeric', 
-                              month: 'short', 
-                              day: 'numeric' 
-                            })}
-                          </td>
-                          <td className="days-cell">
-                            <span className={`days-badge ${getPriorityClass(renewal.daysUntilExpiry)}`}>
-                              {renewal.daysUntilExpiry} {renewal.daysUntilExpiry === 1 ? 'day' : 'days'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <TableWithControl
+                  data={renewalsList}
+                  columns={renewalsColumns}
+                  defaultPageSize={10}
+                  pageSizeOptions={[10, 25, 50, 100]}
+                />
               </div>
             ) : (
               <div className="empty-state">

@@ -41,13 +41,6 @@ const StatisticsCards = ({ statistics, loading }) => {
   }
 
   const stats = statistics || {};
-  
-  console.log('📊 Stats object:', stats);
-  console.log('📊 Total:', stats.total);
-  console.log('📊 byStatus:', stats.byStatus);
-  console.log('📊 Active:', stats.byStatus?.active);
-  console.log('📊 Expired:', stats.byStatus?.expired);
-  console.log('📊 Expiring Soon:', stats.expiringSoon);
 
   return (
     <div className="statistics-section">
@@ -98,7 +91,8 @@ const StatisticsCards = ({ statistics, loading }) => {
 
 // Main Labour License Component
 const LabourLicense = ({ searchQuery = "" }) => {
-  console.log('[LabourLicense] Component rendered with searchQuery:', searchQuery);
+  console.log('[LabourLicense] Rendered');
+  
   const [licenses, setLicenses] = useState([]);
   const [filteredLicenses, setFilteredLicenses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -128,12 +122,12 @@ const LabourLicense = ({ searchQuery = "" }) => {
                            userRoles?.includes('compliance_manager') || 
                            userRoles?.includes('labour_law_manager');
 
-  // Fetch all licenses
+  // Fetch all licenses with server-side pagination
   const fetchLicenses = async (page = 1, pageSize = 10) => {
     try {
       setLoading(true);
       
-      // Build filters - Running tab ALWAYS shows only active licenses
+      // Build filters
       const filters = {
         page,
         pageSize,
@@ -165,6 +159,7 @@ const LabourLicense = ({ searchQuery = "" }) => {
           setFilteredLicenses(updatedLicenses || []);
         }
         
+        // Update pagination from response
         if (response.pagination) {
           setPagination({
             currentPage: response.pagination.currentPage || page,
@@ -173,9 +168,16 @@ const LabourLicense = ({ searchQuery = "" }) => {
             totalItems: response.pagination.totalItems || 0,
           });
         }
+        
+        console.log('[fetchLicenses] Result:', { 
+          recordsReceived: updatedLicenses.length,
+          page,
+          pageSize,
+          totalItems: response.pagination?.totalItems 
+        });
       }
     } catch (error) {
-      console.error('Error fetching licenses:', error);
+      console.error('[fetchLicenses] Error:', error.message);
       setError(error.message || 'Failed to fetch licenses');
       toast.error(error.message || 'Failed to fetch licenses');
     } finally {
@@ -188,13 +190,13 @@ const LabourLicense = ({ searchQuery = "" }) => {
     try {
       setStatsLoading(true);
       const response = await labourLicenseAPI.getStatistics();
-      console.log('📊 Statistics API response:', response);
+      
       if (response.success) {
-        console.log('📊 Statistics data:', response.data);
+        console.log('[fetchStatistics] Result:', response.data);
         setStatistics(response.data);
       }
     } catch (error) {
-      console.error('Error fetching statistics:', error);
+      console.error('[fetchStatistics] Error:', error.message);
     } finally {
       setStatsLoading(false);
     }
@@ -209,7 +211,7 @@ const LabourLicense = ({ searchQuery = "" }) => {
         setCompanies(response.companies || response.data || []);
       }
     } catch (error) {
-      console.error('Error fetching companies:', error);
+      console.error('[fetchCompanies] Error:', error.message);
     }
   };
 
@@ -234,7 +236,7 @@ const LabourLicense = ({ searchQuery = "" }) => {
         // Check for expired licenses first
         await labourLicenseAPI.checkExpiredLicenses();
       } catch (error) {
-        console.error('Error checking expired licenses:', error);
+        console.error('[checkExpiredLicenses] Error:', error.message);
       }
       
       // Then fetch all data
@@ -247,48 +249,44 @@ const LabourLicense = ({ searchQuery = "" }) => {
     // Don't fetch grouped licenses on initial load - only when user switches to "All" tab
   }, []);
 
-  // Fetch grouped licenses
+  // Fetch grouped licenses with server-side pagination
   const fetchGroupedLicenses = async (page = 1, pageSize = 10) => {
     try {
       setLoading(true);
-      console.log('🔍 DEBUG: Fetching grouped licenses...');
+      
       const response = await labourLicenseAPI.getAllLicensesGrouped({ page, pageSize });
-      console.log('🔍 DEBUG: API Response:', response);
-      console.log('🔍 DEBUG: Response data length:', response.data?.length);
-      console.log('🔍 DEBUG: First 3 records:', response.data?.slice(0, 3));
+      console.log('[fetchGroupedLicenses] Result:', {
+        page,
+        pageSize,
+        recordsReceived: response.data?.length,
+        totalItems: response.totalItems
+      });
       
       if (response.success) {
-        // Store the original data
         setGroupedLicenses(response.data);
-        console.log('🔍 DEBUG: Set groupedLicenses with', response.data.length, 'records');
         
-        // Apply status filter
         let filteredData = response.data;
         if (statusFilter !== 'all') {
           filteredData = response.data.filter(license => {
-            // For previous records, they're always expired
             if (license.record_type === 'previous') {
               return statusFilter === 'expired';
             }
-            // For running records, check their status
             return license.status === statusFilter;
           });
         }
         
-        // Update filtered licenses for display
         setFilteredLicenses(filteredData);
-        console.log('🔍 DEBUG: Set filteredLicenses with', filteredData.length, 'records');
         
-        // Update pagination
         setPagination({
           currentPage: response.currentPage || page,
           pageSize: response.pageSize || pageSize,
           totalPages: response.totalPages || 1,
-          totalItems: response.totalItems || response.data.length,
+          totalItems: response.totalItems || 0,
         });
       }
     } catch (error) {
-      console.error('Error fetching grouped licenses:', error);
+      console.error('[fetchGroupedLicenses] Error:', error.message);
+      setError('Failed to fetch grouped licenses');
     } finally {
       setLoading(false);
     }
@@ -296,7 +294,6 @@ const LabourLicense = ({ searchQuery = "" }) => {
 
   // Handle renewal
   const handleRenewal = (license) => {
-    console.log('🔄 Starting renewal for license:', license);
     setSelectedLicenseForRenewal(license);
     setShowRenewalModal(true);
   };
@@ -310,21 +307,19 @@ const LabourLicense = ({ searchQuery = "" }) => {
     if (!selectedLicenseForRenewal) return;
     
     try {
-      console.log('🔄 Processing labour license renewal...');
       await labourLicenseAPI.renewLicense(selectedLicenseForRenewal.license_id, formData);
       
-      // Refresh both running and grouped data
       await Promise.all([
         fetchLicenses(pagination.currentPage, pagination.pageSize),
         fetchGroupedLicenses(pagination.currentPage, pagination.pageSize),
         fetchStatistics()
       ]);
       
-      console.log('✅ Labour license renewal completed and data refreshed');
+      console.log('[handleRenewalCompleted] Result: Success');
       toast.success('Labour license renewed successfully');
       handleRenewalModalClose();
     } catch (error) {
-      console.error('❌ Error in renewal completion:', error);
+      console.error('[handleRenewalCompleted] Error:', error.message);
       toast.error(error.message || 'Failed to renew labour license');
       throw error;
     }
@@ -333,7 +328,6 @@ const LabourLicense = ({ searchQuery = "" }) => {
   // Handle tab switching
   const handleTabSwitch = (tab) => {
     setActiveTab(tab);
-    // Reset status filter to 'all' when switching tabs
     setStatusFilter('all');
     
     if (tab === 'running') {
@@ -345,23 +339,18 @@ const LabourLicense = ({ searchQuery = "" }) => {
 
   // Apply client-side filtering when grouped licenses or status filter changes
   useEffect(() => {
-    console.log('🔍 DEBUG: useEffect triggered - activeTab:', activeTab, 'groupedLicenses.length:', groupedLicenses.length, 'statusFilter:', statusFilter);
-    
     if (activeTab === 'all' && groupedLicenses.length > 0) {
       let filteredData = groupedLicenses;
       
       if (statusFilter !== 'all') {
         filteredData = groupedLicenses.filter(license => {
-          // For previous records, they're always expired
           if (license.record_type === 'previous') {
             return statusFilter === 'expired';
           }
-          // For running records, check their status
           return license.status === statusFilter;
         });
       }
       
-      console.log('🔍 DEBUG: Setting filteredLicenses from useEffect with', filteredData.length, 'records');
       setFilteredLicenses(filteredData);
     }
   }, [groupedLicenses, statusFilter, activeTab]);
@@ -372,9 +361,10 @@ const LabourLicense = ({ searchQuery = "" }) => {
       const response = await labourLicenseAPI.searchLicenses(query);
       if (response.success) {
         setFilteredLicenses(response.data || []);
+        console.log('[handleSearchLicenses] Result:', { recordsFound: response.data?.length });
       }
     } catch (error) {
-      console.error('Error searching licenses:', error);
+      console.error('[handleSearchLicenses] Error:', error.message);
       toast.error('Search failed');
     }
   };
@@ -383,17 +373,8 @@ const LabourLicense = ({ searchQuery = "" }) => {
   const handleStatusFilter = (status) => {
     setStatusFilter(status);
     
-    // Reset to page 1 when filter changes
-    setPagination(prev => ({ ...prev, currentPage: 1 }));
-    
-    // Refetch data based on active tab
-    if (activeTab === 'running') {
-      // For running tab, refetch with the new status filter
-      fetchLicenses(1, pagination.pageSize);
-    } else {
-      // For all tab, client-side filtering will be applied via useEffect
-      // No need to refetch, just let the useEffect handle it
-    }
+    // For client-side pagination, no need to refetch
+    // The useEffect will handle filtering
   };
 
   // Handle status update
@@ -404,9 +385,10 @@ const LabourLicense = ({ searchQuery = "" }) => {
       if (response.success) {
         toast.success('Status updated successfully');
         await fetchLicenses(pagination.currentPage, pagination.pageSize);
+        console.log('[handleStatusUpdate] Result: Success');
       }
     } catch (error) {
-      console.error('Error updating status:', error);
+      console.error('[handleStatusUpdate] Error:', error.message);
       toast.error(error.message || 'Failed to update status');
     } finally {
       setUpdatingStatus(prev => ({ ...prev, [licenseId]: false }));
@@ -414,22 +396,29 @@ const LabourLicense = ({ searchQuery = "" }) => {
   };
 
   const handlePageChange = async (page) => {
-    console.log("License: Page changed to:", page);
-    await fetchLicenses(page, pagination.pageSize);
+    console.log('[handlePageChange] Page:', page);
+    
+    if (activeTab === 'running') {
+      await fetchLicenses(page, pagination.pageSize);
+    } else {
+      await fetchGroupedLicenses(page, pagination.pageSize);
+    }
   };
 
   const handlePageSizeChange = async (newPageSize) => {
-    console.log("License: Page size changed to:", newPageSize);
+    console.log('[handlePageSizeChange] New page size:', newPageSize);
     
-    // Update pagination state first
     setPagination((prev) => ({
       ...prev,
       currentPage: 1,
       pageSize: newPageSize,
     }));
     
-    // Then fetch licenses with the new page size
-    await fetchLicenses(1, newPageSize);
+    if (activeTab === 'running') {
+      await fetchLicenses(1, newPageSize);
+    } else {
+      await fetchGroupedLicenses(1, newPageSize);
+    }
   };
 
   // Handle create/edit license
@@ -443,6 +432,7 @@ const LabourLicense = ({ searchQuery = "" }) => {
           setShowModal(false);
           setSelectedLicense(null);
           fetchLicenses();
+          console.log('[handleSubmit] Result: License updated');
         }
       } else {
         // Create new license
@@ -451,10 +441,11 @@ const LabourLicense = ({ searchQuery = "" }) => {
           toast.success('License created successfully');
           setShowModal(false);
           fetchLicenses();
+          console.log('[handleSubmit] Result: License created');
         }
       }
     } catch (error) {
-      console.error('Error saving license:', error);
+      console.error('[handleSubmit] Error:', error.message);
       toast.error(error.message || 'Failed to save license');
     }
   };
@@ -467,9 +458,10 @@ const LabourLicense = ({ searchQuery = "" }) => {
         if (response.success) {
           toast.success('License deleted successfully');
           fetchLicenses();
+          console.log('[handleDelete] Result: License deleted');
         }
       } catch (error) {
-        console.error('Error deleting license:', error);
+        console.error('[handleDelete] Error:', error.message);
         toast.error(error.message || 'Failed to delete license');
       }
     }
@@ -784,6 +776,7 @@ const LabourLicense = ({ searchQuery = "" }) => {
             <Loader size="large" color="primary" />
           ) : activeTab === "running" ? (
             <TableWithControl
+              key={`running-${pagination.pageSize}-${pagination.currentPage}`}
               data={filteredLicenses}
               columns={columns}
               defaultPageSize={pagination.pageSize}
@@ -793,21 +786,21 @@ const LabourLicense = ({ searchQuery = "" }) => {
               onPageChange={handlePageChange}
               onPageSizeChange={handlePageSizeChange}
               serverSidePagination={true}
+              pageSizeOptions={[10, 25, 50, 100]}
             />
           ) : (
             <TableWithControl
+              key={`all-${pagination.pageSize}-${pagination.currentPage}`}
               data={filteredLicenses}
               columns={columns}
               defaultPageSize={pagination.pageSize}
               currentPage={pagination.currentPage}
               totalPages={pagination.totalPages}
               totalItems={pagination.totalItems}
-              onPageChange={(page) => fetchGroupedLicenses(page, pagination.pageSize)}
-              onPageSizeChange={(newPageSize) => {
-                setPagination(prev => ({ ...prev, pageSize: newPageSize, currentPage: 1 }));
-                fetchGroupedLicenses(1, newPageSize);
-              }}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
               serverSidePagination={true}
+              pageSizeOptions={[10, 25, 50, 100]}
             />
           )}
         </div>
@@ -870,7 +863,6 @@ const RenewalForm = ({ onClose, onRenewal, licenseData, companies }) => {
   // Pre-fill form with existing license data
   useEffect(() => {
     if (licenseData) {
-      console.log('Pre-filling renewal form with data:', licenseData);
       setFormData({
         license_number: '',
         expiry_date: '',
@@ -898,10 +890,10 @@ const RenewalForm = ({ onClose, onRenewal, licenseData, companies }) => {
 
     setLoading(true);
     try {
-      console.log('Submitting renewal form with data:', formData);
       await onRenewal(formData);
+      console.log('[RenewalForm] Result: Renewal submitted');
     } catch (error) {
-      console.error('Error renewing license:', error);
+      console.error('[RenewalForm] Error:', error.message);
       toast.error(error.message || 'Failed to renew license');
     } finally {
       setLoading(false);

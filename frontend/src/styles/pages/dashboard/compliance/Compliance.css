@@ -500,6 +500,12 @@
   border: 1px solid #f9a8d4;
 }
 
+.status-badge-completed {
+  background-color: #d1fae5;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+}
+
 /* Reject Modal Specific Styles */
 .reject-modal .form-group {
   margin-bottom: 20px;
