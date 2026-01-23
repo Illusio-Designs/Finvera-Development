@@ -443,7 +443,7 @@ class RenewalService {
       for (const policy of policies) {
         const daysUntilExpiry = this.getDaysUntilExpiry(policy.policy_end_date);
         
-        if (daysUntilExpiry <= config.reminderDays && daysUntilExpiry > 0) {
+        if (daysUntilExpiry <= 30 && daysUntilExpiry > 0) {
           policiesNeedingReminders.push(policy);
         }
       }
@@ -525,7 +525,7 @@ class RenewalService {
         include: [
           {
             model: Company,
-            as: 'company',
+            as: 'policyHolder',
             attributes: ['company_id', 'company_name', 'company_email', 'contact_number']
           }
         ],
@@ -567,12 +567,12 @@ class RenewalService {
         include: [
           {
             model: Company,
-            as: 'company',
+            as: 'companyPolicyHolder',
             attributes: ['company_id', 'company_name', 'company_email', 'contact_number']
           },
           {
             model: Consumer,
-            as: 'consumer',
+            as: 'consumerPolicyHolder',
             attributes: ['consumer_id', 'name', 'email', 'phone_number']
           }
         ],
@@ -1028,12 +1028,12 @@ class RenewalService {
       }
 
       // Get client details
-      const clientName = policy.company?.companyName || 
-                        policy.consumer?.name || 
+      const clientName = policy.companyPolicyHolder?.company_name || 
+                        policy.consumerPolicyHolder?.name || 
                         policy.proposer_name || 
                         'Unknown';
-      const clientEmail = policy.company?.email || 
-                         policy.consumer?.email || 
+      const clientEmail = policy.companyPolicyHolder?.company_email || 
+                         policy.consumerPolicyHolder?.email || 
                          policy.email;
 
       if (!clientEmail) {
@@ -1688,13 +1688,271 @@ class RenewalService {
     }
   }
 
+  // Process all Fire Policy renewals that need reminders
+  async processFirePolicyRenewals() {
+    try {
+      console.log('🔥 Starting Fire Policy renewal processing...');
+      
+      // Get renewal configuration for fire policy
+      const config = await RenewalConfig.getConfigByService('fire');
+      if (!config) {
+        console.log('⚠️ No renewal configuration found for Fire Policy');
+        return { success: false, message: 'No renewal configuration found' };
+      }
+
+      // Get policies that need reminders
+      const policies = await this.getFirePoliciesNeedingReminders();
+      console.log(`📋 Found ${policies.length} policies needing reminders`);
+
+      let processedCount = 0;
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const policy of policies) {
+        try {
+          const result = await this.processSingleFirePolicy(policy, config);
+          if (result.success) {
+            successCount++;
+          } else {
+            errorCount++;
+          }
+          processedCount++;
+        } catch (error) {
+          console.error(`❌ Error processing Fire Policy ${policy.id}:`, error);
+          errorCount++;
+        }
+      }
+
+      console.log(`✅ Fire Policy renewal processing completed:`);
+      console.log(`   - Total processed: ${processedCount}`);
+      console.log(`   - Successful: ${successCount}`);
+      console.log(`   - Errors: ${errorCount}`);
+
+      return {
+        success: true,
+        processed: processedCount,
+        successful: successCount,
+        errors: errorCount
+      };
+    } catch (error) {
+      console.error('❌ Error in Fire Policy renewal processing:', error);
+      throw error;
+    }
+  }
+
+  // Process all Life Insurance renewals that need reminders
+  async processLifeInsuranceRenewals() {
+    try {
+      console.log('💖 Starting Life Insurance renewal processing...');
+      
+      // Get renewal configuration for life insurance
+      const config = await RenewalConfig.getConfigByService('life');
+      if (!config) {
+        console.log('⚠️ No renewal configuration found for Life Insurance');
+        return { success: false, message: 'No renewal configuration found' };
+      }
+
+      // Get policies that need reminders
+      const policies = await this.getLifePoliciesNeedingReminders();
+      console.log(`📋 Found ${policies.length} policies needing reminders`);
+
+      let processedCount = 0;
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const policy of policies) {
+        try {
+          const result = await this.processSingleLifePolicy(policy, config);
+          if (result.success) {
+            successCount++;
+          } else {
+            errorCount++;
+          }
+          processedCount++;
+        } catch (error) {
+          console.error(`❌ Error processing Life Policy ${policy.id}:`, error);
+          errorCount++;
+        }
+      }
+
+      console.log(`✅ Life Insurance renewal processing completed:`);
+      console.log(`   - Total processed: ${processedCount}`);
+      console.log(`   - Successful: ${successCount}`);
+      console.log(`   - Errors: ${errorCount}`);
+
+      return {
+        success: true,
+        processed: processedCount,
+        successful: successCount,
+        errors: errorCount
+      };
+    } catch (error) {
+      console.error('❌ Error in Life Insurance renewal processing:', error);
+      throw error;
+    }
+  }
+
+  // Get Life policies that need reminders
+  async getLifePoliciesNeedingReminders() {
+    try {
+      const today = new Date();
+      const thirtyDaysFromNow = new Date();
+      thirtyDaysFromNow.setDate(today.getDate() + 30);
+
+      // Get active policies with next payment due within 30 days
+      const LifePolicy = require('../models/lifePolicyModel');
+      const policies = await LifePolicy.findAll({
+        where: {
+          status: 'active',
+          policy_end_date: {
+            [Op.lte]: thirtyDaysFromNow
+          }
+        },
+        include: [
+          {
+            model: Company,
+            as: 'companyPolicyHolder',
+            attributes: ['company_id', 'company_name', 'company_email', 'contact_number']
+          },
+          {
+            model: Consumer,
+            as: 'consumerPolicyHolder',
+            attributes: ['consumer_id', 'name', 'email', 'phone_number']
+          }
+        ],
+        order: [['policy_end_date', 'ASC']]
+      });
+
+      // Filter policies that need reminders today
+      const policiesNeedingReminders = [];
+      for (const policy of policies) {
+        const daysUntilPayment = this.getDaysUntilExpiry(policy.policy_end_date);
+        
+        if (daysUntilPayment <= 30 && daysUntilPayment > 0) {
+          policiesNeedingReminders.push(policy);
+        }
+      }
+
+      return policiesNeedingReminders;
+    } catch (error) {
+      console.error('❌ Error getting Life policies needing reminders:', error);
+      throw error;
+    }
+  }
+
+  // Process a single Life Policy renewal
+  async processSingleLifePolicy(policy, config) {
+    try {
+      console.log(`📋 Processing Life Policy ${policy.id}...`);
+      
+      // Check if reminder already sent today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const existingReminder = await ReminderLog.findOne({
+        where: {
+          policy_id: policy.id,
+          policy_type: 'life',
+          sent_at: {
+            [Op.gte]: today
+          }
+        }
+      });
+
+      if (existingReminder) {
+        console.log(`⚠️ Reminder already sent today for Life Policy ${policy.id}`);
+        return { success: false, message: 'Reminder already sent today' };
+      }
+
+      // Get client details
+      const clientName = policy.companyPolicyHolder?.company_name || 
+                        policy.consumerPolicyHolder?.name || 
+                        policy.proposer_name || 
+                        'Unknown';
+      const clientEmail = policy.companyPolicyHolder?.company_email || 
+                         policy.consumerPolicyHolder?.email || 
+                         policy.email;
+
+      if (!clientEmail) {
+        console.log(`⚠️ No email found for Life Policy ${policy.id}`);
+        return { success: false, message: 'No email address found' };
+      }
+
+      // Calculate days until next payment
+      const daysUntilPayment = this.getDaysUntilExpiry(policy.policy_end_date);
+      
+      // Prepare reminder data
+      const reminderData = {
+        policyId: policy.id,
+        policyNumber: policy.current_policy_number,
+        clientName,
+        clientEmail,
+        daysUntilPayment,
+        nextPaymentDate: policy.policy_end_date,
+        policyType: 'life',
+        policyDetails: {
+          policyNumber: policy.current_policy_number,
+          planName: policy.plan_name,
+          subProduct: policy.sub_product,
+          policyStartDate: policy.policy_start_date,
+          policyTerm: policy.policy_term,
+          premiumPaymentTerm: policy.premium_payment_term,
+          id: policy.id
+        }
+      };
+
+      // Send email reminder
+      const emailResult = await this.emailService.sendLifeInsuranceRenewalReminder(reminderData);
+      
+      // Log the reminder
+      await this.logLifePolicyReminder(policy, reminderData, emailResult);
+
+      if (emailResult.success) {
+        console.log(`✅ Life Insurance renewal reminder sent successfully for policy ${policy.id}`);
+        return { success: true, messageId: emailResult.messageId };
+      } else {
+        console.log(`❌ Failed to send Life Insurance renewal reminder for policy ${policy.id}`);
+        return { success: false, error: emailResult.error };
+      }
+    } catch (error) {
+      console.error(`❌ Error processing Life Policy ${policy.id}:`, error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Log Life Policy renewal reminder
+  async logLifePolicyReminder(policy, reminderData, emailResult) {
+    try {
+      const logData = {
+        policy_id: policy.id,
+        policy_type: 'life',
+        client_name: reminderData.clientName,
+        client_email: reminderData.clientEmail,
+        reminder_type: 'email',
+        reminder_day: reminderData.daysUntilPayment,
+        expiry_date: policy.policy_end_date,
+        sent_at: new Date(),
+        status: emailResult.success ? 'sent' : 'failed',
+        email_subject: `Life Insurance Payment Reminder - ${reminderData.daysUntilPayment} days remaining`,
+        response_data: emailResult.success ? { messageId: emailResult.messageId || 'unknown' } : null,
+        error_message: emailResult.success ? null : emailResult.error || 'Unknown error',
+        days_until_expiry: reminderData.daysUntilPayment
+      };
+
+      await ReminderLog.create(logData);
+      console.log(`📝 Life Insurance renewal reminder logged successfully`);
+    } catch (error) {
+      console.error(`❌ Error logging Life Insurance renewal reminder:`, error);
+    }
+  }
+
   // Process all Stability Certificate reminders
   async processStabilityManagementReminders() {
     try {
       console.log('🔄 Starting stability management reminder processing...');
       
       // Get renewal configuration for stability management
-      const config = await RenewalConfig.getConfigByService('stability_management');
+      const config = await RenewalConfig.getConfigByService('stability');
       if (!config || !config.isActive) {
         console.log('⚠️ Stability management renewals are not active');
         return { sent: 0, errors: 0, message: 'Service not active' };
@@ -1727,7 +1985,7 @@ class RenewalService {
       console.log(`   - Successful: ${successCount}`);
       console.log(`   - Errors: ${errorCount}`);
 
-      return { sent: successCount, errors: errorCount };
+      return { sent: successCount, errors: errorCount, successful: successCount };
     } catch (error) {
       console.error('❌ Error in stability management reminder processing:', error);
       return { sent: 0, errors: 1, error: error.message };

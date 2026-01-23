@@ -2,13 +2,16 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const routes = require('./routes');
+const { corsOptions } = require('./config/cors');
 
 const app = express();
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Apply CORS with proper configuration
+app.use(cors(corsOptions));
+
+// Body parsing middleware
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Serve static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

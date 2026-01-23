@@ -34,20 +34,33 @@ router.post('/trigger', auth, async (req, res) => {
     const RenewalService = require('../services/renewalService');
     const renewalService = new RenewalService();
     
-    console.log('🚀 Manual renewal trigger initiated');
+    console.log('🚀 Manual renewal trigger initiated - ALL SYSTEMS');
     
-    // Process only active policy types (DSC, Labour License, Stability Management)
+    // Process ALL renewal systems
     const results = {
+      vehicle: await renewalService.processVehicleInsuranceRenewals(),
+      health: await renewalService.processHealthInsuranceRenewals(),
+      fire: await renewalService.processFirePolicyRenewals(),
+      life: await renewalService.processLifeInsuranceRenewals(),
+      ecp: await renewalService.processECPRenewals(),
       dsc: await renewalService.processDSCRenewals(),
+      factory: await renewalService.processFactoryQuotationRenewals(),
       labourLicense: await renewalService.processLabourLicenseReminders(),
-      stabilityManagement: await renewalService.processStabilityManagementReminders()
+      labourInspection: await renewalService.processLabourInspectionReminders(),
+      stability: await renewalService.processStabilityManagementReminders()
     };
     
-    console.log('✅ Renewal processing completed');
+    console.log('✅ All renewal systems processing completed');
+    
+    // Calculate totals
+    const totalSent = Object.values(results).reduce((sum, r) => sum + (r.successful || 0), 0);
+    const totalErrors = Object.values(results).reduce((sum, r) => sum + (r.errors || 0), 0);
     
     res.json({
       success: true,
-      message: 'Renewal reminders processed successfully',
+      message: `All renewal reminders processed successfully - ${totalSent} emails sent`,
+      totalSent,
+      totalErrors,
       results
     });
   } catch (error) {

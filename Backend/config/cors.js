@@ -10,7 +10,12 @@ const allowedOrigins = [
   'http://localhost:5173', // Vite default port
   'https://radheconsultancy.co.in',
   'https://www.radheconsultancy.co.in',
-  'https://api.radheconsultancy.co.in'
+  'https://api.radheconsultancy.co.in',
+  'https://www.api.radheconsultancy.co.in', // Added this for your production API
+  'http://radheconsultancy.co.in',
+  'http://www.radheconsultancy.co.in',
+  'http://api.radheconsultancy.co.in',
+  'http://www.api.radheconsultancy.co.in'
 ];
 
 // Security headers configuration
@@ -40,11 +45,13 @@ const corsOptions = {
       return callback(null, true);
     }
     
-    // Check if origin is in allowed list
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    // In production, be more permissive for debugging
+    // Check if origin is in allowed list OR contains radheconsultancy.co.in
+    if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('radheconsultancy.co.in')) {
       callback(null, true);
     } else {
       console.log('Blocked by CORS:', origin);
+      console.log('Allowed origins:', allowedOrigins);
       callback(new Error('Not allowed by CORS'));
     }
   },

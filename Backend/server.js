@@ -10,6 +10,9 @@ const cron = require("node-cron");
 const {
   setupRolesAndPermissions,
   setupAdminUser,
+  migrateExistingUsers,
+  setupDatabase,
+  setupRenewalSystem,
 } = require("./scripts/serverSetup");
 const {
   corsOptions,
@@ -209,6 +212,69 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Function to run automatic renewal reminders
+const runAutomaticRenewalReminders = async () => {
+  try {
+    console.log('🔄 Starting automatic renewal reminder processing...');
+    
+    // Import RenewalService
+    const RenewalService = require('./services/renewalService');
+    const renewalService = new RenewalService();
+    
+    // Process all 10 renewal systems
+    const systems = [
+      { name: 'Vehicle Insurance', method: 'processVehiclePolicyRenewals' },
+      { name: 'Health Insurance', method: 'processHealthPolicyRenewals' },
+      { name: 'Fire Insurance', method: 'processFirePolicyRenewals' },
+      { name: 'Life Insurance', method: 'processLifeInsuranceRenewals' },
+      { name: 'Employee Compensation Policy', method: 'processECPRenewals' },
+      { name: 'Digital Signature Certificate', method: 'processDSCRenewals' },
+      { name: 'Factory Quotation', method: 'processFactoryQuotationRenewals' },
+      { name: 'Labour License', method: 'processLabourLicenseRenewals' },
+      { name: 'Labour Inspection', method: 'processLabourInspectionRenewals' },
+      { name: 'Stability Management', method: 'processStabilityManagementRenewals' }
+    ];
+    
+    let totalProcessed = 0;
+    let totalErrors = 0;
+    
+    for (const system of systems) {
+      try {
+        console.log(`🔄 Processing ${system.name}...`);
+        
+        const result = await renewalService[system.method]();
+        
+        if (result && result.success) {
+          console.log(`✅ ${system.name}: ${result.processed || 0} reminders processed`);
+          totalProcessed += result.processed || 0;
+        } else {
+          console.log(`⚠️ ${system.name}: No reminders processed or method returned false`);
+        }
+      } catch (error) {
+        console.error(`❌ Error processing ${system.name}:`, error.message);
+        totalErrors++;
+      }
+    }
+    
+    const summary = `Automatic renewal processing completed. Total processed: ${totalProcessed}, Errors: ${totalErrors}`;
+    console.log(`✅ ${summary}`);
+    
+    return {
+      success: totalErrors === 0,
+      totalProcessed,
+      totalErrors,
+      summary
+    };
+    
+  } catch (error) {
+    console.error('❌ Error in automatic renewal processing:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+};
+
 // Start server
 const startServer = async () => {
   try {
@@ -224,16 +290,6 @@ const startServer = async () => {
     } else {
       // Load sequelize only when needed for setup
       sequelize = require("./config/db");
-      // Setup database and roles before starting server
-      const {
-        setupDatabase,
-        setupRolesAndPermissions,
-        setupAdminUser,
-        setupPlanManagers,
-        setupStabilityManagers,
-        verifyRequiredRoles,
-        setupRenewalSystem,
-      } = require("./scripts/serverSetup");
 
       console.log("🚀 Starting complete server setup...");
       
@@ -245,24 +301,31 @@ const startServer = async () => {
       }
       console.log("✅ Database structure setup completed");
 
-    // Step 2: Roles and Permissions
-    console.log("🔐 Setting up roles and permissions...");
-    const rolesSetup = await setupRolesAndPermissions();
-    if (!rolesSetup) {
-      throw new Error("Roles and permissions setup failed");
-    }
-    console.log("✅ Roles and permissions setup completed");
+      // Step 2: Roles and Permissions
+      console.log("🔐 Setting up roles and permissions...");
+      const rolesSetup = await setupRolesAndPermissions();
+      if (!rolesSetup) {
+        throw new Error("Roles and permissions setup failed");
+      }
+      console.log("✅ Roles and permissions setup completed");
 
-    // Step 3: Verify Required Roles
-    console.log("✅ Verifying required roles exist...");
-    const rolesVerified = await verifyRequiredRoles();
-    if (!rolesVerified) {
-      throw new Error("Required roles verification failed");
-    }
-    console.log("✅ All required roles verified");
+      // Step 3: Migrate existing users to new role system
+      console.log("👥 Migrating existing users...");
+      const migrationSetup = await migrateExistingUsers();
+      if (!migrationSetup) {
+        throw new Error("User migration failed");
+      }
+      console.log("✅ User migration completed");
 
-    // Step 4: Create All User Accounts
-      // Step 4: Setup Renewal Management System
+      // Step 4: Setup admin user
+      console.log("👤 Setting up admin user...");
+      const adminSetup = await setupAdminUser();
+      if (!adminSetup) {
+        throw new Error("Admin user setup failed");
+      }
+      console.log("✅ Admin user setup completed");
+
+      // Step 5: Setup Renewal Management System
       console.log("🔧 Setting up Renewal Management System...");
       await setupRenewalSystem();
       console.log("✅ Renewal Management System setup completed");
@@ -301,6 +364,28 @@ const startServer = async () => {
       console.log(`🕐 Next run: Every day at 9:00 AM IST`);
       console.log('='.repeat(50) + '\n');
       
+      // Setup the actual cron job
+      cron.schedule(cronSchedule, async () => {
+        try {
+          console.log('\n' + '🚀'.repeat(20));
+          console.log('AUTOMATIC RENEWAL REMINDER CRON JOB STARTED');
+          console.log('⏰ Time:', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+          console.log('🚀'.repeat(20) + '\n');
+          
+          await runAutomaticRenewalReminders();
+          
+          console.log('\n' + '✅'.repeat(20));
+          console.log('AUTOMATIC RENEWAL REMINDER CRON JOB COMPLETED');
+          console.log('✅'.repeat(20) + '\n');
+        } catch (error) {
+          console.error('❌ Error in renewal reminder cron job:', error);
+        }
+      }, {
+        scheduled: true,
+        timezone: "Asia/Kolkata"
+      });
+      
+      console.log('✅ Automatic renewal reminder cron job scheduled successfully!');
       console.log('✅ Server setup completed successfully!');
     });
   } catch (error) {

@@ -1135,6 +1135,98 @@ class EmailService {
     }
   }
 
+  // Send labour license renewal reminder
+  async sendLabourLicenseRenewalReminder(reminderData) {
+    try {
+      const { daysUntilExpiry, expiryDate, policyDetails, clientName, clientEmail } = reminderData;
+      
+      const emailContent = this.generateLabourLicenseRenewalEmail(reminderData);
+      const subject = `Labour License Renewal Reminder - ${daysUntilExpiry} Days Remaining`;
+      
+      // Create plain text version for fallback
+      const plainText = `Labour License Renewal Reminder: Your license expires in ${daysUntilExpiry} days. Please contact RADHE CONSULTANCY for renewal assistance.`;
+      const result = await sendEmail(clientEmail, subject, plainText, emailContent);
+      console.log('✅ Labour License renewal reminder sent successfully to:', clientEmail);
+      
+      return {
+        success: true,
+        messageId: result.messageId,
+        sentTo: clientEmail
+      };
+    } catch (error) {
+      console.error('❌ Error sending Labour License renewal reminder:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  // Generate professional HTML email content for Labour License renewal
+  generateLabourLicenseRenewalEmail(reminderData) {
+    try {
+      const { daysUntilExpiry, expiryDate, policyDetails, clientName } = reminderData;
+      const templatePath = path.join(__dirname, '../email_templates/labour_license_reminder.html');
+      let template = fs.readFileSync(templatePath, 'utf8');
+      template = template.replace('APEX ZIPPER', clientName || 'Valued Client');
+      template = template.replace('15 days', `${daysUntilExpiry} days`);
+      template = template.replace('2025-12-15', expiryDate);
+      template = template.replace('LL-2025-001', policyDetails?.licenseNumber || 'N/A');
+      template = template.replace('State', policyDetails?.licenseType || 'N/A');
+      template = template.replace('Active', policyDetails?.status || 'N/A');
+      template = template.replace('15/8/2025', new Date().toLocaleDateString('en-IN'));
+      return template;
+    } catch (error) {
+      return '<p>Labour License Renewal Email Error</p>';
+    }
+  }
+
+  // Send labour inspection renewal reminder
+  async sendLabourInspectionRenewalReminder(reminderData) {
+    try {
+      const { daysUntilExpiry, expiryDate, policyDetails, clientName, clientEmail } = reminderData;
+      
+      const emailContent = this.generateLabourInspectionRenewalEmail(reminderData);
+      const subject = `Labour Inspection Renewal Reminder - ${daysUntilExpiry} Days Remaining`;
+      
+      // Create plain text version for fallback
+      const plainText = `Labour Inspection Renewal Reminder: Your inspection expires in ${daysUntilExpiry} days. Please contact RADHE CONSULTANCY for renewal assistance.`;
+      const result = await sendEmail(clientEmail, subject, plainText, emailContent);
+      console.log('✅ Labour Inspection renewal reminder sent successfully to:', clientEmail);
+      
+      return {
+        success: true,
+        messageId: result.messageId,
+        sentTo: clientEmail
+      };
+    } catch (error) {
+      console.error('❌ Error sending Labour Inspection renewal reminder:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  // Generate professional HTML email content for Labour Inspection renewal
+  generateLabourInspectionRenewalEmail(reminderData) {
+    try {
+      const { daysUntilExpiry, expiryDate, policyDetails, clientName } = reminderData;
+      const templatePath = path.join(__dirname, '../email_templates/labour_inspection_reminder.html');
+      let template = fs.readFileSync(templatePath, 'utf8');
+      template = template.replace('APEX ZIPPER', clientName || 'Valued Client');
+      template = template.replace('15 days', `${daysUntilExpiry} days`);
+      template = template.replace('2025-12-15', expiryDate);
+      template = template.replace('LI-2025-001', policyDetails?.inspectionId || 'N/A');
+      template = template.replace('Running', policyDetails?.status || 'N/A');
+      template = template.replace('Officer Name', policyDetails?.officerName || 'N/A');
+      template = template.replace('15/8/2025', new Date().toLocaleDateString('en-IN'));
+      return template;
+    } catch (error) {
+      return '<p>Labour Inspection Renewal Email Error</p>';
+    }
+  }
+
   // Send Stability Management renewal reminder
   async sendStabilityManagementReminder(recordData, reminderData) {
     try {

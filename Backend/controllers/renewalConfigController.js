@@ -856,24 +856,120 @@ const getDefaultServiceTypes = async (req, res) => {
   }
 };
 
-// Get renewal logs
+// Get renewal logs with enhanced filtering
 const getLogs = async (req, res) => {
   try {
-    const { page = 1, limit = 50, pageSize, status, policy_type, reminder_type } = req.query;
+    const { 
+      page = 1, 
+      limit = 50, 
+      pageSize, 
+      status, 
+      policy_type, 
+      reminder_type,
+      search,
+      date_from,
+      date_to,
+      days_filter
+    } = req.query;
+    
     const actualLimit = parseInt(limit) || parseInt(pageSize) || 50;
-    const offset = (page - 1) * limit;
+    const offset = (parseInt(page) - 1) * actualLimit;
 
     // Build where clause
     const whereClause = {};
+    
+    // Status filter
     if (status) whereClause.status = status;
+    
+    // Policy type filter
     if (policy_type) whereClause.policy_type = policy_type;
+    
+    // Reminder type filter
     if (reminder_type) whereClause.reminder_type = reminder_type;
+    
+    // Search filter (client name, email, or email subject)
+    if (search && search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      whereClause[Op.or] = [
+        { client_name: { [Op.like]: searchTerm } },
+        { client_email: { [Op.like]: searchTerm } },
+        { email_subject: { [Op.like]: searchTerm } }
+      ];
+    }
+    
+    // Date range filter
+    if (date_from || date_to) {
+      whereClause.sent_at = {};
+      if (date_from) {
+        whereClause.sent_at[Op.gte] = new Date(date_from);
+      }
+      if (date_to) {
+        const endDate = new Date(date_to);
+        endDate.setHours(23, 59, 59, 999); // End of day
+        whereClause.sent_at[Op.lte] = endDate;
+      }
+    }
+    
+    // Days until expiry filter
+    if (days_filter) {
+      switch (days_filter) {
+        case 'today':
+          whereClause.days_until_expiry = 0;
+          break;
+        case 'urgent':
+          whereClause.days_until_expiry = { [Op.lte]: 7 };
+          break;
+        case 'warning':
+          whereClause.days_until_expiry = { [Op.between]: [8, 30] };
+          break;
+        case 'normal':
+          whereClause.days_until_expiry = { [Op.gt]: 30 };
+          break;
+      }
+    }
 
     const { count, rows: logs } = await ReminderLog.findAndCountAll({
       where: whereClause,
       order: [['sent_at', 'DESC']],
       limit: actualLimit,
       offset: parseInt(offset)
+    });
+    
+    // Get summary statistics
+    const stats = await ReminderLog.findAll({
+      where: whereClause,
+      attributes: [
+        'status',
+        [require('sequelize').fn('COUNT', require('sequelize').col('id')), 'count']
+      ],
+      group: ['status'],
+      raw: true
+    });
+    
+    // Format stats
+    const formattedStats = {
+      total: count,
+      sent: 0,
+      delivered: 0,
+      failed: 0,
+      opened: 0,
+      clicked: 0
+    };
+    
+    stats.forEach(stat => {
+      formattedStats[stat.status] = parseInt(stat.count);
+    });
+    
+    // Get policy type breakdown
+    const policyTypeStats = await ReminderLog.findAll({
+      where: whereClause,
+      attributes: [
+        'policy_type',
+        [require('sequelize').fn('COUNT', require('sequelize').col('id')), 'count']
+      ],
+      group: ['policy_type'],
+      order: [[require('sequelize').fn('COUNT', require('sequelize').col('id')), 'DESC']],
+      raw: true
     });
     
     res.json({
@@ -883,8 +979,13 @@ const getLogs = async (req, res) => {
         total: count,
         page: parseInt(page),
         limit: actualLimit,
-        totalPages: Math.ceil(count / limit)
-      }
+        totalPages: Math.ceil(count / actualLimit)
+      },
+      stats: formattedStats,
+      policyTypeStats: policyTypeStats.map(stat => ({
+        policy_type: stat.policy_type,
+        count: parseInt(stat.count)
+      }))
     });
   } catch (error) {
     console.error('Error fetching logs:', error);
