@@ -26,6 +26,7 @@ const renewalStatusRoutes = require('./renewalStatusRoutes');
 const documentDownloadRoutes = require('./documentDownloadRoutes');
 const labourInspectionRoutes = require('./labourInspectionRoutes');
 const labourLicenseRoutes = require('./labourLicenseRoutes');
+const statusUpdateRoutes = require('./statusUpdateRoutes');
 
 const routes = {
   auth: {
@@ -119,6 +120,10 @@ const routes = {
   labourLicense: {
     path: '/labour-license',
     router: labourLicenseRoutes
+  },
+  statusUpdate: {
+    path: '/status-update',
+    router: statusUpdateRoutes
   }
 };
 

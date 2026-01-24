@@ -1452,9 +1452,7 @@ function ECP({ searchQuery = "" }) {
   const [selectedPolicyForRenewal, setSelectedPolicyForRenewal] =
     useState(null);
   const [policies, setPolicies] = useState([]);
-  const [groupedPolicies, setGroupedPolicies] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [groupedLoading, setGroupedLoading] = useState(false);
   const [error, setError] = useState(null);
   const [statistics, setStatistics] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -1464,10 +1462,6 @@ function ECP({ searchQuery = "" }) {
     totalPages: 1,
     totalItems: 0,
   });
-  const [groupedPagination, setGroupedPagination] = useState({
-    currentPage: 1,
-    pageSize: 10,
-  });
 
   const { user, userRoles } = useAuth();
   const isCompany = userRoles.includes("company");
@@ -1476,31 +1470,136 @@ function ECP({ searchQuery = "" }) {
   const consumerId = user?.profile?.consumer_id || user?.consumer?.consumer_id;
 
   useEffect(() => {
-    fetchPolicies(1, 10);
-    fetchECPStatistics();
-    if (activeTab === "all") {
-      fetchGroupedPolicies();
+    // Fetch policies based on active tab
+    if (activeTab === "running") {
+      fetchRunningPolicies(1, 10);
+    } else {
+      fetchAllPolicies(1, 10);
     }
+    fetchECPStatistics();
   }, [activeTab]);
 
   // Handle search when searchQuery changes
   useEffect(() => {
     console.log("ECP: searchQuery changed:", searchQuery);
-    if (activeTab === "running") {
-      if (searchQuery && searchQuery.length >= 3) {
-        console.log("ECP: Triggering server search for:", searchQuery);
+    if (searchQuery && searchQuery.length >= 3) {
+      console.log("ECP: Triggering server search for:", searchQuery);
+      if (activeTab === "running") {
         handleSearchPolicies(searchQuery);
-      } else if (searchQuery === "") {
-        console.log("ECP: Clearing search, fetching all policies");
-        fetchPolicies(1, pagination.pageSize);
       }
-    } else if (activeTab === "all") {
-      // For "All Policy" tab, we filter client-side after fetching grouped policies
-      if (searchQuery === "") {
-        fetchGroupedPolicies();
+      // For "All Policy" tab, search is client-side, so no API call here
+    } else if (searchQuery === "") {
+      console.log("ECP: Clearing search, fetching all policies");
+      if (activeTab === "running") {
+        fetchRunningPolicies(1, pagination.pageSize);
+      } else {
+        fetchAllPolicies(1, pagination.pageSize);
       }
     }
   }, [searchQuery, pagination.pageSize, activeTab]);
+
+  const fetchRunningPolicies = async (page = 1, pageSize = 10) => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log("ECP: Fetching running policies for page:", page, "pageSize:", pageSize);
+      
+      const response = await employeeCompensationAPI.getRunningPolicies({
+        page,
+        pageSize,
+      });
+      console.log("ECP: Running policies response:", response);
+
+      if (response && response.success && Array.isArray(response.data)) {
+        setPolicies(response.data);
+        setPagination({
+          currentPage: response.pagination?.page || page,
+          pageSize: response.pagination?.pageSize || pageSize,
+          totalPages: response.pagination?.totalPages || 1,
+          totalItems: response.pagination?.total || 0,
+        });
+        setError(null);
+      } else if (response && Array.isArray(response.data)) {
+        // Handle case where success flag might be missing
+        setPolicies(response.data);
+        setPagination({
+          currentPage: page,
+          pageSize: pageSize,
+          totalPages: Math.ceil((response.data.length || 0) / pageSize),
+          totalItems: response.data.length || 0,
+        });
+        setError(null);
+      } else {
+        console.error("Invalid response format:", response);
+        setError("Invalid data format received from server");
+        setPolicies([]);
+      }
+    } catch (err) {
+      console.error("ECP: Error fetching running policies:", err);
+      const errorMessage = err.response?.data?.message || err.message || "Failed to fetch running policies";
+      setError(errorMessage);
+      setPolicies([]);
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAllPolicies = async (page = 1, pageSize = 10) => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log("ECP: Fetching all policies for page:", page, "pageSize:", pageSize);
+      
+      const response = await employeeCompensationAPI.getAllPoliciesWithStatus('all', {
+        page,
+        pageSize,
+      });
+      console.log("ECP: All policies response:", response);
+
+      if (response && response.success && Array.isArray(response.data)) {
+        setPolicies(response.data);
+        setPagination({
+          currentPage: response.pagination?.page || page,
+          pageSize: response.pagination?.pageSize || pageSize,
+          totalPages: response.pagination?.totalPages || 1,
+          totalItems: response.pagination?.total || 0,
+        });
+        setError(null);
+      } else if (response && Array.isArray(response.data)) {
+        // Handle case where success flag might be missing
+        setPolicies(response.data);
+        setPagination({
+          currentPage: page,
+          pageSize: pageSize,
+          totalPages: Math.ceil((response.data.length || 0) / pageSize),
+          totalItems: response.data.length || 0,
+        });
+        setError(null);
+      } else {
+        console.error("Invalid response format:", response);
+        setError("Invalid data format received from server");
+        setPolicies([]);
+      }
+    } catch (err) {
+      console.error("ECP: Error fetching all policies:", err);
+      const errorMessage = err.response?.data?.message || err.message || "Failed to fetch all policies";
+      setError(errorMessage);
+      setPolicies([]);
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchPolicies = async (page = 1, pageSize = 10) => {
+    // Legacy method - redirect to appropriate new method
+    if (activeTab === "running") {
+      return fetchRunningPolicies(page, pageSize);
+    } else {
+      return fetchAllPolicies(page, pageSize);
+    }
+  };
 
   const fetchECPStatistics = async () => {
     try {
@@ -1528,79 +1627,6 @@ function ECP({ searchQuery = "" }) {
       setStatsLoading(false);
     }
   };
-
-  const fetchPolicies = async (page = 1, pageSize = 10) => {
-    try {
-      setLoading(true);
-      console.log(
-        "ECP: Fetching policies for page:",
-        page,
-        "pageSize:",
-        pageSize
-      );
-      const response = await employeeCompensationAPI.getAllPolicies({
-        page,
-        pageSize,
-      });
-      console.log("ECP: Fetch response:", response);
-
-      if (response && response.policies && Array.isArray(response.policies)) {
-        // Transform the policies to ensure consistent data structure
-        const transformedPolicies = response.policies.map((policy) => {
-          // Debug: Log policy document path
-          if (policy.policy_document_path) {
-            console.log(
-              `[ECP] Policy ${policy.id} document path:`,
-              policy.policy_document_path
-            );
-          } else {
-            console.warn(`[ECP] Policy ${policy.id} has no document path`);
-          }
-          return {
-            ...policy,
-            // Ensure policyHolder is available for company name display
-            policyHolder: policy.policyHolder || policy.companyPolicyHolder,
-            // Keep original properties for backward compatibility
-            companyPolicyHolder:
-              policy.policyHolder || policy.companyPolicyHolder,
-            consumerPolicyHolder: policy.consumerPolicyHolder,
-          };
-        });
-        setPolicies(transformedPolicies);
-        setPagination({
-          currentPage: response.currentPage || page,
-          pageSize: response.pageSize || pageSize,
-          totalPages: response.totalPages || 1,
-          totalItems: response.totalItems || 0,
-        });
-        setError(null);
-      } else if (Array.isArray(response)) {
-        // Transform the policies to ensure consistent data structure
-        const transformedPolicies = response.map((policy) => ({
-          ...policy,
-          // Ensure policyHolder is available for company name display
-          policyHolder: policy.policyHolder || policy.companyPolicyHolder,
-          // Keep original properties for backward compatibility
-          companyPolicyHolder:
-            policy.policyHolder || policy.companyPolicyHolder,
-          consumerPolicyHolder: policy.consumerPolicyHolder,
-        }));
-        setPolicies(transformedPolicies);
-        setPagination((prev) => ({ ...prev, currentPage: page }));
-        setError(null);
-      } else {
-        setError("Invalid data format received from server");
-        setPolicies([]);
-      }
-    } catch (err) {
-      console.error("ECP: Error fetching policies:", err);
-      setError("");
-      setPolicies([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleSearchPolicies = async (query) => {
     try {
       setLoading(true);
@@ -1615,17 +1641,7 @@ function ECP({ searchQuery = "" }) {
 
       // Handle both expected format and direct array response
       if (response && response.success && Array.isArray(response.policies)) {
-        // Transform the policies to ensure consistent data structure
-        const transformedPolicies = response.policies.map((policy) => ({
-          ...policy,
-          // Ensure policyHolder is available for company name display
-          policyHolder: policy.policyHolder || policy.companyPolicyHolder,
-          // Keep original properties for backward compatibility
-          companyPolicyHolder:
-            policy.policyHolder || policy.companyPolicyHolder,
-          consumerPolicyHolder: policy.consumerPolicyHolder,
-        }));
-        setPolicies(transformedPolicies);
+        setPolicies(response.policies);
         setPagination({
           currentPage: response.currentPage || 1,
           pageSize: response.pageSize || pagination.pageSize,
@@ -1635,17 +1651,7 @@ function ECP({ searchQuery = "" }) {
         setError(null);
       } else if (Array.isArray(response)) {
         // Handle case where response is directly an array
-        // Transform the policies to ensure consistent data structure
-        const transformedPolicies = response.map((policy) => ({
-          ...policy,
-          // Ensure policyHolder is available for company name display
-          policyHolder: policy.policyHolder || policy.companyPolicyHolder,
-          // Keep original properties for backward compatibility
-          companyPolicyHolder:
-            policy.policyHolder || policy.companyPolicyHolder,
-          consumerPolicyHolder: policy.consumerPolicyHolder,
-        }));
-        setPolicies(transformedPolicies);
+        setPolicies(response);
         setPagination((prev) => ({
           ...prev,
           currentPage: 1,
@@ -1658,9 +1664,6 @@ function ECP({ searchQuery = "" }) {
         console.log(
           "ECP: Server search failed, falling back to client-side search"
         );
-        // Don't set error here, let client-side search handle it
-        // setError("Invalid data format received from server");
-        // setPolicies([]);
       }
     } catch (err) {
       console.error("Error searching ECP policies:", err);
@@ -1668,9 +1671,6 @@ function ECP({ searchQuery = "" }) {
       console.log(
         "ECP: Server search error, falling back to client-side search"
       );
-      // Don't set error here, let client-side search handle it
-      // setError("Failed to search ECP policies");
-      // setPolicies([]);
     } finally {
       setLoading(false);
     }
@@ -1680,11 +1680,9 @@ function ECP({ searchQuery = "" }) {
     if (isCompany) {
       return policies.filter((p) => p.company_id === companyId);
     }
-    if (isConsumer) {
-      return policies.filter((p) => p.consumer_id === consumerId);
-    }
+    // ECP doesn't have consumers, so no consumer filtering needed
     return policies;
-  }, [policies, isCompany, isConsumer, companyId, consumerId]);
+  }, [policies, isCompany, companyId]);
 
   const searchFilteredPolicies = React.useMemo(() => {
     if (!searchQuery || searchQuery.length < 3) {
@@ -1706,23 +1704,18 @@ function ECP({ searchQuery = "" }) {
         (field) => field && field.toString().toLowerCase().includes(searchLower)
       );
       const companyName =
+        policy.organisation_or_holder_name ||
         policy.policyHolder?.company_name ||
         policy.companyPolicyHolder?.company_name ||
         policy.company?.company_name ||
         policy.company_name;
       const companyMatch =
         companyName && companyName.toLowerCase().includes(searchLower);
-      const consumerName =
-        policy.consumerPolicyHolder?.name ||
-        policy.consumer?.name ||
-        policy.consumer_name;
-      const consumerMatch =
-        consumerName && consumerName.toLowerCase().includes(searchLower);
       const insuranceCompanyName = policy.provider?.name;
       const insuranceMatch =
         insuranceCompanyName &&
         insuranceCompanyName.toLowerCase().includes(searchLower);
-      return policyFields || companyMatch || consumerMatch || insuranceMatch;
+      return policyFields || companyMatch || insuranceMatch;
     });
   }, [filteredPolicies, searchQuery]);
 
@@ -1760,7 +1753,12 @@ function ECP({ searchQuery = "" }) {
       try {
         await employeeCompensationAPI.deletePolicy(policyId);
         toast.success("Policy deleted successfully!");
-        await fetchPolicies(pagination.currentPage, pagination.pageSize);
+        // Refresh current tab data
+        if (activeTab === "running") {
+          await fetchRunningPolicies(pagination.currentPage, pagination.pageSize);
+        } else {
+          await fetchAllPolicies(pagination.currentPage, pagination.pageSize);
+        }
         await fetchECPStatistics();
       } catch (err) {
         setError("Failed to delete policy");
@@ -1798,53 +1796,32 @@ function ECP({ searchQuery = "" }) {
   };
 
   const handlePolicyUpdated = async () => {
-    await fetchPolicies(pagination.currentPage, pagination.pageSize);
-    await fetchECPStatistics();
-    if (activeTab === "all") {
-      await fetchGroupedPolicies();
+    // Refresh current tab data
+    if (activeTab === "running") {
+      await fetchRunningPolicies(pagination.currentPage, pagination.pageSize);
+    } else {
+      await fetchAllPolicies(pagination.currentPage, pagination.pageSize);
     }
+    await fetchECPStatistics();
   };
 
   const handleRenewalCompleted = async () => {
-    await fetchPolicies(pagination.currentPage, pagination.pageSize);
+    // Refresh current tab data
+    if (activeTab === "running") {
+      await fetchRunningPolicies(pagination.currentPage, pagination.pageSize);
+    } else {
+      await fetchAllPolicies(pagination.currentPage, pagination.pageSize);
+    }
     await fetchECPStatistics();
-    if (activeTab === "all") {
-      await fetchGroupedPolicies();
-    }
-  };
-
-  const fetchGroupedPolicies = async () => {
-    try {
-      setGroupedLoading(true);
-      const response = await employeeCompensationAPI.getAllPoliciesGrouped();
-      console.log("[ECP] Grouped policies response:", response);
-      if (response.success && response.policies) {
-        setGroupedPolicies(response.policies);
-        
-        // Debug: Count total policies in grouped response
-        let totalCount = 0;
-        response.policies.forEach((companyGroup) => {
-          const runningCount = companyGroup.running?.length || 0;
-          const previousCount = companyGroup.previous?.length || 0;
-          totalCount += runningCount + previousCount;
-          console.log(`[ECP] Company ${companyGroup.company_name}: ${runningCount} running + ${previousCount} previous = ${runningCount + previousCount} total`);
-        });
-        console.log(`[ECP] Total policies in grouped response: ${totalCount}`);
-      } else {
-        setGroupedPolicies([]);
-      }
-    } catch (err) {
-      console.error("Error fetching grouped policies:", err);
-      setGroupedPolicies([]);
-      toast.error("Failed to fetch grouped policies");
-    } finally {
-      setGroupedLoading(false);
-    }
   };
 
   const handlePageChange = async (page) => {
     console.log("ECP: Page changed to:", page);
-    await fetchPolicies(page, pagination.pageSize);
+    if (activeTab === "running") {
+      await fetchRunningPolicies(page, pagination.pageSize);
+    } else {
+      await fetchAllPolicies(page, pagination.pageSize);
+    }
   };
 
   const handlePageSizeChange = async (newPageSize) => {
@@ -1858,7 +1835,11 @@ function ECP({ searchQuery = "" }) {
     }));
 
     // Then fetch policies with the new page size
-    await fetchPolicies(1, newPageSize);
+    if (activeTab === "running") {
+      await fetchRunningPolicies(1, newPageSize);
+    } else {
+      await fetchAllPolicies(1, newPageSize);
+    }
   };
 
   // Statistics Cards Component
@@ -1883,7 +1864,7 @@ function ECP({ searchQuery = "" }) {
 
     // Get ECP statistics from the response
     const totalPolicies = statistics.total_policies || 0;
-    const activePolicies = statistics.active_policies || 0;
+    const activePolicies = statistics.active_policies || 0; // This should be 108 running policies
     const recentPolicies = statistics.recent_policies || 0;
 
     const activePercentage = statistics.percent_active || 0;
@@ -1903,14 +1884,14 @@ function ECP({ searchQuery = "" }) {
             </div>
           </div>
 
-          {/* Active Policies Card */}
+          {/* Running/Active Policies Card */}
           <div className="stat-card active">
             <div className="stat-icon">
               <BiTrendingUp />
             </div>
             <div className="stat-content">
               <h3 className="stat-number">{activePolicies}</h3>
-              <p className="stat-label">Active Policies</p>
+              <p className="stat-label">Running Policies</p>
               <p className="stat-percentage">{activePercentage}% of total</p>
             </div>
           </div>
@@ -1943,17 +1924,16 @@ function ECP({ searchQuery = "" }) {
     },
     {
       key: "company_or_consumer",
-      label: "Company Name / Consumer Name",
+      label: "Company Name",
       sortable: false,
       render: (_, policy) => {
+        // ECP only has companies, no consumers
         return (
+          policy.organisation_or_holder_name ||
           policy.policyHolder?.company_name ||
           policy.companyPolicyHolder?.company_name ||
-          policy.consumerPolicyHolder?.name ||
           policy.company_name ||
-          policy.consumer_name ||
           policy.company?.company_name ||
-          policy.consumer?.name ||
           "-"
         );
       },
@@ -1964,7 +1944,14 @@ function ECP({ searchQuery = "" }) {
     { key: "email", label: "Email", sortable: true },
     { key: "mobile_number", label: "Mobile Number", sortable: true },
     { key: "medical_cover", label: "Medical Cover", sortable: true },
-    { key: "net_premium", label: "Net Premium", sortable: true },
+    {
+      key: "net_premium",
+      label: "Net Premium",
+      sortable: true,
+      render: (value) => {
+        return value ? `₹${parseFloat(value).toLocaleString()}` : "-";
+      },
+    },
     {
       key: "policy_type",
       label: "Policy Type",
@@ -2162,132 +2149,21 @@ function ECP({ searchQuery = "" }) {
           )}
 
           {/* Tab Content */}
-          {activeTab === "running" ? (
-            loading ? (
-              <Loader size="large" color="primary" />
-            ) : (
-              <TableWithControl
-                data={searchFilteredPolicies}
-                columns={columns}
-                defaultPageSize={pagination.pageSize}
-                currentPage={pagination.currentPage}
-                totalPages={pagination.totalPages}
-                totalItems={pagination.totalItems}
-                onPageChange={handlePageChange}
-                onPageSizeChange={handlePageSizeChange}
-                serverSidePagination={true}
-                pageSizeOptions={[10, 25, 50, 100]}
-              />
-            )
-          ) : groupedLoading ? (
+          {loading ? (
             <Loader size="large" color="primary" />
           ) : (
-            (() => {
-              // Flatten all policies grouped by company: running first, then previous
-              let allPoliciesFlat = [];
-              groupedPolicies.forEach((companyGroup) => {
-                // Add running policies first
-                companyGroup.running.forEach((policy) => {
-                  allPoliciesFlat.push({
-                    ...policy,
-                    status: "active", // Ensure status is active for running policies
-                    policy_type: "running", // Ensure policy_type is running
-                    policyHolder:
-                      policy.policyHolder || policy.companyPolicyHolder,
-                    companyPolicyHolder:
-                      policy.policyHolder || policy.companyPolicyHolder,
-                    company_group_name: companyGroup.company_name,
-                    company_group_id: companyGroup.company_id,
-                  });
-                });
-                // Then add previous policies
-                companyGroup.previous.forEach((policy) => {
-                  allPoliciesFlat.push({
-                    ...policy,
-                    status: "expired", // Ensure status is expired for previous policies
-                    policy_type: "previous", // Ensure policy_type is previous
-                    policyHolder:
-                      policy.policyHolder || policy.companyPolicyHolder,
-                    companyPolicyHolder:
-                      policy.policyHolder || policy.companyPolicyHolder,
-                    company_group_name: companyGroup.company_name,
-                    company_group_id: companyGroup.company_id,
-                  });
-                });
-              });
-
-              console.log(`[ECP] All Policy tab - Total flattened policies: ${allPoliciesFlat.length}`);
-
-              // Apply search filter if searchQuery exists
-              if (searchQuery && searchQuery.length >= 3) {
-                const searchLower = searchQuery.toLowerCase();
-                allPoliciesFlat = allPoliciesFlat.filter((policy) => {
-                  const policyFields = [
-                    policy.policy_number,
-                    policy.business_type,
-                    policy.customer_type,
-                    policy.email,
-                    policy.mobile_number,
-                    policy.medical_cover,
-                    policy.net_premium,
-                    policy.remarks,
-                    policy.status,
-                  ].some(
-                    (field) =>
-                      field &&
-                      field.toString().toLowerCase().includes(searchLower)
-                  );
-                  const companyName =
-                    policy.policyHolder?.company_name ||
-                    policy.companyPolicyHolder?.company_name ||
-                    policy.company?.company_name ||
-                    policy.company_name ||
-                    policy.company_group_name;
-                  const companyMatch =
-                    companyName &&
-                    companyName.toLowerCase().includes(searchLower);
-                  const consumerName =
-                    policy.consumerPolicyHolder?.name ||
-                    policy.consumer?.name ||
-                    policy.consumer_name;
-                  const consumerMatch =
-                    consumerName &&
-                    consumerName.toLowerCase().includes(searchLower);
-                  const insuranceCompanyName = policy.provider?.name;
-                  const insuranceMatch =
-                    insuranceCompanyName &&
-                    insuranceCompanyName.toLowerCase().includes(searchLower);
-                  return (
-                    policyFields ||
-                    companyMatch ||
-                    consumerMatch ||
-                    insuranceMatch
-                  );
-                });
-              }
-
-              // Use the same columns for grouped view
-              const groupedColumns = columns;
-
-              return allPoliciesFlat.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "40px" }}>
-                  <p>
-                    No policies found
-                    {searchQuery && searchQuery.length >= 3
-                      ? ` matching "${searchQuery}"`
-                      : ""}
-                  </p>
-                </div>
-              ) : (
-                <TableWithControl
-                  data={allPoliciesFlat}
-                  columns={groupedColumns}
-                  defaultPageSize={10}
-                  serverSidePagination={false}
-                  pageSizeOptions={[10, 25, 50, 100]}
-                />
-              );
-            })()
+            <TableWithControl
+              data={searchFilteredPolicies}
+              columns={columns}
+              defaultPageSize={pagination.pageSize}
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              totalItems={pagination.totalItems}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+              serverSidePagination={true}
+              pageSizeOptions={[10, 25, 50, 100]}
+            />
           )}
         </div>
         <Modal

@@ -1,6 +1,6 @@
-// CONSOLIDATED SERVER SETUP SCRIPT FOR PRODUCTION
-// This script combines all individual setup scripts into one main file
-// Includes: Database setup, Account creation, Policy tables, Renewal system, Testing, and Cron job setup
+// PRODUCTION SERVER SETUP SCRIPT
+// This script sets up the complete production environment
+// Includes: Database setup, Account creation, Policy tables, Renewal system, and Cron job setup
 // PRODUCTION VERSION - Uses real client data and email addresses
 
 const { User, Role, UserRole, Company, Consumer, InsuranceCompany, EmployeeCompensationPolicy, VehiclePolicy, HealthPolicies, FirePolicy, LifePolicy, DSC, ReminderLog, DSCLog, UserRoleWorkLog, LabourInspection, LabourLicense, PreviousLabourLicense, PreviousFactoryQuotation, RenewalConfig } = require('../models');
@@ -660,100 +660,6 @@ async function setupRenewalSystem() {
 // RENEWAL SYSTEM TESTING FUNCTIONS - PRODUCTION VERSION
 // ============================================================================
 
-/**
- * Test all renewal systems using REAL CLIENT DATA (PRODUCTION VERSION)
- * @returns {Promise<Object>} Test results
- */
-async function testAllRenewalSystems() {
-  console.log('🧪 TESTING ALL RENEWAL SYSTEMS - PRODUCTION MODE');
-  console.log('='.repeat(80));
-  console.log('⚠️  WARNING: This will send emails to REAL CLIENT EMAIL ADDRESSES');
-  console.log('📧 Using actual client data from database');
-  console.log('='.repeat(80));
-  
-  try {
-    const renewalService = new RenewalService();
-    
-    // For production testing, we'll run the actual renewal processing
-    console.log('🔄 Running production test with real client data...');
-    
-    // Test all 10 renewal systems with REAL DATA
-    const systems = [
-      { name: 'Vehicle Insurance', method: 'processVehiclePolicyRenewals' },
-      { name: 'Health Insurance', method: 'processHealthPolicyRenewals' },
-      { name: 'Fire Insurance', method: 'processFirePolicyRenewals' },
-      { name: 'Life Insurance', method: 'processLifeInsuranceRenewals' },
-      { name: 'Employee Compensation Policy', method: 'processECPRenewals' },
-      { name: 'Digital Signature Certificate', method: 'processDSCRenewals' },
-      { name: 'Factory Quotation', method: 'processFactoryQuotationRenewals' },
-      { name: 'Labour License', method: 'processLabourLicenseRenewals' },
-      { name: 'Labour Inspection', method: 'processLabourInspectionRenewals' },
-      { name: 'Stability Management', method: 'processStabilityManagementRenewals' }
-    ];
-
-    let totalProcessed = 0;
-    let totalErrors = 0;
-
-    for (const system of systems) {
-      console.log(`\n🧪 Testing ${system.name}`);
-      console.log('-'.repeat(60));
-      
-      try {
-        console.log(`🔄 Processing ${system.name} with real client data...`);
-        
-        const result = await renewalService[system.method]();
-        
-        if (result && result.success) {
-          console.log(`   ✅ ${system.name}: ${result.processed || 0} real emails sent to clients`);
-          totalProcessed += result.processed || 0;
-        } else {
-          console.log(`   ⚠️ ${system.name}: No reminders needed or method returned false`);
-        }
-        
-      } catch (error) {
-        console.log(`   ❌ ${system.name}: Test failed - ${error.message}`);
-        totalErrors++;
-      }
-    }
-
-    // Summary
-    console.log('\n' + '='.repeat(80));
-    console.log('📊 PRODUCTION TEST RESULTS SUMMARY');
-    console.log('='.repeat(80));
-    console.log(`✅ Total Systems Tested: ${systems.length}`);
-    console.log(`📧 Total Real Emails Sent: ${totalProcessed}`);
-    console.log(`❌ Total Errors: ${totalErrors}`);
-    console.log(`📬 All emails sent to actual client email addresses`);
-    
-    if (totalErrors === 0) {
-      console.log('\n🎉 ALL RENEWAL SYSTEMS ARE WORKING PERFECTLY IN PRODUCTION!');
-      console.log('✅ All 10 systems can send professional renewal reminder emails');
-      console.log('✅ Email service is fully operational');
-      console.log('✅ All systems are ready for live production use');
-    } else {
-      console.log(`\n⚠️ ${totalErrors} systems had issues and need attention`);
-    }
-    
-    console.log('='.repeat(80));
-    
-    return {
-      success: totalErrors === 0,
-      totalTested: systems.length,
-      totalProcessed,
-      totalErrors,
-      mode: 'production'
-    };
-    
-  } catch (error) {
-    console.error('❌ Production test script error:', error);
-    return {
-      success: false,
-      error: error.message,
-      mode: 'production'
-    };
-  }
-}
-
 // ============================================================================
 // CRON JOB SETUP FOR AUTOMATIC RENEWAL PROCESSING
 // ============================================================================
@@ -773,20 +679,35 @@ function setupRenewalCronJob() {
       logToFile('Starting automatic renewal processing');
       
       try {
+        // First, update all policy statuses based on expiry dates
+        console.log('📊 Updating policy statuses based on expiry dates...');
+        const StatusUpdateService = require('../services/statusUpdateService');
+        const statusUpdateService = new StatusUpdateService();
+        const statusResult = await statusUpdateService.updateAllPolicyStatuses();
+        
+        if (statusResult.success) {
+          console.log(`✅ Updated ${statusResult.totalUpdated} policy statuses`);
+          logToFile(`Updated ${statusResult.totalUpdated} policy statuses`);
+        } else {
+          console.log('⚠️ Status update failed:', statusResult.error);
+          logToFile(`Status update failed: ${statusResult.error}`);
+        }
+        
+        // Then process renewal reminders
         const renewalService = new RenewalService();
         
         // Process all 10 renewal systems
         const systems = [
-          { name: 'Vehicle Insurance', method: 'processVehiclePolicyRenewals' },
-          { name: 'Health Insurance', method: 'processHealthPolicyRenewals' },
+          { name: 'Vehicle Insurance', method: 'processVehicleInsuranceRenewals' },
+          { name: 'Health Insurance', method: 'processHealthInsuranceRenewals' },
           { name: 'Fire Insurance', method: 'processFirePolicyRenewals' },
           { name: 'Life Insurance', method: 'processLifeInsuranceRenewals' },
           { name: 'Employee Compensation Policy', method: 'processECPRenewals' },
           { name: 'Digital Signature Certificate', method: 'processDSCRenewals' },
           { name: 'Factory Quotation', method: 'processFactoryQuotationRenewals' },
-          { name: 'Labour License', method: 'processLabourLicenseRenewals' },
-          { name: 'Labour Inspection', method: 'processLabourInspectionRenewals' },
-          { name: 'Stability Management', method: 'processStabilityManagementRenewals' }
+          { name: 'Labour License', method: 'processLabourLicenseReminders' },
+          { name: 'Labour Inspection', method: 'processLabourInspectionReminders' },
+          { name: 'Stability Management', method: 'processStabilityManagementReminders' }
         ];
         
         let totalProcessed = 0;
@@ -814,7 +735,7 @@ function setupRenewalCronJob() {
           }
         }
         
-        const summary = `Automatic renewal processing completed. Total processed: ${totalProcessed}, Errors: ${totalErrors}`;
+        const summary = `Automatic renewal processing completed. Status updates: ${statusResult.totalUpdated || 0}, Reminders processed: ${totalProcessed}, Errors: ${totalErrors}`;
         console.log(`✅ ${summary}`);
         logToFile(summary);
         
@@ -831,6 +752,7 @@ function setupRenewalCronJob() {
     console.log('✅ Automatic renewal processing cron job scheduled successfully');
     console.log('⏰ Will run daily at 9:00 AM IST');
     console.log('🎯 All 10 renewal systems will be processed automatically');
+    console.log('📊 Policy statuses will be updated based on expiry dates');
     console.log('📧 Real client emails will be sent to actual email addresses');
     logToFile('Automatic renewal processing cron job scheduled successfully');
     
@@ -912,7 +834,6 @@ module.exports = {
   migrateExistingUsers,
   setupAdminUser,
   setupRenewalSystem,
-  testAllRenewalSystems,
   setupRenewalCronJob,
   setupAll,
   logToFile
@@ -928,7 +849,6 @@ if (require.main === module) {
     console.log('='.repeat(50));
     console.log('Available commands:');
     console.log('  setup-all     - Complete production setup');
-    console.log('  test-renewals - Test all renewal systems (PRODUCTION MODE)');
     console.log('  setup-cron    - Setup renewal cron job only');
     console.log('\nExample: node serverSetup.js setup-all');
     console.log('\n⚠️  WARNING: Production mode uses REAL CLIENT DATA');
@@ -955,19 +875,6 @@ if (require.main === module) {
         });
       break;
       
-    case 'test-renewals':
-      console.log('⚠️  WARNING: This will send emails to REAL CLIENT ADDRESSES');
-      testAllRenewalSystems()
-        .then(result => {
-          console.log('\n🏁 Production renewal systems test completed');
-          process.exit(result.success ? 0 : 1);
-        })
-        .catch(error => {
-          console.error('❌ Test error:', error);
-          process.exit(1);
-        });
-      break;
-      
     case 'setup-cron':
       console.log('⏰ Setting up renewal cron job...');
       const cronJob = setupRenewalCronJob();
@@ -983,7 +890,7 @@ if (require.main === module) {
       
     default:
       console.log(`❌ Unknown command: ${command}`);
-      console.log('Available commands: setup-all, test-renewals, setup-cron');
+      console.log('Available commands: setup-all, setup-cron');
       process.exit(1);
   }
 }

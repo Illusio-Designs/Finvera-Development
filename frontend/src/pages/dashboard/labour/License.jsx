@@ -355,6 +355,14 @@ const LabourLicense = ({ searchQuery = "" }) => {
     }
   }, [groupedLicenses, statusFilter, activeTab]);
 
+  // Handle status filter
+  const handleStatusFilter = (status) => {
+    setStatusFilter(status);
+    
+    // For client-side pagination, no need to refetch
+    // The useEffect will handle filtering
+  };
+
   // Handle search
   const handleSearchLicenses = async (query) => {
     try {
@@ -370,13 +378,6 @@ const LabourLicense = ({ searchQuery = "" }) => {
   };
 
   // Handle status filter
-  const handleStatusFilter = (status) => {
-    setStatusFilter(status);
-    
-    // For client-side pagination, no need to refetch
-    // The useEffect will handle filtering
-  };
-
   // Handle status update
   const handleStatusUpdate = async (licenseId, newStatus) => {
     try {
@@ -700,8 +701,6 @@ const LabourLicense = ({ searchQuery = "" }) => {
     { value: "suspended", label: "Suspended" },
     { value: "renewed", label: "Renewed" }
   ];
-
-
 
   if (loading) {
     return <Loader />;

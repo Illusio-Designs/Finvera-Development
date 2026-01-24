@@ -13,7 +13,6 @@ import {
 } from "react-icons/bi";
 import { firePolicyAPI, insuranceCompanyAPI } from "../../../services/api";
 import TableWithControl from "../../../components/common/Table/TableWithControl";
-import Pagination from "../../../components/common/Pagination/Pagination";
 import Button from "../../../components/common/Button/Button";
 import ActionButton from "../../../components/common/ActionButton/ActionButton";
 import Modal from "../../../components/common/Modal/Modal";
@@ -1440,16 +1439,9 @@ function Fire({ searchQuery = "" }) {
   const [selectedPolicy, setSelectedPolicy] = useState(null);
   const [selectedPolicyForRenewal, setSelectedPolicyForRenewal] = useState(null);
   const [policies, setPolicies] = useState([]);
-  const [groupedPolicies, setGroupedPolicies] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [groupedLoading, setGroupedLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [statistics, setStatistics] = useState({
-    totalPolicies: 0,
-    activePolicies: 0,
-    recentPolicies: 0,
-    monthlyStats: []
-  });
+  const [statistics, setStatistics] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [pagination, setPagination] = useState({
     currentPage: 1,
@@ -1457,77 +1449,142 @@ function Fire({ searchQuery = "" }) {
     totalPages: 1,
     totalItems: 0,
   });
-  const [groupedPagination, setGroupedPagination] = useState({
-    currentPage: 1,
-    pageSize: 10,
-  });
+
   const { user, userRoles } = useAuth();
   const isCompany = userRoles.includes("company");
   const isConsumer = userRoles.includes("consumer");
   const companyId = user?.profile?.company_id || user?.company?.company_id;
   const consumerId = user?.profile?.consumer_id || user?.consumer?.consumer_id;
-  const [showDocumentModal, setShowDocumentModal] = useState(false);
 
   useEffect(() => {
-    fetchPolicies(1, 10);
-    fetchFireStatistics();
-    if (activeTab === "all") {
-      fetchGroupedPolicies();
+    // Fetch policies based on active tab
+    if (activeTab === "running") {
+      fetchRunningPolicies(1, 10);
+    } else {
+      fetchAllPolicies(1, 10);
     }
+    fetchFireStatistics();
   }, [activeTab]);
 
   // Handle search when searchQuery changes
   useEffect(() => {
-    console.log('Fire: searchQuery changed:', searchQuery);
-    if (activeTab === "running") {
-      if (searchQuery && searchQuery.length >= 3) {
-        console.log('Fire: Triggering server search for:', searchQuery);
+    console.log("Fire: searchQuery changed:", searchQuery);
+    if (searchQuery && searchQuery.length >= 3) {
+      console.log("Fire: Triggering server search for:", searchQuery);
+      if (activeTab === "running") {
         handleSearchPolicies(searchQuery);
-      } else if (searchQuery === "") {
-        console.log('Fire: Clearing search, fetching all policies');
-        fetchPolicies(1, pagination.pageSize);
       }
-    } else if (activeTab === "all") {
-      // For "All Policy" tab, we filter client-side after fetching grouped policies
-      if (searchQuery === "") {
-        fetchGroupedPolicies(); // Refetch all grouped policies
+      // For "All Policy" tab, search is client-side, so no API call here
+    } else if (searchQuery === "") {
+      console.log("Fire: Clearing search, fetching all policies");
+      if (activeTab === "running") {
+        fetchRunningPolicies(1, pagination.pageSize);
+      } else {
+        fetchAllPolicies(1, pagination.pageSize);
       }
     }
   }, [searchQuery, pagination.pageSize, activeTab]);
 
-  const fetchPolicies = async (page = 1, pageSize = 10) => {
+  const fetchRunningPolicies = async (page = 1, pageSize = 10) => {
     try {
       setLoading(true);
-      console.log('Fire: Fetching policies for page:', page, 'pageSize:', pageSize);
-      const response = await firePolicyAPI.getAllPolicies({
+      setError(null);
+      console.log("Fire: Fetching running policies for page:", page, "pageSize:", pageSize);
+      
+      const response = await firePolicyAPI.getRunningPolicies({
         page,
         pageSize,
       });
-      console.log('Fire: Fetch response:', response);
+      console.log("Fire: Running policies response:", response);
 
-      if (response && response.policies && Array.isArray(response.policies)) {
-        setPolicies(response.policies);
+      if (response && response.success && Array.isArray(response.data)) {
+        setPolicies(response.data);
         setPagination({
-          currentPage: response.currentPage || page,
-          pageSize: response.pageSize || pageSize,
-          totalPages: response.totalPages || 1,
-          totalItems: response.totalItems || 0,
+          currentPage: response.pagination?.page || page,
+          pageSize: response.pagination?.pageSize || pageSize,
+          totalPages: response.pagination?.totalPages || 1,
+          totalItems: response.pagination?.total || 0,
         });
         setError(null);
-      } else if (Array.isArray(response)) {
-        setPolicies(response);
-        setPagination((prev) => ({ ...prev, currentPage: page }));
+      } else if (response && Array.isArray(response.data)) {
+        // Handle case where success flag might be missing
+        setPolicies(response.data);
+        setPagination({
+          currentPage: page,
+          pageSize: pageSize,
+          totalPages: Math.ceil((response.data.length || 0) / pageSize),
+          totalItems: response.data.length || 0,
+        });
         setError(null);
       } else {
+        console.error("Invalid response format:", response);
         setError("Invalid data format received from server");
         setPolicies([]);
       }
     } catch (err) {
-      console.error('Fire: Error fetching policies:', err);
-      setError("");
+      console.error("Fire: Error fetching running policies:", err);
+      const errorMessage = err.response?.data?.message || err.message || "Failed to fetch running policies";
+      setError(errorMessage);
       setPolicies([]);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAllPolicies = async (page = 1, pageSize = 10) => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log("Fire: Fetching all policies for page:", page, "pageSize:", pageSize);
+      
+      const response = await firePolicyAPI.getAllPoliciesWithStatus('all', {
+        page,
+        pageSize,
+      });
+      console.log("Fire: All policies response:", response);
+
+      if (response && response.success && Array.isArray(response.data)) {
+        setPolicies(response.data);
+        setPagination({
+          currentPage: response.pagination?.page || page,
+          pageSize: response.pagination?.pageSize || pageSize,
+          totalPages: response.pagination?.totalPages || 1,
+          totalItems: response.pagination?.total || 0,
+        });
+        setError(null);
+      } else if (response && Array.isArray(response.data)) {
+        // Handle case where success flag might be missing
+        setPolicies(response.data);
+        setPagination({
+          currentPage: page,
+          pageSize: pageSize,
+          totalPages: Math.ceil((response.data.length || 0) / pageSize),
+          totalItems: response.data.length || 0,
+        });
+        setError(null);
+      } else {
+        console.error("Invalid response format:", response);
+        setError("Invalid data format received from server");
+        setPolicies([]);
+      }
+    } catch (err) {
+      console.error("Fire: Error fetching all policies:", err);
+      const errorMessage = err.response?.data?.message || err.message || "Failed to fetch all policies";
+      setError(errorMessage);
+      setPolicies([]);
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchPolicies = async (page = 1, pageSize = 10) => {
+    // Legacy method - redirect to appropriate new method
+    if (activeTab === "running") {
+      return fetchRunningPolicies(page, pageSize);
+    } else {
+      return fetchAllPolicies(page, pageSize);
     }
   };
 
@@ -1547,27 +1604,42 @@ function Fire({ searchQuery = "" }) {
     try {
       setLoading(true);
       setError(null);
-      console.log('Fire: Searching policies with query:', query);
-      const response = await firePolicyAPI.searchPolicies({ q: query });
-      console.log('Fire: Search response:', response);
-      
+      console.log("Fire: Searching policies with query:", query);
+      const response = await firePolicyAPI.searchPolicies({
+        q: query,
+        page: 1,
+        pageSize: pagination.pageSize,
+      });
+      console.log("Fire: Search response:", response);
+
       // Handle both expected format and direct array response
       if (response && response.success && Array.isArray(response.policies)) {
         setPolicies(response.policies);
+        setPagination({
+          currentPage: response.currentPage || 1,
+          pageSize: response.pageSize || pagination.pageSize,
+          totalPages: response.totalPages || 1,
+          totalItems: response.totalItems || response.policies.length,
+        });
         setError(null);
       } else if (Array.isArray(response)) {
         // Handle case where response is directly an array
         setPolicies(response);
+        setPagination((prev) => ({
+          ...prev,
+          currentPage: 1,
+          totalItems: response.length,
+        }));
         setError(null);
       } else {
         console.error("Invalid search response format:", response);
         // Fallback to client-side search if server search fails
-        console.log('Fire: Server search failed, falling back to client-side search');
+        console.log("Fire: Server search failed, falling back to client-side search");
       }
     } catch (err) {
       console.error("Error searching fire policies:", err);
       // Fallback to client-side search if server search fails
-      console.log('Fire: Server search error, falling back to client-side search');
+      console.log("Fire: Server search error, falling back to client-side search");
     } finally {
       setLoading(false);
     }
@@ -1599,14 +1671,27 @@ function Fire({ searchQuery = "" }) {
         policy.property_address,
         policy.property_type,
         policy.net_premium,
-        policy.remarks
-      ].some(field => field && field.toString().toLowerCase().includes(searchLower));
-      const companyName = policy.companyPolicyHolder?.company_name || policy.company?.company_name || policy.company_name;
-      const companyMatch = companyName && companyName.toLowerCase().includes(searchLower);
-      const consumerName = policy.consumerPolicyHolder?.name || policy.consumer?.name || policy.consumer_name;
-      const consumerMatch = consumerName && consumerName.toLowerCase().includes(searchLower);
+        policy.remarks,
+      ].some(
+        (field) => field && field.toString().toLowerCase().includes(searchLower)
+      );
+      const companyName =
+        policy.organisation_or_holder_name ||
+        policy.companyPolicyHolder?.company_name ||
+        policy.company?.company_name ||
+        policy.company_name;
+      const companyMatch =
+        companyName && companyName.toLowerCase().includes(searchLower);
+      const consumerName =
+        policy.consumerPolicyHolder?.name ||
+        policy.consumer?.name ||
+        policy.consumer_name;
+      const consumerMatch =
+        consumerName && consumerName.toLowerCase().includes(searchLower);
       const insuranceCompanyName = policy.provider?.name;
-      const insuranceMatch = insuranceCompanyName && insuranceCompanyName.toLowerCase().includes(searchLower);
+      const insuranceMatch =
+        insuranceCompanyName &&
+        insuranceCompanyName.toLowerCase().includes(searchLower);
       return policyFields || companyMatch || consumerMatch || insuranceMatch;
     });
   }, [filteredPolicies, searchQuery]);
@@ -1616,7 +1701,12 @@ function Fire({ searchQuery = "" }) {
       try {
         await firePolicyAPI.deletePolicy(policyId);
         toast.success("Policy deleted successfully!");
-        await fetchPolicies(pagination.currentPage, pagination.pageSize);
+        // Refresh current tab data
+        if (activeTab === "running") {
+          await fetchRunningPolicies(pagination.currentPage, pagination.pageSize);
+        } else {
+          await fetchAllPolicies(pagination.currentPage, pagination.pageSize);
+        }
         await fetchFireStatistics();
       } catch (err) {
         setError("Failed to delete policy");
@@ -1636,11 +1726,13 @@ function Fire({ searchQuery = "" }) {
   };
 
   const handlePolicyUpdated = async () => {
-    await fetchPolicies(pagination.currentPage, pagination.pageSize);
-    await fetchFireStatistics();
-    if (activeTab === "all") {
-      await fetchGroupedPolicies();
+    // Refresh current tab data
+    if (activeTab === "running") {
+      await fetchRunningPolicies(pagination.currentPage, pagination.pageSize);
+    } else {
+      await fetchAllPolicies(pagination.currentPage, pagination.pageSize);
     }
+    await fetchFireStatistics();
     handleModalClose();
   };
 
@@ -1674,49 +1766,41 @@ function Fire({ searchQuery = "" }) {
   };
 
   const handleRenewalCompleted = async () => {
-    await fetchPolicies(pagination.currentPage, pagination.pageSize);
+    // Refresh current tab data
+    if (activeTab === "running") {
+      await fetchRunningPolicies(pagination.currentPage, pagination.pageSize);
+    } else {
+      await fetchAllPolicies(pagination.currentPage, pagination.pageSize);
+    }
     await fetchFireStatistics();
-    if (activeTab === "all") {
-      await fetchGroupedPolicies();
-    }
     handleRenewalModalClose();
-  };
-
-  const fetchGroupedPolicies = async () => {
-    try {
-      setGroupedLoading(true);
-      const response = await firePolicyAPI.getAllPoliciesGrouped();
-      if (response.success && response.policies) {
-        setGroupedPolicies(response.policies);
-      } else {
-        setGroupedPolicies([]);
-      }
-    } catch (err) {
-      console.error("Error fetching grouped fire policies:", err);
-      setGroupedPolicies([]);
-      toast.error("Failed to fetch grouped policies");
-    } finally {
-      setGroupedLoading(false);
-    }
   };
 
   const handlePageChange = async (page) => {
     console.log("Fire: Page changed to:", page);
-    await fetchPolicies(page, pagination.pageSize);
+    if (activeTab === "running") {
+      await fetchRunningPolicies(page, pagination.pageSize);
+    } else {
+      await fetchAllPolicies(page, pagination.pageSize);
+    }
   };
 
   const handlePageSizeChange = async (newPageSize) => {
     console.log("Fire: Page size changed to:", newPageSize);
-    
+
     // Update pagination state first
     setPagination((prev) => ({
       ...prev,
       currentPage: 1,
       pageSize: newPageSize,
     }));
-    
+
     // Then fetch policies with the new page size
-    await fetchPolicies(1, newPageSize);
+    if (activeTab === "running") {
+      await fetchRunningPolicies(1, newPageSize);
+    } else {
+      await fetchAllPolicies(1, newPageSize);
+    }
   };
 
   const handleDownloadDocuments = (policy) => {
@@ -1928,169 +2012,21 @@ function Fire({ searchQuery = "" }) {
           )}
 
           {/* Tab Content */}
-          {activeTab === "running" ? (
-            loading ? (
-              <Loader size="large" color="primary" />
-            ) : (
-              <TableWithControl
-                data={searchFilteredPolicies}
-                columns={columns}
-                defaultPageSize={pagination.pageSize}
-                currentPage={pagination.currentPage}
-                totalPages={pagination.totalPages}
-                totalItems={pagination.totalItems}
-                onPageChange={handlePageChange}
-                onPageSizeChange={handlePageSizeChange}
-                serverSidePagination={true}
-                pageSizeOptions={[10, 25, 50, 100]}
-              />
-            )
-          ) : groupedLoading ? (
+          {loading ? (
             <Loader size="large" color="primary" />
           ) : (
-            (() => {
-              // Flatten all policies grouped by company: running first, then previous
-              let allPoliciesFlat = [];
-              groupedPolicies.forEach((companyGroup) => {
-                // Add running policies first
-                companyGroup.running.forEach((policy) => {
-                  allPoliciesFlat.push({
-                    ...policy,
-                    status: "active", // Ensure status is active for running policies
-                    policy_type: "running", // Ensure policy_type is running
-                    companyPolicyHolder:
-                      policy.companyPolicyHolder || policy.policyHolder,
-                    consumerPolicyHolder:
-                      policy.consumerPolicyHolder || policy.consumer,
-                    company_group_name: companyGroup.company_name,
-                    company_group_id: companyGroup.company_id,
-                    consumer_group_id: companyGroup.consumer_id,
-                  });
-                });
-                // Then add previous policies
-                companyGroup.previous.forEach((policy) => {
-                  allPoliciesFlat.push({
-                    ...policy,
-                    status: "expired", // Ensure status is expired for previous policies
-                    policy_type: "previous", // Ensure policy_type is previous
-                    companyPolicyHolder:
-                      policy.companyPolicyHolder || policy.policyHolder,
-                    consumerPolicyHolder:
-                      policy.consumerPolicyHolder || policy.consumer,
-                    company_group_name: companyGroup.company_name,
-                    company_group_id: companyGroup.company_id,
-                    consumer_group_id: companyGroup.consumer_id,
-                  });
-                });
-              });
-
-              // Apply search filter if searchQuery exists
-              if (searchQuery && searchQuery.length >= 3) {
-                const searchLower = searchQuery.toLowerCase();
-                allPoliciesFlat = allPoliciesFlat.filter((policy) => {
-                  const policyFields = [
-                    policy.policy_number,
-                    policy.business_type,
-                    policy.customer_type,
-                    policy.email,
-                    policy.mobile_number,
-                    policy.property_address,
-                    policy.property_type,
-                    policy.total_sum_insured,
-                    policy.net_premium,
-                    policy.remarks,
-                    policy.status,
-                  ].some(
-                    (field) =>
-                      field &&
-                      field.toString().toLowerCase().includes(searchLower)
-                  );
-                  const companyName =
-                    policy.companyPolicyHolder?.company_name ||
-                    policy.company?.company_name ||
-                    policy.company_name ||
-                    policy.company_group_name;
-                  const consumerName =
-                    policy.consumerPolicyHolder?.name ||
-                    policy.consumer?.name ||
-                    policy.consumer_name;
-                  const holderName = companyName || consumerName;
-
-                  return (
-                    policyFields ||
-                    (holderName &&
-                      holderName.toLowerCase().includes(searchLower))
-                  );
-                });
-              }
-
-              return (
-                <TableWithControl
-                  data={allPoliciesFlat}
-                  columns={[
-                    ...columns.slice(0, -1), // All columns except actions
-                    {
-                      key: "actions",
-                      label: "Actions",
-                      render: (_, policy) => {
-                        const isActive =
-                          policy.status === "active" || policy.policy_type === "running";
-                        const isPrevious =
-                          policy.status === "expired" || policy.policy_type === "previous";
-
-                        return (
-                          <div className="insurance-actions">
-                            {isActive && (
-                              <>
-                                <ActionButton
-                                  onClick={() => handleEdit(policy)}
-                                  variant="secondary"
-                                  size="small"
-                                >
-                                  <BiEdit />
-                                </ActionButton>
-                                <ActionButton
-                                  onClick={() => handleRenewal(policy)}
-                                  variant="secondary"
-                                  size="small"
-                                  title="Renew Policy"
-                                >
-                                  <BiRefresh />
-                                </ActionButton>
-                                <ActionButton
-                                  onClick={() => handleDelete(policy.id)}
-                                  variant="danger"
-                                  size="small"
-                                >
-                                  <BiTrash />
-                                </ActionButton>
-                              </>
-                            )}
-                            {isPrevious && (
-                              <span style={{ color: "#6b7280", fontSize: "12px" }}>
-                                Expired
-                              </span>
-                            )}
-                            <DocumentDownload
-                              system="fire-policies"
-                              recordId={policy.original_policy_id || policy.id}
-                              buttonText=""
-                              buttonClass="action-button action-button-secondary action-button-small"
-                              showIcon={true}
-                              filePath={policy.policy_document_path ? `/uploads/fire_policies/${policy.policy_document_path}` : null}
-                              fileName={policy.policy_document_path || 'policy-document.pdf'}
-                            />
-                          </div>
-                        );
-                      },
-                    },
-                  ]}
-                  defaultPageSize={10}
-                  serverSidePagination={false}
-                  pageSizeOptions={[10, 25, 50, 100]}
-                />
-              );
-            })()
+            <TableWithControl
+              data={searchFilteredPolicies}
+              columns={columns}
+              defaultPageSize={pagination.pageSize}
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              totalItems={pagination.totalItems}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+              serverSidePagination={true}
+              pageSizeOptions={[10, 25, 50, 100]}
+            />
           )}
         </div>
         <Modal
@@ -2115,16 +2051,6 @@ function Fire({ searchQuery = "" }) {
             onPolicyRenewed={handleRenewalCompleted}
           />
         </Modal>
-        {/* Document Download Modal */}
-        {showDocumentModal && selectedPolicy && (
-          <DocumentDownload
-            isOpen={showDocumentModal}
-            onClose={() => setShowDocumentModal(false)}
-            system="fire"
-            recordId={selectedPolicy.id}
-            recordName={selectedPolicy.policyNumber || selectedPolicy.clientName}
-          />
-        )}
       </div>
     </div>
   );

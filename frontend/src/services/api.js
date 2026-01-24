@@ -1070,6 +1070,67 @@ export const employeeCompensationAPI = {
       throw error;
     }
   },
+
+  // Status filtering methods for ECP
+  getAllPoliciesWithStatus: async (filter = 'all', params = {}) => {
+    try {
+      console.log(`[API] Fetching ECP policies with filter: ${filter}`, params);
+      const response = await api.get(`/status-update/test-policies/ecp/${filter}`, { params });
+      console.log(`[API] ECP ${filter} policies response:`, response.data);
+      return response.data;
+    } catch (error) {
+      console.error(`[API] Error fetching ECP ${filter} policies:`, error);
+      throw error;
+    }
+  },
+
+  getRunningPolicies: async (params = {}) => {
+    try {
+      console.log("[API] Fetching running ECP policies", params);
+      const response = await api.get("/status-update/test-policies/ecp/running", { params });
+      console.log("[API] Running ECP policies response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("[API] Error fetching running ECP policies:", error);
+      throw error;
+    }
+  },
+
+  getExpiredPolicies: async (params = {}) => {
+    try {
+      console.log("[API] Fetching expired ECP policies", params);
+      const response = await api.get("/status-update/test-policies/ecp/expired", { params });
+      console.log("[API] Expired ECP policies response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("[API] Error fetching expired ECP policies:", error);
+      throw error;
+    }
+  },
+
+  updateAllStatuses: async () => {
+    try {
+      console.log("[API] Triggering status update for all policies");
+      const response = await api.post("/status-update/test-update");
+      console.log("[API] Status update response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("[API] Error updating statuses:", error);
+      throw error;
+    }
+  },
+
+  getStatusSummary: async () => {
+    try {
+      console.log("[API] Fetching status summary");
+      const response = await api.get("/status-update/test-summary");
+      console.log("[API] Status summary response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("[API] Error fetching status summary:", error);
+      throw error;
+    }
+  },
 };
 
 // Insurance Company API
@@ -1291,6 +1352,67 @@ export const vehiclePolicyAPI = {
       throw error;
     }
   },
+
+  // Status filtering methods
+  getAllPoliciesWithStatus: async (filter = 'all', params = {}) => {
+    try {
+      console.log(`[API] Fetching vehicle policies with filter: ${filter}`, params);
+      const response = await api.get(`/status-update/test-policies/vehicle/${filter}`, { params });
+      console.log(`[API] Vehicle ${filter} policies response:`, response.data);
+      return response.data;
+    } catch (error) {
+      console.error(`[API] Error fetching vehicle ${filter} policies:`, error);
+      throw error;
+    }
+  },
+
+  getRunningPolicies: async (params = {}) => {
+    try {
+      console.log("[API] Fetching running vehicle policies", params);
+      const response = await api.get("/status-update/test-policies/vehicle/running", { params });
+      console.log("[API] Running vehicle policies response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("[API] Error fetching running vehicle policies:", error);
+      throw error;
+    }
+  },
+
+  getExpiredPolicies: async (params = {}) => {
+    try {
+      console.log("[API] Fetching expired vehicle policies", params);
+      const response = await api.get("/status-update/test-policies/vehicle/expired", { params });
+      console.log("[API] Expired vehicle policies response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("[API] Error fetching expired vehicle policies:", error);
+      throw error;
+    }
+  },
+
+  updateAllStatuses: async () => {
+    try {
+      console.log("[API] Triggering status update for all policies");
+      const response = await api.post("/status-update/test-update");
+      console.log("[API] Status update response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("[API] Error updating statuses:", error);
+      throw error;
+    }
+  },
+
+  getStatusSummary: async () => {
+    try {
+      console.log("[API] Fetching status summary");
+      const response = await api.get("/status-update/test-summary");
+      console.log("[API] Status summary response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("[API] Error fetching status summary:", error);
+      throw error;
+    }
+  },
   getVehicleStatistics: async () => {
     try {
       const response = await api.get("/vehicle-policies/statistics");
@@ -1407,6 +1529,67 @@ export const healthPolicyAPI = {
       const response = await api.get("/health-policies/statistics");
       return response.data;
     } catch (error) {
+      throw error;
+    }
+  },
+
+  // Status filtering methods for Health Insurance
+  getAllPoliciesWithStatus: async (filter = 'all', params = {}) => {
+    try {
+      console.log(`[API] Fetching health policies with filter: ${filter}`, params);
+      const response = await api.get(`/status-update/test-policies/health/${filter}`, { params });
+      console.log(`[API] Health ${filter} policies response:`, response.data);
+      return response.data;
+    } catch (error) {
+      console.error(`[API] Error fetching health ${filter} policies:`, error);
+      throw error;
+    }
+  },
+
+  getRunningPolicies: async (params = {}) => {
+    try {
+      console.log("[API] Fetching running health policies", params);
+      const response = await api.get("/status-update/test-policies/health/running", { params });
+      console.log("[API] Running health policies response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("[API] Error fetching running health policies:", error);
+      throw error;
+    }
+  },
+
+  getExpiredPolicies: async (params = {}) => {
+    try {
+      console.log("[API] Fetching expired health policies", params);
+      const response = await api.get("/status-update/test-policies/health/expired", { params });
+      console.log("[API] Expired health policies response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("[API] Error fetching expired health policies:", error);
+      throw error;
+    }
+  },
+
+  updateAllStatuses: async () => {
+    try {
+      console.log("[API] Triggering status update for all policies");
+      const response = await api.post("/status-update/test-update");
+      console.log("[API] Status update response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("[API] Error updating statuses:", error);
+      throw error;
+    }
+  },
+
+  getStatusSummary: async () => {
+    try {
+      console.log("[API] Fetching status summary");
+      const response = await api.get("/status-update/test-summary");
+      console.log("[API] Status summary response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("[API] Error fetching status summary:", error);
       throw error;
     }
   },
@@ -1618,6 +1801,43 @@ export const firePolicyAPI = {
         "[API] Error renewing fire policy:",
         error.response?.data || error.message
       );
+      throw error;
+    }
+  },
+
+  // Status filtering methods for Fire Insurance
+  getAllPoliciesWithStatus: async (filter = 'all', params = {}) => {
+    try {
+      console.log(`[API] Fetching Fire policies with filter: ${filter}`, params);
+      const response = await api.get(`/status-update/test-policies/fire/${filter}`, { params });
+      console.log(`[API] Fire ${filter} policies response:`, response.data);
+      return response.data;
+    } catch (error) {
+      console.error(`[API] Error fetching Fire ${filter} policies:`, error);
+      throw error;
+    }
+  },
+
+  getRunningPolicies: async (params = {}) => {
+    try {
+      console.log("[API] Fetching running Fire policies", params);
+      const response = await api.get("/status-update/test-policies/fire/running", { params });
+      console.log("[API] Running Fire policies response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("[API] Error fetching running Fire policies:", error);
+      throw error;
+    }
+  },
+
+  getExpiredPolicies: async (params = {}) => {
+    try {
+      console.log("[API] Fetching expired Fire policies", params);
+      const response = await api.get("/status-update/test-policies/fire/expired", { params });
+      console.log("[API] Expired Fire policies response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("[API] Error fetching expired Fire policies:", error);
       throw error;
     }
   }
@@ -1835,6 +2055,43 @@ export const lifePolicyAPI = {
         "[API] Error renewing life policy:",
         error.response?.data || error.message
       );
+      throw error;
+    }
+  },
+
+  // Status filtering methods for Life Insurance
+  getAllPoliciesWithStatus: async (filter = 'all', params = {}) => {
+    try {
+      console.log(`[API] Fetching Life policies with filter: ${filter}`, params);
+      const response = await api.get(`/status-update/test-policies/life/${filter}`, { params });
+      console.log(`[API] Life ${filter} policies response:`, response.data);
+      return response.data;
+    } catch (error) {
+      console.error(`[API] Error fetching Life ${filter} policies:`, error);
+      throw error;
+    }
+  },
+
+  getRunningPolicies: async (params = {}) => {
+    try {
+      console.log("[API] Fetching running Life policies", params);
+      const response = await api.get("/status-update/test-policies/life/running", { params });
+      console.log("[API] Running Life policies response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("[API] Error fetching running Life policies:", error);
+      throw error;
+    }
+  },
+
+  getExpiredPolicies: async (params = {}) => {
+    try {
+      console.log("[API] Fetching expired Life policies", params);
+      const response = await api.get("/status-update/test-policies/life/expired", { params });
+      console.log("[API] Expired Life policies response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("[API] Error fetching expired Life policies:", error);
       throw error;
     }
   }

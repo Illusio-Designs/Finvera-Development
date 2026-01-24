@@ -629,7 +629,7 @@ function DSC({ searchQuery = "" }) {
       key: "sr_no",
       label: "Sr No.",
       sortable: true,
-      render: (_, __, index) => index + 1,
+      render: (_, __, index) => (pagination.currentPage - 1) * pagination.pageSize + index + 1,
     },
     {
       key: "certification_name",

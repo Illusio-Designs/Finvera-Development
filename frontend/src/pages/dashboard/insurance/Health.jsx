@@ -1512,9 +1512,7 @@ function Health({ searchQuery = "" }) {
   const [selectedPolicy, setSelectedPolicy] = useState(null);
   const [selectedPolicyForRenewal, setSelectedPolicyForRenewal] = useState(null);
   const [policies, setPolicies] = useState([]);
-  const [groupedPolicies, setGroupedPolicies] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [groupedLoading, setGroupedLoading] = useState(false);
   const [error, setError] = useState(null);
   const [statistics, setStatistics] = useState({
     totalPolicies: 0,
@@ -1529,10 +1527,6 @@ function Health({ searchQuery = "" }) {
     totalPages: 1,
     totalItems: 0,
   });
-  const [groupedPagination, setGroupedPagination] = useState({
-    currentPage: 1,
-    pageSize: 10,
-  });
   const { user, userRoles } = useAuth();
   const isCompany = userRoles.includes("company");
   const isConsumer = userRoles.includes("consumer");
@@ -1541,65 +1535,134 @@ function Health({ searchQuery = "" }) {
   const [showDocumentModal, setShowDocumentModal] = useState(false);
 
   useEffect(() => {
-    fetchPolicies(1, 10);
-    fetchHealthStatistics();
-    if (activeTab === "all") {
-      fetchGroupedPolicies();
+    // Fetch policies based on active tab
+    if (activeTab === "running") {
+      fetchRunningPolicies(1, 10);
+    } else {
+      fetchAllPolicies(1, 10);
     }
+    fetchHealthStatistics();
   }, [activeTab]);
 
   // Handle search when searchQuery changes
   useEffect(() => {
     console.log('Health: searchQuery changed:', searchQuery);
-    if (activeTab === "running") {
-      if (searchQuery && searchQuery.length >= 3) {
-        console.log('Health: Triggering server search for:', searchQuery);
+    if (searchQuery && searchQuery.length >= 3) {
+      console.log('Health: Triggering server search for:', searchQuery);
+      if (activeTab === "running") {
         handleSearchPolicies(searchQuery);
-      } else if (searchQuery === "") {
-        console.log('Health: Clearing search, fetching all policies');
-        fetchPolicies(1, pagination.pageSize);
       }
-    } else if (activeTab === "all") {
-      // For "All Policy" tab, we filter client-side after fetching grouped policies
-      if (searchQuery === "") {
-        fetchGroupedPolicies(); // Refetch all grouped policies
+      // For "All Policy" tab, search is client-side, so no API call here
+    } else if (searchQuery === "") {
+      console.log('Health: Clearing search, fetching all policies');
+      if (activeTab === "running") {
+        fetchRunningPolicies(1, pagination.pageSize);
+      } else {
+        fetchAllPolicies(1, pagination.pageSize);
       }
     }
   }, [searchQuery, pagination.pageSize, activeTab]);
 
-  const fetchPolicies = async (page = 1, pageSize = 10) => {
+  const fetchRunningPolicies = async (page = 1, pageSize = 10) => {
     try {
       setLoading(true);
-      console.log('Health: Fetching policies for page:', page, 'pageSize:', pageSize);
-      const response = await healthPolicyAPI.getAllPolicies({
+      setError(null);
+      console.log("Health: Fetching running policies for page:", page, "pageSize:", pageSize);
+      
+      const response = await healthPolicyAPI.getRunningPolicies({
         page,
         pageSize,
       });
-      console.log('Health: Fetch response:', response);
+      console.log("Health: Running policies response:", response);
 
-      if (response && response.policies && Array.isArray(response.policies)) {
-        setPolicies(response.policies);
+      if (response && response.success && Array.isArray(response.data)) {
+        setPolicies(response.data);
         setPagination({
-          currentPage: response.currentPage || page,
-          pageSize: response.pageSize || pageSize,
-          totalPages: response.totalPages || 1,
-          totalItems: response.totalItems || 0,
+          currentPage: response.pagination?.page || page,
+          pageSize: response.pagination?.pageSize || pageSize,
+          totalPages: response.pagination?.totalPages || 1,
+          totalItems: response.pagination?.total || 0,
         });
         setError(null);
-      } else if (Array.isArray(response)) {
-        setPolicies(response);
-        setPagination((prev) => ({ ...prev, currentPage: page }));
+      } else if (response && Array.isArray(response.data)) {
+        // Handle case where success flag might be missing
+        setPolicies(response.data);
+        setPagination({
+          currentPage: page,
+          pageSize: pageSize,
+          totalPages: Math.ceil((response.data.length || 0) / pageSize),
+          totalItems: response.data.length || 0,
+        });
         setError(null);
       } else {
+        console.error("Invalid response format:", response);
         setError("Invalid data format received from server");
         setPolicies([]);
       }
     } catch (err) {
-      console.error('Health: Error fetching policies:', err);
-      setError("");
+      console.error("Health: Error fetching running policies:", err);
+      const errorMessage = err.response?.data?.message || err.message || "Failed to fetch running policies";
+      setError(errorMessage);
       setPolicies([]);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAllPolicies = async (page = 1, pageSize = 10) => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log("Health: Fetching all policies for page:", page, "pageSize:", pageSize);
+      
+      const response = await healthPolicyAPI.getAllPoliciesWithStatus('all', {
+        page,
+        pageSize,
+      });
+      console.log("Health: All policies response:", response);
+
+      if (response && response.success && Array.isArray(response.data)) {
+        setPolicies(response.data);
+        setPagination({
+          currentPage: response.pagination?.page || page,
+          pageSize: response.pagination?.pageSize || pageSize,
+          totalPages: response.pagination?.totalPages || 1,
+          totalItems: response.pagination?.total || 0,
+        });
+        setError(null);
+      } else if (response && Array.isArray(response.data)) {
+        // Handle case where success flag might be missing
+        setPolicies(response.data);
+        setPagination({
+          currentPage: page,
+          pageSize: pageSize,
+          totalPages: Math.ceil((response.data.length || 0) / pageSize),
+          totalItems: response.data.length || 0,
+        });
+        setError(null);
+      } else {
+        console.error("Invalid response format:", response);
+        setError("Invalid data format received from server");
+        setPolicies([]);
+      }
+    } catch (err) {
+      console.error("Health: Error fetching all policies:", err);
+      const errorMessage = err.response?.data?.message || err.message || "Failed to fetch all policies";
+      setError(errorMessage);
+      setPolicies([]);
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchPolicies = async (page = 1, pageSize = 10) => {
+    // Legacy method - redirect to appropriate new method
+    if (activeTab === "running") {
+      return fetchRunningPolicies(page, pageSize);
+    } else {
+      return fetchAllPolicies(page, pageSize);
     }
   };
 
@@ -1714,7 +1777,11 @@ function Health({ searchQuery = "" }) {
       try {
         await healthPolicyAPI.deletePolicy(policyId);
         toast.success("Policy deleted successfully!");
-        await fetchPolicies(pagination.currentPage, pagination.pageSize);
+        if (activeTab === "running") {
+          await fetchRunningPolicies(pagination.currentPage, pagination.pageSize);
+        } else {
+          await fetchAllPolicies(pagination.currentPage, pagination.pageSize);
+        }
         await fetchHealthStatistics();
       } catch (err) {
         setError("Failed to delete policy");
@@ -1734,11 +1801,12 @@ function Health({ searchQuery = "" }) {
   };
 
   const handlePolicyUpdated = async () => {
-    await fetchPolicies(pagination.currentPage, pagination.pageSize);
-    await fetchHealthStatistics();
-    if (activeTab === "all") {
-      await fetchGroupedPolicies();
+    if (activeTab === "running") {
+      await fetchRunningPolicies(pagination.currentPage, pagination.pageSize);
+    } else {
+      await fetchAllPolicies(pagination.currentPage, pagination.pageSize);
     }
+    await fetchHealthStatistics();
     handleModalClose();
   };
 
@@ -1799,7 +1867,11 @@ function Health({ searchQuery = "" }) {
 
   const handlePageChange = async (page) => {
     console.log("Health: Page changed to:", page);
-    await fetchPolicies(page, pagination.pageSize);
+    if (activeTab === "running") {
+      await fetchRunningPolicies(page, pagination.pageSize);
+    } else {
+      await fetchAllPolicies(page, pagination.pageSize);
+    }
   };
 
   const handlePageSizeChange = async (newPageSize) => {
@@ -1813,7 +1885,43 @@ function Health({ searchQuery = "" }) {
     }));
     
     // Then fetch policies with the new page size
-    await fetchPolicies(1, newPageSize);
+    if (activeTab === "running") {
+      await fetchRunningPolicies(1, newPageSize);
+    } else {
+      await fetchAllPolicies(1, newPageSize);
+    }
+  };
+
+  const handleStatusUpdate = async () => {
+    try {
+      setLoading(true);
+      console.log("Health: Triggering manual status update");
+      
+      const result = await healthPolicyAPI.updateAllStatuses();
+      console.log("Health: Status update result:", result);
+      
+      if (result && result.success) {
+        const totalUpdated = result.data?.totalUpdated || 
+                           Object.values(result.data || {}).reduce((sum, policy) => sum + (policy.updated || 0), 0);
+        toast.success(`Updated ${totalUpdated} policy statuses`);
+        
+        // Refresh current view
+        if (activeTab === "running") {
+          await fetchRunningPolicies(pagination.currentPage, pagination.pageSize);
+        } else {
+          await fetchAllPolicies(pagination.currentPage, pagination.pageSize);
+        }
+        await fetchHealthStatistics();
+      } else {
+        toast.error("Failed to update policy statuses");
+      }
+    } catch (error) {
+      console.error("Error updating policy statuses:", error);
+      const errorMessage = error.response?.data?.message || error.message || "Failed to update policy statuses";
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDownloadDocuments = (policy) => {
@@ -1836,16 +1944,33 @@ function Health({ searchQuery = "" }) {
       label: "Company Name / Consumer Name",
       sortable: false,
       render: (_, policy) => {
-        return (
-          policy.companyPolicyHolder?.company_name ||
-          policy.consumerPolicyHolder?.name ||
-          policy.company_name ||
-          policy.consumer_name ||
-          policy.company?.company_name ||
-          policy.consumer?.name ||
-          '-'
-        );
-      }
+        // First try to get from associations
+        const companyName = policy.companyPolicyHolder?.company_name;
+        const consumerName = policy.consumerPolicyHolder?.name;
+        
+        // If associations are available, use them
+        if (companyName) {
+          return companyName;
+        }
+        if (consumerName) {
+          return consumerName;
+        }
+        
+        // Fallback to organisation_or_holder_name field
+        if (policy.organisation_or_holder_name) {
+          return policy.organisation_or_holder_name;
+        }
+        
+        // Last fallback - try to determine from customer_type and IDs
+        if (policy.customer_type === "Organisation" && policy.company_id) {
+          return `Company ID: ${policy.company_id}`;
+        }
+        if (policy.customer_type === "Individual" && policy.consumer_id) {
+          return `Consumer ID: ${policy.consumer_id}`;
+        }
+        
+        return "-";
+      },
     },
     { key: "policy_number", label: "Policy Number", sortable: true },
     { key: "business_type", label: "Business Type", sortable: true },
@@ -1987,13 +2112,23 @@ function Health({ searchQuery = "" }) {
         <div className="insurance-content">
           <div className="insurance-header">
             <h1 className="insurance-title">Health Insurance Policies</h1>
-            <Button
-              variant="contained"
-              onClick={() => setShowModal(true)}
-              icon={<BiPlus />}
-            >
-              Add Policy
-            </Button>
+            <div className="insurance-header-actions" style={{ display: 'flex', gap: '12px' }}>
+              <Button
+                variant="outlined"
+                onClick={handleStatusUpdate}
+                icon={<BiRefresh />}
+                disabled={loading}
+              >
+                Update Status
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => setShowModal(true)}
+                icon={<BiPlus />}
+              >
+                Add Policy
+              </Button>
+            </div>
           </div>
           
           <StatisticsCards statistics={statistics} loading={statsLoading} />
@@ -2007,14 +2142,14 @@ function Health({ searchQuery = "" }) {
               onClick={() => setActiveTab("running")}
             >
               <BiTrendingUp className="tab-icon" />
-              Running
+              Running Policies
             </button>
             <button
               className={`tab-button ${activeTab === "all" ? "active" : ""}`}
               onClick={() => setActiveTab("all")}
             >
               <BiShield className="tab-icon" />
-              All Policy
+              All Policies
             </button>
           </div>
           
@@ -2025,168 +2160,21 @@ function Health({ searchQuery = "" }) {
           )}
 
           {/* Tab Content */}
-          {activeTab === "running" ? (
-            loading ? (
-              <Loader size="large" color="primary" />
-            ) : (
-              <TableWithControl
-                data={searchFilteredPolicies}
-                columns={columns}
-                defaultPageSize={pagination.pageSize}
-                currentPage={pagination.currentPage}
-                totalPages={pagination.totalPages}
-                totalItems={pagination.totalItems}
-                onPageChange={handlePageChange}
-                onPageSizeChange={handlePageSizeChange}
-                serverSidePagination={true}
-                pageSizeOptions={[10, 25, 50, 100]}
-              />
-            )
-          ) : groupedLoading ? (
+          {loading ? (
             <Loader size="large" color="primary" />
           ) : (
-            (() => {
-              // Flatten all policies grouped by company: running first, then previous
-              let allPoliciesFlat = [];
-              groupedPolicies.forEach((companyGroup) => {
-                // Add running policies first
-                companyGroup.running.forEach((policy) => {
-                  allPoliciesFlat.push({
-                    ...policy,
-                    status: "active", // Ensure status is active for running policies
-                    policy_type: "running", // Ensure policy_type is running
-                    companyPolicyHolder:
-                      policy.companyPolicyHolder || policy.policyHolder,
-                    consumerPolicyHolder:
-                      policy.consumerPolicyHolder || policy.consumer,
-                    company_group_name: companyGroup.company_name,
-                    company_group_id: companyGroup.company_id,
-                    consumer_group_id: companyGroup.consumer_id,
-                  });
-                });
-                // Then add previous policies
-                companyGroup.previous.forEach((policy) => {
-                  allPoliciesFlat.push({
-                    ...policy,
-                    status: "expired", // Ensure status is expired for previous policies
-                    policy_type: "previous", // Ensure policy_type is previous
-                    companyPolicyHolder:
-                      policy.companyPolicyHolder || policy.policyHolder,
-                    consumerPolicyHolder:
-                      policy.consumerPolicyHolder || policy.consumer,
-                    company_group_name: companyGroup.company_name,
-                    company_group_id: companyGroup.company_id,
-                    consumer_group_id: companyGroup.consumer_id,
-                  });
-                });
-              });
-
-              // Apply search filter if searchQuery exists
-              if (searchQuery && searchQuery.length >= 3) {
-                const searchLower = searchQuery.toLowerCase();
-                allPoliciesFlat = allPoliciesFlat.filter((policy) => {
-                  const policyFields = [
-                    policy.policy_number,
-                    policy.business_type,
-                    policy.customer_type,
-                    policy.email,
-                    policy.mobile_number,
-                    policy.plan_name,
-                    policy.medical_cover,
-                    policy.net_premium,
-                    policy.remarks,
-                    policy.status,
-                  ].some(
-                    (field) =>
-                      field &&
-                      field.toString().toLowerCase().includes(searchLower)
-                  );
-                  const companyName =
-                    policy.companyPolicyHolder?.company_name ||
-                    policy.company?.company_name ||
-                    policy.company_name ||
-                    policy.company_group_name;
-                  const consumerName =
-                    policy.consumerPolicyHolder?.name ||
-                    policy.consumer?.name ||
-                    policy.consumer_name;
-                  const holderName = companyName || consumerName;
-
-                  return (
-                    policyFields ||
-                    (holderName &&
-                      holderName.toLowerCase().includes(searchLower))
-                  );
-                });
-              }
-
-              return (
-                <TableWithControl
-                  data={allPoliciesFlat}
-                  columns={[
-                    ...columns.slice(0, -1), // All columns except actions
-                    {
-                      key: "actions",
-                      label: "Actions",
-                      render: (_, policy) => {
-                        const isActive =
-                          policy.status === "active" || policy.policy_type === "running";
-                        const isPrevious =
-                          policy.status === "expired" || policy.policy_type === "previous";
-
-                        return (
-                          <div className="insurance-actions">
-                            {isActive && (
-                              <>
-                                <ActionButton
-                                  onClick={() => handleEdit(policy)}
-                                  variant="secondary"
-                                  size="small"
-                                >
-                                  <BiEdit />
-                                </ActionButton>
-                                <ActionButton
-                                  onClick={() => handleRenewal(policy)}
-                                  variant="secondary"
-                                  size="small"
-                                  title="Renew Policy"
-                                >
-                                  <BiRefresh />
-                                </ActionButton>
-                                <ActionButton
-                                  onClick={() => handleDelete(policy.id)}
-                                  variant="danger"
-                                  size="small"
-                                >
-                                  <BiTrash />
-                                </ActionButton>
-                              </>
-                            )}
-                            {isPrevious && (
-                              <span style={{ color: "#6b7280", fontSize: "12px" }}>
-                                Expired
-                              </span>
-                            )}
-                            <DocumentDownload
-                              system="health-policies"
-                              recordId={policy.original_policy_id || policy.id}
-                              buttonText=""
-                              buttonClass="action-button action-button-secondary action-button-small"
-                              showIcon={true}
-                              filePath={policy.policy_document_path ? `/uploads/health_policies/${policy.policy_document_path}` : null}
-                              fileName={policy.policy_document_path || 'policy-document.pdf'}
-                            />
-                          </div>
-                        );
-                      },
-                    },
-                  ]}
-                  defaultPageSize={10}
-                  serverSidePagination={false}
-                  pageSizeOptions={[10, 25, 50, 100]}
-                />
-              );
-            })()
+            <TableWithControl
+              data={searchFilteredPolicies}
+              columns={columns}
+              defaultPageSize={pagination.pageSize}
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              totalItems={pagination.totalItems}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+              serverSidePagination={true}
+              pageSizeOptions={[10, 25, 50, 100]}
+            />
           )}
         </div>
         <Modal
