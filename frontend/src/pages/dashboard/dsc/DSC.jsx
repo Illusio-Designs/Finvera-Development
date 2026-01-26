@@ -8,6 +8,7 @@ import {
   BiShield,
   BiTrendingUp,
   BiCalendar,
+  BiRefresh,
 } from "react-icons/bi";
 import { dscAPI } from "../../../services/api";
 import TableWithControl from "../../../components/common/Table/TableWithControl";
@@ -436,10 +437,101 @@ const StatisticsCards = ({ statistics, loading }) => {
   );
 };
 
+// DSC Renewal Form Component
+const DSCRenewalForm = ({ dsc, onClose, onRenewalCompleted }) => {
+  const [formData, setFormData] = useState({
+    expiry_date: "",
+    remarks: dsc?.remarks || "",
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.expiry_date) {
+      toast.error("Please select an expiry date");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await onRenewalCompleted(formData);
+    } catch (error) {
+      // Error is handled in parent component
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="insurance-form">
+      <div className="insurance-form-grid">
+        <div className="insurance-form-group">
+          <label htmlFor="current_expiry">Current Expiry Date</label>
+          <input
+            type="date"
+            value={dsc?.expiry_date ? new Date(dsc.expiry_date).toISOString().split('T')[0] : ''}
+            disabled
+            className="insurance-form-input"
+          />
+        </div>
+
+        <div className="insurance-form-group">
+          <label htmlFor="expiry_date">New Expiry Date *</label>
+          <input
+            type="date"
+            id="expiry_date"
+            name="expiry_date"
+            value={formData.expiry_date}
+            onChange={handleChange}
+            required
+            className="insurance-form-input"
+            min={new Date().toISOString().split('T')[0]}
+          />
+        </div>
+
+        <div className="insurance-form-group" style={{ gridColumn: "span 2" }}>
+          <label htmlFor="remarks">Remarks</label>
+          <textarea
+            id="remarks"
+            name="remarks"
+            value={formData.remarks}
+            onChange={handleChange}
+            className="insurance-form-input"
+            rows="3"
+            placeholder="Enter any remarks for the renewal..."
+          />
+        </div>
+      </div>
+
+      <div className="insurance-form-actions">
+        <Button type="button" variant="outlined" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" variant="primary" loading={loading}>
+          Renew DSC
+        </Button>
+      </div>
+    </form>
+  );
+};
+
+// Main DSC Component
 function DSC({ searchQuery = "" }) {
   const [showModal, setShowModal] = useState(false);
   const [selectedDSC, setSelectedDSC] = useState(null);
+  const [showRenewalModal, setShowRenewalModal] = useState(false);
+  const [selectedDSCForRenewal, setSelectedDSCForRenewal] = useState(null);
+  const [activeTab, setActiveTab] = useState('all'); // 'all' or 'renewal'
   const [dscs, setDSCs] = useState([]);
+  const [renewalDSCs, setRenewalDSCs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -466,11 +558,16 @@ function DSC({ searchQuery = "" }) {
     if (searchQuery && searchQuery.trim() !== "") {
       handleSearchDSCs(searchQuery);
     } else {
-      fetchDSCs(1, 10);
+      // Load data based on active tab
+      if (activeTab === 'all') {
+        fetchDSCs(1, 10);
+      } else {
+        fetchRenewalDSCs(1, 10);
+      }
     }
     fetchDSCStatistics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, isCompany, isConsumer, companyId, consumerId]);
+  }, [searchQuery, isCompany, isConsumer, companyId, consumerId, activeTab]);
 
   const toCamelCase = (dsc) => ({
     dsc_id: dsc.dsc_id,
@@ -598,6 +695,86 @@ function DSC({ searchQuery = "" }) {
     setShowModal(true);
   };
 
+  const handleRenewal = (dsc) => {
+    setSelectedDSCForRenewal(dsc);
+    setShowRenewalModal(true);
+  };
+
+  const handleRenewalModalClose = () => {
+    setShowRenewalModal(false);
+    setSelectedDSCForRenewal(null);
+  };
+
+  const handleRenewalCompleted = async (formData) => {
+    if (!selectedDSCForRenewal) return;
+    
+    try {
+      await dscAPI.renewDSC(selectedDSCForRenewal.dsc_id, formData);
+      
+      await Promise.all([
+        fetchDSCs(pagination.currentPage, pagination.pageSize),
+        fetchRenewalDSCs(pagination.currentPage, pagination.pageSize),
+        fetchDSCStatistics()
+      ]);
+      
+      console.log('[handleRenewalCompleted] Result: Success');
+      toast.success('DSC renewed successfully');
+      handleRenewalModalClose();
+    } catch (error) {
+      console.error('[handleRenewalCompleted] Error:', error.message);
+      toast.error(error.message || 'Failed to renew DSC');
+      throw error;
+    }
+  };
+
+  // Fetch DSCs for renewal tab
+  const fetchRenewalDSCs = async (page = 1, pageSize = 10) => {
+    try {
+      setLoading(true);
+      const response = await dscAPI.getAllDSCsGrouped({ page, pageSize });
+      
+      console.log("Renewal DSCs API response:", response);
+      
+      if (response && response.success && response.data) {
+        const mapped = response.data.map(toCamelCase);
+        setRenewalDSCs(mapped);
+        setPagination({
+          currentPage: response.currentPage || page,
+          pageSize: response.pageSize || pageSize,
+          totalPages: response.totalPages || 1,
+          totalItems: response.totalItems || 0,
+        });
+        setError(null);
+      } else {
+        console.error("Invalid renewal DSCs response format:", response);
+        setError("Invalid data format received from server");
+        setRenewalDSCs([]);
+      }
+    } catch (err) {
+      console.error("Error fetching renewal DSCs:", err);
+      setError("Failed to fetch renewal DSCs");
+      setRenewalDSCs([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle tab switching
+  const handleTabSwitch = (tab) => {
+    console.log(`[DSC] Switching to tab: ${tab}`);
+    setActiveTab(tab);
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
+    setError(null); // Clear any previous errors
+    
+    if (tab === 'all') {
+      console.log('[DSC] Loading all DSCs...');
+      fetchDSCs(1, pagination.pageSize);
+    } else {
+      console.log('[DSC] Loading renewal DSCs...');
+      fetchRenewalDSCs(1, pagination.pageSize);
+    }
+  };
+
   const handleModalClose = () => {
     console.log("Modal closing");
     setSelectedDSC(null);
@@ -612,7 +789,11 @@ function DSC({ searchQuery = "" }) {
   };
 
   const handlePageChange = async (page) => {
-    await fetchDSCs(page, pagination.pageSize);
+    if (activeTab === 'all') {
+      await fetchDSCs(page, pagination.pageSize);
+    } else {
+      await fetchRenewalDSCs(page, pagination.pageSize);
+    }
   };
 
   const handlePageSizeChange = async (newPageSize) => {
@@ -621,7 +802,12 @@ function DSC({ searchQuery = "" }) {
       currentPage: 1,
       pageSize: newPageSize,
     }));
-    await fetchDSCs(1, newPageSize);
+    
+    if (activeTab === 'all') {
+      await fetchDSCs(1, newPageSize);
+    } else {
+      await fetchRenewalDSCs(1, newPageSize);
+    }
   };
 
   const columns = [
@@ -706,30 +892,56 @@ function DSC({ searchQuery = "" }) {
     {
       key: "actions",
       label: "Actions",
-      render: (_, dsc) => (
-        <div className="insurance-actions">
-          <ActionButton
-            onClick={() => handleEdit(dsc)}
-            variant="secondary"
-            size="small"
-            disabled={!canEdit}
-          >
-            <BiEdit />
-          </ActionButton>
-          <ActionButton
-            onClick={() => handleDelete(dsc.dsc_id)}
-            variant="danger"
-            size="small"
-          >
-            <BiTrash />
-          </ActionButton>
-        </div>
-      ),
+      render: (_, dsc) => {
+        const today = new Date();
+        const expiryDate = new Date(dsc.expiry_date);
+        const daysUntilExpiry = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+        const needsRenewal = daysUntilExpiry <= 3; // Show renewal button if expiring within 3 days
+        
+        return (
+          <div className="insurance-actions">
+            {/* Show Edit button only on All tab */}
+            {activeTab === 'all' && (
+              <ActionButton
+                onClick={() => handleEdit(dsc)}
+                variant="secondary"
+                size="small"
+                disabled={!canEdit}
+              >
+                <BiEdit />
+              </ActionButton>
+            )}
+            
+            {/* Show Renewal button on Renewal tab or when needed on All tab */}
+            {(activeTab === 'renewal' || (activeTab === 'all' && needsRenewal)) && (
+              <ActionButton
+                onClick={() => handleRenewal(dsc)}
+                variant="secondary"
+                size="small"
+                title="Renew DSC"
+              >
+                <BiRefresh />
+              </ActionButton>
+            )}
+            
+            {/* Show Delete button only on All tab */}
+            {activeTab === 'all' && (
+              <ActionButton
+                onClick={() => handleDelete(dsc.dsc_id)}
+                variant="danger"
+                size="small"
+              >
+                <BiTrash />
+              </ActionButton>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
   const filteredDSCs = React.useMemo(() => {
-    let filtered = dscs;
+    let filtered = activeTab === 'all' ? dscs : renewalDSCs;
     
     // Apply role-based filtering
     if (isCompany) {
@@ -739,13 +951,13 @@ function DSC({ searchQuery = "" }) {
       filtered = filtered.filter((d) => d.consumer_id === consumerId);
     }
     
-    // Apply status filtering
-    if (statusFilter && statusFilter !== "all") {
+    // Apply status filtering only on All tab
+    if (activeTab === 'all' && statusFilter && statusFilter !== "all") {
       filtered = filtered.filter((d) => d.status === statusFilter);
     }
     
     return filtered;
-  }, [dscs, isCompany, isConsumer, companyId, consumerId, statusFilter]);
+  }, [dscs, renewalDSCs, activeTab, isCompany, isConsumer, companyId, consumerId, statusFilter]);
 
   // Disable update/edit for company/consumer users
   const canEdit = !(isCompany || isConsumer);
@@ -770,20 +982,41 @@ function DSC({ searchQuery = "" }) {
               >
                 Add DSC
               </Button>
-              <div className="dashboard-header-dropdown-container">
-                <Dropdown
-                  options={statusOptions}
-                  value={statusOptions.find((opt) => opt.value === statusFilter)}
-                  onChange={(option) =>
-                    setStatusFilter(option ? option.value : "all")
-                  }
-                  placeholder="Filter by Status"
-                />
-              </div>
+              {/* Show status filter only on All DSCs tab */}
+              {activeTab === 'all' && (
+                <div className="dashboard-header-dropdown-container">
+                  <Dropdown
+                    options={statusOptions}
+                    value={statusOptions.find((opt) => opt.value === statusFilter)}
+                    onChange={(option) =>
+                      setStatusFilter(option ? option.value : "all")
+                    }
+                    placeholder="Filter by Status"
+                  />
+                </div>
+              )}
             </div>
           </div>
           
           <StatisticsCards statistics={statistics} loading={statsLoading} />
+          
+          {/* Tab Navigation */}
+          <div className="tab-navigation" style={{ marginBottom: "24px" }}>
+            <button
+              className={`tab-button ${activeTab === "all" ? "active" : ""}`}
+              onClick={() => handleTabSwitch("all")}
+            >
+              <BiShield className="tab-icon" />
+              All DSCs
+            </button>
+            <button
+              className={`tab-button ${activeTab === "renewal" ? "active" : ""}`}
+              onClick={() => handleTabSwitch("renewal")}
+            >
+              <BiCalendar className="tab-icon" />
+              Renewal
+            </button>
+          </div>
           
           {error && (
             <div className="insurance-error">
@@ -817,6 +1050,19 @@ function DSC({ searchQuery = "" }) {
             dsc={selectedDSC}
             onClose={handleModalClose}
             onDSCUpdated={handleDSCUpdated}
+          />
+        </Modal>
+
+        {/* Renewal Modal */}
+        <Modal
+          isOpen={showRenewalModal}
+          onClose={handleRenewalModalClose}
+          title="Renew DSC"
+        >
+          <DSCRenewalForm
+            dsc={selectedDSCForRenewal}
+            onClose={handleRenewalModalClose}
+            onRenewalCompleted={handleRenewalCompleted}
           />
         </Modal>
       </div>

@@ -465,3 +465,147 @@ exports.getDSCStatistics = async (req, res) => {
     });
   }
 };
+
+// Renew DSC (similar to Factory Quotation renewal)
+exports.renewDSC = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const renewalData = req.body;
+
+    console.log('🔄 Starting DSC renewal for ID:', id);
+
+    // Validate required fields
+    if (!renewalData.expiry_date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required field: expiry_date'
+      });
+    }
+
+    // Get the current DSC
+    const currentDSC = await DSC.findByPk(id, {
+      include: [
+        {
+          model: Company,
+          as: 'company',
+          attributes: ['company_id', 'company_name', 'company_email', 'contact_number']
+        },
+        {
+          model: Consumer,
+          as: 'consumer',
+          attributes: ['consumer_id', 'name', 'email', 'phone_number']
+        }
+      ]
+    });
+
+    if (!currentDSC) {
+      return res.status(404).json({
+        success: false,
+        message: 'DSC not found'
+      });
+    }
+
+    console.log('📋 Current DSC found:', currentDSC.dsc_id);
+
+    // Update current DSC with new expiry date and set status to 'in'
+    await currentDSC.update({
+      expiry_date: renewalData.expiry_date,
+      status: 'in',
+      remarks: renewalData.remarks || currentDSC.remarks
+    });
+
+    console.log('✅ DSC renewed successfully with new expiry date');
+
+    // Fetch updated DSC for response
+    const updatedDSC = await DSC.findByPk(id, {
+      include: [
+        {
+          model: Company,
+          as: 'company',
+          attributes: ['company_id', 'company_name', 'company_email', 'contact_number']
+        },
+        {
+          model: Consumer,
+          as: 'consumer',
+          attributes: ['consumer_id', 'name', 'email', 'phone_number']
+        }
+      ]
+    });
+
+    res.json({
+      success: true,
+      message: 'DSC renewed successfully',
+      data: updatedDSC
+    });
+
+  } catch (error) {
+    console.error('❌ Error renewing DSC:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to renew DSC',
+      error: error.message
+    });
+  }
+};
+
+// Get DSCs for renewal page (similar to Factory Quotation grouped)
+exports.getAllDSCsGrouped = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, pageSize } = req.query;
+    const actualLimit = parseInt(limit) || parseInt(pageSize) || 10;
+    const offset = (page - 1) * actualLimit;
+
+    console.log('📋 Fetching DSCs for renewal...');
+    console.log('📋 Page:', page, 'Limit:', actualLimit, 'Offset:', offset);
+
+    // Get DSCs that need renewal (expiring within 3 days only)
+    const today = new Date();
+    const threeDaysFromNow = new Date();
+    threeDaysFromNow.setDate(today.getDate() + 3);
+
+    const dscs = await DSC.findAll({
+      where: {
+        expiry_date: {
+          [Op.lte]: threeDaysFromNow // Only expiring within 3 days
+        }
+      },
+      include: [
+        {
+          model: Company,
+          as: 'company',
+          attributes: ['company_id', 'company_name', 'company_email', 'contact_number']
+        },
+        {
+          model: Consumer,
+          as: 'consumer',
+          attributes: ['consumer_id', 'name', 'email', 'phone_number']
+        }
+      ],
+      order: [['expiry_date', 'ASC']]
+    });
+
+    console.log(`✅ Found ${dscs.length} DSCs needing renewal`);
+
+    // Apply pagination
+    const totalItems = dscs.length;
+    const totalPages = Math.ceil(totalItems / actualLimit);
+    const paginatedDSCs = dscs.slice(offset, offset + actualLimit);
+
+    res.json({
+      success: true,
+      data: paginatedDSCs,
+      currentPage: parseInt(page),
+      pageSize: actualLimit,
+      totalPages,
+      totalItems
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching grouped DSCs:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch DSCs for renewal',
+      error: error.message
+    });
+  }
+};

@@ -2262,6 +2262,39 @@ export const dscAPI = {
     } catch (error) {
       throw error;
     }
+  },
+
+  // Renew DSC (similar to Factory Quotation renewal)
+  renewDSC: async (id, data) => {
+    try {
+      console.log("API Service: Renewing DSC:", id);
+      const response = await api.post(`/dsc/${id}/renew`, data);
+      console.log("API Service: DSC renewed successfully");
+      return response.data;
+    } catch (error) {
+      console.error("API Service: Error renewing DSC:", error);
+      throw error;
+    }
+  },
+
+  // Get all DSCs grouped (for renewal page)
+  getAllDSCsGrouped: async (params = {}) => {
+    try {
+      console.log("API Service: Fetching grouped DSCs for renewal", params);
+      const queryParams = new URLSearchParams({
+        ...(params.page && { page: params.page }),
+        ...(params.pageSize && { pageSize: params.pageSize }),
+        ...(params.limit && { limit: params.limit })
+      }).toString();
+      const url = queryParams ? `/dsc/all-grouped?${queryParams}` : '/dsc/all-grouped';
+      
+      const response = await api.get(url);
+      console.log("API Service: Grouped DSCs fetched successfully");
+      return response.data;
+    } catch (error) {
+      console.error("API Service: Error fetching grouped DSCs:", error);
+      throw error;
+    }
   }
 };
 

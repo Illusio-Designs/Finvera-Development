@@ -22,7 +22,13 @@ router.get('/', dscController.getAllDSCs);
 // Statistics endpoint
 router.get('/statistics', dscController.getDSCStatistics);
 
+// Get all DSCs grouped (running + previous) - must be before /:id
+router.get('/all-grouped', dscController.getAllDSCsGrouped);
+
 router.get('/:id', dscController.getDSCById);
+
+// Renew DSC
+router.post('/:id/renew', dscController.renewDSC);
 router.post('/', dscController.createDSC);
 router.put('/:id', dscController.updateDSC);
 router.patch('/:id/status', dscController.changeDSCStatus);
