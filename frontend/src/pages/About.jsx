@@ -4,15 +4,14 @@ import Workingwith from '../components/Workingwith';
 import Casestudy from '../components/Casestudy';
 import Testimonial from '../components/Testimonial';
 import Contact from '../components/Contact';
-import NewsUpdates from '../components/NewsUpdates';
 import Footer from '../components/Footer';
 import Loader from '../components/common/Loader/Loader';
 import OptimizedImage from '../components/OptimizedImage';
+import { HiOutlineEye, HiOutlineRocketLaunch } from 'react-icons/hi2';
 import '../styles/pages/About.css';
-import aboutImage from '../assets/business-people-busy-discussing-financial-matter-meeting.webp';
-import avatar1 from '../assets/Ellipse 2603.webp';
-import avatar2 from '../assets/Ellipse 2606.webp';
-import group from '../assets/Group 9.webp';
+import aboutLawImg from '../assets/law(8).webp';
+import heroAbout from '../assets/law(11).webp';
+import helpBg from '../assets/about law section bg.webp';
 
 const About = () => {
   const [loading, setLoading] = useState(true);
@@ -34,103 +33,81 @@ const About = () => {
   return (
     <>
       <Header />
-      <div className="about-container">
-      <div className="hero-section">
-        <div className="hero-content">
+      <div className="about-hero-wrap">
+        <img src={heroAbout} alt="" className="about-hero-bg" />
+        <div className="about-hero-content">
           <h1>About Us</h1>
         </div>
       </div>
+      <div className="about-container">
 
-      <div className="about-main-section">
-  <div className="about-image-section">
-    <OptimizedImage 
-      src={group} 
-      alt="group" 
-      className='group-image'
-    />
-    <div className="about-image-wrapper">
-      <OptimizedImage src={aboutImage} alt="Consultancy" className="about-main-image" />
-      <div className="about-members-card">
-        <span>Monthly Members</span>
-        <h2>5000+</h2>
-      </div>
-      <div className="about-reviews-card">
-        <div className="about-reviews-avatars">
-          {/* Example avatars */}
-          <OptimizedImage 
-            src={avatar1} 
-            alt="avatar"
-          />
-          <OptimizedImage 
-            src={avatar2} 
-            alt="avatar"
-          />
-          <div className='plus-icon'>+</div>
+      <div className="about-intro-section">
+        <div className="about-intro-image">
+          <OptimizedImage src={aboutLawImg} alt="Labour Law Consultancy" className="about-intro-img" />
         </div>
-        <span>8000+ reviews</span>
+        <div className="about-intro-content">
+          <span className="about-intro-tag">Who We Are</span>
+          <h2 className="about-intro-heading">Your Trusted Partner in <span>Labour Law Compliance</span></h2>
+          <p className="about-intro-lead">
+            Radhe Consultancy is a leading Labour Law Consultancy firm based in Rajkot. With over 9 years of dedicated experience, we specialize in helping businesses navigate the complexities of statutory regulations with confidence and ease.
+          </p>
+          <p className="about-intro-body">
+            Our expertise spans a wide range of labour laws, ensuring organizations remain fully compliant while focusing on their core operations. From registrations and documentation to ongoing compliance management and audits — our approach is proactive, detail-oriented, and aligned with the latest legal updates.
+          </p>
+          <p className="about-intro-body">
+            Our mission is to simplify compliance, minimize risks, and provide peace of mind to businesses of all sizes. Whether you are a startup, SME, or established enterprise, we bring the experience and knowledge needed to ensure your business stays compliant and protected.
+          </p>
+          <button className="about-intro-btn" onClick={handleContactClick}>Get In Touch →</button>
+        </div>
       </div>
-    </div>
-  </div>
-  <div className="about-story-section">
-    <span className="about-story-label">About Us</span>
-    <h1>Discover Our Story</h1>
-    <p className="about-story-desc">
-      Radhe Consultancy is Hr & Labor Law Compliance Outsourcing Company. Our Team Consist Of Extremely Proficient And Dedicated Labor Law Experts With Remarkable 09 Years Of Experience In This Field Who Ensures Complete Compliance Under Various Labour Law. We Have Expanded Our 7 Branches In Gujarat, With More Than 1000+ Satisfied Clients.
-    </p>
-    <p className="about-story-highlight">
-      We Provide Best Consultancy services Since 2016 for business.
-    </p>
-    <button className="about-contact-btn" onClick={handleContactClick}>Contact Now →</button>
-  </div>
-</div>
 
 <div className="vision-mission-section">
   <div className="vision-section">
     <div className="section-title-with-line">
-    <h2>Our Vision</h2>
-      <div className="section-line" />
+      <span className="vm-icon"><HiOutlineEye /></span>
+      <h2>Our Vision</h2>
     </div>
-      
     <p>
-      At Radhe Consultancy, our mission is clear and resolute – to empower organizations and individuals to thrive in today's dynamic and ever-evolving landscape. We believe that success is achieved through strategic excellence, and we are committed to being your partner on this journey.
+      To be the most trusted Labour Law Consultancy in Gujarat — empowering businesses of all sizes to operate with full statutory compliance, confidence, and peace of mind. We envision a future where every organization, from startups to established enterprises, has access to reliable, accurate, and proactive compliance support.
     </p>
   </div>
   <div className="mission-section">
     <div className="section-title-with-line">
-    <h2>Our Mission</h2>
-      <div className="section-line" />
-      
+      <span className="vm-icon"><HiOutlineRocketLaunch /></span>
+      <h2>Our Mission</h2>
     </div>
     <p>
-      At Radhe Consultancy, our vision is to be the guiding light that illuminates the path to success for individuals and organizations alike. We aspire to be the catalyst that empowers our clients to embrace change, embrace innovation, and shape a future that surpasses their greatest expectations.
+      To simplify labour law compliance for businesses by delivering timely, accurate, and tailored solutions. We are committed to navigating the complexities of statutory regulations on behalf of our clients — handling everything from registrations and documentation to audits and ongoing compliance management — so they can focus on what matters most: growing their business.
     </p>
   </div>
 </div>
 
-<div className="help">
-  <h1>We Help You With Quality Legal Lawyer</h1>
-  <p>Since 2016, Radhe Consultancy has been Gujarat's leading HR & Labor Law Compliance partner, serving 1000+ satisfied clients across 7 branches. We specialize in factory licensing, insurance solutions, and comprehensive legal consultation to keep your business compliant and protected.</p>
-  <div className="help-btn" onClick={handleContactClick}>Contact Now →</div>
+<div className="help" style={{ backgroundImage: `url(${helpBg})` }}>
+  <div className="help-overlay" />
+  <div className="help-inner">
+    <h1>We Help You With Quality Labour Law Compliance</h1>
+    <p>Since 2016, Radhe Consultancy has been Gujarat's trusted partner for HR & Labour Law Compliance. With over 9 years of experience, we serve businesses across industries — handling registrations, documentation, audits, and ongoing statutory compliance so you can focus on growing your business.</p>
+    <div className="help-btn" onClick={handleContactClick}>Contact Now →</div>
+  </div>
 </div>
 
 
 
       <div className="casestudy">
       <div className="casestudy-content">
-            <p>Our Gallery</p>
-            <h1>Gallery of Inspiration</h1>
-            <div className='case-study-btn'>View More</div>
+            <p>Our Work</p>
+            <h1>Real Cases. Real Results.</h1>
         </div>
       <Casestudy />
         </div>
         <Workingwith />
         <Testimonial />
         <Contact />
-        <NewsUpdates />
-      </div>
+        </div>
       <Footer />
     </>
   );
 };
 
 export default About; 
+

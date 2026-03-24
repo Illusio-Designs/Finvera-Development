@@ -6,7 +6,6 @@ import Testimonials from '../components/Testimonial';
 import Loader from '../components/common/Loader/Loader';
 import OptimizedImage from '../components/OptimizedImage';
 import '../styles/pages/Bloginner.css';
-import NewsUpdates from '../components/NewsUpdates';
 import blog from '../assets/bloginner1.webp';
 import blog1 from '../assets/bloginner2.webp';
 import blog2 from '../assets/bloginner3.webp';
@@ -111,7 +110,6 @@ const Bloginner = () => {
         </div>
       </div>
    
-      <NewsUpdates />
         <div className="help">
           <h1>We Help You With Quality Legal Lawyer</h1>
           <p>With over 8 years of experience in HR & Labor Law Compliance, Radhe Consultancy provides expert legal consultation and comprehensive compliance solutions. Our team of qualified professionals ensures your business stays compliant with all regulatory requirements while maximizing operational efficiency.</p>
@@ -124,3 +122,4 @@ const Bloginner = () => {
 };
 
 export default Bloginner;
+

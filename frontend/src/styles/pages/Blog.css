@@ -103,29 +103,49 @@
 }
 
 .blog .hero-section {
-  background-image: url("../../assets/Heroblog.webp");
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  height: 100%;
+  position: relative;
+  height: 500px;
+  margin-top: 82px;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  text-align: center;
-  margin-top: 130px;
-  color: white;
 }
 
-.blog .hero-content {
-  background-color: #1F4F9CCF;
-  padding: 20.1% 44%;
-  overflow: hidden;
+.page-hero-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+
+.page-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, rgba(10,25,60,0.88) 0%, rgba(10,25,60,0.65) 40%, rgba(10,25,60,0.30) 100%);
+  z-index: 1;
+}
+
+.page-hero-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  color: #fff;
+}
+
+.page-hero-content h1 {
+  font-size: 48px;
+  font-weight: 800;
+  color: #fff;
+  margin: 0;
 }
 
 @media (max-width: 1440px) {
- .blog .hero-section{
-  margin-top: 100px;
- }
+  .blog .hero-section {
+    margin-top: 82px;
+  }
 }
 
 @media (max-width: 1024px) {
@@ -136,7 +156,8 @@
     font-size: 20px;
   }
   .blog .hero-section {
-    margin-top: 100px;
+    margin-top: 82px;
+    height: 400px;
   }
   .blog-grid {
     gap: 30px;
@@ -151,15 +172,12 @@
 
 @media (max-width: 768px) {
   .blog .hero-section {
-    margin-top: 100px;
+    margin-top: 82px;
+    height: 350px;
   }
-  .blog .hero-content {
-    padding: 20% 43%;
+  .page-hero-content h1 {
+    font-size: 36px;
   }
-  .blog .hero-section h1 {
-    font-size: 40px;
-  }
-
   .blog-content h2 {
     font-size: 20px;
   }
@@ -174,12 +192,10 @@
 @media (max-width: 426px) {
   .blog .hero-section {
     margin-top: 60px;
+    height: 280px;
   }
-  .blog .hero-content {
-    padding: 20% 42%;
-  }
-  .blog .hero-section h1 {
-    font-size: 25px;
+  .page-hero-content h1 {
+    font-size: 28px;
   }
   .page-container p {
     font-size: 18px;
@@ -187,9 +203,6 @@
   }
   .page-container h1 {
     font-size: 25px;
-  }
-  .blog .hero-section {
-    margin-top: 60px;
   }
   .blog-content h2 {
     font-size: 14px;
@@ -207,13 +220,11 @@
 @media (max-width: 390px) {
   .blog .hero-section {
     margin-top: 40px;
+    height: 250px;
   }
-  .blog .hero-content {
-    padding: 20% 42.6%;
+  .page-hero-content h1 {
+    font-size: 22px;
   }
-  .blog .hero-section h1 {
-    font-size: 20px;
-  } 
   .page-container p {
     font-size: 16px;
     padding: 0 0 10px;

@@ -8,7 +8,7 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  margin-top: 130px;
+  margin-top: 82px;
   color: white;
 }
 
@@ -120,7 +120,7 @@
 
 @media (max-width: 1440px) {
   .bloginner .hero-section{
-   margin-top: 100px;
+   margin-top: 82px;
   }
  }
 
@@ -129,7 +129,7 @@
     padding: 20% 0%;
   }
   .bloginner .hero-section {
-    margin-top: 100px;
+    margin-top: 82px;
   }
   .bloginner-main h2 {
     font-size: 30px;

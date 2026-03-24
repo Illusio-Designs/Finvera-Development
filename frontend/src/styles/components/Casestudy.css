@@ -1,143 +1,209 @@
-.casestudy-container {
-  padding: 0 40px 40px;
-  text-align: center;
+.casestudy {
+  padding: 80px 8%;
+  background: #fff;
 }
 
-.casestudy{
-  padding: 50px 0 0 0;
+.casestudy-content {
+  text-align: center;
+  margin-bottom: 48px;
 }
 
 .casestudy-content p {
-  font-size: 1rem;
-  color: #868686;
-  margin-bottom: 30px;
-  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #1f4f9c;
+  margin-bottom: 10px;
 }
 
 .casestudy-content h1 {
-  font-size: 40px;
-  font-weight: bold;
-  margin-bottom: 40px;
-  text-align: center;
+  font-size: 38px;
+  font-weight: 700;
+  color: #0d0d0d;
+  margin: 0;
 }
 
-.image-grid {
+/* ── Grid layout ── */
+.cs-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(325px, 1fr));
-  gap: 20px;
+  grid-template-columns: 1.4fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 16px;
 }
 
-.image-container {
+/* Featured card spans full left column height */
+.cs-card--featured {
+  grid-row: 1 / 2;
+}
+
+/* Right column stacks 2 cards */
+.cs-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Bottom 2 cards span full width */
+.cs-card--bottom {
+  grid-column: span 1;
+}
+
+/* Make bottom row span full grid */
+.cs-grid > .cs-card--bottom:first-of-type {
+  grid-column: 1 / 2;
+  grid-row: 2;
+}
+.cs-grid > .cs-card--bottom:last-of-type {
+  grid-column: 2 / 3;
+  grid-row: 2;
+}
+
+/* ── Card base ── */
+.cs-card {
   position: relative;
   overflow: hidden;
-  border-radius: 15px;
+  border-radius: 16px;
   cursor: pointer;
-  height: 250px;
+  height: 280px;
+  background: #0d0d0d;
 }
 
-.image-container img {
+.cs-card--featured {
+  height: 100%;
+  min-height: 360px;
+}
+
+.cs-col .cs-card {
+  flex: 1;
+  height: auto;
+}
+
+.cs-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 15px;
-  transition: transform 0.5s ease;
+  display: block;
+  transition: transform 0.5s ease, opacity 0.5s ease;
+  opacity: 0.85;
 }
 
-.image-container:hover img {
-  transform: scale(1.1);
+.cs-card:hover .cs-img {
+  transform: scale(1.06);
+  opacity: 0.5;
 }
 
-.overlay {
+/* ── Overlay ── */
+.cs-overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #1F4F9C99;
-  border-radius: 15px;
-  opacity: 0;
+  inset: 0;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  transition: opacity 0.5s ease;
+  justify-content: flex-end;
+  background: linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 55%);
+  transition: background 0.4s ease;
 }
 
-.image-container:hover .overlay {
+.cs-card:hover .cs-overlay {
+  background: linear-gradient(to top, rgba(31,79,156,0.85) 0%, rgba(31,79,156,0.3) 100%);
+}
+
+.cs-tag {
+  display: inline-block;
+  background: #1f4f9c;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border-radius: 50px;
+  margin-bottom: 10px;
+  width: fit-content;
+}
+
+.cs-overlay h3 {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 6px;
+  line-height: 1.3;
+}
+
+.cs-overlay p {
+  font-size: 13px;
+  color: rgba(255,255,255,0.8);
+  margin: 0 0 14px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.cs-card:hover .cs-overlay p {
   opacity: 1;
+  transform: translateY(0);
 }
 
-.overlay-text {
-  color: #fff;
-  font-size: 20px;
-  font-weight: 600;
-  text-align: center;
-  padding-bottom: 10px;
-  padding-top: 30px;
-}
 
-.overlay-subtitle {
-  color: #fff;
-  font-size: 18px;
-  text-align: center;
-}
-
-.eye-button {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 1.5em;
-  color: #ffffff;
-  padding-top: 100px;
-}
-
+/* ── Responsive ── */
 @media (max-width: 1024px) {
-  .image-grid {
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  }
-  .image-container {
-    height: 135px;
+  .casestudy {
+    padding: 60px 5%;
   }
   .casestudy-content h1 {
-    font-size: 35px;
+    font-size: 30px;
   }
-  .overlay-text {
-    padding-bottom: 5px;
-    padding-top: 0px;
-    font-size: 15px;
+  .cs-card--featured {
+    min-height: 300px;
   }
-  .eye-button {
-    padding-top: 30px;
+  .cs-col .cs-card {
+    height: 142px;
   }
-  .overlay-subtitle {
-    font-size: 12px;
+  .cs-overlay h3 {
+    font-size: 14px;
   }
 }
 
 @media (max-width: 768px) {
+  .cs-grid {
+    grid-template-columns: 1fr;
+  }
+  .cs-card--featured {
+    min-height: 260px;
+    grid-row: auto;
+  }
+  .cs-col {
+    flex-direction: row;
+  }
+  .cs-col .cs-card {
+    flex: 1;
+    height: 180px;
+  }
+  .cs-grid > .cs-card--bottom:first-of-type,
+  .cs-grid > .cs-card--bottom:last-of-type {
+    grid-column: auto;
+    grid-row: auto;
+  }
   .casestudy-content h1 {
-    font-size: 25px;
-  }
-  .casestudy-content p {
-    font-size: 15px;
-  }
-} 
-
-@media (max-width: 426px) {
-  .image-grid {
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  }
-  .casestudy-container {
-    padding: 0 10px 40px;
-  }
-  .casestudy-content h1 {
-    font-size: 21px;
-  }
-  .casestudy-content p {
-    margin-bottom: 10px;
+    font-size: 24px;
   }
 }
 
-
-
-
+@media (max-width: 500px) {
+  .casestudy {
+    padding: 50px 5%;
+  }
+  .cs-col {
+    flex-direction: column;
+  }
+  .cs-col .cs-card {
+    height: 180px;
+  }
+  .cs-card--bottom {
+    height: 200px;
+  }
+  .casestudy-content h1 {
+    font-size: 20px;
+  }
+}

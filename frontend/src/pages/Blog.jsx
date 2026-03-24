@@ -9,6 +9,7 @@ import OptimizedImage from '../components/OptimizedImage';
 import { HiOutlineArrowRight } from 'react-icons/hi2';
 import img from "../assets/Mask group (1).webp";
 import img1 from "../assets/Mask group (2).webp";
+import blogBg from "../assets/blog bg.webp";
 import '../styles/pages/Blog.css';
 
 const blogPosts = [
@@ -116,7 +117,9 @@ const Blog = () => {
       <Header />
       <div className="blog">
       <div className="hero-section">
-        <div className="hero-content">
+        <img src={blogBg} alt="" className="page-hero-bg" />
+        <div className="page-hero-overlay" />
+        <div className="page-hero-content">
           <h1>Blogs</h1>
         </div>
       </div>

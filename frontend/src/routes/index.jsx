@@ -36,6 +36,7 @@ import Compliance from "../pages/Compliance";
 import Contact from "../pages/Contact";
 import Blog from "../pages/Blog";
 import Bloginner from "../pages/Bloginner";
+import ServiceDetail from "../pages/ServiceDetail";
 
 const router = createBrowserRouter(
   [
@@ -71,6 +72,10 @@ const router = createBrowserRouter(
         {
           path: "/bloginner",
           element: <Bloginner />,
+        },
+        {
+          path: "/:category/:slug",
+          element: <ServiceDetail />,
         },
         {
           path: "unauthorized",

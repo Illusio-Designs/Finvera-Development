@@ -5,8 +5,8 @@ const CaseStudySection = memo(() => {
   return (
     <div className="casestudy">
       <div className="casestudy-content">
-        <p>Case Study</p>
-        <h1>Attorney Legal Excellence in Action</h1>
+        <p>Our Work</p>
+        <h1>Real Cases. Real Results.</h1>
       </div>
       <Casestudy />
     </div>

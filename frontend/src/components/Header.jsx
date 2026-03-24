@@ -1,7 +1,5 @@
 import React, { useState, useEffect, memo } from 'react';
-import { HiPhone, HiEnvelope, HiMapPin, HiMagnifyingGlass } from 'react-icons/hi2';
 import { HiOutlineArrowSmallDown, HiOutlineArrowRight, HiOutlineMagnifyingGlass } from 'react-icons/hi2';
-import { FaFacebook, FaTwitter, FaYoutube, FaLinkedin } from 'react-icons/fa';
 import { useLocation } from 'react-router-dom';
 import OptimizedImage from './OptimizedImage';
 import img from '../assets/@RADHE CONSULTANCY LOGO blue.webp';
@@ -80,30 +78,6 @@ const Header = () => {
 
   return (
     <header>
-      {/* Top Bar */}
-      <div className="top-bar">
-        <div className="top-bar-left">
-          <div className="top-bar-item">
-            <HiPhone className="icon" />
-            <a href="tel:+919913014575">+91 99130 14575</a>
-          </div>
-          <div className="top-bar-item">
-            <HiEnvelope className="icon" />
-            <a href="mailto:radheconsultancy17@yahoo.com">radheconsultancy17@yahoo.com </a>
-          </div>
-          <div className="top-bar-item">
-            <HiMapPin className="icon" />
-            <span>1215 - 1216, RK Empire, Nr. Mavdi Circle, 150 feet Ring Road, Rajkot.</span>
-          </div>
-        </div>
-        <div className="top-bar-right">
-          <FaFacebook className="social-icon" />
-          <FaTwitter className="social-icon" />
-          <FaYoutube className="social-icon" />
-          <FaLinkedin className="social-icon" />
-        </div>
-      </div>
-
       {/* Main Navbar */}
       <div className="navbar">
         <div className="logo" onClick={() => window.location.href = '/'}>
@@ -138,8 +112,8 @@ const Header = () => {
               <HiOutlineMagnifyingGlass />
             </button>
             <div className={`search-bar ${isSearchOpen ? 'show' : ''}`}>
-              <input type="text" placeholder="Search..." />
-              <button className="search-submit">
+              <input type="text" placeholder="Search..." autoFocus={isSearchOpen} />
+              <button className="search-submit" onClick={toggleSearch}>
                 <HiOutlineMagnifyingGlass />
               </button>
             </div>

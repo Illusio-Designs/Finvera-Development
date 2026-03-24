@@ -1,35 +1,45 @@
 import React, { memo } from 'react';
 import OptimizedImage from '../OptimizedImage';
+import lawMain from '../../assets/law(3).webp';
+import lawTop from '../../assets/law(5).webp';
+import lawBottom from '../../assets/law(6).webp';
 
-const TrustedConsultancy = memo(({ 
-  img, img2, img3, img6, img7, img8, 
-  handleAboutClick 
-}) => {
+const TrustedConsultancy = memo(({ handleAboutClick }) => {
   return (
-    <div className="trusted-consultancy">
-      <OptimizedImage src={img6} alt="Law Scale" className="img6" />
-      <OptimizedImage src={img7} alt="Law Scale" className="img7" />
-      <OptimizedImage src={img8} alt="Law Scale" className="img8" />
-      <div className="trusted-container">
-        <div className="trusted-left">
-          <div className="image-group">
-            <div className='img-left'>
-              <OptimizedImage src={img} alt="Law Scale" className="img1" />
-            </div>
-            <div className='img-right'>
-              <OptimizedImage src={img2} alt="Lawyer" className="img2" />
-              <OptimizedImage src={img3} alt="Gavel on Books" className="img3" />
-            </div>
+    <div className="about-section">
+      <div className="about-inner">
+
+        {/* Left: image collage */}
+        <div className="about-images">
+          <div className="about-img-main">
+            <OptimizedImage src={lawMain} alt="Labour Law Compliance" />
           </div>
+          <OptimizedImage src={lawTop} alt="Compliance Services" className="about-img-top" />
+          <OptimizedImage src={lawBottom} alt="Legal Consultancy" className="about-img-bottom" />
         </div>
-        <div className="trusted-right">
-          <p className="about-subtitle">About Us</p>
-          <h2>Your Trusted Consultancy</h2>
-          <p className="about-description">
-            With years of experience, we provide expert legal services across various domains. Our mission is to offer strategic, client-focused legal solutions that protect your rights and interests.
+
+        {/* Right: content */}
+        <div className="about-content">
+          <span className="about-tag">About Us</span>
+          <h2 className="about-heading">Welcome to <span>Radhe Consultancy</span></h2>
+
+          <p className="about-lead">
+            A leading Labour Law Consultancy firm based in Rajkot with over 9 years of dedicated experience — helping businesses navigate statutory regulations with confidence and ease.
           </p>
-          <button className="more-about-btn" onClick={handleAboutClick}>More About →</button>
+
+          <p className="about-body">
+            Our expertise spans a wide range of labour laws, ensuring organizations remain fully compliant while focusing on their core operations. From registrations and documentation to ongoing compliance management and audits, our approach is proactive, detail-oriented, and aligned with the latest legal updates.
+          </p>
+
+          <p className="about-body">
+            Our mission is to simplify compliance, minimize risks, and provide peace of mind to businesses of all sizes — whether you are a startup, SME, or established enterprise.
+          </p>
+
+          <button className="about-cta" onClick={handleAboutClick}>
+            Learn More About Us →
+          </button>
         </div>
+
       </div>
     </div>
   );
@@ -38,4 +48,3 @@ const TrustedConsultancy = memo(({
 TrustedConsultancy.displayName = 'TrustedConsultancy';
 
 export default TrustedConsultancy;
-

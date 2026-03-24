@@ -1,99 +1,35 @@
 .compliance .hero-section {
-    background-image: url('../../assets/HeroCL.webp');
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    margin-top: 130px;
-    color: white;
-  }
+  position: relative;
+  height: 500px;
+  margin-top: 82px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
- .compliance .hero-content{
-    background-color: #1F4F9CCF;
-    padding: 16.9% 32%;
-    overflow: hidden;
-  }
+.compliance .page-container {
+  padding: 60px 10% 80px;
+}
 
-  .compliance .left-shape{
-    position: absolute;
-    top: 380%;
-    left: 0;
-  }
+@media (max-width: 1440px) {
+  .compliance .hero-section { margin-top: 82px; }
+}
 
-  .compliance .right-shape{
-    position: absolute;
-    top: 380%;
-    right: 0;
-  }
+@media (max-width: 1200px) {
+  .compliance .page-container { padding: 50px 6% 70px; }
+}
 
-  /* Center single card in last row */
-  .services-grid > *:last-child:nth-child(3n+1) {
-    grid-column: 2;
-  }
+@media (max-width: 1024px) {
+  .compliance .hero-section { height: 400px; }
+}
 
-  @media (max-width: 1440px) {
-    .compliance .hero-section{
-      margin-top: 100px;
-    }
-    .compliance .left-shape{
-      top: 450%;
-    }
-    .compliance .right-shape{
-      top: 450%;
-    }
-  }
-  @media (max-width: 1024px) {
-    .compliance .hero-section {
-      margin-top: 100px;
-    }
-    .compliance .hero-content {
-      padding: 20% 12%;
-    }
-    .compliance .left-shape{
-      top: 380%;
-     }
-     .compliance .right-shape{
-      top: 380%;
-     }
-  }
+@media (max-width: 768px) {
+  .compliance .hero-section { height: 350px; }
+  .compliance .page-container { padding: 40px 5% 60px; }
+}
 
-  @media (max-width: 768px) {
-    .compliance .page-container {
-      padding: 20px 5% 0;
-    }
-    .compliance .hero-section {
-      margin-top: 100px;
-    }
-    .compliance .hero-content {
-      padding: 20% 18%;
-    }
-    .compliance .hero-section h1 {
-      font-size: 40px;
-    }
-    .compliance .left-shape{
-      display: none;
-     }
-     .compliance .right-shape{
-       display: none;
-     }
-  }
-
-  @media (max-width: 426px) {
-    .compliance .page-container {
-      padding: 0px 5% 0;
-    }
-    .compliance .hero-section {
-      margin-top: 60px;
-    }
-    .compliance .hero-content {
-      padding: 20% 14%;
-    }
-    .compliance .hero-section h1 {
-      font-size: 25px;
-    }
-  }
-  
+@media (max-width: 480px) {
+  .compliance .hero-section { margin-top: 60px; height: 280px; }
+  .compliance .page-container { padding: 30px 5% 50px; }
+}
