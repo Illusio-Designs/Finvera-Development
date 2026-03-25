@@ -10,7 +10,7 @@
 }
 
 /* ── Card ── */
-.service-card {
+.services-grid .service-card {
   position: relative;
   background: #fff;
   border: 1px solid #e4eaf5;
@@ -25,7 +25,7 @@
   overflow: hidden;
 }
 
-.service-card::before {
+.services-grid .service-card::before {
   content: '';
   position: absolute;
   top: 0; left: 0;
