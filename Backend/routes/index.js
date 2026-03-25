@@ -28,6 +28,7 @@ const labourInspectionRoutes = require('./labourInspectionRoutes');
 const labourLicenseRoutes = require('./labourLicenseRoutes');
 const statusUpdateRoutes = require('./statusUpdateRoutes');
 const blogRoutes = require('./blogRoutes');
+const contactRoutes = require('./contactRoutes');
 
 const routes = {
   auth: {
@@ -129,6 +130,10 @@ const routes = {
   blogs: {
     path: '/blogs',
     router: blogRoutes
+  },
+  contact: {
+    path: '/contact',
+    router: contactRoutes
   }
 };
 

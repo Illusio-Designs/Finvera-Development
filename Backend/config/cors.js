@@ -20,7 +20,7 @@ const allowedOrigins = [
 
 // Security headers configuration
 const securityHeaders = {
-  'Content-Security-Policy': "default-src 'self' https://api.radheconsultancy.co.in; connect-src 'self' https://api.radheconsultancy.co.in wss://api.radheconsultancy.co.in; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:;",
+  'Content-Security-Policy': "default-src 'self' https://api.radheconsultancy.co.in https://www.api.radheconsultancy.co.in; connect-src 'self' https://api.radheconsultancy.co.in https://www.api.radheconsultancy.co.in wss://api.radheconsultancy.co.in; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.lineicons.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https: http:; font-src 'self' data: https://fonts.gstatic.com https://cdn.lineicons.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; frame-src 'self' https://accounts.google.com https://www.google.com https://maps.google.com https://google.com; worker-src 'self' blob:; media-src 'self' blob:; object-src 'none';",
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'SAMEORIGIN',
   'X-XSS-Protection': '1; mode=block',

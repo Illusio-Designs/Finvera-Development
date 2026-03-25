@@ -38,6 +38,7 @@ import RenewalLog from "../pages/dashboard/renewals/RenewalLog";
 import FactoryQuotationRenewal from "../pages/dashboard/compliance/FactoryQuotationRenewal";
 import UserRoleWorkLog from "../pages/dashboard/roles/UserRoleWorkLog";
 import BlogManagement from "../pages/dashboard/blog/BlogManagement";
+import ContactInquiries from "../pages/dashboard/contact/ContactInquiries";
 
 function DashboardLayout() {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -157,6 +158,8 @@ function DashboardLayout() {
         return <UserRoleWorkLog searchQuery={searchQuery} />;
       case "/dashboard/blog":
         return <BlogManagement />;
+      case "/dashboard/contact-inquiries":
+        return <ContactInquiries />;
       default:
         return <CombinedDashboard />;
     }

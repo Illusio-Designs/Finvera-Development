@@ -8,12 +8,41 @@ import contactBg from '../assets/contact bg.webp';
 
 const Contact = () => {
   const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', email: '', message: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  const API = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api');
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 3000);
+    const timer = setTimeout(() => setLoading(false), 3000);
     return () => clearTimeout(timer);
   }, []);
+
+  const handleChange = (e) => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${API}/contact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSubmitted(true);
+        setForm({ firstName: '', lastName: '', phone: '', email: '', message: '' });
+      } else {
+        alert(data.message || 'Failed to send. Please try again.');
+      }
+    } catch {
+      alert('Failed to send. Please check your connection.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (loading) {
     return <Loader />;
@@ -78,33 +107,38 @@ const Contact = () => {
           </div>
 
           {/* Right — form */}
-          <form className="cp-form" onSubmit={e => e.preventDefault()}>
+          <form className="cp-form" onSubmit={handleSubmit}>
             <h3 className="cp-form-title">Send Us a Message</h3>
+            {submitted && (
+              <div className="cp-success">✓ Message sent! We'll get back to you within 24 hours.</div>
+            )}
             <div className="cp-form-row">
               <div className="cp-form-group">
                 <label>First Name*</label>
-                <input type="text" placeholder="Enter first name" required />
+                <input type="text" name="firstName" value={form.firstName} onChange={handleChange} placeholder="Enter first name" required />
               </div>
               <div className="cp-form-group">
-                <label>Last Name*</label>
-                <input type="text" placeholder="Enter last name" required />
+                <label>Last Name</label>
+                <input type="text" name="lastName" value={form.lastName} onChange={handleChange} placeholder="Enter last name" />
               </div>
             </div>
             <div className="cp-form-row">
               <div className="cp-form-group">
                 <label>Phone*</label>
-                <input type="tel" placeholder="Enter your phone" required />
+                <input type="tel" name="phone" value={form.phone} onChange={handleChange} placeholder="Enter your phone" required />
               </div>
               <div className="cp-form-group">
                 <label>Email*</label>
-                <input type="email" placeholder="Enter your email" required />
+                <input type="email" name="email" value={form.email} onChange={handleChange} placeholder="Enter your email" required />
               </div>
             </div>
             <div className="cp-form-group">
               <label>Message <span className="cp-optional">(optional)</span></label>
-              <textarea rows="5" placeholder="Enter your message"></textarea>
+              <textarea name="message" value={form.message} onChange={handleChange} rows="5" placeholder="Enter your message"></textarea>
             </div>
-            <button type="submit" className="cp-submit">Send Message →</button>
+            <button type="submit" className="cp-submit" disabled={submitting}>
+              {submitting ? 'Sending...' : 'Send Message →'}
+            </button>
           </form>
         </div>
 

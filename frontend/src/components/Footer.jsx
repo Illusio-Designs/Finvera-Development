@@ -1,10 +1,32 @@
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import '../styles/components/Footer.css';
 import OptimizedImage from './OptimizedImage';
 import { FaLinkedinIn, FaMapMarkerAlt, FaPhoneAlt, FaEnvelope } from 'react-icons/fa';
 import img from '../assets/@RADHE CONSULTANCY LOGO.webp';
 
+const API = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api');
+
 const Footer = () => {
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState(''); // 'success' | 'error' | ''
+  const [loading, setLoading] = useState(false);
+
+  const handleSubscribe = async (e) => {
+    e.preventDefault();
+    if (!email) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/contact/newsletter`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (data.success) { setStatus('success'); setEmail(''); }
+      else setStatus('error');
+    } catch { setStatus('error'); }
+    finally { setLoading(false); }
+  };
   return (
     <footer className="page-footer">
 
@@ -14,9 +36,17 @@ const Footer = () => {
           <p className="footer-newsletter-tag">Stay Updated</p>
           <h2>Sign Up To Get Latest Updates</h2>
         </div>
-        <form className="footer-newsletter-form" onSubmit={e => e.preventDefault()}>
-          <input type="email" placeholder="Enter your email address" />
-          <button type="submit">Subscribe →</button>
+        <form className="footer-newsletter-form" onSubmit={handleSubscribe}>
+          <input
+            type="email"
+            placeholder="Enter your email address"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            required
+          />
+          <button type="submit" disabled={loading}>
+            {loading ? 'Subscribing...' : status === 'success' ? '✓ Subscribed!' : 'Subscribe →'}
+          </button>
         </form>
       </div>
 

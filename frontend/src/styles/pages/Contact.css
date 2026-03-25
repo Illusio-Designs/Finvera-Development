@@ -276,3 +276,19 @@ a.cp-card-val:hover { color: #1f4f9c; }
   .cp-form-row { flex-direction: column; gap: 0; }
   .cp-form-row .cp-form-group { margin-bottom: 20px; }
 }
+
+.cp-success {
+  background: #dcfce7;
+  color: #16a34a;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.cp-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
