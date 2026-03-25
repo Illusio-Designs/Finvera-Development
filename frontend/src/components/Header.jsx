@@ -1,5 +1,5 @@
 import React, { useState, useEffect, memo } from 'react';
-import { HiOutlineArrowSmallDown, HiOutlineArrowRight, HiOutlineMagnifyingGlass } from 'react-icons/hi2';
+import { HiOutlineArrowSmallDown, HiOutlineArrowRight } from 'react-icons/hi2';
 import { useLocation } from 'react-router-dom';
 import OptimizedImage from './OptimizedImage';
 import img from '../assets/@RADHE CONSULTANCY LOGO blue.webp';
@@ -52,7 +52,6 @@ const MenuButton = ({ open, onClick }) => {
 const Header = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const location = useLocation();
   const [activePage, setActivePage] = useState('');
 
@@ -66,10 +65,6 @@ const Header = () => {
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
-  };
-
-  const toggleSearch = () => {
-    setIsSearchOpen(!isSearchOpen);
   };
 
   const handleLinkClick = () => {
@@ -107,17 +102,6 @@ const Header = () => {
         </nav>
 
         <div className="nav-actions">
-          <div className="search-container">
-            <button className="search-btn" onClick={toggleSearch}>
-              <HiOutlineMagnifyingGlass />
-            </button>
-            <div className={`search-bar ${isSearchOpen ? 'show' : ''}`}>
-              <input type="text" placeholder="Search..." autoFocus={isSearchOpen} />
-              <button className="search-submit" onClick={toggleSearch}>
-                <HiOutlineMagnifyingGlass />
-              </button>
-            </div>
-          </div>
           <button className="consult-btn">
             Free Consultation <HiOutlineArrowRight className="right-arrow" />
           </button>

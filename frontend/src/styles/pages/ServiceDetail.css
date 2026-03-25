@@ -79,7 +79,6 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 60px;
-  align-items: start;
   margin-bottom: 70px;
 }
 
@@ -101,7 +100,7 @@
 .sd-intro-image {
   border-radius: 12px;
   overflow: hidden;
-  height: 380px;
+  height: auto;
 }
 
 .sd-intro-image img {
