@@ -9,7 +9,7 @@ import img from '../assets/Mask group (1).webp';
 import img1 from '../assets/Mask group (2).webp';
 import '../styles/pages/Bloginner.css';
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const BACKEND_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
 
 const fallbackImages = [img, img1, img, img1];
 

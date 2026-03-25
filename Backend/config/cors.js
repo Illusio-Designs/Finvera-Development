@@ -20,7 +20,7 @@ const allowedOrigins = [
 
 // Security headers configuration
 const securityHeaders = {
-  'Content-Security-Policy': "default-src 'self' https://api.radheconsultancy.co.in; connect-src 'self' https://api.radheconsultancy.co.in wss://api.radheconsultancy.co.in; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;",
+  'Content-Security-Policy': "default-src 'self' https://api.radheconsultancy.co.in; connect-src 'self' https://api.radheconsultancy.co.in wss://api.radheconsultancy.co.in; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:;",
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'SAMEORIGIN',
   'X-XSS-Protection': '1; mode=block',

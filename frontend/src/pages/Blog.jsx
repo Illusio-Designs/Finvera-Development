@@ -9,8 +9,7 @@ import img from '../assets/Mask group (1).webp';
 import img1 from '../assets/Mask group (2).webp';
 import '../styles/pages/Blog.css';
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-const POSTS_PER_PAGE = 6;
+const BACKEND_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
 
 const fallbackImages = [img, img1, img, img1, img, img1];
 
@@ -25,7 +24,7 @@ const Blog = () => {
   useEffect(() => {
     const fetchBlogs = async () => {
       try {
-        const res = await fetch(`${BACKEND_URL}/api/blogs?page=${currentPage}&limit=${POSTS_PER_PAGE}`);
+        const res = await fetch(`${BACKEND_URL}/api/blogs?page=${currentPage}&limit=6`);
         const data = await res.json();
         if (data.success) {
           setPosts(data.blogs);

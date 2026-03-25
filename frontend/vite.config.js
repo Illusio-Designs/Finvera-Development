@@ -43,7 +43,8 @@ export default defineConfig({
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
-      'Access-Control-Allow-Credentials': 'false'
+      'Access-Control-Allow-Credentials': 'false',
+      'Content-Security-Policy': "default-src 'self'; connect-src 'self' http://localhost:5000 https://api.radheconsultancy.co.in https://www.api.radheconsultancy.co.in wss:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https: http:; font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; frame-src https://accounts.google.com;"
     }
   },
   resolve: {

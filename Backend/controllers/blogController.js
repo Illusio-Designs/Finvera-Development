@@ -4,6 +4,12 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+// Ensure Blogs table exists (handles live servers where setup is skipped)
+Blog.sync({ alter: false }).catch(() => {
+  console.log('[Blog] Table not found, creating...');
+  Blog.sync().catch(e => console.error('[Blog] Failed to create table:', e.message));
+});
+
 // Multer config for blog cover images
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -118,10 +124,17 @@ exports.createBlog = async (req, res) => {
 
     const cover_image = req.file ? `/uploads/blog_images/${req.file.filename}` : null;
 
+    const parseTags = (tags) => {
+      if (!tags) return [];
+      if (Array.isArray(tags)) return tags;
+      // comma-separated string like "compliance, esic"
+      return tags.split(',').map(t => t.trim()).filter(Boolean);
+    };
+
     const blog = await Blog.create({
       title, slug, excerpt, content, cover_image,
       category: category || 'General',
-      tags: tags ? (typeof tags === 'string' ? JSON.parse(tags) : tags) : [],
+      tags: parseTags(tags),
       author: author || 'Radhe Consultancy',
       status: status || 'published'
     });
@@ -148,6 +161,12 @@ exports.updateBlog = async (req, res) => {
       if (existing) slug = `${slug}-${Date.now()}`;
     }
 
+    const parseTags = (tags) => {
+      if (!tags) return [];
+      if (Array.isArray(tags)) return tags;
+      return tags.split(',').map(t => t.trim()).filter(Boolean);
+    };
+
     await blog.update({
       title: title || blog.title,
       slug,
@@ -155,7 +174,7 @@ exports.updateBlog = async (req, res) => {
       content: content || blog.content,
       cover_image,
       category: category || blog.category,
-      tags: tags ? (typeof tags === 'string' ? JSON.parse(tags) : tags) : blog.tags,
+      tags: parseTags(tags) || blog.tags,
       author: author || blog.author,
       status: status || blog.status
     });

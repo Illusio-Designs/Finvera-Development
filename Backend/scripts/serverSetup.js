@@ -169,7 +169,8 @@ async function setupDatabase() {
       { model: ApplicationManagement, name: 'ApplicationManagement' },
       { model: RenewalStatus, name: 'RenewalStatus' },
       { model: LabourInspection, name: 'LabourInspection' },
-      { model: LabourLicense, name: 'LabourLicense' }
+      { model: LabourLicense, name: 'LabourLicense' },
+      { model: require('../models/blogModel'), name: 'Blog' }
     ];
 
     for (const table of otherTables) {

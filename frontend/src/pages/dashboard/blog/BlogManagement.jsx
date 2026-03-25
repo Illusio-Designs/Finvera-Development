@@ -1,30 +1,32 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { BiPlus, BiEdit, BiTrash, BiImage } from 'react-icons/bi';
+import { BiPlus, BiEdit, BiTrash, BiNews, BiTrendingUp, BiCalendar } from 'react-icons/bi';
+import TableWithControl from '../../../components/common/Table/TableWithControl';
 import Button from '../../../components/common/Button/Button';
+import ActionButton from '../../../components/common/ActionButton/ActionButton';
 import Modal from '../../../components/common/Modal/Modal';
 import Loader from '../../../components/common/Loader/Loader';
-import '../../../styles/pages/dashboard/blog/BlogManagement.css';
+import '../../../styles/pages/dashboard/insurance/Insurance.css';
+import '../../../styles/components/StatCards.css';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
+const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// Base URL without /api suffix for constructing image URLs
+const BASE_URL = API.replace(/\/api$/, '');
 const CATEGORIES = ['General', 'Compliance', 'Insurance', 'Labour Law', 'DSC', 'News'];
-
-const emptyForm = { title: '', excerpt: '', content: '', category: 'General', tags: '', author: 'Radhe Consultancy', status: 'published', cover_image: null };
 
 // ── Blog Form ──────────────────────────────────────────────────
 const BlogForm = ({ blog, onClose, onSaved }) => {
-  const [form, setForm] = useState(blog ? {
-    title: blog.title,
-    excerpt: blog.excerpt || '',
-    content: blog.content,
-    category: blog.category || 'General',
-    tags: Array.isArray(blog.tags) ? blog.tags.join(', ') : '',
-    author: blog.author || 'Radhe Consultancy',
-    status: blog.status || 'published',
+  const [form, setForm] = useState({
+    title: blog?.title || '',
+    excerpt: blog?.excerpt || '',
+    content: blog?.content || '',
+    category: blog?.category || 'General',
+    tags: Array.isArray(blog?.tags) ? blog.tags.join(', ') : '',
+    author: blog?.author || 'Radhe Consultancy',
+    status: blog?.status || 'published',
     cover_image: null,
-  } : { ...emptyForm });
-  const [preview, setPreview] = useState(blog?.cover_image ? `${API}${blog.cover_image}` : null);
+  });
+  const [preview, setPreview] = useState(blog?.cover_image ? `${BASE_URL}${blog.cover_image}` : null);
   const [saving, setSaving] = useState(false);
 
   const handleChange = (e) => {
@@ -53,13 +55,12 @@ const BlogForm = ({ blog, onClose, onSaved }) => {
         if (k === 'cover_image') { if (v) fd.append('cover_image', v); }
         else fd.append(k, v);
       });
-
-      const url = blog ? `${API}/api/blogs/${blog.blog_id}` : `${API}/api/blogs`;
+      const url = blog ? `${API}/blogs/${blog.blog_id}` : `${API}/blogs`;
       const method = blog ? 'PUT' : 'POST';
       const res = await fetch(url, { method, headers: { Authorization: `Bearer ${token}` }, body: fd });
       const data = await res.json();
       if (!data.success) throw new Error(data.message);
-      toast.success(blog ? 'Blog updated!' : 'Blog created!');
+      toast.success(blog ? 'Blog updated!' : 'Blog published!');
       onSaved();
     } catch (err) {
       toast.error(err.message || 'Failed to save blog');
@@ -69,67 +70,98 @@ const BlogForm = ({ blog, onClose, onSaved }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="blog-form">
-      <div className="blog-form-grid">
-        <div className="bf-group bf-full">
-          <label>Title *</label>
-          <input name="title" value={form.title} onChange={handleChange} placeholder="Blog title" className="bf-input" required />
+    <form onSubmit={handleSubmit}>
+      <div className="insurance-form-grid">
+        <div className="insurance-form-group" style={{ gridColumn: 'span 2' }}>
+          <label className="insurance-form-label">Title *</label>
+          <input name="title" value={form.title} onChange={handleChange} placeholder="Blog title" className="insurance-form-input" required />
         </div>
 
-        <div className="bf-group">
-          <label>Category</label>
-          <select name="category" value={form.category} onChange={handleChange} className="bf-input">
+        <div className="insurance-form-group">
+          <label className="insurance-form-label">Category</label>
+          <select name="category" value={form.category} onChange={handleChange} className="insurance-form-input">
             {CATEGORIES.map(c => <option key={c}>{c}</option>)}
           </select>
         </div>
 
-        <div className="bf-group">
-          <label>Status</label>
-          <select name="status" value={form.status} onChange={handleChange} className="bf-input">
+        <div className="insurance-form-group">
+          <label className="insurance-form-label">Status</label>
+          <select name="status" value={form.status} onChange={handleChange} className="insurance-form-input">
             <option value="published">Published</option>
             <option value="draft">Draft</option>
           </select>
         </div>
 
-        <div className="bf-group">
-          <label>Author</label>
-          <input name="author" value={form.author} onChange={handleChange} className="bf-input" />
+        <div className="insurance-form-group">
+          <label className="insurance-form-label">Author</label>
+          <input name="author" value={form.author} onChange={handleChange} className="insurance-form-input" />
         </div>
 
-        <div className="bf-group">
-          <label>Tags (comma separated)</label>
-          <input name="tags" value={form.tags} onChange={handleChange} placeholder="e.g. compliance, esic, pf" className="bf-input" />
+        <div className="insurance-form-group">
+          <label className="insurance-form-label">Tags (comma separated)</label>
+          <input name="tags" value={form.tags} onChange={handleChange} placeholder="compliance, esic, pf" className="insurance-form-input" />
         </div>
 
-        <div className="bf-group bf-full">
-          <label>Excerpt (short description)</label>
-          <textarea name="excerpt" value={form.excerpt} onChange={handleChange} rows={2} placeholder="Brief summary shown on blog listing..." className="bf-input" />
+        <div className="insurance-form-group" style={{ gridColumn: 'span 2' }}>
+          <label className="insurance-form-label">Excerpt</label>
+          <textarea name="excerpt" value={form.excerpt} onChange={handleChange} rows={2} placeholder="Short description shown on blog listing..." className="insurance-form-input" style={{ resize: 'vertical' }} />
         </div>
 
-        <div className="bf-group bf-full">
-          <label>Content *</label>
-          <textarea name="content" value={form.content} onChange={handleChange} rows={12} placeholder="Write your full blog content here..." className="bf-input bf-content" required />
+        <div className="insurance-form-group" style={{ gridColumn: 'span 2' }}>
+          <label className="insurance-form-label">Content *</label>
+          <textarea name="content" value={form.content} onChange={handleChange} rows={14} placeholder="Write full blog content here..." className="insurance-form-input" style={{ resize: 'vertical', minHeight: 280 }} required />
         </div>
 
-        <div className="bf-group bf-full">
-          <label>Cover Image</label>
-          <div className="bf-image-upload">
-            <label className="bf-image-label" htmlFor="cover_image_input">
-              <BiImage /> {preview ? 'Change Image' : 'Upload Cover Image'}
+        <div className="insurance-form-group" style={{ gridColumn: 'span 2' }}>
+          <label className="insurance-form-label">Cover Image</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#eef2fb', color: '#1F4F9C', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>
+              📷 {preview ? 'Change Image' : 'Upload Cover Image'}
+              <input type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
             </label>
-            <input id="cover_image_input" type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
-            {preview && <img src={preview} alt="preview" className="bf-image-preview" />}
+            {preview && <img src={preview} alt="preview" style={{ height: 64, borderRadius: 8, objectFit: 'cover', border: '1px solid #e4eaf5' }} />}
           </div>
         </div>
       </div>
 
-      <div className="bf-actions">
+      <div className="insurance-form-actions">
         <Button type="button" variant="outlined" onClick={onClose}>Cancel</Button>
-        <Button type="submit" variant="contained" disabled={saving}>{saving ? 'Saving...' : blog ? 'Update Blog' : 'Publish Blog'}</Button>
+        <Button type="submit" variant="contained" disabled={saving}>
+          {saving ? 'Saving...' : blog ? 'Update Blog' : 'Publish Blog'}
+        </Button>
       </div>
     </form>
   );
 };
+
+// ── Stat Cards ─────────────────────────────────────────────────
+const StatCards = ({ total, published, draft }) => (
+  <div className="statistics-section">
+    <div className="statistics-grid">
+      <div className="stat-card total">
+        <div className="stat-icon"><BiNews /></div>
+        <div className="stat-content">
+          <div className="stat-number">{total}</div>
+          <div className="stat-label">Total Posts</div>
+        </div>
+      </div>
+      <div className="stat-card active">
+        <div className="stat-icon"><BiTrendingUp /></div>
+        <div className="stat-content">
+          <div className="stat-number">{published}</div>
+          <div className="stat-label">Published</div>
+        </div>
+      </div>
+      <div className="stat-card recent">
+        <div className="stat-icon"><BiCalendar /></div>
+        <div className="stat-content">
+          <div className="stat-number">{draft}</div>
+          <div className="stat-label">Drafts</div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
 
 // ── Main Component ─────────────────────────────────────────────
 const BlogManagement = () => {
@@ -138,14 +170,16 @@ const BlogManagement = () => {
   const [showModal, setShowModal] = useState(false);
   const [selected, setSelected] = useState(null);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [filter, setFilter] = useState('all');
 
-  const fetchBlogs = async (p = 1) => {
+  const fetchBlogs = async (p = 1, ps = pageSize) => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${API}/api/blogs/admin/all?page=${p}&limit=10`, {
+      const res = await fetch(`${API}/blogs/admin/all?page=${p}&limit=${ps}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -154,24 +188,24 @@ const BlogManagement = () => {
         setTotalPages(data.totalPages);
         setTotalItems(data.totalItems);
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to load blogs');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchBlogs(page); }, [page]);
+  useEffect(() => { fetchBlogs(page, pageSize); }, [page, pageSize]);
 
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this blog post?')) return;
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${API}/api/blogs/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${API}/blogs/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (!data.success) throw new Error(data.message);
       toast.success('Blog deleted');
-      fetchBlogs(page);
+      fetchBlogs(page, pageSize);
     } catch (err) {
       toast.error(err.message || 'Failed to delete');
     }
@@ -180,84 +214,128 @@ const BlogManagement = () => {
   const handleSaved = () => {
     setShowModal(false);
     setSelected(null);
-    fetchBlogs(page);
+    fetchBlogs(page, pageSize);
   };
 
-  const formatDate = (d) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const published = blogs.filter(b => b.status === 'published').length;
+  const draft = blogs.filter(b => b.status === 'draft').length;
+  const filteredBlogs = filter === 'all' ? blogs : blogs.filter(b => b.status === filter);
+
+  const formatDate = (d) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+  const columns = [
+    {
+      key: 'sr_no', label: 'Sr No.',
+      render: (_, __, i) => (page - 1) * pageSize + i + 1,
+    },
+    {
+      key: 'cover_image', label: 'Cover',
+      render: (_, b) => b.cover_image
+        ? <img src={`${BASE_URL}${b.cover_image}`} alt="" style={{ width: 56, height: 42, objectFit: 'cover', borderRadius: 6 }} />
+        : <div style={{ width: 56, height: 42, background: '#eef2fb', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9aa3b5' }}>📷</div>
+    },
+    {
+      key: 'title', label: 'Title', sortable: true,
+      render: (_, b) => (
+        <div>
+          <div style={{ fontWeight: 600, color: '#0a1a3c' }}>{b.title}</div>
+          <div style={{ fontSize: '0.75rem', color: '#9aa3b5' }}>{b.slug}</div>
+        </div>
+      )
+    },
+    {
+      key: 'category', label: 'Category', sortable: true,
+      render: (_, b) => (
+        <span style={{ background: '#eef2fb', color: '#1F4F9C', fontSize: '0.75rem', fontWeight: 600, padding: '3px 10px', borderRadius: 50 }}>
+          {b.category}
+        </span>
+      )
+    },
+    {
+      key: 'status', label: 'Status', sortable: true,
+      render: (_, b) => (
+        <span style={{
+          fontSize: '0.75rem', fontWeight: 600, padding: '3px 10px', borderRadius: 50,
+          background: b.status === 'published' ? '#dcfce7' : '#fef9c3',
+          color: b.status === 'published' ? '#16a34a' : '#ca8a04'
+        }}>
+          {b.status}
+        </span>
+      )
+    },
+    { key: 'views', label: 'Views', sortable: true, render: (_, b) => b.views || 0 },
+    { key: 'created_at', label: 'Date', sortable: true, render: (_, b) => formatDate(b.created_at) },
+    {
+      key: 'actions', label: 'Actions',
+      render: (_, b) => (
+        <div className="insurance-actions">
+          <ActionButton variant="secondary" size="small" onClick={() => { setSelected(b); setShowModal(true); }}>
+            <BiEdit />
+          </ActionButton>
+          <ActionButton variant="danger" size="small" onClick={() => handleDelete(b.blog_id)}>
+            <BiTrash />
+          </ActionButton>
+        </div>
+      )
+    }
+  ];
 
   if (loading && blogs.length === 0) return <Loader />;
 
   return (
-    <div className="blog-mgmt">
-      <div className="blog-mgmt-header">
-        <div>
-          <h2>Blog Management</h2>
-          <p>{totalItems} total posts</p>
+    <div className="insurance">
+      <div className="insurance-container">
+        <div className="insurance-content">
+          <div className="insurance-header">
+            <h1 className="insurance-title">Blog Management</h1>
+            <Button variant="contained" onClick={() => { setSelected(null); setShowModal(true); }}>
+              <BiPlus /> New Blog Post
+            </Button>
+          </div>
+
+          <StatCards total={totalItems} published={published} draft={draft} />
+
+          {/* Filter Tabs */}
+          <div className="tab-navigation" style={{ marginBottom: '24px' }}>
+            <button className={`tab-button ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>
+              <BiNews className="tab-icon" /> All Posts
+            </button>
+            <button className={`tab-button ${filter === 'published' ? 'active' : ''}`} onClick={() => setFilter('published')}>
+              <BiTrendingUp className="tab-icon" /> Published
+            </button>
+            <button className={`tab-button ${filter === 'draft' ? 'active' : ''}`} onClick={() => setFilter('draft')}>
+              <BiCalendar className="tab-icon" /> Drafts
+            </button>
+          </div>
+
+          <TableWithControl
+            data={filteredBlogs}
+            columns={columns}
+            loading={loading}
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            defaultPageSize={pageSize}
+            onPageChange={(p) => setPage(p)}
+            onPageSizeChange={(ps) => { setPageSize(ps); setPage(1); }}
+            serverSidePagination={true}
+            pageSizeOptions={[10, 25, 50]}
+          />
         </div>
-        <Button variant="contained" onClick={() => { setSelected(null); setShowModal(true); }}>
-          <BiPlus /> New Blog Post
-        </Button>
+
+        <Modal
+          isOpen={showModal}
+          onClose={() => { setShowModal(false); setSelected(null); }}
+          title={selected ? 'Edit Blog Post' : 'New Blog Post'}
+          size="large"
+        >
+          <BlogForm
+            blog={selected}
+            onClose={() => { setShowModal(false); setSelected(null); }}
+            onSaved={handleSaved}
+          />
+        </Modal>
       </div>
-
-      <div className="blog-mgmt-table-wrap">
-        <table className="blog-mgmt-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Cover</th>
-              <th>Title</th>
-              <th>Category</th>
-              <th>Status</th>
-              <th>Views</th>
-              <th>Date</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {blogs.length === 0 ? (
-              <tr><td colSpan={8} className="blog-empty">No blog posts yet. Create your first one!</td></tr>
-            ) : blogs.map((b, i) => (
-              <tr key={b.blog_id}>
-                <td>{(page - 1) * 10 + i + 1}</td>
-                <td>
-                  {b.cover_image
-                    ? <img src={`${API}${b.cover_image}`} alt="" className="blog-thumb" />
-                    : <div className="blog-thumb-placeholder"><BiImage /></div>
-                  }
-                </td>
-                <td className="blog-title-cell">
-                  <span>{b.title}</span>
-                  <small>{b.slug}</small>
-                </td>
-                <td><span className="blog-cat-badge">{b.category}</span></td>
-                <td>
-                  <span className={`blog-status-badge ${b.status}`}>{b.status}</span>
-                </td>
-                <td>{b.views}</td>
-                <td>{formatDate(b.created_at)}</td>
-                <td>
-                  <div className="blog-actions">
-                    <button className="blog-action-btn edit" onClick={() => { setSelected(b); setShowModal(true); }} title="Edit"><BiEdit /></button>
-                    <button className="blog-action-btn delete" onClick={() => handleDelete(b.blog_id)} title="Delete"><BiTrash /></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {totalPages > 1 && (
-        <div className="blog-mgmt-pagination">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-            <button key={p} className={`bm-page-btn ${p === page ? 'active' : ''}`} onClick={() => setPage(p)}>{p}</button>
-          ))}
-        </div>
-      )}
-
-      <Modal isOpen={showModal} onClose={() => { setShowModal(false); setSelected(null); }} title={selected ? 'Edit Blog Post' : 'New Blog Post'} size="large">
-        <BlogForm blog={selected} onClose={() => { setShowModal(false); setSelected(null); }} onSaved={handleSaved} />
-      </Modal>
     </div>
   );
 };
