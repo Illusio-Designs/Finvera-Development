@@ -238,7 +238,7 @@ const BlogManagement = () => {
     {
       key: 'cover_image', label: 'Cover',
       render: (_, b) => b.cover_image
-        ? <img src={imgUrl(b.cover_image)} alt="" style={{ width: 56, height: 42, objectFit: 'cover', borderRadius: 6 }} />
+        ? <img src={imgUrl(b.cover_image)} alt="" style={{ width: 200, height: 'auto', objectFit: 'cover', borderRadius: 6 }} />
         : <div style={{ width: 56, height: 42, background: '#eef2fb', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9aa3b5' }}>📷</div>
     },
     {
