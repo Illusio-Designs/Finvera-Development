@@ -37,6 +37,7 @@ const LabourLicense = require("./labourLicenseModel")(
   require("sequelize").DataTypes
 );
 const PreviousLabourLicense = require("./previousLabourLicenseModel")(sequelize);
+const Blog = require("./blogModel");
 
 // Define associations
 User.belongsToMany(Role, {
@@ -530,5 +531,6 @@ module.exports = {
   LabourInspection,
   LabourLicense,
   PreviousLabourLicense,
+  Blog,
   sequelize,
 };

@@ -1,163 +1,112 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
-import Testimonial from '../components/Testimonial';
-import Pagination from '../components/common/Pagination';
 import Loader from '../components/common/Loader/Loader';
-import OptimizedImage from '../components/OptimizedImage';
-import { HiOutlineArrowRight } from 'react-icons/hi2';
-import img from "../assets/Mask group (1).webp";
-import img1 from "../assets/Mask group (2).webp";
-import blogBg from "../assets/blog bg.webp";
+import { HiOutlineArrowRight, HiOutlineCalendar, HiOutlineTag } from 'react-icons/hi2';
+import blogBg from '../assets/blog bg.webp';
+import img from '../assets/Mask group (1).webp';
+import img1 from '../assets/Mask group (2).webp';
 import '../styles/pages/Blog.css';
 
-const blogPosts = [
-  {
-    id: 1,
-    title: 'Factory License Renewal Success Story',
-    image: img,
-    excerpt: 'How we helped a manufacturing company renew their factory license within 15 days, ensuring zero production downtime.'
-  },
-  {
-    id: 2,
-    title: 'ESIC Compliance Made Simple',
-    image: img1,
-    excerpt: 'Complete guide to ESIC registration and compliance for small businesses with step-by-step documentation process.'
-  },
-  {
-    id: 3,
-    title: 'Motor Insurance Claim Settlement',
-    image: img,
-    excerpt: 'Successfully processed motor insurance claim worth ₹2.5 lakhs for commercial vehicle accident within 30 days.'
-  },
-  {
-    id: 4,
-    title: 'Health Policy Benefits Maximized',
-    image: img1,
-    excerpt: 'How proper health insurance planning saved a family ₹8 lakhs in medical expenses during critical illness.'
-  },
-  {
-    id: 5,
-    title: 'DSC Implementation for SMEs',
-    image: img,
-    excerpt: 'Digital Signature Certificate setup and training for 50+ employees in manufacturing sector for seamless operations.'
-  },
-  {
-    id: 6,
-    title: 'Fire Insurance Claim Success',
-    image: img1,
-    excerpt: 'Complete fire insurance claim settlement of ₹15 lakhs for textile factory with proper documentation support.'
-  },
-  {
-    id: 7,
-    title: 'Employee Compensation Case Win',
-    image: img,
-    excerpt: 'Successfully secured employee compensation for workplace injury with full legal support and documentation.'
-  },
-  {
-    id: 8,
-    title: 'Labour License Compliance Guide',
-    image: img1,
-    excerpt: 'Comprehensive labour license compliance checklist for construction companies operating in Gujarat.'
-  },
-  {
-    id: 9,
-    title: 'Life Insurance Planning Success',
-    image: img,
-    excerpt: 'Strategic life insurance planning that provided ₹50 lakhs coverage with optimal premium structure for young professionals.'
-  },
-  {
-    id: 10,
-    title: 'Factory Act Compliance Audit',
-    image: img1,
-    excerpt: 'Complete Factory Act compliance audit and rectification for 100+ employee manufacturing unit in Ahmedabad.'
-  },
-  {
-    id: 11,
-    title: 'Vehicle Policy Renewal Automation',
-    image: img,
-    excerpt: 'Automated vehicle policy renewal system implementation for fleet of 25 commercial vehicles saving 60% time.'
-  },
-  {
-    id: 12,
-    title: 'Legal Consultation Success Story',
-    image: img1,
-    excerpt: 'Resolved complex labour dispute through expert legal consultation, avoiding costly litigation for manufacturing company.'
-  }
-];
-
+const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const POSTS_PER_PAGE = 6;
+
+const fallbackImages = [img, img1, img, img1, img, img1];
+
+const formatDate = (d) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
 const Blog = () => {
   const [loading, setLoading] = useState(true);
+  const [posts, setPosts] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, []);
+    const fetchBlogs = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/blogs?page=${currentPage}&limit=${POSTS_PER_PAGE}`);
+        const data = await res.json();
+        if (data.success) {
+          setPosts(data.blogs);
+          setTotalPages(data.totalPages);
+        }
+      } catch {
+        // silently fail — empty state shown
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBlogs();
+  }, [currentPage]);
 
-  const totalPages = Math.ceil(blogPosts.length / POSTS_PER_PAGE);
-  
-  const getCurrentPosts = () => {
-    const startIndex = (currentPage - 1) * POSTS_PER_PAGE;
-    const endIndex = startIndex + POSTS_PER_PAGE;
-    return blogPosts.slice(startIndex, endIndex);
+  const getImage = (post, idx) => {
+    if (post.cover_image) return `${BACKEND_URL}${post.cover_image}`;
+    return fallbackImages[idx % fallbackImages.length];
   };
 
-  if (loading) {
-    return <Loader />;
-  }
+  if (loading) return <Loader />;
 
   return (
     <>
       <Header />
-      <div className="blog">
-      <div className="hero-section">
-        <img src={blogBg} alt="" className="page-hero-bg" />
-        <div className="page-hero-overlay" />
-        <div className="page-hero-content">
-          <h1>Blogs</h1>
+      <div className="blog-page">
+        <div className="hero-section">
+          <img src={blogBg} alt="" className="page-hero-bg" />
+          <div className="page-hero-overlay" />
+          <div className="page-hero-content">
+            <h1>Our Blog</h1>
+            <p>Insights, updates and expert advice on labour law & insurance</p>
+          </div>
         </div>
-      </div>
-        <div className="page-container">
-          <p>News</p>
-          <h1>The Latest News <br /> And Blog From Northman</h1>
+
+        <div className="blog-container">
+          <div className="blog-section-header">
+            <span className="blog-tag">Latest Articles</span>
+            <h2>News &amp; Insights from Radhe Consultancy</h2>
+          </div>
+
           <div className="blog-grid">
-            {getCurrentPosts().map((post) => (
-              <Link to={`/bloginner?title=${encodeURIComponent(post.title)}`} key={post.id} className="blog-card-link">
+            {posts.length === 0 ? (
+              <div className="blog-empty-state">
+                <p>No blog posts published yet. Check back soon.</p>
+              </div>
+            ) : posts.map((post, idx) => (
+              <Link to={`/blog/${post.slug}`} key={post.blog_id} className="blog-card-link">
                 <article className="blog-card">
-                  <div className="blog-image">
-                    <OptimizedImage 
-                      src={post.image} 
-                      alt={post.title}
-                    />
+                  <div className="blog-card-image">
+                    <img src={getImage(post, idx)} alt={post.title} />
+                    {post.category && <span className="blog-category-badge">{post.category}</span>}
                   </div>
-                  <div className="blog-content">
-                    <h2>{post.title}</h2>
-                    <p className="blog-excerpt">{post.excerpt}</p>
-                    <button className="read-more">Read More →</button>
+                  <div className="blog-card-body">
+                    <div className="blog-meta">
+                      <span><HiOutlineCalendar /> {formatDate(post.created_at)}</span>
+                    </div>
+                    <h3>{post.title}</h3>
+                    <p>{post.excerpt}</p>
+                    <div className="blog-read-more">Read More <HiOutlineArrowRight /></div>
                   </div>
                 </article>
               </Link>
             ))}
           </div>
-          <div className="pagination-wrapper">
-            <Pagination 
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={setCurrentPage}
-            />
-          </div>
-        </div> 
-        <Testimonial />
+
+          {totalPages > 1 && (
+            <div className="blog-pagination">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                <button
+                  key={p}
+                  className={`page-btn ${p === currentPage ? 'active' : ''}`}
+                  onClick={() => setCurrentPage(p)}
+                >{p}</button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       <Footer />
     </>
   );
 };
 
-export default Blog; 
+export default Blog;

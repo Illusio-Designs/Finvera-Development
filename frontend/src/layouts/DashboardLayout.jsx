@@ -37,6 +37,7 @@ import RenewalDashboard from "../pages/dashboard/renewals/RenewalDashboard";
 import RenewalLog from "../pages/dashboard/renewals/RenewalLog";
 import FactoryQuotationRenewal from "../pages/dashboard/compliance/FactoryQuotationRenewal";
 import UserRoleWorkLog from "../pages/dashboard/roles/UserRoleWorkLog";
+import BlogManagement from "../pages/dashboard/blog/BlogManagement";
 
 function DashboardLayout() {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -154,6 +155,8 @@ function DashboardLayout() {
         return <FactoryQuotationRenewal />;
       case "/dashboard/logs/user-role-work-log":
         return <UserRoleWorkLog searchQuery={searchQuery} />;
+      case "/dashboard/blog":
+        return <BlogManagement />;
       default:
         return <CombinedDashboard />;
     }

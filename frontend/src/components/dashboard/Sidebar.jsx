@@ -27,6 +27,7 @@ import {
   RefreshCw,
   Home,
   Settings,
+  Newspaper,
 } from "lucide-react";
 import img from "../../assets/@RADHE CONSULTANCY LOGO.webp";
 import "../../styles/components/dashboard/Sidebar.css";
@@ -265,6 +266,7 @@ const Sidebar = ({ onCollapse, isCollapsed: parentIsCollapsed }) => {
         ],
       },
       { path: "/dashboard/dsc", icon: <KeyRound />, label: "DSC" },
+      { path: "/dashboard/blog", icon: <Newspaper />, label: "Blog Management" },
       {
         label: "Logs",
         icon: <ClipboardList />,
