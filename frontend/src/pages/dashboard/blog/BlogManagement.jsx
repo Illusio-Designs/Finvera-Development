@@ -12,6 +12,13 @@ import '../../../styles/components/StatCards.css';
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 // Base URL without /api suffix for constructing image URLs
 const BASE_URL = API.replace(/\/api$/, '');
+
+// Helper: build full image URL
+const imgUrl = (path) => {
+  if (!path) return null;
+  if (path.startsWith('http')) return path;
+  return `${BASE_URL}${path}`;
+};
 const CATEGORIES = ['General', 'Compliance', 'Insurance', 'Labour Law', 'DSC', 'News'];
 
 // ── Blog Form ──────────────────────────────────────────────────
@@ -26,7 +33,7 @@ const BlogForm = ({ blog, onClose, onSaved }) => {
     status: blog?.status || 'published',
     cover_image: null,
   });
-  const [preview, setPreview] = useState(blog?.cover_image ? `${BASE_URL}${blog.cover_image}` : null);
+  const [preview, setPreview] = useState(blog?.cover_image ? imgUrl(blog.cover_image) : null);
   const [saving, setSaving] = useState(false);
 
   const handleChange = (e) => {
@@ -231,7 +238,7 @@ const BlogManagement = () => {
     {
       key: 'cover_image', label: 'Cover',
       render: (_, b) => b.cover_image
-        ? <img src={`${BASE_URL}${b.cover_image}`} alt="" style={{ width: 56, height: 42, objectFit: 'cover', borderRadius: 6 }} />
+        ? <img src={imgUrl(b.cover_image)} alt="" style={{ width: 56, height: 42, objectFit: 'cover', borderRadius: 6 }} />
         : <div style={{ width: 56, height: 42, background: '#eef2fb', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9aa3b5' }}>📷</div>
     },
     {

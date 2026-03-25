@@ -10,6 +10,7 @@ import img1 from '../assets/Mask group (2).webp';
 import '../styles/pages/Blog.css';
 
 const BACKEND_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
+const imgUrl = (p) => (!p ? null : p.startsWith('http') ? p : `${BACKEND_URL}${p}`);
 
 const fallbackImages = [img, img1, img, img1, img, img1];
 
@@ -40,7 +41,7 @@ const Blog = () => {
   }, [currentPage]);
 
   const getImage = (post, idx) => {
-    if (post.cover_image) return `${BACKEND_URL}${post.cover_image}`;
+    if (post.cover_image) return imgUrl(post.cover_image);
     return fallbackImages[idx % fallbackImages.length];
   };
 
