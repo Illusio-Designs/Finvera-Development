@@ -87,13 +87,6 @@ const Bloginner = () => {
           </div>
         </div>
 
-        {/* Breadcrumb */}
-        <div className="bi-breadcrumb">
-          <Link to="/">Home</Link> <span>›</span>
-          <Link to="/blog">Blog</Link> <span>›</span>
-          {blog.title}
-        </div>
-
         <div className="bi-body">
           <div className="bi-layout">
             {/* Main content */}
