@@ -389,3 +389,151 @@
     padding: 0 40px 0 10px;
   }
 }
+
+/* ── Free Consultation Modal ── */
+.consult-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 25, 60, 0.55);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.consult-modal {
+  background: #fff;
+  border-radius: 20px;
+  padding: 40px;
+  width: 100%;
+  max-width: 560px;
+  position: relative;
+  box-shadow: 0 24px 60px rgba(10,25,60,0.18);
+  animation: modalIn 0.3s ease;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.consult-modal-close {
+  position: absolute;
+  top: 16px; right: 16px;
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: #f3f4f6;
+  color: #555;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+.consult-modal-close:hover { background: #e4eaf5; color: #1F4F9C; }
+
+.consult-modal-header { margin-bottom: 24px; }
+
+.consult-modal-tag {
+  display: inline-block;
+  background: #eef2fb;
+  color: #1F4F9C;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border-radius: 50px;
+  margin-bottom: 10px;
+}
+
+.consult-modal-header h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0a1a3c;
+  margin: 0 0 6px;
+}
+
+.consult-modal-header p {
+  font-size: 0.88rem;
+  color: #7a8499;
+  margin: 0;
+}
+
+.consult-modal-form { display: flex; flex-direction: column; gap: 14px; }
+
+.consult-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.consult-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.consult-form-group label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.consult-form-group input,
+.consult-form-group textarea {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  color: #111;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.2s;
+  resize: none;
+}
+
+.consult-form-group input:focus,
+.consult-form-group textarea:focus { border-color: #1F4F9C; }
+
+.consult-submit-btn {
+  background: #1F4F9C;
+  color: #fff;
+  border: none;
+  border-radius: 50px;
+  padding: 13px 28px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-top: 4px;
+}
+.consult-submit-btn:hover { background: #163a75; }
+.consult-submit-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+
+.consult-modal-success {
+  text-align: center;
+  padding: 20px 0;
+}
+.consult-success-icon {
+  width: 60px; height: 60px;
+  border-radius: 50%;
+  background: #dcfce7;
+  color: #16a34a;
+  font-size: 1.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+.consult-modal-success h3 { font-size: 1.2rem; font-weight: 700; color: #0a1a3c; margin: 0 0 8px; }
+.consult-modal-success p  { color: #7a8499; font-size: 0.9rem; margin: 0 0 20px; }
+
+@media (max-width: 500px) {
+  .consult-modal { padding: 28px 20px; }
+  .consult-form-row { grid-template-columns: 1fr; }
+}
