@@ -23,9 +23,11 @@ const Casestudy = memo(() => {
         <div className="cs-card" key={i}>
           <OptimizedImage src={c.src} alt={c.title} className="cs-img" />
           <div className="cs-overlay">
-            <span className="cs-tag">{c.tag}</span>
-            <h3>{c.title}</h3>
-            <p>{c.desc}</p>
+            <div className="cs-overlay-inner">
+              <span className="cs-tag">{c.tag}</span>
+              <h3>{c.title}</h3>
+              <p>{c.desc}</p>
+            </div>
           </div>
         </div>
       ))}
@@ -35,9 +37,11 @@ const Casestudy = memo(() => {
         <div className="cs-card cs-card--bottom" key={i}>
           <OptimizedImage src={c.src} alt={c.title} className="cs-img" />
           <div className="cs-overlay">
-            <span className="cs-tag">{c.tag}</span>
-            <h3>{c.title}</h3>
-            <p>{c.desc}</p>
+            <div className="cs-overlay-inner">
+              <span className="cs-tag">{c.tag}</span>
+              <h3>{c.title}</h3>
+              <p>{c.desc}</p>
+            </div>
           </div>
         </div>
       ))}
