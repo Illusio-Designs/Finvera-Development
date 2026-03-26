@@ -32,7 +32,7 @@ const FloatingContact = () => {
           <span className="float-pulse" />
         </a>
         <a
-          href="https://maps.google.com/?q=1215-1216+RK+Empire+Nr+Mavdi+Circle+150+feet+Ring+Road+Rajkot"
+          href="https://www.google.com/maps?q=22.2627490,70.7864744&label=1215-1216+RK+Empire,+Nr.+Mavdi+Circle,+150+feet+Ring+Road,+Rajkot"
           target="_blank"
           rel="noopener noreferrer"
           className="float-btn"

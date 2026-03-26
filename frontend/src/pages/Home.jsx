@@ -70,41 +70,32 @@ const COMPLIANCE_TABS = [
 ];
 
 const ComplianceCard = () => {
-  const [hoveredTab, setHoveredTab] = useState(null);
+  const [openTab, setOpenTab] = useState(null);
 
   return (
-    <div className="service-card light compliance-card" onMouseLeave={() => setHoveredTab(null)}>
+    <div className="service-card light compliance-card">
       <h3>Compliance &amp; Licensing</h3>
       <div className="compliance-list">
         {COMPLIANCE_TABS.map((tab, i) => (
-          <div
-            key={i}
-            className={`cl-row${hoveredTab === i ? " hovered" : ""}`}
-            onMouseEnter={() => setHoveredTab(i)}
-          >
-            <span className="cl-num">{i + 1}</span>
-            <span className="cl-label">{tab.label}</span>
-          </div>
-        ))}
-
-        {/* Flyout overlay — covers the list area when hovered */}
-        <div className={`cl-flyout${hoveredTab !== null ? " visible" : ""}`}>
-          {hoveredTab !== null && (
-            <>
-              <p className="cl-flyout-title">{COMPLIANCE_TABS[hoveredTab].label}</p>
-              <ul>
-                {COMPLIANCE_TABS[hoveredTab].acts.map((act, j) => (
-                  <li key={j}>
-                    <span className="cl-act-num">{j + 1}</span>
-                    {act}
-                  </li>
+          <div key={i} className="cl-accordion">
+            <div
+              className={`cl-accordion-header${openTab === i ? ' open' : ''}`}
+              onClick={() => setOpenTab(openTab === i ? null : i)}
+            >
+              <span className="cl-bullet">•</span>
+              <span className="cl-label">{tab.label}</span>
+              <span className="cl-chevron">{openTab === i ? '−' : '+'}</span>
+            </div>
+            {openTab === i && (
+              <ul className="cl-accordion-body">
+                {tab.acts.map((act, j) => (
+                  <li key={j}>{act}</li>
                 ))}
               </ul>
-            </>
-          )}
-        </div>
+            )}
+          </div>
+        ))}
       </div>
-      <button className="get-started-btn">Get Started →</button>
     </div>
   );
 };
@@ -278,12 +269,6 @@ const Home = () => {
             ))}
           </div>
 
-          {/* Slide counter */}
-          <div className="hero-counter">
-            <span className="hero-counter-current">{String(currentSlide + 1).padStart(2, '0')}</span>
-            <span className="hero-counter-sep" />
-            <span className="hero-counter-total">{String(sliderData.length).padStart(2, '0')}</span>
-          </div>
         </div>
        
         <TrustedConsultancy handleAboutClick={handleAboutClick} />
@@ -296,7 +281,7 @@ const Home = () => {
 
             <div className="service-card dark">
               <h3>Insurance</h3>
-              <ol className="numbered-list">
+              <ul className="bullet-list">
                 <li>Employee's Compensation Policy (WC Policy)</li>
                 <li>Fire Insurance</li>
                 <li>Group Personal Accident Policy (GPA)</li>
@@ -305,17 +290,15 @@ const Home = () => {
                 <li>Marine Insurance</li>
                 <li>Health Insurance</li>
                 <li>Public Liability Insurance</li>
-              </ol>
-              <button className="get-started-btn">Get Started →</button>
+              </ul>
             </div>
 
             <div className="service-card light">
               <h3>Additional Services</h3>
-              <ol className="numbered-list">
+              <ul className="bullet-list">
                 <li>Digital Signature</li>
                 <li>Labour Law Statutory Audit</li>
-              </ol>
-              <button className="get-started-btn">Get Started →</button>
+              </ul>
             </div>
           </div>
           {isMobile && showLeftArrow && (

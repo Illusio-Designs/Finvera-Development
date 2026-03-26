@@ -2,7 +2,7 @@ import React, { memo, useState } from 'react';
 import '../styles/components/Footer.css';
 import OptimizedImage from './OptimizedImage';
 import { FaLinkedinIn, FaMapMarkerAlt, FaPhoneAlt, FaEnvelope } from 'react-icons/fa';
-import img from '../assets/@RADHE CONSULTANCY LOGO.webp';
+import img from '../assets/@RADHE CONSULTANCY LOGO blue.webp';
 
 const API = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api');
 

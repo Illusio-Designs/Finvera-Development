@@ -100,7 +100,7 @@ const Contact = () => {
                 <div className="cp-card-icon"><FiClock /></div>
                 <div>
                   <p className="cp-card-label">Working Hours</p>
-                  <p className="cp-card-val">07:00 AM – 09:00 PM</p>
+                  <p className="cp-card-val">09:30 AM – 07:00 PM</p>
                 </div>
               </div>
             </div>
