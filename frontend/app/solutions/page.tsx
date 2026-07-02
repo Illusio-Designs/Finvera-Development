@@ -1,7 +1,12 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { Arrow, Check } from "@/components/icons";
+import { getSeo } from "@/lib/api";
 
-export const metadata = { title: "Solutions" };
+export async function generateMetadata(): Promise<Metadata> {
+  const s = await getSeo("solutions");
+  return { title: s.title, description: s.description, keywords: s.keywords };
+}
 
 const solutions = [
   {

@@ -1,5 +1,13 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { Arrow, Check, XIcon, LinkedIn, Instagram } from "@/components/icons";
+import ServiceIcon from "@/components/serviceIcons";
+import { getServices, getProjects, getTestimonials, getSeo } from "@/lib/api";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const s = await getSeo("home");
+  return { title: s.title, description: s.description, keywords: s.keywords };
+}
 
 const codeHtml = `
 <span class="ln"><span class="k">import</span> { <span class="f">Finvera</span> } <span class="k">from</span> <span class="s">'@finvera/core'</span>;</span>
@@ -17,27 +25,7 @@ const codeHtml = `
 <span class="ln"> </span>
 <span class="ln"><span class="f">crm</span>.<span class="f">deploy</span>();  <span class="c">// ship in minutes</span></span>`;
 
-const services = [
-  { t: "SaaS Development", d: "Multi-tenant, subscription-ready platforms built for scale — billing, auth, dashboards and everything in between.", i: <><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" /><rect x="9" y="9" width="6" height="6" rx="1" /></> },
-  { t: "CRM Solutions", d: "Custom CRM engines with smart pipelines, lead scoring, and automations tailored to how your team actually sells.", i: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></> },
-  { t: "Cloud & DevOps", d: "Zero-downtime infrastructure, CI/CD pipelines and observability so you can ship confidently, every single day.", i: <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" /> },
-  { t: "API & Integrations", d: "Connect your stack — payments, messaging, analytics and 3rd-party tools — with resilient, well-documented APIs.", i: <><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></> },
-  { t: "UI/UX Design", d: "Interfaces people love — research-driven, pixel-perfect, and engineered with motion that feels effortless.", i: <><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></> },
-  { t: "AI Automation", d: "Embed intelligence into your product — copilots, predictions and workflow automation that save real hours.", i: <path d="M12 2a3 3 0 0 0-3 3v1a3 3 0 0 0-3 3 3 3 0 0 0 0 6 3 3 0 0 0 3 3v1a3 3 0 0 0 6 0v-1a3 3 0 0 0 3-3 3 3 0 0 0 0-6 3 3 0 0 0-3-3V5a3 3 0 0 0-3-3z" /> },
-];
-
 const logos = ["Nexora", "Orbital", "Vaultly", "Prismix", "Loopwork", "Quanta"];
-const work = [
-  { tag: "AI · SaaS", t: "Antimatter AI", d: "A fast, modern marketing site for an AI product studio — built for clarity and conversion." },
-  { tag: "B2B · E-commerce", t: "Stallion Eyewear", d: "A B2B ordering portal streamlining wholesale purchasing for a growing eyewear brand." },
-  { tag: "Fintech", t: "CrossCoin", d: "A sleek, secure-feeling fintech platform interface designed to build instant trust." },
-];
-const testimonials = [
-  { q: "Finvera shipped our CRM in six weeks — something two agencies quoted us six months for. Absolute pros.", n: "Aisha Khan", r: "CEO, Orbital", a: "AK" },
-  { q: "The animation and polish on our SaaS dashboard genuinely moved our trial-to-paid numbers. Worth every penny.", n: "Daniel Mercer", r: "Founder, Vaultly", a: "DM" },
-  { q: "They think like product owners, not just developers. Best engineering partner we've worked with, hands down.", n: "Sofia Rossi", r: "CPO, Quanta", a: "SR" },
-  { q: "Reliable, fast and deeply talented. Our uptime hasn't dropped once since Finvera took over infra.", n: "James Lee", r: "CTO, Prismix", a: "JL" },
-];
 const faqs = [
   ["How fast can you start on my project?", "Most engagements kick off within one week. After a short discovery call we assemble a squad and schedule your first sprint immediately."],
   ["Do you build both SaaS and CRM products?", "Yes — it's our core focus. We build multi-tenant SaaS platforms and fully custom CRM systems, including migrations from tools like Salesforce and HubSpot."],
@@ -49,7 +37,11 @@ const Ic = ({ children }: { children: React.ReactNode }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{children}</svg>
 );
 
-export default function Home() {
+export default async function Home() {
+  const [services, projects, testimonials] = await Promise.all([getServices(), getProjects(), getTestimonials()]);
+  const featured = (projects.filter((p) => p.featured).length ? projects.filter((p) => p.featured) : projects).slice(0, 3);
+  const tRow = [...testimonials, ...testimonials];
+
   return (
     <>
       {/* Hero */}
@@ -128,10 +120,10 @@ export default function Home() {
           </div>
           <div className="grid-3">
             {services.map((s, i) => (
-              <article className={"card reveal" + (i % 3 ? " d" + (i % 3) : "")} data-tilt data-cursor key={s.t}>
-                <div className="ic"><Ic>{s.i}</Ic></div>
-                <h3>{s.t}</h3>
-                <p>{s.d}</p>
+              <article className={"card reveal" + (i % 3 ? " d" + (i % 3) : "")} data-tilt data-cursor key={s.id}>
+                <div className="ic"><ServiceIcon name={s.icon} /></div>
+                <h3>{s.title}</h3>
+                <p>{s.description}</p>
                 <Link href="/services" className="more" data-cursor>Learn more <Arrow /></Link>
               </article>
             ))}
@@ -203,10 +195,10 @@ export default function Home() {
             <h2>Products we&apos;re <span className="grad-word">proud of</span></h2>
           </div>
           <div className="grid-3">
-            {work.map((w, i) => (
-              <article className={"card reveal" + (i ? " d" + i : "")} data-tilt data-cursor key={w.t}>
-                <div className="mock-head" style={{ marginBottom: 14 }}><b style={{ color: "var(--blue-400)" }}>{w.tag}</b></div>
-                <h3>{w.t}</h3><p>{w.d}</p>
+            {featured.map((w, i) => (
+              <article className={"card reveal" + (i ? " d" + i : "")} data-tilt data-cursor key={w.id}>
+                <div className="mock-head" style={{ marginBottom: 14 }}><b style={{ color: "var(--blue-400)" }}>{w.category}</b></div>
+                <h3>{w.title}</h3><p>{w.blurb}</p>
                 <Link href="/work" className="more" data-cursor>View case study <Arrow /></Link>
               </article>
             ))}
@@ -224,10 +216,10 @@ export default function Home() {
         </div>
         <div className="marquee" style={{ ["--dur" as string]: "44s" } as React.CSSProperties}>
           <div className="marquee-track" style={{ gap: 20 }}>
-            {[...testimonials, ...testimonials].map((t, i) => (
+            {tRow.map((t, i) => (
               <div className="tcard" key={i}>
-                <div className="stars">★★★★★</div><p>&quot;{t.q}&quot;</p>
-                <div className="who"><span className="av">{t.a}</span><div><b>{t.n}</b><small>{t.r}</small></div></div>
+                <div className="stars">{"★".repeat(t.rating || 5)}</div><p>&quot;{t.quote}&quot;</p>
+                <div className="who"><span className="av">{t.avatar}</span><div><b>{t.name}</b><small>{t.role}{t.company ? `, ${t.company}` : ""}</small></div></div>
               </div>
             ))}
           </div>

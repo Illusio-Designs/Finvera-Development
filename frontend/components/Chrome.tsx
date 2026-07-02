@@ -194,14 +194,6 @@ export default function Chrome() {
       });
     });
 
-    /* Contact form */
-    const cf = $("#contactForm") as HTMLFormElement | null;
-    if (cf) cf.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const ok = $("#formOk") as HTMLElement | null;
-      if (ok) { ok.style.display = "flex"; cf.reset(); }
-    });
-
     /* Cookie banner */
     if (!localStorage.getItem("fv_cookie")) {
       const ct = setTimeout(() => setCookieVisible(true), 2000);
