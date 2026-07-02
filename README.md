@@ -4,7 +4,13 @@ A modern, animation-rich marketing website for **Finvera**, a SaaS & CRM develop
 company. Built with **Next.js (App Router) + TypeScript**, using the Finvera brand kit
 (logo, blue gradient `#3e60ab → #243a75`, Poppins + Anton typography).
 
-The app lives in [`frontend/`](frontend).
+This is a monorepo:
+
+- [`frontend/`](frontend) — the Next.js website (App Router + TypeScript).
+- [`backend/`](backend) — a Node/Express + **MySQL** REST API that manages all
+  content (projects, services, testimonials, team, blog, contact submissions,
+  per‑page SEO and analytics/pixel settings) with admin auth and image uploads.
+  See [`backend/README.md`](backend/README.md).
 
 ## ✨ Highlights
 
