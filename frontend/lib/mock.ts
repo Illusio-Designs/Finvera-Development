@@ -79,10 +79,11 @@ export const seo: Record<string, Seo> = {
 };
 
 export const settings: Settings = {
-  site_name: "Finvera",
+  site_name: "Finvera Solutions LLP",
   site_tagline: "Future-Driven SaaS & CRM Development",
-  contact_email: "hello@finvera.dev",
-  contact_phone: "+1 (415) 555-0132",
+  contact_email: "finvetasolutionsllp@gmail.com",
+  contact_phone: "+91 84900 09684",
+  contact_address: "India",
   social_x: "#", social_linkedin: "#", social_github: "#",
   google_analytics_id: "", google_tag_manager_id: "", facebook_pixel_id: "", google_site_verification: "",
 };

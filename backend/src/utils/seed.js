@@ -51,10 +51,11 @@ const SEO_PAGES = [
 ];
 
 const SETTINGS = [
-  { key: "site_name", value: "Finvera", group: "general", isPublic: true },
+  { key: "site_name", value: "Finvera Solutions LLP", group: "general", isPublic: true },
   { key: "site_tagline", value: "Future-Driven SaaS & CRM Development", group: "general", isPublic: true },
-  { key: "contact_email", value: "hello@finvera.dev", group: "general", isPublic: true },
-  { key: "contact_phone", value: "+1 (415) 555-0132", group: "general", isPublic: true },
+  { key: "contact_email", value: "finvetasolutionsllp@gmail.com", group: "general", isPublic: true },
+  { key: "contact_phone", value: "+91 84900 09684", group: "general", isPublic: true },
+  { key: "contact_address", value: "India", group: "general", isPublic: true },
   { key: "social_x", value: "https://x.com/", group: "social", isPublic: true },
   { key: "social_linkedin", value: "https://linkedin.com/", group: "social", isPublic: true },
   { key: "social_github", value: "https://github.com/", group: "social", isPublic: true },
