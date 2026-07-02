@@ -121,29 +121,30 @@ section{position:relative;z-index:2}
   background:
     radial-gradient(58% 42% at 50% 0%,rgba(120,150,235,.55),transparent 72%),
     radial-gradient(30% 80% at 50% 4%,rgba(91,127,212,.42),transparent 70%);
-  filter:blur(6px);
+  filter:blur(4px);
   -webkit-mask:linear-gradient(to bottom,#000 0%,rgba(0,0,0,.75) 45%,transparent 92%);
           mask:linear-gradient(to bottom,#000 0%,rgba(0,0,0,.75) 45%,transparent 92%);
   animation:beamPulse 7s ease-in-out infinite alternate;
+  will-change:opacity;
 }
 .beam-wrap .cone{
   position:absolute;top:-14%;left:50%;width:78%;height:110%;transform:translateX(-50%);
-  background:conic-gradient(from 180deg at 50% 0%,transparent 40%,rgba(109,143,224,.28) 50%,transparent 60%);
-  filter:blur(14px);opacity:.9;
+  background:conic-gradient(from 180deg at 50% 0%,transparent 40%,rgba(109,143,224,.26) 50%,transparent 60%);
+  filter:blur(10px);opacity:.85;
 }
-/* falling streaks = waterfall motion */
+/* falling streaks = waterfall motion (transform-animated, no per-frame repaint) */
 .beam-wrap .streaks{
   position:absolute;inset:-40% 0 0 0;
   background:repeating-linear-gradient(to bottom,
      transparent 0 22px,rgba(150,178,255,.14) 22px 23px,transparent 23px 46px);
   -webkit-mask:radial-gradient(60% 80% at 50% 0%,#000,transparent 78%);
           mask:radial-gradient(60% 80% at 50% 0%,#000,transparent 78%);
-  animation:fall 2.6s linear infinite;opacity:.7;
+  animation:fall 2.6s linear infinite;opacity:.55;will-change:transform;
 }
-.beam-wrap .streaks.s2{animation-duration:4.2s;opacity:.4;
+.beam-wrap .streaks.s2{animation-duration:4.2s;opacity:.35;
   background:repeating-linear-gradient(to bottom,transparent 0 40px,rgba(120,150,235,.12) 40px 41px,transparent 41px 82px)}
-@keyframes fall{from{background-position-y:0}to{background-position-y:46px}}
-@keyframes beamPulse{from{opacity:.8;transform:scaleX(.96)}to{opacity:1;transform:scaleX(1.05)}}
+@keyframes fall{from{transform:translateY(-46px)}to{transform:translateY(0)}}
+@keyframes beamPulse{from{opacity:.7}to{opacity:1}}
 
 .fx .orb{position:absolute;border-radius:50%;filter:blur(80px);opacity:.3}
 .fx .orb.a{width:380px;height:380px;left:-120px;top:32%;background:radial-gradient(circle,var(--blue-700),transparent 70%)}
@@ -151,22 +152,23 @@ section{position:relative;z-index:2}
 
 /* cursor spotlight */
 .spotlight{
-  position:fixed;width:480px;height:480px;border-radius:50%;z-index:1;pointer-events:none;
+  position:fixed;left:0;top:0;width:480px;height:480px;border-radius:50%;z-index:1;pointer-events:none;
   background:radial-gradient(circle,rgba(91,127,212,.09),transparent 60%);
-  transform:translate(-50%,-50%);left:50%;top:0;transition:opacity .4s;mix-blend-mode:screen;
+  transform:translate(-50%,-50%);transition:opacity .4s;will-change:transform;
 }
-.cursor-dot{position:fixed;z-index:9999;width:8px;height:8px;border-radius:50%;background:var(--blue-400);
-  pointer-events:none;transform:translate(-50%,-50%);transition:width .2s,height .2s,background .2s}
-.cursor-ring{position:fixed;z-index:9999;width:36px;height:36px;border-radius:50%;
-  border:1px solid rgba(109,143,224,.6);pointer-events:none;transform:translate(-50%,-50%);
+.cursor-dot{position:fixed;left:0;top:0;z-index:9999;width:8px;height:8px;border-radius:50%;background:var(--blue-400);
+  pointer-events:none;transform:translate(-50%,-50%);will-change:transform;
+  transition:width .2s,height .2s,background .2s}
+.cursor-ring{position:fixed;left:0;top:0;z-index:9999;width:36px;height:36px;border-radius:50%;
+  border:1px solid rgba(109,143,224,.6);pointer-events:none;transform:translate(-50%,-50%);will-change:transform;
   transition:width .25s,height .25s,border-color .25s,background .25s}
 .cursor-dot.hover{width:0;height:0}
 .cursor-ring.hover{width:60px;height:60px;background:rgba(91,127,212,.12);border-color:var(--blue-400)}
 @media (pointer:coarse){.cursor-dot,.cursor-ring,.spotlight{display:none}}
 
 /* scroll progress + back to top */
-.progress{position:fixed;top:0;left:0;height:3px;width:0;z-index:120;
-  background:var(--grad);box-shadow:0 0 14px rgba(91,127,212,.8)}
+.progress{position:fixed;top:0;left:0;height:3px;width:100%;z-index:120;transform:scaleX(0);transform-origin:left;
+  will-change:transform;background:var(--grad);box-shadow:0 0 14px rgba(91,127,212,.8)}
 .to-top{position:fixed;right:22px;bottom:22px;z-index:90;width:46px;height:46px;border-radius:50%;
   display:grid;place-items:center;background:var(--panel);border:1px solid var(--line-2);
   opacity:0;transform:translateY(20px) scale(.8);transition:.4s var(--ease);color:#fff}
@@ -197,8 +199,8 @@ section{position:relative;z-index:2}
   border:1px solid transparent;background:transparent;transition:.4s var(--ease);
 }
 .nav.scrolled .nav-inner{
-  background:rgba(9,12,24,.72);border-color:var(--line);
-  backdrop-filter:blur(18px) saturate(140%);box-shadow:var(--shadow);margin-top:11px;
+  background:rgba(9,12,24,.86);border-color:var(--line);
+  backdrop-filter:blur(12px);box-shadow:var(--shadow);margin-top:11px;
 }
 .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-.01em}
 .brand .mark{width:31px;height:31px;flex:none}
@@ -256,8 +258,8 @@ section{position:relative;z-index:2}
 .hero-card{position:relative}
 .code-card{
   position:relative;border-radius:var(--radius-lg);border:1px solid var(--line-2);
-  background:linear-gradient(180deg,rgba(20,26,48,.9),rgba(9,12,24,.92));
-  box-shadow:var(--shadow-glow);overflow:hidden;backdrop-filter:blur(10px);
+  background:linear-gradient(180deg,rgba(20,26,48,.97),rgba(9,12,24,.98));
+  box-shadow:var(--shadow-glow);overflow:hidden;
   transform-style:preserve-3d;transition:transform .2s var(--ease);
 }
 .code-card::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;
@@ -276,8 +278,8 @@ section{position:relative;z-index:2}
 .code .k{color:#c792ea}.code .f{color:#82aaff}.code .s{color:#c3e88d}.code .n{color:#f78c6c}.code .c{color:#546e7a}.code .p{color:#89ddff}
 @keyframes lineIn{to{opacity:1;transform:none}}
 .float-card{position:absolute;border-radius:14px;border:1px solid var(--line-2);padding:12px 14px;
-  background:rgba(12,16,32,.85);backdrop-filter:blur(14px);box-shadow:var(--shadow);display:flex;gap:11px;align-items:center;
-  animation:floaty 5s ease-in-out infinite}
+  background:rgba(14,18,36,.96);box-shadow:var(--shadow);display:flex;gap:11px;align-items:center;
+  animation:floaty 5s ease-in-out infinite;will-change:transform}
 .float-card .ic{width:34px;height:34px;border-radius:10px;background:var(--grad);display:grid;place-items:center;color:#fff}
 .float-card small{color:var(--muted-2);font-size:10.5px;display:block}
 .float-card strong{font-size:14.5px}
@@ -414,7 +416,7 @@ section{position:relative;z-index:2}
    Marquee
    ========================================================= */
 .marquee{overflow:hidden;-webkit-mask:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)}
-.marquee-track{display:flex;gap:54px;width:max-content;animation:scrollX var(--dur,30s) linear infinite}
+.marquee-track{display:flex;gap:54px;width:max-content;animation:scrollX var(--dur,30s) linear infinite;will-change:transform}
 .marquee:hover .marquee-track{animation-play-state:paused}
 @keyframes scrollX{to{transform:translateX(-50%)}}
 .logo-item{display:flex;align-items:center;gap:9px;color:var(--muted-2);font-weight:600;font-size:18px;
