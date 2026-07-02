@@ -91,6 +91,18 @@ const ContactSubmission = sequelize.define("ContactSubmission", {
   isRead: { type: DataTypes.BOOLEAN, defaultValue: false },
 }, { tableName: "contact_submissions" });
 
+/* ── Kanban task (project board) ─────────────────────── */
+const Task = sequelize.define("Task", {
+  title: { type: DataTypes.STRING, allowNull: false },
+  description: { type: DataTypes.TEXT },
+  column: { type: DataTypes.STRING, defaultValue: "backlog" }, // column id
+  position: { type: DataTypes.INTEGER, defaultValue: 0 },
+  assignee: { type: DataTypes.STRING },
+  priority: { type: DataTypes.ENUM("low", "medium", "high"), defaultValue: "medium" },
+  label: { type: DataTypes.STRING },
+  dueDate: { type: DataTypes.DATEONLY },
+}, { tableName: "tasks" });
+
 /* ── Per-page SEO ────────────────────────────────────── */
 const Seo = sequelize.define("Seo", {
   page: { type: DataTypes.STRING, allowNull: false, unique: true }, // home, work, about...
@@ -117,5 +129,5 @@ User.hasMany(BlogPost, { as: "posts", foreignKey: "userId" });
 module.exports = {
   sequelize,
   User, Project, Service, Testimonial, TeamMember,
-  BlogPost, ContactSubmission, Seo, Setting,
+  BlogPost, ContactSubmission, Seo, Setting, Task,
 };

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Mark } from "@/components/icons";
-import { getToken, clearToken, hasApi } from "@/lib/adminApi";
+import { getToken, clearToken, isMock } from "@/lib/adminApi";
 
 const NAV: [string, string, React.ReactNode][] = [
   ["/admin", "Dashboard", <path key="a" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />],
@@ -12,7 +12,9 @@ const NAV: [string, string, React.ReactNode][] = [
   ["/admin/testimonials", "Testimonials", <path key="a" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />],
   ["/admin/team", "Team", <><path key="a" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle key="b" cx="9" cy="7" r="4" /><path key="c" d="M23 21v-2a4 4 0 0 0-3-3.87" /></>],
   ["/admin/blog", "Blog", <><path key="a" d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path key="b" d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></>],
+  ["/admin/kanban", "Project board", <><rect key="a" x="3" y="3" width="18" height="18" rx="2" /><path key="b" d="M9 3v18M15 3v10" /></>],
   ["/admin/contact", "Contact inbox", <><rect key="a" x="2" y="4" width="20" height="16" rx="2" /><path key="b" d="M22 7l-10 6L2 7" /></>],
+  ["/admin/users", "Users", <><path key="a" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle key="b" cx="9" cy="7" r="4" /><path key="c" d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>],
   ["/admin/seo", "SEO", <><circle key="a" cx="11" cy="11" r="8" /><path key="b" d="M21 21l-4.3-4.3" /></>],
   ["/admin/settings", "Settings & pixels", <><circle key="a" cx="12" cy="12" r="3" /><path key="b" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H2a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 3.6 8a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H8a1.65 1.65 0 0 0 1-1.51V2a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V8a1.65 1.65 0 0 0 1.51 1H22a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></>],
 ];
@@ -59,9 +61,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <button className="adm-burger" onClick={() => setOpen((o) => !o)} aria-label="Menu" style={{ marginBottom: 16 }}>
           <svg viewBox="0 0 24 24" width={18} fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 12h18M3 6h18M3 18h18" /></svg>
         </button>
-        {!hasApi() && (
-          <div className="adm-msg err" style={{ marginBottom: 18 }}>
-            Backend not connected. Set <code>NEXT_PUBLIC_API_URL</code> to your API URL to manage content.
+        {isMock() && (
+          <div className="adm-msg" style={{ marginBottom: 18, background: "rgba(91,127,212,.1)", border: "1px solid var(--line-2)", color: "var(--muted)" }}>
+            <b style={{ color: "#fff" }}>Demo mode</b> — running on local mock data (saved in your browser). Set <code>NEXT_PUBLIC_API_URL</code> to connect the live backend.
           </div>
         )}
         {children}
