@@ -43,7 +43,7 @@
 
 /* ---------- Reset ---------- */
 *,*::before,*::after{box-sizing:border-box}
-html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;overflow-x:clip}
 body{
   margin:0;background:var(--bg);color:var(--ink);
   font-family:var(--font);font-size:15px;line-height:1.6;
@@ -640,7 +640,22 @@ section{position:relative;z-index:2}
 .adm{min-height:100vh;display:grid;grid-template-columns:250px 1fr;background:#070910;position:relative;z-index:5}
 .adm-side{position:sticky;top:0;height:100vh;border-right:1px solid var(--line);background:#0a0d18;
   display:flex;flex-direction:column;padding:20px 16px;gap:6px;overflow-y:auto}
-.adm-side .brand{margin:4px 8px 18px}
+.adm-brandrow{display:flex;align-items:center;gap:8px;margin:4px 6px 16px}
+.adm-side .brand{margin:0}
+.adm-collapse{margin-left:auto;width:30px;height:30px;flex:none;border-radius:8px;border:1px solid var(--line);
+  display:grid;place-items:center;color:var(--muted);background:transparent;transition:.2s}
+.adm-collapse:hover{color:#fff;border-color:var(--line-2)}
+.adm-collapse svg{width:16px;height:16px}
+
+/* Collapsed sidebar (desktop only) */
+@media (min-width:861px){
+  .adm.collapsed{grid-template-columns:76px 1fr}
+  .adm.collapsed .adm-side{padding:20px 14px}
+  .adm.collapsed .adm-lbl,.adm.collapsed .adm-nav-label{display:none}
+  .adm.collapsed .adm-brandrow{flex-direction:column;gap:12px;margin-bottom:14px}
+  .adm.collapsed .adm-side a,.adm.collapsed .adm-logout{justify-content:center;padding:10px 0}
+  .adm.collapsed .adm-side a svg{margin:0}
+}
 .adm-nav-label{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2);margin:16px 10px 6px}
 .adm-side a{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;color:var(--muted);
   font-size:14px;font-weight:500;transition:.2s}

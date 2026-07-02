@@ -24,7 +24,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const isLogin = pathname === "/admin/login";
+
+  useEffect(() => { setCollapsed(localStorage.getItem("fv_admin_collapsed") === "1"); }, []);
+  const toggleCollapsed = () => setCollapsed((c) => { localStorage.setItem("fv_admin_collapsed", c ? "0" : "1"); return !c; });
 
   useEffect(() => {
     if (isLogin) { setReady(true); return; }
@@ -40,21 +44,32 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const logout = () => { clearToken(); router.replace("/admin/login"); };
 
   return (
-    <div className={"adm" + (open ? " open" : "")}>
+    <div className={"adm" + (open ? " open" : "") + (collapsed ? " collapsed" : "")}>
       <aside className="adm-side">
-        <Link href="/admin" className="brand" style={{ fontSize: 17 }}><Mark /> Finvera</Link>
+        <div className="adm-brandrow">
+          <Link href="/admin" className="brand" style={{ fontSize: 17 }}><Mark /> <span className="adm-lbl">Finvera</span></Link>
+          <button className="adm-collapse" onClick={toggleCollapsed} aria-label="Collapse sidebar" title="Collapse / expand">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d={collapsed ? "M9 18l6-6-6-6" : "M15 18l-6-6 6-6"} /></svg>
+          </button>
+        </div>
         <div className="adm-nav-label">Manage</div>
         {NAV.map(([href, label, icon]) => {
           const active = href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
           return (
-            <Link key={href} href={href} className={active ? "active" : ""}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{icon}</svg>{label}
+            <Link key={href} href={href} className={active ? "active" : ""} title={label}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{icon}</svg><span className="adm-lbl">{label}</span>
             </Link>
           );
         })}
         <div className="spacer" />
-        <Link href="/" className="adm-logout" style={{ marginBottom: 8 }}>← View site</Link>
-        <button className="adm-logout" onClick={logout}>Sign out</button>
+        <Link href="/" className="adm-logout" style={{ marginBottom: 8 }} title="View site">
+          <svg viewBox="0 0 24 24" width={16} fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 3h6v6M10 14L21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg>
+          <span className="adm-lbl">View site</span>
+        </Link>
+        <button className="adm-logout" onClick={logout} title="Sign out">
+          <svg viewBox="0 0 24 24" width={16} fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>
+          <span className="adm-lbl">Sign out</span>
+        </button>
       </aside>
 
       {open && <div className="adm-scrim" onClick={() => setOpen(false)} />}
