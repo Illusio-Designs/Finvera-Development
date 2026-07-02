@@ -28,9 +28,9 @@ const services = [
 
 const logos = ["Nexora", "Orbital", "Vaultly", "Prismix", "Loopwork", "Quanta"];
 const work = [
-  { tag: "SaaS · Fintech", t: "Vaultly Payments", d: "A multi-currency billing platform processing $40M+ monthly with sub-second latency." },
-  { tag: "CRM · B2B", t: "Orbital Sales Cloud", d: "Custom CRM that lifted the sales team's conversion rate by 34% in one quarter." },
-  { tag: "AI · SaaS", t: "Quanta Insights", d: "An AI analytics copilot answering natural-language questions over live data." },
+  { tag: "AI · SaaS", t: "Antimatter AI", d: "A fast, modern marketing site for an AI product studio — built for clarity and conversion." },
+  { tag: "B2B · E-commerce", t: "Stallion Eyewear", d: "A B2B ordering portal streamlining wholesale purchasing for a growing eyewear brand." },
+  { tag: "Fintech", t: "CrossCoin", d: "A sleek, secure-feeling fintech platform interface designed to build instant trust." },
 ];
 const testimonials = [
   { q: "Finvera shipped our CRM in six weeks — something two agencies quoted us six months for. Absolute pros.", n: "Aisha Khan", r: "CEO, Orbital", a: "AK" },

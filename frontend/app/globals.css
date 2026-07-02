@@ -413,6 +413,51 @@ section{position:relative;z-index:2}
 .tcard .who b{font-size:13.5px}.tcard .who small{color:var(--muted-2);display:block;font-size:11.5px}
 
 /* =========================================================
+   Portfolio cases — 3D device mockups
+   ========================================================= */
+.cases{display:flex;flex-direction:column;gap:clamp(72px,10vw,128px)}
+.case{display:grid;grid-template-columns:.92fr 1.08fr;gap:56px;align-items:center}
+.case.rev .case-copy{order:2}
+.case-index{display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12.5px;color:var(--blue-400)}
+.case-index::before{content:"";width:26px;height:1px;background:var(--blue-500)}
+.case-tags{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 4px}
+.case-tags span{font-size:11.5px;padding:5px 12px;border-radius:999px;border:1px solid var(--line-2);
+  color:var(--muted);background:rgba(255,255,255,.03)}
+.case h3{font-size:clamp(24px,3vw,36px);letter-spacing:-.02em;margin:14px 0 12px}
+.case-copy > p{color:var(--muted);font-size:15px;margin-bottom:22px;max-width:440px}
+
+.stage{position:relative;perspective:1900px;padding:14px 8% 10% 0}
+.browser{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line-2);background:#0b0e18;
+  box-shadow:var(--shadow-glow);transform:rotateY(-17deg) rotateX(7deg) rotate(-1deg);
+  transform-style:preserve-3d;transition:transform .7s var(--ease);will-change:transform}
+.stage:hover .browser{transform:rotateY(-4deg) rotateX(2deg)}
+.browser .bar{display:flex;align-items:center;gap:6px;padding:9px 12px;background:#111627;border-bottom:1px solid var(--line)}
+.browser .bar i{width:9px;height:9px;border-radius:50%;flex:none}
+.browser .bar i:nth-child(1){background:#ff5f57}.browser .bar i:nth-child(2){background:#febc2e}.browser .bar i:nth-child(3){background:#28c840}
+.browser .url{margin-left:10px;font-family:var(--mono);font-size:10.5px;color:var(--muted-2);background:#0b0e18;
+  padding:4px 12px;border-radius:6px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shot-wrap{position:relative;overflow:hidden;background:
+  linear-gradient(110deg,rgba(255,255,255,.03) 30%,rgba(255,255,255,.07) 50%,rgba(255,255,255,.03) 70%) #0b0e18;
+  background-size:220% 100%;animation:shimmer 1.6s linear infinite}
+.browser .shot-wrap{aspect-ratio:16/10}
+.shot{display:block;width:100%;height:100%;object-fit:cover;object-position:top;opacity:0;transition:opacity .6s var(--ease)}
+.shot.ready{opacity:1}
+@keyframes shimmer{to{background-position:-220% 0}}
+
+.phone{position:absolute;right:0;bottom:0;width:27%;border-radius:26px;overflow:hidden;border:6px solid #111627;
+  background:#0b0e18;box-shadow:var(--shadow);transform:rotate(3deg) translateZ(60px);
+  transition:transform .7s var(--ease);will-change:transform}
+.stage:hover .phone{transform:rotate(0) translateZ(60px)}
+.phone::before{content:"";position:absolute;top:8px;left:50%;transform:translateX(-50%);width:34%;height:5px;
+  border-radius:3px;background:#2a3148;z-index:3}
+.phone .shot-wrap{aspect-ratio:9/19.5;border-radius:20px}
+
+.case-visit{display:inline-flex;align-items:center;gap:9px;font-weight:600;font-size:14px;color:#fff;
+  padding:11px 20px;border-radius:999px;border:1px solid var(--line-2);background:rgba(255,255,255,.04);transition:.3s}
+.case-visit:hover{background:var(--grad);border-color:transparent;box-shadow:0 16px 40px -14px rgba(62,96,171,.8)}
+.case-visit svg{width:15px;height:15px}
+
+/* =========================================================
    Marquee
    ========================================================= */
 .marquee{overflow:hidden;-webkit-mask:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)}
@@ -544,6 +589,10 @@ section{position:relative;z-index:2}
   .hero-card{max-width:520px}
   .split,.about-split,.contact-grid{grid-template-columns:1fr;gap:38px}
   .split.rev .mock{order:0}
+  .case{grid-template-columns:1fr;gap:30px}
+  .case.rev .case-copy{order:0}
+  .stage{padding:6px 8% 8% 0;max-width:560px}
+  .browser{transform:rotateY(-8deg) rotateX(4deg)}
   .grid-3,.grid-4{grid-template-columns:repeat(2,1fr)}
   .stats{grid-template-columns:repeat(2,1fr)}
   .steps{grid-template-columns:repeat(2,1fr);gap:36px}
