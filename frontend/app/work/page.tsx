@@ -1,22 +1,63 @@
 import Link from "next/link";
 import { Arrow } from "@/components/icons";
+import SiteShot from "@/components/SiteShot";
 
 export const metadata = { title: "Work" };
 
-const projects = [
-  { tag: "SaaS · Fintech", t: "Vaultly Payments", d: "A multi-currency billing platform processing $40M+ monthly with sub-second latency.", m: "+312% throughput" },
-  { tag: "CRM · B2B", t: "Orbital Sales Cloud", d: "Custom CRM that lifted the sales team's conversion rate by 34% in one quarter.", m: "+34% conversion" },
-  { tag: "AI · SaaS", t: "Quanta Insights", d: "An AI analytics copilot answering natural-language questions over live data.", m: "5M+ queries/mo" },
-  { tag: "SaaS · HealthTech", t: "Prismix Care", d: "A HIPAA-compliant patient platform with real-time scheduling and messaging.", m: "99.98% uptime" },
-  { tag: "CRM · Real Estate", t: "Loopwork Deals", d: "Deal-flow CRM with automated document generation and e-sign integration.", m: "12h saved / week" },
-  { tag: "Cloud · Logistics", t: "Nexora Fleet", d: "Real-time fleet tracking platform ingesting 2M+ GPS events per minute.", m: "2M events/min" },
+type Project = { name: string; url: string; category: string; tags: string[]; blurb: string };
+
+const projects: Project[] = [
+  { name: "Antimatter AI", url: "https://www.antimatterai.com/", category: "AI · SaaS", tags: ["Web Design", "Development", "AI"],
+    blurb: "A fast, modern marketing site for an AI product studio — built for clarity, motion and conversion." },
+  { name: "Finvera Solutions", url: "https://www.finvera.solutions/", category: "Fintech · SaaS", tags: ["Fintech", "Web Design", "Development"],
+    blurb: "The Finvera platform website — accounting and finance, presented with a clean, trustworthy interface." },
+  { name: "Stallion Eyewear", url: "https://b2b.stallioneyewear.in/", category: "B2B · E-commerce", tags: ["E-commerce", "B2B", "Development"],
+    blurb: "A B2B ordering portal for a fast-growing eyewear brand, streamlining wholesale purchasing." },
+  { name: "CrossCoin", url: "https://crosscoin.in/", category: "Fintech", tags: ["Fintech", "Web Design", "Development"],
+    blurb: "A sleek, secure-feeling fintech platform interface designed to build instant trust." },
+  { name: "Nanak Finserv", url: "https://nanakfinserv.com/", category: "Financial Services", tags: ["Finance", "Web Design"],
+    blurb: "A professional web presence for a financial services firm, focused on credibility and clarity." },
+  { name: "Velmique", url: "https://www.velmique.co.in/", category: "E-commerce · Brand", tags: ["E-commerce", "Branding", "Development"],
+    blurb: "An elegant brand storefront with a refined, mobile-first shopping experience." },
+  { name: "Knitwink", url: "https://www.knitwink.com/", category: "Brand Website", tags: ["Web Design", "Development"],
+    blurb: "A polished, content-driven website crafted to bring the Knitwink brand to life online." },
+  { name: "Volterra Tiles", url: "https://volterratiles.com.au/blog", category: "Content · Editorial", tags: ["Content", "SEO", "Development"],
+    blurb: "An editorial blog and content platform for a premium Australian tiles brand." },
+  { name: "Amrutkumar Govinddas LLP", url: "https://amrutkumargovinddasllp.com/", category: "Corporate", tags: ["Corporate", "Web Design"],
+    blurb: "A clean, professional corporate website for an established LLP." },
+  { name: "Aqalite", url: "https://aqalite.co.nz/", category: "Product Website", tags: ["Web Design", "Development"],
+    blurb: "A crisp product website for a New Zealand building-products brand." },
+  { name: "Nishree", url: "https://nishree.vercel.app/", category: "Brand Website", tags: ["Web Design", "Next.js"],
+    blurb: "A fast, minimal brand site deployed on Vercel with a focus on performance." },
 ];
-const testimonials = [
-  { q: "Finvera shipped our CRM in six weeks — something two agencies quoted us six months for. Absolute pros.", n: "Aisha Khan", r: "CEO, Orbital", a: "AK" },
-  { q: "The animation and polish on our SaaS dashboard genuinely moved our trial-to-paid numbers.", n: "Daniel Mercer", r: "Founder, Vaultly", a: "DM" },
-  { q: "They think like product owners, not just developers. Best engineering partner we've worked with.", n: "Sofia Rossi", r: "CPO, Quanta", a: "SR" },
-  { q: "Reliable, fast and deeply talented. Our uptime hasn't dropped once since Finvera took over infra.", n: "James Lee", r: "CTO, Prismix", a: "JL" },
-];
+
+function Case({ p, i }: { p: Project; i: number }) {
+  const display = p.url.replace(/^https?:\/\//, "");
+  return (
+    <div className={"case" + (i % 2 ? " rev" : "")}>
+      <div className="case-copy reveal">
+        <span className="case-index">Project {String(i + 1).padStart(2, "0")} · {p.category}</span>
+        <h3>{p.name}</h3>
+        <div className="case-tags">{p.tags.map((t) => <span key={t}>{t}</span>)}</div>
+        <p>{p.blurb}</p>
+        <a className="case-visit" href={p.url} target="_blank" rel="noopener noreferrer" data-cursor data-magnetic>
+          Visit live site <Arrow />
+        </a>
+      </div>
+      <div className="case-visual reveal d1">
+        <div className="stage">
+          <div className="browser">
+            <div className="bar"><i /><i /><i /><span className="url">{display}</span></div>
+            <SiteShot url={p.url} kind="desktop" alt={`${p.name} desktop screenshot`} />
+          </div>
+          <div className="phone">
+            <SiteShot url={p.url} kind="mobile" alt={`${p.name} mobile screenshot`} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Work() {
   return (
@@ -24,25 +65,16 @@ export default function Work() {
       <section className="page-hero">
         <div className="container">
           <span className="eyebrow reveal">Our work</span>
-          <h1 className="reveal d1">Products that<br /><span className="grad-word">deliver results</span></h1>
-          <p className="reveal d2">A selection of SaaS and CRM products we&apos;ve designed, built and scaled for teams around the world.</p>
+          <h1 className="reveal d1">Real products,<br /><span className="grad-word">real results</span></h1>
+          <p className="reveal d2">A selection of websites, stores and platforms we&apos;ve designed and developed for brands around the world.</p>
           <div className="crumbs reveal d3"><Link href="/">Home</Link><span className="sep">/</span><span>Work</span></div>
         </div>
       </section>
 
-      <section className="section" style={{ paddingTop: 40 }}>
+      <section className="section" style={{ paddingTop: 48 }}>
         <div className="container">
-          <div className="grid-3">
-            {projects.map((p, i) => (
-              <article className={"card reveal" + (i % 3 ? " d" + (i % 3) : "")} data-tilt data-cursor key={p.t}>
-                <div className="mock-head" style={{ marginBottom: 14 }}>
-                  <b style={{ color: "var(--blue-400)" }}>{p.tag}</b>
-                  <span className="tag">{p.m}</span>
-                </div>
-                <h3>{p.t}</h3><p>{p.d}</p>
-                <Link href="/contact" className="more" data-cursor>View case study <Arrow /></Link>
-              </article>
-            ))}
+          <div className="cases">
+            {projects.map((p, i) => <Case key={p.url} p={p} i={i} />)}
           </div>
         </div>
       </section>
@@ -50,29 +82,10 @@ export default function Work() {
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container">
           <div className="stats reveal">
-            <div className="stat"><b data-count="250" data-suffix="+">0</b><span>Projects delivered</span></div>
+            <div className="stat"><b data-count="11" data-suffix="+">0</b><span>Live projects shown</span></div>
             <div className="stat"><b data-count="99" data-suffix="%">0</b><span>Uptime guaranteed</span></div>
-            <div className="stat"><b data-count="34" data-suffix="%">0</b><span>Avg. conversion lift</span></div>
-            <div className="stat"><b data-count="18" data-suffix="+">0</b><span>Countries served</span></div>
-          </div>
-        </div>
-      </section>
-
-      <section className="section" style={{ paddingTop: 0 }}>
-        <div className="container">
-          <div className="section-head center reveal">
-            <span className="eyebrow">Client love</span>
-            <h2>What partners <span className="grad-word">say about us</span></h2>
-          </div>
-        </div>
-        <div className="marquee" style={{ ["--dur" as string]: "44s" } as React.CSSProperties}>
-          <div className="marquee-track" style={{ gap: 20 }}>
-            {[...testimonials, ...testimonials].map((t, i) => (
-              <div className="tcard" key={i}>
-                <div className="stars">★★★★★</div><p>&quot;{t.q}&quot;</p>
-                <div className="who"><span className="av">{t.a}</span><div><b>{t.n}</b><small>{t.r}</small></div></div>
-              </div>
-            ))}
+            <div className="stat"><b data-count="7" data-suffix="+">0</b><span>Industries served</span></div>
+            <div className="stat"><b data-count="100" data-suffix="%">0</b><span>Client ownership</span></div>
           </div>
         </div>
       </section>
