@@ -29,7 +29,6 @@ export default function Nav() {
             ))}
           </nav>
           <div className="nav-cta">
-            <a href="#" className="nav-login">Login</a>
             <Link href="/contact" className="btn btn-primary" data-cursor>
               Get Started <Arrow />
             </Link>
