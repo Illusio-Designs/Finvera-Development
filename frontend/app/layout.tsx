@@ -22,7 +22,12 @@ export const metadata: Metadata = {
   icons: { icon: "/favicon.svg" },
 };
 
-export const viewport: Viewport = { themeColor: "#05060b" };
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: "#05060b",
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
