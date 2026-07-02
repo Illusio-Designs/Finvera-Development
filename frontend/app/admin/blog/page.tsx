@@ -17,7 +17,7 @@ export default function AdminBlog() {
         { name: "title", label: "Title" },
         { name: "category", label: "Category", placeholder: "CRM" },
         { name: "excerpt", label: "Excerpt", type: "textarea" },
-        { name: "content", label: "Content (HTML)", type: "textarea" },
+        { name: "content", label: "Content", type: "richtext" },
         { name: "coverImage", label: "Cover image", type: "image" },
         { name: "author", label: "Author" },
         { name: "tags", label: "Tags", type: "tags" },

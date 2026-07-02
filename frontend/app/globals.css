@@ -708,7 +708,20 @@ section{position:relative;z-index:2}
 .adm-msg.ok{background:rgba(40,200,64,.12);border:1px solid rgba(40,200,64,.3);color:#8fe6a0}
 .adm-empty{padding:40px;text-align:center;color:var(--muted-2);font-size:14px}
 
+/* Rich text editor */
+.rte{border:1px solid var(--line-2);border-radius:10px;overflow:hidden;background:rgba(255,255,255,.03)}
+.rte-bar{display:flex;flex-wrap:wrap;gap:3px;padding:8px;border-bottom:1px solid var(--line);background:#0a0d18}
+.rte-bar button{min-width:30px;height:30px;padding:0 8px;border-radius:7px;color:var(--muted);font-size:13px;border:1px solid transparent}
+.rte-bar button:hover{color:#fff;background:rgba(255,255,255,.06);border-color:var(--line-2)}
+.rte-sep{width:1px;background:var(--line);margin:2px 4px}
+.rte-area{min-height:180px;max-height:400px;overflow-y:auto;padding:14px 16px;color:var(--ink);font-size:14px;line-height:1.7;outline:none}
+.rte-area:empty::before{content:attr(data-placeholder);color:var(--muted-2)}
+.rte-area.prose :where(h2){font-size:22px;margin:14px 0 8px}
+.rte-area.prose :where(h3){font-size:18px;margin:12px 0 6px}
+.rte-area.prose :where(p){margin-bottom:10px}
+
 /* Kanban board */
+.kb-card{touch-action:none}
 .kb{display:flex;gap:16px;overflow-x:auto;padding-bottom:16px;align-items:flex-start}
 .kb-col{flex:0 0 284px;width:284px;background:#0a0d18;border:1px solid var(--line);border-radius:14px;
   padding:12px;display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 210px)}

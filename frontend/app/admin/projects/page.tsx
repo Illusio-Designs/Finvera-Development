@@ -19,7 +19,7 @@ export default function AdminProjects() {
         { name: "url", label: "Live URL", placeholder: "https://…" },
         { name: "tags", label: "Tags", type: "tags", placeholder: "Web Design, Development" },
         { name: "blurb", label: "Short description", type: "textarea" },
-        { name: "content", label: "Case study (HTML, optional)", type: "textarea" },
+        { name: "content", label: "Case study", type: "richtext" },
         { name: "desktopImage", label: "Desktop screenshot", type: "image" },
         { name: "mobileImage", label: "Mobile screenshot", type: "image" },
         { name: "coverImage", label: "Cover image", type: "image" },
