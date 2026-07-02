@@ -343,6 +343,10 @@ section{position:relative;z-index:2}
 .bars .bar{flex:1;border-radius:6px 6px 3px 3px;background:var(--grad);opacity:.85;transform-origin:bottom;
   transform:scaleY(.05);transition:transform 1s var(--ease)}
 .mock.in .bars .bar{transform:scaleY(var(--h,.5))}
+.ring{position:relative;width:130px;height:130px;border-radius:50%;display:grid;place-items:center;margin:22px auto;
+  background:conic-gradient(var(--blue-400) var(--p,0deg),rgba(255,255,255,.06) 0)}
+.ring::before{content:"";position:absolute;width:96px;height:96px;border-radius:50%;background:var(--panel)}
+.ring b{position:relative;font-size:23px;font-family:var(--display);font-weight:400}
 .crm-rows{display:flex;flex-direction:column;gap:9px;margin-top:13px}
 .crm-row{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;
   background:rgba(255,255,255,.02);border:1px solid var(--line)}
