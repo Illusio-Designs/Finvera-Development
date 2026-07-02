@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Mark } from "@/components/icons";
-import { api, setToken, hasApi } from "@/lib/adminApi";
+import { api, setToken, isMock } from "@/lib/adminApi";
 
 export default function Login() {
   const router = useRouter();
@@ -31,7 +31,7 @@ export default function Login() {
         <div className="brand" style={{ fontSize: 20 }}><Mark /> Finvera</div>
         <h1>Admin sign in</h1>
         <p className="sub">Manage your site content</p>
-        {!hasApi() && <div className="adm-msg err">Set <code>NEXT_PUBLIC_API_URL</code> to connect the backend.</div>}
+        {isMock() && <div className="adm-msg" style={{ background: "rgba(91,127,212,.1)", border: "1px solid var(--line-2)", color: "var(--muted)" }}>Demo mode — sign in with any email &amp; password to explore.</div>}
         {error && <div className="adm-msg err">{error}</div>}
         <div className="adm-field">
           <label htmlFor="email">Email</label>

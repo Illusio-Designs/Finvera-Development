@@ -1,15 +1,16 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
 
-const { Project, Service, Testimonial, TeamMember, BlogPost } = require("../models");
+const { Project, Service, Testimonial, TeamMember, BlogPost, Task } = require("../models");
 const { crudController } = require("../utils/crud");
-const { requireAuth, optionalAuth } = require("../middleware/auth");
+const { requireAuth, requireRole, optionalAuth } = require("../middleware/auth");
 const { upload } = require("../middleware/upload");
 
 const authCtrl = require("../controllers/auth.controller");
 const contactCtrl = require("../controllers/contact.controller");
 const settingsCtrl = require("../controllers/settings.controller");
 const uploadCtrl = require("../controllers/upload.controller");
+const usersCtrl = require("../controllers/users.controller");
 
 const router = express.Router();
 
@@ -40,6 +41,24 @@ resource("/services", Service, { slugFrom: "title", hasStatus: true, searchable:
 resource("/testimonials", Testimonial, { hasStatus: true, searchable: ["name", "company", "quote"] });
 resource("/team", TeamMember, { hasStatus: true, searchable: ["name", "role"] });
 resource("/blog", BlogPost, { slugFrom: "title", hasStatus: true, order: [["publishedAt", "DESC"], ["createdAt", "DESC"]], searchable: ["title", "excerpt", "category"] });
+
+/* ── Kanban tasks (all endpoints require auth) ───────── */
+const taskCtrl = crudController(Task, { order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["title", "assignee", "label"] });
+const taskRouter = express.Router();
+taskRouter.get("/", requireAuth, taskCtrl.list);
+taskRouter.post("/", requireAuth, taskCtrl.create);
+taskRouter.put("/:id", requireAuth, taskCtrl.update);
+taskRouter.patch("/:id", requireAuth, taskCtrl.update);
+taskRouter.delete("/:id", requireAuth, taskCtrl.remove);
+router.use("/tasks", taskRouter);
+
+/* ── Users (admin only) ──────────────────────────────── */
+const usersRouter = express.Router();
+usersRouter.get("/", requireAuth, requireRole("admin"), usersCtrl.list);
+usersRouter.post("/", requireAuth, requireRole("admin"), usersCtrl.create);
+usersRouter.put("/:id", requireAuth, requireRole("admin"), usersCtrl.update);
+usersRouter.delete("/:id", requireAuth, requireRole("admin"), usersCtrl.remove);
+router.use("/users", usersRouter);
 
 /* ── Contact ─────────────────────────────────────────── */
 const contactLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
