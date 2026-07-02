@@ -13,6 +13,10 @@ export default function Footer() {
               Future-driven SaaS &amp; CRM development. We build software that helps
               businesses grow, scale and innovate.
             </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, margin: "0 0 18px" }}>
+              <a href="mailto:finvetasolutionsllp@gmail.com" style={{ color: "var(--muted)", fontSize: 13.5 }}>finvetasolutionsllp@gmail.com</a>
+              <a href="tel:+918490009684" style={{ color: "var(--muted)", fontSize: 13.5 }}>+91 84900 09684</a>
+            </div>
             <div className="foot-social">
               <a href="#" data-cursor aria-label="X"><XIcon /></a>
               <a href="#" data-cursor aria-label="LinkedIn"><LinkedIn /></a>
