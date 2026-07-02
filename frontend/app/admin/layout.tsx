@@ -57,10 +57,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <button className="adm-logout" onClick={logout}>Sign out</button>
       </aside>
 
+      {open && <div className="adm-scrim" onClick={() => setOpen(false)} />}
       <div className="adm-main">
-        <button className="adm-burger" onClick={() => setOpen((o) => !o)} aria-label="Menu" style={{ marginBottom: 16 }}>
-          <svg viewBox="0 0 24 24" width={18} fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 12h18M3 6h18M3 18h18" /></svg>
-        </button>
+        <div className="adm-mobbar">
+          <button className="adm-burger" onClick={() => setOpen((o) => !o)} aria-label="Menu">
+            <svg viewBox="0 0 24 24" width={18} fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 12h18M3 6h18M3 18h18" /></svg>
+          </button>
+          <Link href="/admin" className="brand" style={{ fontSize: 16 }}><Mark /> Finvera</Link>
+        </div>
         {isMock() && (
           <div className="adm-msg" style={{ marginBottom: 18, background: "rgba(91,127,212,.1)", border: "1px solid var(--line-2)", color: "var(--muted)" }}>
             <b style={{ color: "#fff" }}>Demo mode</b> — running on local mock data (saved in your browser). Set <code>NEXT_PUBLIC_API_URL</code> to connect the live backend.
