@@ -5,6 +5,8 @@ import LogoDefs from "@/components/LogoDefs";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Chrome from "@/components/Chrome";
+import Analytics from "@/components/Analytics";
+import { getSettings } from "@/lib/api";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -29,15 +31,23 @@ export const viewport: Viewport = {
   themeColor: "#05060b",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const settings = await getSettings();
+  const gtm = settings.google_tag_manager_id?.trim();
   return (
     <html lang="en" className={`${poppins.variable} ${anton.variable} ${fira.variable}`}>
       <body>
+        {gtm && (
+          <noscript>
+            <iframe src={`https://www.googletagmanager.com/ns.html?id=${gtm}`} height="0" width="0" style={{ display: "none", visibility: "hidden" }} />
+          </noscript>
+        )}
         <LogoDefs />
         <Chrome />
         <Nav />
         <main>{children}</main>
         <Footer />
+        <Analytics settings={settings} />
       </body>
     </html>
   );
