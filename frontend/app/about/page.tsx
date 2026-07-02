@@ -1,7 +1,12 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { Arrow } from "@/components/icons";
+import { getTeam, getSeo } from "@/lib/api";
 
-export const metadata = { title: "About" };
+export async function generateMetadata(): Promise<Metadata> {
+  const s = await getSeo("about");
+  return { title: s.title, description: s.description, keywords: s.keywords };
+}
 
 const values = [
   { t: "Ship fast", d: "Momentum compounds. We deliver working software every single week.", i: <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /> },
@@ -9,14 +14,9 @@ const values = [
   { t: "Craft matters", d: "Details are the product. We sweat the pixels and the milliseconds.", i: <><rect x="3" y="3" width="18" height="18" rx="4" /><path d="M9 12l2 2 4-4" /></> },
   { t: "Partner, not vendor", d: "We work as an extension of your team — transparent and hands-on.", i: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /></> },
 ];
-const team = [
-  { a: "AR", n: "Arjun Rao", r: "Founder & CEO", d: "15 years building products across fintech and B2B SaaS." },
-  { a: "MC", n: "Maya Chen", r: "Head of Design", d: "Leads product design and motion across every engagement." },
-  { a: "LK", n: "Liam Kelly", r: "VP Engineering", d: "Owns architecture, DevOps and platform reliability." },
-  { a: "NP", n: "Nadia Patel", r: "Head of Delivery", d: "Keeps squads shipping on time, every sprint." },
-];
 
-export default function About() {
+export default async function About() {
+  const team = await getTeam();
   return (
     <>
       <section className="page-hero">
@@ -72,8 +72,8 @@ export default function About() {
           </div>
           <div className="grid-4">
             {team.map((m, i) => (
-              <div className={"card team-card reveal" + (i ? " d" + i : "")} data-cursor key={m.n}>
-                <div className="ph">{m.a}</div><h4>{m.n}</h4><span>{m.r}</span><p>{m.d}</p>
+              <div className={"card team-card reveal" + (i ? " d" + i : "")} data-cursor key={m.id}>
+                <div className="ph">{m.initials}</div><h4>{m.name}</h4><span>{m.role}</span><p>{m.bio}</p>
               </div>
             ))}
           </div>
