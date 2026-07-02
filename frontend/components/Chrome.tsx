@@ -19,18 +19,23 @@ export default function Chrome() {
     const t = setTimeout(hide, reduce ? 0 : 1300);
     cleanups.push(() => clearTimeout(t));
 
-    /* Nav scroll + progress + back-to-top */
+    /* Nav scroll + progress + back-to-top (rAF-throttled, cached height) */
     const nav = $("#nav"), progress = $("#progress") as HTMLElement, toTop = $("#toTop");
-    const onScroll = () => {
+    let maxScroll = document.documentElement.scrollHeight - innerHeight;
+    let ticking = false;
+    const applyScroll = () => {
+      ticking = false;
       const y = scrollY;
       nav && nav.classList.toggle("scrolled", y > 30);
-      const h = document.documentElement.scrollHeight - innerHeight;
-      if (progress) progress.style.width = (h > 0 ? (y / h) * 100 : 0) + "%";
+      if (progress) progress.style.transform = `scaleX(${maxScroll > 0 ? Math.min(y / maxScroll, 1) : 0})`;
       toTop && toTop.classList.toggle("show", y > 700);
     };
+    const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(applyScroll); } };
+    const onResize = () => { maxScroll = document.documentElement.scrollHeight - innerHeight; };
     addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    cleanups.push(() => removeEventListener("scroll", onScroll));
+    addEventListener("resize", onResize, { passive: true });
+    applyScroll();
+    cleanups.push(() => { removeEventListener("scroll", onScroll); removeEventListener("resize", onResize); });
     const toTopClick = () => scrollTo({ top: 0, behavior: "smooth" });
     toTop && toTop.addEventListener("click", toTopClick);
 
@@ -101,13 +106,13 @@ export default function Chrome() {
       let mx = innerWidth / 2, my = innerHeight / 2, rx = mx, ry = my, raf = 0;
       const move = (e: MouseEvent) => {
         mx = e.clientX; my = e.clientY;
-        if (dot) { dot.style.left = mx + "px"; dot.style.top = my + "px"; }
-        if (spot) { spot.style.left = mx + "px"; spot.style.top = my + "px"; }
+        if (dot) dot.style.transform = `translate(${mx}px,${my}px) translate(-50%,-50%)`;
+        if (spot) spot.style.transform = `translate(${mx}px,${my}px) translate(-50%,-50%)`;
       };
-      addEventListener("mousemove", move);
+      addEventListener("mousemove", move, { passive: true });
       const loop = () => {
         rx += (mx - rx) * 0.18; ry += (my - ry) * 0.18;
-        if (ring) { ring.style.left = rx + "px"; ring.style.top = ry + "px"; }
+        if (ring) ring.style.transform = `translate(${rx}px,${ry}px) translate(-50%,-50%)`;
         raf = requestAnimationFrame(loop);
       };
       loop();
@@ -126,27 +131,42 @@ export default function Chrome() {
         btn.addEventListener("mouseleave", () => (btn.style.transform = ""));
       });
 
-      /* Card tilt + spotlight */
+      /* Card tilt + spotlight (rect cached on enter, writes batched in rAF) */
       $$(".card[data-tilt]").forEach((card) => {
+        let rect: DOMRect | null = null, frame = 0, lx = 0, ly = 0;
+        card.addEventListener("mouseenter", () => { rect = card.getBoundingClientRect(); card.style.willChange = "transform"; });
         card.addEventListener("mousemove", (e) => {
-          const ev = e as MouseEvent, r = card.getBoundingClientRect();
-          const px = (ev.clientX - r.left) / r.width, py = (ev.clientY - r.top) / r.height;
-          card.style.setProperty("--mx", px * 100 + "%");
-          card.style.setProperty("--my", py * 100 + "%");
-          card.style.transform = `translateY(-6px) perspective(900px) rotateY(${(px - 0.5) * 6}deg) rotateX(${(0.5 - py) * 6}deg)`;
+          const ev = e as MouseEvent; if (!rect) rect = card.getBoundingClientRect();
+          lx = ev.clientX; ly = ev.clientY;
+          if (!frame) frame = requestAnimationFrame(() => {
+            frame = 0; const r = rect!;
+            const px = (lx - r.left) / r.width, py = (ly - r.top) / r.height;
+            card.style.setProperty("--mx", px * 100 + "%");
+            card.style.setProperty("--my", py * 100 + "%");
+            card.style.transform = `translateY(-6px) perspective(900px) rotateY(${(px - 0.5) * 6}deg) rotateX(${(0.5 - py) * 6}deg)`;
+          });
         });
-        card.addEventListener("mouseleave", () => (card.style.transform = ""));
+        card.addEventListener("mouseleave", () => {
+          rect = null; if (frame) { cancelAnimationFrame(frame); frame = 0; }
+          card.style.transform = ""; card.style.willChange = "";
+        });
       });
 
-      /* Hero code-card parallax */
+      /* Hero code-card parallax (rect cached, rAF-batched) */
       const tilt = $("#tiltCard") as HTMLElement, hero = $("#home");
       if (tilt && hero) {
+        let hr: DOMRect | null = null, hf = 0, hx = 0, hy = 0;
+        hero.addEventListener("mouseenter", () => { hr = hero.getBoundingClientRect(); });
         hero.addEventListener("mousemove", (e) => {
-          const ev = e as MouseEvent, r = hero.getBoundingClientRect();
-          const x = (ev.clientX - r.left) / r.width - 0.5, y = (ev.clientY - r.top) / r.height - 0.5;
-          tilt.style.transform = `perspective(1000px) rotateY(${x * 8}deg) rotateX(${-y * 8}deg)`;
+          const ev = e as MouseEvent; if (!hr) hr = hero.getBoundingClientRect();
+          hx = ev.clientX; hy = ev.clientY;
+          if (!hf) hf = requestAnimationFrame(() => {
+            hf = 0; const r = hr!;
+            const x = (hx - r.left) / r.width - 0.5, y = (hy - r.top) / r.height - 0.5;
+            tilt.style.transform = `perspective(1000px) rotateY(${x * 8}deg) rotateX(${-y * 8}deg)`;
+          });
         });
-        hero.addEventListener("mouseleave", () => (tilt.style.transform = ""));
+        hero.addEventListener("mouseleave", () => { hr = null; if (hf) { cancelAnimationFrame(hf); hf = 0; } tilt.style.transform = ""; });
       }
     }
 
