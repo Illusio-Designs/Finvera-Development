@@ -83,7 +83,7 @@ export const settings: Settings = {
   site_tagline: "Future-Driven SaaS & CRM Development",
   contact_email: "finvetasolutionsllp@gmail.com",
   contact_phone: "+91 84900 09684",
-  contact_address: "India",
+  contact_address: "B-603, 6th Floor, Darshan Shrusti Apartment, Nanavati Chowk, Rajkot",
   social_x: "#", social_linkedin: "#", social_github: "#",
   google_analytics_id: "", google_tag_manager_id: "", facebook_pixel_id: "", google_site_verification: "",
 };
