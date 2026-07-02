@@ -14,6 +14,9 @@ export default function Kanban() {
   const [editing, setEditing] = useState<Partial<Task> | null>(null);
   const [overCol, setOverCol] = useState<string | null>(null);
   const dragId = useRef<number | null>(null);
+  const overColRef = useRef<string | null>(null);
+  const hoverIdRef = useRef<number | null>(null);
+  const didDrag = useRef(false);
 
   async function load() {
     setLoading(true);
@@ -98,6 +101,7 @@ export default function Kanban() {
           {cols.map((c) => (
             <div
               key={c.id}
+              data-col={c.id}
               className={"kb-col" + (overCol === c.id ? " over" : "")}
               onDragOver={(e) => { e.preventDefault(); setOverCol(c.id); }}
               onDragLeave={() => setOverCol((o) => (o === c.id ? null : o))}
@@ -120,13 +124,31 @@ export default function Kanban() {
                 {inCol(c.id).map((t) => (
                   <div
                     key={t.id}
+                    data-id={t.id}
                     className="kb-card"
                     draggable
                     onDragStart={(e) => { dragId.current = t.id; (e.currentTarget as HTMLElement).classList.add("dragging"); }}
                     onDragEnd={(e) => (e.currentTarget as HTMLElement).classList.remove("dragging")}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={(e) => { e.stopPropagation(); drop(c.id, t.id); }}
-                    onClick={() => setEditing({ ...t })}
+                    onTouchStart={(e) => { dragId.current = t.id; didDrag.current = false; overColRef.current = c.id; (e.currentTarget as HTMLElement).classList.add("dragging"); }}
+                    onTouchMove={(e) => {
+                      if (dragId.current == null) return;
+                      didDrag.current = true;
+                      const p = e.touches[0];
+                      const el = document.elementFromPoint(p.clientX, p.clientY) as HTMLElement | null;
+                      const col = el?.closest(".kb-col")?.getAttribute("data-col") || null;
+                      overColRef.current = col; setOverCol(col);
+                      const card = el?.closest(".kb-card") as HTMLElement | null;
+                      hoverIdRef.current = card && card !== e.currentTarget ? Number(card.getAttribute("data-id")) : null;
+                    }}
+                    onTouchEnd={(e) => {
+                      (e.currentTarget as HTMLElement).classList.remove("dragging");
+                      if (dragId.current != null && didDrag.current && overColRef.current) drop(overColRef.current, hoverIdRef.current);
+                      else dragId.current = null;
+                      overColRef.current = null; hoverIdRef.current = null; setOverCol(null);
+                    }}
+                    onClick={() => { if (didDrag.current) { didDrag.current = false; return; } setEditing({ ...t }); }}
                   >
                     {t.label && <span className="lbl">{t.label}</span>}
                     <h4>{t.title}</h4>

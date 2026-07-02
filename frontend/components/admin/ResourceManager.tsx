@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/adminApi";
+import RichText from "./RichText";
 
 export type Field = {
   name: string;
   label: string;
-  type?: "text" | "textarea" | "number" | "select" | "boolean" | "tags" | "image" | "date";
+  type?: "text" | "textarea" | "number" | "select" | "boolean" | "tags" | "image" | "date" | "richtext";
   options?: string[];
   placeholder?: string;
 };
@@ -160,7 +161,9 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
             {fields.map((f) => (
               <div className="adm-field" key={f.name}>
                 <label htmlFor={f.name}>{f.label}</label>
-                {f.type === "textarea" ? (
+                {f.type === "richtext" ? (
+                  <RichText key={String(editing.id ?? "new") + f.name} value={editing[f.name] ?? ""} onChange={(v) => setField(f.name, v)} />
+                ) : f.type === "textarea" ? (
                   <textarea id={f.name} value={editing[f.name] ?? ""} placeholder={f.placeholder} onChange={(e) => setField(f.name, e.target.value)} />
                 ) : f.type === "select" ? (
                   <select id={f.name} value={editing[f.name] ?? ""} onChange={(e) => setField(f.name, e.target.value)}>
