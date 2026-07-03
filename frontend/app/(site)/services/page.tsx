@@ -17,9 +17,9 @@ export default async function Services() {
     <>
       <section className="page-hero">
         <div className="container">
-          <span className="eyebrow reveal">Services</span>
-          <h1 className="reveal d1">Everything you need<br />to <span className="grad-word">build &amp; scale</span></h1>
-          <p className="reveal d2">One senior team across design, engineering and DevOps — so your product ships faster and stays reliable as you grow.</p>
+          <span className="eyebrow reveal">Our Services</span>
+          <h1 className="reveal d1">SaaS &amp; CRM development,<br /><span className="grad-word">end to end</span></h1>
+          <p className="reveal d2">A full-service SaaS &amp; CRM development agency — one senior team across design, engineering and DevOps, so your product ships faster and stays reliable as you grow.</p>
           <div className="crumbs reveal d3"><Link href="/">Home</Link><span className="sep">/</span><span>Services</span></div>
         </div>
       </section>

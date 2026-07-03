@@ -50,7 +50,7 @@ export default async function Work() {
         <div className="container">
           <span className="eyebrow reveal">Our work</span>
           <h1 className="reveal d1">Selected <span className="grad-word">projects</span></h1>
-          <p className="reveal d2">Websites, stores and platforms we&apos;ve designed and developed for brands around the world.</p>
+          <p className="reveal d2">SaaS platforms, CRM systems and product websites our agency has designed and developed for brands around the world.</p>
           <div className="crumbs reveal d3"><Link href="/">Home</Link><span className="sep">/</span><span>Work</span></div>
         </div>
       </section>

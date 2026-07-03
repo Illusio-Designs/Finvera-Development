@@ -14,11 +14,11 @@ const sora = Sora({ subsets: ["latin"], weight: ["500", "600", "700", "800"], va
 
 export const metadata: Metadata = {
   title: {
-    default: "Finvera — Future-Driven SaaS & CRM Development",
+    default: "Finvera — SaaS & CRM Development Agency",
     template: "%s — Finvera",
   },
   description:
-    "Finvera builds high-quality SaaS platforms and CRM systems that help businesses grow, scale, and innovate in a fast-changing world.",
+    "Finvera is a SaaS & CRM development agency. We design, build and scale high-quality SaaS platforms and CRM systems that help businesses grow, scale and innovate.",
   icons: { icon: "/favicon.svg" },
 };
 
@@ -26,7 +26,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
-  themeColor: "#05060b",
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

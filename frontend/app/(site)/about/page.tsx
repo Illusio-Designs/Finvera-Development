@@ -21,9 +21,9 @@ export default async function About() {
     <>
       <section className="page-hero">
         <div className="container">
-          <span className="eyebrow reveal">About Finvera</span>
-          <h1 className="reveal d1">We build software<br />that <span className="grad-word">moves business</span></h1>
-          <p className="reveal d2">Finvera is a product engineering studio. Since day one, our mission has been simple: help ambitious teams ship SaaS and CRM products that customers genuinely love.</p>
+          <span className="eyebrow reveal">SaaS &amp; CRM Development Agency</span>
+          <h1 className="reveal d1">We build SaaS &amp; CRM<br />that <span className="grad-word">moves business</span></h1>
+          <p className="reveal d2">Finvera is a SaaS &amp; CRM development agency. Since day one our mission has been simple: help ambitious teams design, build and scale SaaS platforms and CRM systems their customers genuinely love.</p>
           <div className="crumbs reveal d3"><Link href="/">Home</Link><span className="sep">/</span><span>About</span></div>
         </div>
       </section>

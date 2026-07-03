@@ -22,8 +22,8 @@ export default async function Contact() {
       <section className="page-hero">
         <div className="container">
           <span className="eyebrow reveal">Contact</span>
-          <h1 className="reveal d1">Let&apos;s build<br /><span className="grad-word">something great</span></h1>
-          <p className="reveal d2">Tell us about your product and goals. We&apos;ll get back to you within one business day.</p>
+          <h1 className="reveal d1">Let&apos;s build your<br /><span className="grad-word">SaaS or CRM</span></h1>
+          <p className="reveal d2">Tell us about your product and goals. As a SaaS &amp; CRM development agency, we&apos;ll get back to you within one business day.</p>
           <div className="crumbs reveal d3"><Link href="/">Home</Link><span className="sep">/</span><span>Contact</span></div>
         </div>
       </section>
