@@ -28,7 +28,7 @@ On first boot the server:
 3. seeds an **admin user** and sample content (the 11 real projects, services,
    testimonials, team, a blog post, SEO defaults and settings).
 
-**Default admin** (change in `.env`): `admin@finvera.solutions` / `changeme123`.
+**Default admin** (seeded; override in `.env`): `finverasolutionsllp@gmail.com` / `Rishi@1995`.
 
 > In production set `DB_SYNC=false` after the first run and manage schema
 > changes deliberately.
