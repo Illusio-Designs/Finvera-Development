@@ -370,27 +370,20 @@ section{position:relative;z-index:2}
    Process steps
    ========================================================= */
 .steps{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-top:16px}
-/* Colourful folder-tab process cards */
-.step{position:relative;text-align:left;padding:24px 22px 22px;border-radius:20px;overflow:hidden;
-  background:var(--step-bg,#eef3fc);border:1px solid var(--step-line,var(--line-2));
+/* Minimal numbered process cards (big faint number, icon, title, text) */
+.step{position:relative;text-align:left;padding:28px 24px;border-radius:20px;
+  background:var(--panel);border:1px solid var(--line);
   box-shadow:var(--shadow-sm);transition:transform .4s var(--ease),box-shadow .4s var(--ease)}
-.step::before{content:"";position:absolute;top:0;left:0;width:46%;height:5px;border-radius:0 0 8px 0;
-  background:var(--step-ink,var(--blue-600))}
 .step:hover{transform:translateY(-6px);box-shadow:var(--shadow)}
-.step-tag{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--step-ink,var(--blue-600));
-  opacity:.8;margin-bottom:14px}
-.step-ic{width:52px;height:52px;border-radius:15px;display:grid;place-items:center;margin-bottom:16px;
-  background:#fff;color:var(--step-ink,var(--blue-600));box-shadow:var(--shadow-sm);transition:.4s}
-.step-ic svg{width:24px;height:24px}
-.step:hover .step-ic{transform:rotate(-6deg) scale(1.06)}
-.step h4{font-size:17px;margin-bottom:7px;color:var(--step-ink,var(--ink))}
+.step-num{display:block;font-family:var(--display);font-weight:800;font-size:56px;line-height:1;
+  color:rgba(16,30,60,.08);letter-spacing:-.03em;margin-bottom:22px;transition:color .4s}
+.step:hover .step-num{color:rgba(62,96,171,.16)}
+.step-ic{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;margin-bottom:15px;
+  background:var(--bg-2);color:var(--blue-600);transition:.4s}
+.step-ic svg{width:22px;height:22px}
+.step:hover .step-ic{background:var(--grad);color:#fff}
+.step h4{font-size:17px;margin-bottom:8px;color:var(--ink)}
 .step p{color:var(--muted);font-size:13px;line-height:1.6}
-/* Per-step colour themes (Discovery/Design/Build/Scale) */
-/* Brand-blue only — subtle shade variation per step */
-.step.c1{--step-bg:#eff4fd;--step-ink:#5b7fd4;--step-line:#dbe7fa}
-.step.c2{--step-bg:#eaf1fc;--step-ink:#3e60ab;--step-line:#d4e2f8}
-.step.c3{--step-bg:#e7effb;--step-ink:#3455a0;--step-line:#cfdef6}
-.step.c4{--step-bg:#e4edfa;--step-ink:#243a75;--step-line:#cbdbf4}
 
 /* =========================================================
    Values / Team / About
@@ -1167,32 +1160,26 @@ section{position:relative;z-index:2}
 /* =========================================================
    Kanban card — Layers/Trello-style (priority pill, progress, footer)
    ========================================================= */
-.kb-card{padding:13px 14px;border-radius:13px;box-shadow:var(--shadow-sm)}
-.kb-card::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:var(--pc,var(--line-2));z-index:1}
-.kb-card.p-high{--pc:#ef4444}
-.kb-card.p-medium{--pc:#f59e0b}
-.kb-card.p-low{--pc:#22c55e}
-.kb-card .kb-cover,.kb-card .kb-cover-img{margin-left:-14px;margin-right:-14px}
-.kb-card .kb-cover-img{margin-top:-13px}
-.kb-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:3px 0 9px}
-.kb-prio-pill{display:inline-flex;align-items:center;gap:6px;font-size:9px;font-weight:700;text-transform:uppercase;
-  letter-spacing:.05em;padding:3px 8px;border-radius:6px}
-.kb-prio-pill i{width:6px;height:6px;border-radius:50%;flex:none}
-.kb-prio-pill.high{background:rgba(239,68,68,.12);color:#dc2626}.kb-prio-pill.high i{background:#dc2626}
-.kb-prio-pill.medium{background:rgba(245,158,11,.15);color:#b45309}.kb-prio-pill.medium i{background:#f59e0b}
-.kb-prio-pill.low{background:rgba(34,197,94,.15);color:#15803d}.kb-prio-pill.low i{background:#22c55e}
-.kb-card-top .kb-labels{margin:0}
-.kb-cat{display:block;font-size:11px;color:var(--muted-2);font-weight:500;margin-bottom:2px}
-.kb-card h4{font-size:13.5px;font-weight:600;line-height:1.35;margin:2px 0 6px}
-.kb-desc{font-size:11.5px;color:var(--muted);line-height:1.5;margin-bottom:10px;
+.kb-card{padding:0;border-radius:16px;box-shadow:var(--shadow-sm);overflow:hidden;background:#fff}
+.kb-banner{text-align:center;padding:7px;font-size:10.5px;font-weight:700;letter-spacing:.07em;color:#fff;text-transform:uppercase}
+.kb-banner.high{background:linear-gradient(100deg,#ff7a7a,#ee4b4b)}
+.kb-banner.medium{background:linear-gradient(100deg,#ffb057,#ff8a3d)}
+.kb-banner.low{background:linear-gradient(100deg,#4fd08a,#25b06a)}
+.kb-inner{margin:11px;border:1.5px dashed var(--line-2);border-radius:12px;padding:13px}
+.kb-inner .kb-cover{height:8px;border-radius:5px;margin:-2px 0 9px}
+.kb-inner .kb-cover-img{height:64px;border-radius:8px;margin:-2px 0 9px;background-size:cover;background-position:center}
+.kb-inner h4{font-size:15px;font-weight:700;line-height:1.3;margin:0 0 6px}
+.kb-inner h4.done{text-decoration:line-through;color:var(--muted-2)}
+.kb-desc{font-size:12px;color:var(--muted);line-height:1.5;margin:0 0 13px;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.kb-prog{margin-bottom:11px}
-.kb-prog-top{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted-2);margin-bottom:5px}
-.kb-prog-top b{color:var(--ink)}
-.kb-prog-bar{height:5px;border-radius:999px;background:rgba(16,30,60,.08);overflow:hidden}
-.kb-prog-bar span{display:block;height:100%;border-radius:999px;background:var(--grad)}
-.kb-card-foot{display:flex;align-items:center;gap:10px;border-top:1px solid var(--line);padding-top:9px}
-.kb-stat{font-size:11px;color:var(--muted-2);font-weight:600}
+.kb-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.kb-row .kb-avstack .kb-av{margin-left:-9px}
+.kb-status{font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:8px;background:var(--bg-2);color:var(--muted);white-space:nowrap}
+.kb-foot{display:flex;align-items:center;gap:15px;padding:0 15px 13px;color:var(--muted-2);font-size:12.5px;font-weight:600}
+.kb-fs{display:inline-flex;align-items:center;gap:5px}
+.kb-fs svg{width:15px;height:15px}
+.kb-fdate{margin-left:auto;font-weight:500;font-size:12px;color:var(--muted-2)}
+.kb-fdate.over{color:#dc2626;font-weight:600}
 
 /* =========================================================
    Dashboard overview (OripioFin-style)
