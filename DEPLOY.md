@@ -30,13 +30,19 @@ Also set **Settings → Build & Deployment → Root Directory = `frontend`**.
 Repo → **Settings → Secrets and variables → Actions → Secrets** (New repository secret).
 The workflow uses a `production` environment — add them there, or as repo secrets.
 
-| Secret           | Example (dummy) value            | Notes |
-|------------------|----------------------------------|-------|
-| `FTP_SERVER`     | `ftp.finvera.solutions`          | FTP host only — no `ftp://`, no path. |
-| `FTP_USER`       | `deploy@finvera.solutions`       | FTP username (often a cPanel FTP account). |
-| `FTP_PASS`       | `S0me-Strong-FTP-Pass!`          | FTP password. |
-| `FTP_REMOTE_DIR` | `/Backendjs/`                    | Remote app folder (your cPanel Node app path). |
-| `BACKEND_ENV`    | *(the multi-line block below)*   | Full backend `.env`; uploaded to `<FTP_REMOTE_DIR>/.env` on every deploy. |
+The FTP host / user / remote-dir are **already baked into the workflow** (values below),
+so you only strictly need to add **`FTP_PASS`** and **`BACKEND_ENV`**.
+
+| Secret           | Required? | Value                            | Notes |
+|------------------|-----------|----------------------------------|-------|
+| `FTP_PASS`       | **Yes**   | *your FTP password*              | Password for user `informative`. |
+| `BACKEND_ENV`    | Recommended | *(the multi-line block below)* | Full backend `.env`; uploaded to the app dir on every deploy. |
+| `FTP_SERVER`     | No (default) | `ftp.illusiodesigns.agency`   | Override only if the host changes. |
+| `FTP_USER`       | No (default) | `informative`                 | Override only if the user changes. |
+| `FTP_REMOTE_DIR` | No (default) | `api.finvera.solutions/`      | Override only if the app folder changes. |
+
+Baked-in FTP settings: **host** `ftp.illusiodesigns.agency`, **user** `informative`,
+**protocol** `ftps` (explicit TLS), **port** `21`, **dir** `api.finvera.solutions/`.
 
 ### `BACKEND_ENV` secret contents (dummy)
 
@@ -74,9 +80,9 @@ MAX_UPLOAD_MB=8
 
 ## 3) First-time backend setup on cPanel
 
-1. In cPanel → **Setup Node.js App**: create an app, **Application root = `Backendjs`**,
-   **Application startup file = `server.js`**, Node 18+.
-2. Add the 5 GitHub secrets above.
+1. In cPanel → **Setup Node.js App**: create an app, **Application root = `api.finvera.solutions`**
+   (same folder the workflow uploads to), **Application startup file = `server.js`**, Node 18+.
+2. Add the `FTP_PASS` (+ `BACKEND_ENV`) GitHub secrets.
 3. Create the `backend` branch from `main` and push (or run the workflow manually
    via **Actions → Backend CI/CD → Run workflow**). It uploads the code + `.env`.
 4. In the cPanel Node app, click **Run NPM Install** (node_modules are not uploaded),
