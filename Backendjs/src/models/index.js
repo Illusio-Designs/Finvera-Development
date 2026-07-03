@@ -8,6 +8,8 @@ const User = sequelize.define("User", {
   password: { type: DataTypes.STRING, allowNull: false },
   role: { type: DataTypes.ENUM("admin", "editor"), defaultValue: "admin" },
   active: { type: DataTypes.BOOLEAN, defaultValue: true },
+  avatar: { type: DataTypes.STRING },   // profile image URL
+  title: { type: DataTypes.STRING },    // job title / role label
 }, { tableName: "users" });
 
 /* ── Project / Work ──────────────────────────────────── */
@@ -92,17 +94,44 @@ const ContactSubmission = sequelize.define("ContactSubmission", {
   isRead: { type: DataTypes.BOOLEAN, defaultValue: false },
 }, { tableName: "contact_submissions" });
 
-/* ── Kanban task (project board) ─────────────────────── */
+/* ── Kanban board (Trello-style) ─────────────────────── */
+const Board = sequelize.define("Board", {
+  name: { type: DataTypes.STRING, allowNull: false },
+  description: { type: DataTypes.TEXT },
+  color: { type: DataTypes.STRING, defaultValue: "#3e60ab" },
+  // columns live on the board: [{ id, title }]
+  columns: { type: DataTypes.JSON, defaultValue: [] },
+  // reusable label palette for this board: [{ id, name, color }]
+  labels: { type: DataTypes.JSON, defaultValue: [] },
+  position: { type: DataTypes.INTEGER, defaultValue: 0 },
+}, { tableName: "boards" });
+
+/* ── Kanban task (card) ──────────────────────────────── */
 const Task = sequelize.define("Task", {
   title: { type: DataTypes.STRING, allowNull: false },
   description: { type: DataTypes.TEXT },
+  boardId: { type: DataTypes.INTEGER },
   column: { type: DataTypes.STRING, defaultValue: "backlog" }, // column id
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
-  assignee: { type: DataTypes.STRING },
   priority: { type: DataTypes.ENUM("low", "medium", "high"), defaultValue: "medium" },
-  label: { type: DataTypes.STRING },
   dueDate: { type: DataTypes.DATEONLY },
+  completed: { type: DataTypes.BOOLEAN, defaultValue: false },
+  cover: { type: DataTypes.STRING },                          // hex color or image URL
+  memberIds: { type: DataTypes.JSON, defaultValue: [] },      // assigned user ids
+  labelIds: { type: DataTypes.JSON, defaultValue: [] },       // board label ids on this card
+  checklist: { type: DataTypes.JSON, defaultValue: [] },      // [{ id, text, done }]
+  attachments: { type: DataTypes.JSON, defaultValue: [] },    // [{ id, url, name }]
+  // legacy free-text fields kept for backward compatibility
+  assignee: { type: DataTypes.STRING },
+  label: { type: DataTypes.STRING },
 }, { tableName: "tasks" });
+
+/* ── Card comment ────────────────────────────────────── */
+const Comment = sequelize.define("Comment", {
+  taskId: { type: DataTypes.INTEGER, allowNull: false },
+  userId: { type: DataTypes.INTEGER },
+  body: { type: DataTypes.TEXT, allowNull: false },
+}, { tableName: "task_comments" });
 
 /* ── Per-page SEO ────────────────────────────────────── */
 const Seo = sequelize.define("Seo", {
@@ -127,8 +156,15 @@ const Setting = sequelize.define("Setting", {
 BlogPost.belongsTo(User, { as: "editor", foreignKey: { name: "userId", allowNull: true } });
 User.hasMany(BlogPost, { as: "posts", foreignKey: "userId" });
 
+/* ── Kanban associations ─────────────────────────────── */
+Board.hasMany(Task, { as: "tasks", foreignKey: "boardId", onDelete: "CASCADE" });
+Task.belongsTo(Board, { foreignKey: "boardId" });
+Task.hasMany(Comment, { as: "comments", foreignKey: "taskId", onDelete: "CASCADE" });
+Comment.belongsTo(Task, { foreignKey: "taskId" });
+Comment.belongsTo(User, { as: "author", foreignKey: "userId" });
+
 module.exports = {
   sequelize,
   User, Project, Service, Testimonial, TeamMember,
-  BlogPost, ContactSubmission, Seo, Setting, Task,
+  BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment,
 };

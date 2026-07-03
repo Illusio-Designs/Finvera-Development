@@ -7,14 +7,18 @@ export default function AdminUsers() {
       title="Users"
       subtitle="Admin accounts that can sign in and manage content."
       columns={[
+        { name: "avatar", label: "", type: "image" },
         { name: "name", label: "Name" },
         { name: "email", label: "Email" },
+        { name: "title", label: "Title" },
         { name: "role", label: "Role" },
       ]}
       defaults={{ role: "admin", active: true }}
       fields={[
+        { name: "avatar", label: "Avatar", type: "image" },
         { name: "name", label: "Full name" },
         { name: "email", label: "Email", type: "text", placeholder: "name@finvera.solutions" },
+        { name: "title", label: "Job title", type: "text", placeholder: "e.g. Head of Design" },
         { name: "role", label: "Role", type: "select", options: ["admin", "editor"] },
         { name: "password", label: "Password", type: "text", placeholder: "Set / change password" },
         { name: "active", label: "Active", type: "boolean", placeholder: "Account can sign in" },
