@@ -37,7 +37,13 @@ const normTask = (t: Task): Task => ({
   attachments: toArr<Attachment>(t.attachments),
 });
 const COVER_SWATCHES = ["", "#3e60ab", "#8b5cf6", "#22c55e", "#f59e0b", "#ef4444", "#0ea5e9", "#ec4899"];
-const PRIO_LABEL: Record<string, string> = { high: "Urgent priority", medium: "Medium priority", low: "Low priority" };
+const PRIO_LABEL: Record<string, string> = { high: "Urgent", medium: "Moderate priority", low: "Low priority" };
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+function fmtDue(d: string) {
+  const [y, m, day] = String(d).split("-").map(Number);
+  if (!m || !day) return String(d);
+  return `${MONTHS[m - 1]}, ${day}`;
+}
 
 function initials(name = "") {
   return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
@@ -293,7 +299,7 @@ export default function Kanban() {
                   const coverImg = t.cover && !t.cover.startsWith("#") ? t.cover : null;
                   return (
                     <div key={t.id} data-id={t.id}
-                      className={"kb-card p-" + (t.priority || "medium") + (justDone === t.id ? " done-pop" : "") + (t.completed ? " is-done" : "")}
+                      className={"kb-card" + (justDone === t.id ? " done-pop" : "") + (t.completed ? " is-done" : "")}
                       draggable
                       onDragStart={(e) => { dragId.current = t.id; (e.currentTarget as HTMLElement).classList.add("dragging"); }}
                       onDragEnd={(e) => (e.currentTarget as HTMLElement).classList.remove("dragging")}
@@ -317,37 +323,34 @@ export default function Kanban() {
                         overColRef.current = null; hoverIdRef.current = null; setOverCol(null);
                       }}
                       onClick={() => { if (didDrag.current) { didDrag.current = false; return; } openCard(t); }}>
-                      {coverImg && <div className="kb-cover-img" style={{ backgroundImage: `url(${coverImg})` }} />}
-                      {cover && <div className="kb-cover" style={{ background: cover }} />}
-                      <div className="kb-card-top">
-                        <span className={"kb-prio-pill " + (t.priority || "medium")}>
-                          <i />{PRIO_LABEL[t.priority || "medium"]}
-                        </span>
-                        {!!cardLabels.length && (
-                          <span className="kb-labels">
-                            {cardLabels.slice(0, 3).map((l) => <span key={l.id} className="kb-lbl" style={{ background: l.color }} title={l.name} />)}
+                      <div className={"kb-banner " + (t.priority || "medium")}>{PRIO_LABEL[t.priority || "medium"]}</div>
+                      <div className="kb-inner">
+                        {coverImg && <div className="kb-cover-img" style={{ backgroundImage: `url(${coverImg})` }} />}
+                        {cover && <div className="kb-cover" style={{ background: cover }} />}
+                        <h4 className={t.completed ? "done" : ""}>{t.completed && <span className="kb-check">✓</span>}{t.title}</h4>
+                        {t.description && <p className="kb-desc">{t.description}</p>}
+                        <div className="kb-row">
+                          <span className="kb-avstack">
+                            {members.slice(0, 4).map((m) => <Avatar key={m.id} user={m} size={30} />)}
+                            {members.length > 4 && <span className="kb-av kb-av-i" style={{ width: 30, height: 30, fontSize: 11 }}>+{members.length - 4}</span>}
                           </span>
-                        )}
-                      </div>
-                      {(cardLabels[0]?.name || t.label) && <span className="kb-cat">{cardLabels[0]?.name || t.label}</span>}
-                      <h4 className={t.completed ? "done" : ""}>{t.completed && <span className="kb-check">✓</span>}{t.title}</h4>
-                      {t.description && <p className="kb-desc">{t.description}</p>}
-                      {ck && (
-                        <div className="kb-prog">
-                          <div className="kb-prog-top"><span>Progress</span><b>{Math.round((ck.done / ck.total) * 100)}%</b></div>
-                          <div className="kb-prog-bar"><span style={{ width: `${Math.round((ck.done / ck.total) * 100)}%` }} /></div>
+                          {(cardLabels[0]?.name || t.label) && <span className="kb-status">{cardLabels[0]?.name || t.label}</span>}
                         </div>
-                      )}
-                      <div className="kb-card-foot">
-                        <span className="kb-stat" title="Checklist">☑ {ck ? `${ck.done}/${ck.total}` : 0}</span>
-                        <span className="kb-stat" title="Attachments">🔗 {(t.attachments || []).length}</span>
-                        {overdue(t) && <span className="kb-due over">⏰ {t.dueDate}</span>}
-                        {t.dueDate && !overdue(t) && <span className="kb-due">📅 {String(t.dueDate).slice(5)}</span>}
-                        <span style={{ flex: 1 }} />
-                        <span className="kb-avstack">
-                          {members.slice(0, 3).map((m) => <Avatar key={m.id} user={m} size={22} />)}
-                          {members.length > 3 && <span className="kb-av kb-av-i" style={{ width: 22, height: 22, fontSize: 9 }}>+{members.length - 3}</span>}
+                      </div>
+                      <div className="kb-foot">
+                        <span className="kb-fs" title="Checklist">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" /></svg>
+                          {ck ? ck.total : 0}
                         </span>
+                        <span className="kb-fs" title="Attachments">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg>
+                          {(t.attachments || []).length}
+                        </span>
+                        <span className="kb-fs" title="Members">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M4 5h16v14H4zM4 9h16" /></svg>
+                          {members.length}
+                        </span>
+                        {t.dueDate && <span className={"kb-fdate" + (overdue(t) ? " over" : "")}>{fmtDue(t.dueDate)}</span>}
                       </div>
                     </div>
                   );
