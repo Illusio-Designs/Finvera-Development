@@ -921,13 +921,14 @@ section{position:relative;z-index:2}
   .nav{background:rgba(8,11,20,.92);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
   .nav.scrolled{background:rgba(8,11,20,.97)}
   .nav-inner,.nav.scrolled .nav-inner{margin-top:0;padding:9px 0;background:transparent;border-color:transparent;box-shadow:none;backdrop-filter:none}
-  .nav.open .nav-links{display:flex;position:absolute;top:60px;left:5%;right:5%;flex-direction:column;
-    background:rgba(9,12,24,.98);border:1px solid var(--line-2);border-radius:18px;padding:12px;gap:3px;backdrop-filter:blur(18px)}
-  .nav.open .nav-links a{width:100%}
+  .nav.open .nav-links{display:flex;position:absolute;top:64px;left:5%;right:5%;flex-direction:column;
+    background:rgba(9,12,24,.98);border:1px solid var(--line-2);border-radius:18px;padding:10px;gap:2px;backdrop-filter:blur(18px)}
+  .nav.open .nav-links a{width:100%;padding:11px 14px;font-size:15px}
   /* Get Started button inside the mobile dropdown */
   .nav.open .nav-menu-cta{display:flex;align-items:center;justify-content:center;gap:8px;
-    margin-top:8px;padding:13px;border-radius:12px;background:#fff;color:#05060b;font-weight:600;
+    margin-top:6px;padding:13px;border-radius:12px;background:#fff;color:#05060b;font-weight:600;
     font-size:15px}
+  .nav.open .nav-menu-cta svg{width:18px;height:18px;flex:none}
   .nav.open .nav-menu-cta::after{display:none}
   .grid-3,.grid-2,.grid-4,.stats,.foot-grid,.steps{grid-template-columns:1fr}
   .hero{padding-top:118px}
