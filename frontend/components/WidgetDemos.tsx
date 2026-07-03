@@ -81,3 +81,90 @@ export function SuccessCheckDemo() {
     </div>
   );
 }
+
+/* Data table — search + sortable columns + pagination + serial numbers,
+   the same building blocks used across the admin manager. */
+type Row = { name: string; category: string; status: "published" | "draft" };
+const TABLE_ROWS: Row[] = [
+  { name: "Antimatter AI", category: "AI · SaaS", status: "published" },
+  { name: "Finvera Solutions", category: "Fintech · SaaS", status: "published" },
+  { name: "Stallion Eyewear", category: "B2B · E-commerce", status: "published" },
+  { name: "CrossCoin", category: "Fintech", status: "draft" },
+  { name: "Nanak Finserv", category: "Financial Services", status: "published" },
+  { name: "Velmique", category: "E-commerce · Brand", status: "published" },
+  { name: "Knitwink", category: "Brand Website", status: "draft" },
+  { name: "Volterra Tiles", category: "Content · Editorial", status: "published" },
+  { name: "Aqalite", category: "Product Website", status: "published" },
+  { name: "Nishree", category: "Brand Website", status: "draft" },
+  { name: "Amrutkumar Govinddas", category: "Corporate", status: "published" },
+];
+const PER_PAGE = 5;
+
+export function TableDemo() {
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<{ key: keyof Row; dir: 1 | -1 }>({ key: "name", dir: 1 });
+  const [page, setPage] = useState(0);
+
+  const toggleSort = (key: keyof Row) =>
+    setSort((s) => ({ key, dir: s.key === key ? (s.dir === 1 ? -1 : 1) : 1 }));
+
+  const filtered = TABLE_ROWS.filter((r) =>
+    (r.name + r.category).toLowerCase().includes(query.toLowerCase())
+  ).sort((a, b) => String(a[sort.key]).localeCompare(String(b[sort.key])) * sort.dir);
+
+  const pages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  const cur = Math.min(page, pages - 1);
+  const paged = filtered.slice(cur * PER_PAGE, cur * PER_PAGE + PER_PAGE);
+  const arrow = (key: keyof Row) => (sort.key === key ? <span className="ar">{sort.dir === 1 ? "▲" : "▼"}</span> : null);
+
+  return (
+    <div style={{ width: "100%" }}>
+      <div className="adm-search" style={{ marginBottom: 12, maxWidth: 260 }}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.3-4.3" /></svg>
+        <input value={query} onChange={(e) => { setQuery(e.target.value); setPage(0); }} placeholder="Search projects…" />
+      </div>
+      <div className="adm-panel">
+        <table className="adm-table">
+          <thead>
+            <tr>
+              <th style={{ width: 44 }}>#</th>
+              <th className="adm-th-sort" onClick={() => toggleSort("name")}>Name {arrow("name")}</th>
+              <th className="adm-th-sort" onClick={() => toggleSort("category")}>Category {arrow("category")}</th>
+              <th className="adm-th-sort" onClick={() => toggleSort("status")}>Status {arrow("status")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {paged.map((r, i) => (
+              <tr key={r.name}>
+                <td style={{ color: "var(--muted-2)" }}>{cur * PER_PAGE + i + 1}</td>
+                <td style={{ fontWeight: 600 }}>{r.name}</td>
+                <td style={{ color: "var(--muted)" }}>{r.category}</td>
+                <td><span className={"adm-badge " + r.status}>{r.status}</span></td>
+              </tr>
+            ))}
+            {!paged.length && <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--muted-2)", padding: 26 }}>No matches</td></tr>}
+          </tbody>
+        </table>
+        <div className="adm-pager">
+          <span>{filtered.length} result{filtered.length === 1 ? "" : "s"}</span>
+          <div className="pg">
+            <button disabled={cur === 0} onClick={() => setPage(cur - 1)}>Prev</button>
+            <span>Page {cur + 1} / {pages}</span>
+            <button disabled={cur >= pages - 1} onClick={() => setPage(cur + 1)}>Next</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function DatePickerDemo() {
+  const [date, setDate] = useState("");
+  return (
+    <div className="adm-field" style={{ maxWidth: 260, width: "100%" }}>
+      <label>Pick a date</label>
+      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      {date && <p style={{ marginTop: 8, fontSize: 13, color: "var(--muted)" }}>Selected: <b style={{ color: "var(--ink)" }}>{date}</b></p>}
+    </div>
+  );
+}
