@@ -7,11 +7,12 @@ name: Backend CI/CD
 #
 # Required GitHub secrets — Settings → Secrets and variables → Actions
 # (or the `production` environment):
-#   FTP_SERVER      → ftp host, no ftp:// prefix   (e.g. ftp.example.com)
-#   FTP_USER        → ftp username
-#   FTP_PASS        → ftp password
-#   FTP_REMOTE_DIR  → remote app dir               (e.g. /Backendjs/)
-#   BACKEND_ENV     → full contents of the backend .env (optional)
+#   FTP_PASS        → ftp password                 (REQUIRED)
+#   BACKEND_ENV     → full contents of the backend .env (recommended)
+# These have baked-in defaults below (override with a secret if needed):
+#   FTP_SERVER      → default ftp.illusiodesigns.agency
+#   FTP_USER        → default informative
+#   FTP_REMOTE_DIR  → default api.finvera.solutions/
 #
 # Auto-restart: after upload we re-create <FTP_REMOTE_DIR>/tmp/restart.txt —
 # cPanel's Node runtime (Phusion Passenger) recycles the process on the next
@@ -57,15 +58,15 @@ jobs:
       - name: Sync Backendjs to FTP (incremental)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USER }}
+          server: ${{ secrets.FTP_SERVER || 'ftp.illusiodesigns.agency' }}
+          username: ${{ secrets.FTP_USER || 'informative' }}
           password: ${{ secrets.FTP_PASS }}
           # Explicit FTPS over port 21 (AUTH TLS). Switch to `ftp` if your host
           # does not support TLS.
           protocol: ftps
           port: 21
           local-dir: ./Backendjs/
-          server-dir: ${{ secrets.FTP_REMOTE_DIR }}
+          server-dir: ${{ secrets.FTP_REMOTE_DIR || 'api.finvera.solutions/' }}
           # Never upload these. uploads/ is excluded so runtime-uploaded images
           # on the server are never deleted by the sync.
           exclude: |
@@ -103,10 +104,10 @@ jobs:
       # a no-op and the server keeps whatever .env is already there.
       - name: Upload .env from secret
         env:
-          FTP_HOST: ${{ secrets.FTP_SERVER }}
-          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_HOST: ${{ secrets.FTP_SERVER || 'ftp.illusiodesigns.agency' }}
+          FTP_USER: ${{ secrets.FTP_USER || 'informative' }}
           FTP_PASSWORD: ${{ secrets.FTP_PASS }}
-          FTP_BASE_DIR: ${{ secrets.FTP_REMOTE_DIR }}
+          FTP_BASE_DIR: ${{ secrets.FTP_REMOTE_DIR || 'api.finvera.solutions/' }}
           BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
         run: |
           set -e
@@ -144,10 +145,10 @@ jobs:
       # Auto-restart the Node app via Phusion Passenger (touch tmp/restart.txt).
       - name: Trigger Passenger restart
         env:
-          FTP_HOST: ${{ secrets.FTP_SERVER }}
-          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_HOST: ${{ secrets.FTP_SERVER || 'ftp.illusiodesigns.agency' }}
+          FTP_USER: ${{ secrets.FTP_USER || 'informative' }}
           FTP_PASSWORD: ${{ secrets.FTP_PASS }}
-          FTP_BASE_DIR: ${{ secrets.FTP_REMOTE_DIR }}
+          FTP_BASE_DIR: ${{ secrets.FTP_REMOTE_DIR || 'api.finvera.solutions/' }}
         run: |
           set -e
           npm install --no-save --no-audit --no-fund --silent basic-ftp
@@ -180,6 +181,6 @@ jobs:
 
       - name: Verify deployment
         run: |
-          echo "✅ Backendjs deployed to ${{ secrets.FTP_REMOTE_DIR }}"
-          echo "   FTP server: ${{ secrets.FTP_SERVER }}"
+          echo "✅ Backendjs deployed to ${{ secrets.FTP_REMOTE_DIR || 'api.finvera.solutions/' }}"
+          echo "   FTP server: ${{ secrets.FTP_SERVER || 'ftp.illusiodesigns.agency' }}"
           echo "   Incremental sync + Passenger restart complete"
