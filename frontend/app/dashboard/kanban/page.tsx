@@ -19,6 +19,22 @@ type User = { id: number; name: string; avatar?: string | null; title?: string |
 type Comment = { id: number; body: string; createdAt: string; author?: { id: number; name: string; avatar?: string | null } | null };
 
 const uid = (p = "id") => p + "-" + Math.random().toString(36).slice(2, 8);
+
+/* JSON columns can come back as strings on some MySQL setups — coerce to arrays
+   so .map()/.length never crash. */
+function toArr<T = unknown>(v: unknown): T[] {
+  if (Array.isArray(v)) return v as T[];
+  if (typeof v === "string" && v.trim().startsWith("[")) { try { const a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch { return []; } }
+  return [];
+}
+const normBoard = (b: Board): Board => ({ ...b, columns: toArr(b.columns), labels: toArr(b.labels) });
+const normTask = (t: Task): Task => ({
+  ...t,
+  memberIds: toArr<number>(t.memberIds),
+  labelIds: toArr<string>(t.labelIds),
+  checklist: toArr<ChecklistItem>(t.checklist),
+  attachments: toArr<Attachment>(t.attachments),
+});
 const COVER_SWATCHES = ["", "#3e60ab", "#8b5cf6", "#22c55e", "#f59e0b", "#ef4444", "#0ea5e9", "#ec4899"];
 const PRIO_LABEL: Record<string, string> = { high: "Urgent priority", medium: "Medium priority", low: "Low priority" };
 
@@ -48,29 +64,30 @@ export default function Kanban() {
   const didDrag = useRef(false);
 
   const board = boards.find((b) => b.id === activeId) || null;
-  const cols: Col[] = board?.columns?.length ? board.columns : [];
-  const labels: Label[] = board?.labels || [];
+  const cols: Col[] = toArr<Col>(board?.columns);
+  const labels: Label[] = toArr<Label>(board?.labels);
   const userById = (id: number) => users.find((u) => u.id === id);
   const labelById = (id: string) => labels.find((l) => l.id === id);
 
   async function loadBoards() {
     setLoading(true);
     try {
-      const [b, u] = await Promise.all([api.listBoards(), api.listUsers().catch(() => [])]);
+      const [bRaw, u] = await Promise.all([api.listBoards(), api.listUsers().catch(() => [])]);
+      const b = (Array.isArray(bRaw) ? bRaw : []).map(normBoard);
       setBoards(b);
-      setUsers(u);
+      setUsers(Array.isArray(u) ? u : []);
       const first = activeId && b.some((x: Board) => x.id === activeId) ? activeId : b[0]?.id ?? null;
       setActiveId(first);
-      if (first) setTasks(await api.listTasks(first));
+      if (first) setTasks((await api.listTasks(first) || []).map(normTask));
     } finally { setLoading(false); }
   }
   useEffect(() => { loadBoards(); /* eslint-disable-next-line */ }, []);
 
   async function switchBoard(id: number) {
     setActiveId(id);
-    setTasks(await api.listTasks(id));
+    setTasks(((await api.listTasks(id)) || []).map(normTask));
   }
-  async function reloadTasks() { if (activeId) setTasks(await api.listTasks(activeId)); }
+  async function reloadTasks() { if (activeId) setTasks(((await api.listTasks(activeId)) || []).map(normTask)); }
 
   const inCol = (id: string) => tasks.filter((t) => t.column === id).sort((a, b) => a.position - b.position);
 
@@ -138,12 +155,12 @@ export default function Kanban() {
   async function addBoard() {
     const name = prompt("Board name?");
     if (!name) return;
-    const b = await api.createBoard({
+    const b = normBoard(await api.createBoard({
       name,
       columns: [{ id: "todo", title: "To Do" }, { id: "inprogress", title: "In Progress" }, { id: "done", title: "Done" }],
       labels,
       position: boards.length,
-    });
+    }));
     setBoards((bs) => [...bs, b]); switchBoard(b.id); toast("Board created");
   }
   async function renameBoard() {

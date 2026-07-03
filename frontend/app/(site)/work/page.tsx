@@ -25,17 +25,15 @@ function Thumb({ p }: { p: Project }) {
 function ProjectCard({ p, i }: { p: Project; i: number }) {
   return (
     <Link className="pcard reveal" href={`/work/${p.slug}`} data-cursor>
-      <div className="thumb">
+      <div className="pcard-shot">
         <Thumb p={p} />
-        <span className="go"><Arrow /></span>
       </div>
-      <div className="pmeta">
-        <div>
-          <h3>{p.title}</h3>
-          <div className="pcat">{p.category}</div>
-          <div className="ptags">{(Array.isArray(p.tags) ? p.tags : []).map((t) => <span key={t}>{t}</span>)}</div>
-        </div>
-        <span className="pnum">{String(i + 1).padStart(2, "0")}</span>
+      <div className="pcard-folder">
+        <span className="pcard-step">Project {String(i + 1).padStart(2, "0")}</span>
+        <span className="pcard-cat">{p.category}</span>
+        <h3>{p.title}</h3>
+        <div className="ptags">{(Array.isArray(p.tags) ? p.tags : []).slice(0, 3).map((t) => <span key={t}>{t}</span>)}</div>
+        <span className="pcard-btn">View case study <Arrow /></span>
       </div>
     </Link>
   );
