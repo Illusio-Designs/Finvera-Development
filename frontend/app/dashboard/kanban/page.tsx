@@ -40,9 +40,17 @@ const COVER_SWATCHES = ["", "#3e60ab", "#8b5cf6", "#22c55e", "#f59e0b", "#ef4444
 const PRIO_LABEL: Record<string, string> = { high: "Urgent", medium: "Moderate priority", low: "Low priority" };
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 function fmtDue(d: string) {
-  const [y, m, day] = String(d).split("-").map(Number);
+  const [, m, day] = String(d).split("-").map(Number);
   if (!m || !day) return String(d);
   return `${MONTHS[m - 1]}, ${day}`;
+}
+function statusClass(s?: string) {
+  const t = (s || "").toLowerCase();
+  if (/progress|doing|active/.test(t)) return "st-progress";
+  if (/review|check/.test(t)) return "st-review";
+  if (/correct|fix|revis/.test(t)) return "st-correction";
+  if (/done|complete|approved|shipped/.test(t)) return "st-done";
+  return "";
 }
 
 function initials(name = "") {
@@ -278,6 +286,7 @@ export default function Kanban() {
               onDragLeave={() => setOverCol((o) => (o === c.id ? null : o))}
               onDrop={() => drop(c.id, null)}>
               <div className="kb-col-head">
+                <span className="kb-cbar" />
                 <span className="t">{c.title}</span>
                 <span className="count">{inCol(c.id).length}</span>
                 <span className="m">
@@ -289,6 +298,7 @@ export default function Kanban() {
                   </button>
                 </span>
               </div>
+              <div className="kb-col-sub">{inCol(c.id).length} task{inCol(c.id).length === 1 ? "" : "s"}</div>
 
               <div className="kb-cards">
                 {inCol(c.id).map((t) => {
@@ -334,7 +344,7 @@ export default function Kanban() {
                             {members.slice(0, 4).map((m) => <Avatar key={m.id} user={m} size={30} />)}
                             {members.length > 4 && <span className="kb-av kb-av-i" style={{ width: 30, height: 30, fontSize: 11 }}>+{members.length - 4}</span>}
                           </span>
-                          {(cardLabels[0]?.name || t.label) && <span className="kb-status">{cardLabels[0]?.name || t.label}</span>}
+                          {(cardLabels[0]?.name || t.label) && <span className={"kb-status " + statusClass(cardLabels[0]?.name || t.label)}>{cardLabels[0]?.name || t.label}</span>}
                         </div>
                       </div>
                       <div className="kb-foot">
