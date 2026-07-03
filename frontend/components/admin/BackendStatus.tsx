@@ -12,7 +12,7 @@ export default function BackendStatus({ variant = "pill" }: { variant?: "pill" |
     let alive = true;
     const check = async () => {
       try {
-        const res = await fetch(`${API_BASE}/health`, { cache: "no-store" });
+        const res = await fetch(`${API_BASE}/api/health`, { cache: "no-store" });
         const data = await res.json().catch(() => null);
         if (!alive) return;
         setInfo(data);
@@ -42,7 +42,7 @@ export default function BackendStatus({ variant = "pill" }: { variant?: "pill" |
           </div>
         </div>
         {state === "offline" && (
-          <a href={`${API_BASE}/health`} target="_blank" rel="noreferrer" className="adm-btn ghost" style={{ flex: "none" }}>Check</a>
+          <a href={`${API_BASE}/api/health`} target="_blank" rel="noreferrer" className="adm-btn ghost" style={{ flex: "none" }}>Check</a>
         )}
       </div>
     );

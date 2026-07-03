@@ -3,7 +3,7 @@ const { asyncHandler } = require("../utils/crud");
 
 /* Public: submit the contact form */
 const submit = asyncHandler(async (req, res) => {
-  const { name, email, company, projectType, message } = req.body;
+  const { name, email, phone, company, projectType, message } = req.body;
   if (!name || !email || !message) {
     return res.status(400).json({ message: "Name, email and message are required." });
   }
@@ -13,6 +13,7 @@ const submit = asyncHandler(async (req, res) => {
   const row = await ContactSubmission.create({
     name: String(name).slice(0, 160),
     email: String(email).slice(0, 160),
+    phone: phone ? String(phone).slice(0, 40) : null,
     company: company ? String(company).slice(0, 160) : null,
     projectType: projectType ? String(projectType).slice(0, 120) : null,
     message: String(message).slice(0, 5000),
