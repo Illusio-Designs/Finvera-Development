@@ -13,7 +13,7 @@ Testimonials, Team, Blog (with SEO), Contact submissions, per‑page SEO** and
 ## Setup
 
 ```bash
-cd backend
+cd Backendjs
 cp .env.example .env          # then edit DB credentials + JWT_SECRET
 # create the database once (or let a hosted provider give you one):
 #   mysql -u root -p -e "CREATE DATABASE finvera CHARACTER SET utf8mb4;"

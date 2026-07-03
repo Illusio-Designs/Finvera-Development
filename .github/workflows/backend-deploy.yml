@@ -1,0 +1,185 @@
+name: Backend CI/CD
+
+# Auto-deploys Backendjs/ to the production FTP server on every push to the
+# `backend` branch that touches backend code. Uses incremental FTP sync
+# (SamKirkland/FTP-Deploy-Action keeps a sync-state file on the server, so only
+# changed files are uploaded) followed by a Phusion Passenger restart.
+#
+# Required GitHub secrets — Settings → Secrets and variables → Actions
+# (or the `production` environment):
+#   FTP_SERVER      → ftp host, no ftp:// prefix   (e.g. ftp.example.com)
+#   FTP_USER        → ftp username
+#   FTP_PASS        → ftp password
+#   FTP_REMOTE_DIR  → remote app dir               (e.g. /Backendjs/)
+#   BACKEND_ENV     → full contents of the backend .env (optional)
+#
+# Auto-restart: after upload we re-create <FTP_REMOTE_DIR>/tmp/restart.txt —
+# cPanel's Node runtime (Phusion Passenger) recycles the process on the next
+# request once that file's mtime changes.
+
+on:
+  push:
+    branches: [backend]
+    paths:
+      - "Backendjs/**"
+      - ".github/workflows/backend-deploy.yml"
+  workflow_dispatch:
+
+# Only one deploy at a time; never cancel a deploy mid-upload.
+concurrency:
+  group: backend-ftp-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Backendjs to FTP
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Fail fast on broken JS before wasting an upload run.
+      - name: Syntax-check backend source
+        working-directory: Backendjs
+        run: |
+          set -e
+          find . -name '*.js' -type f ! -path './node_modules/*' -print0 \
+            | xargs -0 -r -n1 node --check
+          echo "✅ backend .js files syntax OK"
+
+      - name: Sync Backendjs to FTP (incremental)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASS }}
+          # Explicit FTPS over port 21 (AUTH TLS). Switch to `ftp` if your host
+          # does not support TLS.
+          protocol: ftps
+          port: 21
+          local-dir: ./Backendjs/
+          server-dir: ${{ secrets.FTP_REMOTE_DIR }}
+          # Never upload these. uploads/ is excluded so runtime-uploaded images
+          # on the server are never deleted by the sync.
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.github/**
+            **/.vscode/**
+            **/.idea/**
+            **/.DS_Store
+            **/Thumbs.db
+            **/.env
+            **/.env.*
+            **/.envrc
+            **/node_modules/**
+            **/package-lock.json
+            **/.htaccess
+            **/.well-known/**
+            **/uploads/**
+            **/tmp/**
+            **/logs/**
+            **/*.log
+            **/coverage/**
+            **/.nyc_output/**
+            **/.eslintcache
+            **/.cache/**
+            **/__tests__/**
+            **/test/**
+            **/tests/**
+            **/*.test.js
+            **/*.spec.js
+
+      # Deploy the production .env automatically. It is gitignored (never in the
+      # repo), so its contents live in the BACKEND_ENV secret and are written to
+      # <FTP_REMOTE_DIR>/.env on every deploy. If the secret is empty the step is
+      # a no-op and the server keeps whatever .env is already there.
+      - name: Upload .env from secret
+        env:
+          FTP_HOST: ${{ secrets.FTP_SERVER }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASS }}
+          FTP_BASE_DIR: ${{ secrets.FTP_REMOTE_DIR }}
+          BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
+        run: |
+          set -e
+          if [ -z "${BACKEND_ENV:-}" ]; then
+            echo "ℹ️  BACKEND_ENV secret is empty — skipping .env upload (server keeps its existing .env)."
+            exit 0
+          fi
+          printf '%s\n' "$BACKEND_ENV" > .env.deploy
+          npm install --no-save --no-audit --no-fund --silent basic-ftp
+          cat > ftp-env.mjs <<'NODE'
+          import { Client } from 'basic-ftp';
+          const base = (process.env.FTP_BASE_DIR || '/').replace(/\/+$/, '');
+          const host = (process.env.FTP_HOST || '').replace(/^ftps?:\/\//, '').replace(/\/.*$/, '').trim();
+          const client = new Client(30000);
+          try {
+            await client.access({
+              host,
+              user: process.env.FTP_USER,
+              password: process.env.FTP_PASSWORD,
+              secure: true,
+              secureOptions: { rejectUnauthorized: false },
+            });
+            await client.uploadFrom('.env.deploy', `${base}/.env`);
+            console.log(`✅ Uploaded .env -> ${base}/.env`);
+          } catch (err) {
+            console.error('.env upload failed:', err.message);
+            process.exitCode = 1;
+          } finally {
+            client.close();
+          }
+          NODE
+          node ftp-env.mjs
+          rm -f .env.deploy
+
+      # Auto-restart the Node app via Phusion Passenger (touch tmp/restart.txt).
+      - name: Trigger Passenger restart
+        env:
+          FTP_HOST: ${{ secrets.FTP_SERVER }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASS }}
+          FTP_BASE_DIR: ${{ secrets.FTP_REMOTE_DIR }}
+        run: |
+          set -e
+          npm install --no-save --no-audit --no-fund --silent basic-ftp
+          cat > ftp-restart.mjs <<'NODE'
+          import { Client } from 'basic-ftp';
+          import { Readable } from 'node:stream';
+
+          const base = (process.env.FTP_BASE_DIR || '/').replace(/\/+$/, '');
+          const host = (process.env.FTP_HOST || '').replace(/^ftps?:\/\//, '').replace(/\/.*$/, '').trim();
+          const client = new Client(30000);
+          try {
+            await client.access({
+              host,
+              user: process.env.FTP_USER,
+              password: process.env.FTP_PASSWORD,
+              secure: true,
+              secureOptions: { rejectUnauthorized: false },
+            });
+            await client.ensureDir(`${base}/tmp`);
+            await client.uploadFrom(Readable.from(['restart\n']), `${base}/tmp/restart.txt`);
+            console.log(`✅ Passenger restart triggered: ${base}/tmp/restart.txt`);
+          } catch (err) {
+            console.error('Restart failed:', err.message);
+            process.exitCode = 1;
+          } finally {
+            client.close();
+          }
+          NODE
+          node ftp-restart.mjs
+
+      - name: Verify deployment
+        run: |
+          echo "✅ Backendjs deployed to ${{ secrets.FTP_REMOTE_DIR }}"
+          echo "   FTP server: ${{ secrets.FTP_SERVER }}"
+          echo "   Incremental sync + Passenger restart complete"
