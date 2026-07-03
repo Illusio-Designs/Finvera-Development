@@ -32,7 +32,6 @@ function ProjectCard({ p, i }: { p: Project; i: number }) {
         <span className="pcard-step">Project {String(i + 1).padStart(2, "0")}</span>
         <span className="pcard-cat">{p.category}</span>
         <h3>{p.title}</h3>
-        <div className="ptags">{(Array.isArray(p.tags) ? p.tags : []).slice(0, 3).map((t) => <span key={t}>{t}</span>)}</div>
         <span className="pcard-btn">View case study <Arrow /></span>
       </div>
     </Link>
