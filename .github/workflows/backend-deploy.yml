@@ -44,7 +44,18 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+
+      # Fail early with a clear message if the FTP password secret is missing.
+      - name: Check required secrets
+        env:
+          FTP_PASS: ${{ secrets.FTP_PASS }}
+        run: |
+          if [ -z "$FTP_PASS" ]; then
+            echo "::error::FTP_PASS secret is not set. Add it under Settings → Secrets and variables → Actions (New repository secret), then re-run this workflow."
+            exit 1
+          fi
+          echo "✅ FTP_PASS is set."
 
       # Fail fast on broken JS before wasting an upload run.
       - name: Syntax-check backend source
