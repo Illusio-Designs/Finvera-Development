@@ -10,6 +10,20 @@ const API = (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "https://
 /** ISR revalidation seconds for API data. 0 = always fresh. */
 const REVALIDATE = Number(process.env.API_REVALIDATE ?? 60);
 
+/* Coerce a tags value (array | JSON string | comma string | null) to a string[]. */
+function toArray(v: unknown): string[] {
+  if (Array.isArray(v)) return v as string[];
+  if (typeof v === "string") {
+    const s = v.trim();
+    if (!s) return [];
+    if (s.startsWith("[")) { try { const a = JSON.parse(s); return Array.isArray(a) ? a : []; } catch { /* fall through */ } }
+    return s.split(",").map((x) => x.trim()).filter(Boolean);
+  }
+  return [];
+}
+const normProject = (p: Project): Project => ({ ...p, tags: toArray(p.tags) });
+const normPost = (p: BlogPost): BlogPost => ({ ...p, tags: toArray(p.tags) });
+
 async function apiGet<T>(path: string, fallback: T): Promise<T> {
   try {
     const res = await fetch(`${API}/api${path}`, {
@@ -23,17 +37,17 @@ async function apiGet<T>(path: string, fallback: T): Promise<T> {
   }
 }
 
-export const getProjects = () => apiGet<Project[]>("/projects", []);
+export const getProjects = async () => (await apiGet<Project[]>("/projects", [])).map(normProject);
 export const getServices = () => apiGet<Service[]>("/services", []);
 export const getTestimonials = () => apiGet<Testimonial[]>("/testimonials", []);
 export const getTeam = () => apiGet<TeamMember[]>("/team", []);
-export const getBlog = () => apiGet<BlogPost[]>("/blog", []);
+export const getBlog = async () => (await apiGet<BlogPost[]>("/blog", [])).map(normPost);
 
 export async function getProject(slug: string): Promise<Project | undefined> {
   try {
     const res = await fetch(`${API}/api/projects/${slug}`, { next: { revalidate: REVALIDATE } });
     if (!res.ok) return undefined;
-    return (await res.json()) as Project;
+    return normProject((await res.json()) as Project);
   } catch { return undefined; }
 }
 
@@ -41,7 +55,7 @@ export async function getPost(slug: string): Promise<BlogPost | undefined> {
   try {
     const res = await fetch(`${API}/api/blog/${slug}`, { next: { revalidate: REVALIDATE } });
     if (!res.ok) return undefined;
-    return (await res.json()) as BlogPost;
+    return normPost((await res.json()) as BlogPost);
   } catch { return undefined; }
 }
 
