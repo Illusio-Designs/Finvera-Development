@@ -33,7 +33,7 @@ function ProjectCard({ p, i }: { p: Project; i: number }) {
         <div>
           <h3>{p.title}</h3>
           <div className="pcat">{p.category}</div>
-          <div className="ptags">{(p.tags || []).map((t) => <span key={t}>{t}</span>)}</div>
+          <div className="ptags">{(Array.isArray(p.tags) ? p.tags : []).map((t) => <span key={t}>{t}</span>)}</div>
         </div>
         <span className="pnum">{String(i + 1).padStart(2, "0")}</span>
       </div>

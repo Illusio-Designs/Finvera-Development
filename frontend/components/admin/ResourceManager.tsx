@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/adminApi";
+import { toast } from "@/lib/toast";
 import RichText from "./RichText";
 
 export type Field = {
@@ -62,6 +63,7 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
   const [editing, setEditing] = useState<Record<string, any> | null>(null);
   const [saving, setSaving] = useState(false);
   const [formErr, setFormErr] = useState("");
+  const [query, setQuery] = useState("");
 
   async function load() {
     setLoading(true); setError("");
@@ -78,19 +80,28 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
       const payload: Record<string, any> = { ...editing };
       // empty strings → null so blank dates/optionals don't fail validation
       Object.keys(payload).forEach((k) => { if (payload[k] === "") payload[k] = null; });
-      if (editing?.id) await api.update(resource, editing.id, payload);
+      const editingItem = editing?.id;
+      if (editingItem) await api.update(resource, editing.id, payload);
       else await api.create(resource, payload);
       setEditing(null);
       await load();
-    } catch (e) { setFormErr(e instanceof Error ? e.message : "Save failed"); }
+      toast(editingItem ? "Changes saved" : "Item created");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Save failed";
+      setFormErr(msg); toast(msg, "err");
+    }
     finally { setSaving(false); }
   }
 
   async function del(id: number) {
     if (!confirm("Delete this item? This cannot be undone.")) return;
-    try { await api.remove(resource, id); await load(); }
-    catch (e) { alert(e instanceof Error ? e.message : "Delete failed"); }
+    try { await api.remove(resource, id); await load(); toast("Item deleted"); }
+    catch (e) { toast(e instanceof Error ? e.message : "Delete failed", "err"); }
   }
+
+  const shown = query
+    ? rows.filter((r) => JSON.stringify(r).toLowerCase().includes(query.toLowerCase()))
+    : rows;
 
   const setField = (name: string, value: any) => setEditing((s) => ({ ...(s || {}), [name]: value }));
 
@@ -98,10 +109,16 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
     <>
       <div className="adm-top">
         <div><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>
-        <button className="adm-btn primary" onClick={() => { setFormErr(""); setEditing(emptyFrom(fields, defaults)); }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 5v14M5 12h14" /></svg>
-          New
-        </button>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <label className="adm-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.3-4.3" /></svg>
+            <input placeholder={`Search ${title.toLowerCase()}…`} value={query} onChange={(e) => setQuery(e.target.value)} />
+          </label>
+          <button className="adm-btn primary" onClick={() => { setFormErr(""); setEditing(emptyFrom(fields, defaults)); }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 5v14M5 12h14" /></svg>
+            New
+          </button>
+        </div>
       </div>
 
       {error && <div className="adm-msg err">{error}</div>}
@@ -111,13 +128,15 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
           <div className="adm-empty">Loading…</div>
         ) : rows.length === 0 ? (
           <div className="adm-empty">No items yet. Click “New” to add one.</div>
+        ) : shown.length === 0 ? (
+          <div className="adm-empty">No matches for “{query}”.</div>
         ) : (
           <table className="adm-table">
             <thead>
               <tr>{columns.map((c) => <th key={c.name}>{c.label}</th>)}<th style={{ textAlign: "right" }}>Actions</th></tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {shown.map((row) => (
                 <tr key={row.id}>
                   {columns.map((c) => (
                     <td key={c.name}>
@@ -137,10 +156,10 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                   ))}
                   <td>
                     <div className="adm-rowbtns">
-                      <button className="adm-ibtn" title="Edit" onClick={() => { setFormErr(""); setEditing({ ...row }); }}>
+                      <button className="adm-ibtn" data-tip="Edit" onClick={() => { setFormErr(""); setEditing({ ...row }); }}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
                       </button>
-                      <button className="adm-ibtn danger" title="Delete" onClick={() => del(row.id)}>
+                      <button className="adm-ibtn danger" data-tip="Delete" onClick={() => del(row.id)}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /></svg>
                       </button>
                     </div>

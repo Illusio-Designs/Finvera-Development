@@ -637,8 +637,10 @@ section{position:relative;z-index:2}
 /* =========================================================
    Admin dashboard
    ========================================================= */
-.adm{min-height:100vh;display:grid;grid-template-columns:250px 1fr;background:#070910;position:relative;z-index:5}
-.adm-side{position:sticky;top:0;height:100vh;border-right:1px solid var(--line);background:#0a0d18;
+.adm{min-height:100vh;background:#070910;position:relative;z-index:5}
+@media (min-width:861px){ .adm{padding-left:250px} .adm.collapsed{padding-left:76px} }
+/* fixed sidebar — immune to ancestor overflow (sticky broke due to overflow-x:clip) */
+.adm-side{position:fixed;top:0;left:0;width:250px;height:100vh;z-index:30;border-right:1px solid var(--line);background:#0a0d18;
   display:flex;flex-direction:column;padding:20px 16px;gap:6px;overflow-y:auto}
 .adm-brandrow{display:flex;align-items:center;gap:8px;margin:4px 6px 16px}
 .adm-side .brand{margin:0}
@@ -649,8 +651,7 @@ section{position:relative;z-index:2}
 
 /* Collapsed sidebar (desktop only) */
 @media (min-width:861px){
-  .adm.collapsed{grid-template-columns:76px 1fr}
-  .adm.collapsed .adm-side{padding:20px 14px}
+  .adm.collapsed .adm-side{width:76px;padding:20px 14px}
   .adm.collapsed .adm-lbl,.adm.collapsed .adm-nav-label{display:none}
   .adm.collapsed .adm-brandrow{flex-direction:column;gap:12px;margin-bottom:14px}
   .adm.collapsed .adm-side a,.adm.collapsed .adm-logout{justify-content:center;padding:10px 0}
@@ -737,6 +738,35 @@ section{position:relative;z-index:2}
 .rte-area.prose :where(h3){font-size:18px;margin:12px 0 6px}
 .rte-area.prose :where(p){margin-bottom:10px}
 
+/* Tooltips */
+[data-tip]{position:relative}
+[data-tip]::before{content:attr(data-tip);position:absolute;bottom:calc(100% + 8px);left:50%;
+  transform:translateX(-50%) translateY(4px);background:#0a0d18;border:1px solid var(--line-2);color:#fff;
+  font-size:11.5px;font-weight:500;padding:5px 9px;border-radius:7px;white-space:nowrap;letter-spacing:.01em;
+  opacity:0;pointer-events:none;transition:.16s var(--ease);z-index:300;box-shadow:var(--shadow)}
+[data-tip]:hover::before{opacity:1;transform:translateX(-50%) translateY(0)}
+[data-tip-pos="right"]::before{bottom:auto;top:50%;left:calc(100% + 12px);transform:translateY(-50%) translateX(4px)}
+[data-tip-pos="right"]:hover::before{transform:translateY(-50%) translateX(0)}
+/* nav/footer tooltips only when the sidebar is collapsed */
+.adm:not(.collapsed) .adm-side a[data-tip]::before,
+.adm:not(.collapsed) .adm-side .adm-logout[data-tip]::before{display:none}
+
+/* Toasts */
+.adm-toaster{position:fixed;right:20px;bottom:20px;z-index:400;display:flex;flex-direction:column;gap:10px;pointer-events:none}
+.adm-toast{pointer-events:auto;min-width:220px;max-width:360px;padding:12px 15px;border-radius:12px;font-size:13.5px;font-weight:500;
+  display:flex;align-items:center;gap:10px;box-shadow:var(--shadow);animation:toastIn .3s var(--ease);backdrop-filter:blur(10px)}
+.adm-toast.ok{background:rgba(40,200,64,.14);border:1px solid rgba(40,200,64,.35);color:#8fe6a0}
+.adm-toast.err{background:rgba(255,95,87,.14);border:1px solid rgba(255,95,87,.35);color:#ffb4ae}
+.adm-toast::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;flex:none}
+@keyframes toastIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* Admin search box */
+.adm-search{position:relative;display:flex;align-items:center}
+.adm-search svg{position:absolute;left:12px;width:15px;height:15px;color:var(--muted-2);pointer-events:none}
+.adm-search input{padding:9px 13px 9px 34px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid var(--line-2);
+  color:#fff;font-family:inherit;font-size:13.5px;outline:none;width:220px;transition:.2s}
+.adm-search input:focus{border-color:var(--blue-500);background:rgba(91,127,212,.06)}
+
 /* Backend status indicator */
 .adm-statusdot{width:9px;height:9px;border-radius:50%;flex:none}
 .adm-statusdot.live{animation:statusPulse 2s ease-in-out infinite}
@@ -789,8 +819,8 @@ section{position:relative;z-index:2}
 .adm-group .gsub{color:var(--muted-2);font-size:13px;margin-bottom:18px}
 
 @media (max-width:860px){
-  .adm{grid-template-columns:1fr}
-  .adm-side{position:fixed;left:0;top:0;z-index:50;transform:translateX(-100%);transition:transform .3s var(--ease);width:250px}
+  .adm{padding-left:0}
+  .adm-side{z-index:50;transform:translateX(-100%);transition:transform .3s var(--ease)}
   .adm.open .adm-side{transform:none}
   .adm-cards{grid-template-columns:repeat(2,1fr)}
   .adm-burger{display:grid!important}

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Mark } from "@/components/icons";
 import { getToken, clearToken } from "@/lib/adminApi";
 import BackendStatus from "@/components/admin/BackendStatus";
+import Toaster from "@/components/admin/Toaster";
 
 const NAV: [string, string, React.ReactNode][] = [
   ["/admin", "Dashboard", <path key="a" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />],
@@ -49,7 +50,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <aside className="adm-side">
         <div className="adm-brandrow">
           <Link href="/admin" className="brand" style={{ fontSize: 17 }}><Mark /> <span className="adm-lbl">Finvera</span></Link>
-          <button className="adm-collapse" onClick={toggleCollapsed} aria-label="Collapse sidebar" title="Collapse / expand">
+          <button className="adm-collapse" onClick={toggleCollapsed} aria-label="Collapse sidebar" data-tip={collapsed ? "Expand" : "Collapse"}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d={collapsed ? "M9 18l6-6-6-6" : "M15 18l-6-6 6-6"} /></svg>
           </button>
         </div>
@@ -57,18 +58,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {NAV.map(([href, label, icon]) => {
           const active = href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
           return (
-            <Link key={href} href={href} className={active ? "active" : ""} title={label}>
+            <Link key={href} href={href} className={active ? "active" : ""} data-tip={label} data-tip-pos="right">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{icon}</svg><span className="adm-lbl">{label}</span>
             </Link>
           );
         })}
         <div className="spacer" />
         <BackendStatus />
-        <Link href="/" className="adm-logout" style={{ marginBottom: 8 }} title="View site">
+        <Link href="/" className="adm-logout" style={{ marginBottom: 8 }} data-tip="View site" data-tip-pos="right">
           <svg viewBox="0 0 24 24" width={16} fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 3h6v6M10 14L21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg>
           <span className="adm-lbl">View site</span>
         </Link>
-        <button className="adm-logout" onClick={logout} title="Sign out">
+        <button className="adm-logout" onClick={logout} data-tip="Sign out" data-tip-pos="right">
           <svg viewBox="0 0 24 24" width={16} fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>
           <span className="adm-lbl">Sign out</span>
         </button>
@@ -84,6 +85,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
         {children}
       </div>
+      <Toaster />
     </div>
   );
 }
