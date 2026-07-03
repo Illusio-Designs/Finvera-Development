@@ -932,3 +932,16 @@ section{position:relative;z-index:2}
   .reveal{opacity:1;transform:none}
   .beam-wrap .streaks{display:none}
 }
+
+/* iOS Safari zooms into any focused input whose font-size is < 16px — and then
+   leaves the whole page zoomed in. Force all form controls to 16px on phones so
+   focus never triggers a zoom. Desktop keeps the smaller design sizes. */
+@media (max-width: 640px){
+  input, textarea, select,
+  .field input, .field textarea, .field select,
+  .adm-field input, .adm-field textarea, .adm-field select,
+  .adm-search input,
+  .phone-input .PhoneInputInput{
+    font-size:16px !important;
+  }
+}
