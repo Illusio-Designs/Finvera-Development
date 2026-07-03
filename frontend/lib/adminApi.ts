@@ -3,7 +3,7 @@
 "use client";
 import { mockApi } from "./adminMock";
 
-export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "https://api.finvera.solutions").replace(/\/$/, "");
 const TOKEN_KEY = "fv_admin_token";
 const MOCK = !API_BASE;
 
