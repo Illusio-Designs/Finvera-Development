@@ -6,6 +6,7 @@ import { Mark } from "@/components/icons";
 import { getToken, clearToken } from "@/lib/adminApi";
 import BackendStatus from "@/components/admin/BackendStatus";
 import Toaster from "@/components/admin/Toaster";
+import DialogHost from "@/components/admin/DialogHost";
 
 const NAV: [string, string, React.ReactNode][] = [
   ["/dashboard", "Dashboard", <path key="a" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />],
@@ -83,6 +84,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {children}
       </div>
       <Toaster />
+      <DialogHost />
     </div>
   );
 }

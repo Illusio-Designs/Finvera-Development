@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
+import { dialog } from "@/lib/dialog";
 
 /* Lightweight WYSIWYG editor (contentEditable) that outputs HTML.
    No external dependencies — good enough for admin content editing. */
@@ -31,8 +32,8 @@ export default function RichText({ value, onChange }: { value: string; onChange:
     sync();
   };
   const block = (tag: string) => exec("formatBlock", tag);
-  const link = () => {
-    const url = prompt("Link URL");
+  const link = async () => {
+    const url = await dialog.prompt({ title: "Insert link", placeholder: "https://…", confirmText: "Insert" });
     if (url) exec("createLink", url);
   };
 
