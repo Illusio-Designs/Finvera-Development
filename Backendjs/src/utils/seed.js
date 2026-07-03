@@ -80,6 +80,18 @@ async function seed() {
   });
   if (created) console.log(`\x1b[32m✔ Seeded admin user: ${admin.email}\x1b[0m`);
 
+  // Password self-heal: findOrCreate only sets the password on FIRST creation,
+  // so changing ADMIN_PASSWORD later never updates an existing admin. Set
+  // ADMIN_RESET_PASSWORD=true (with ADMIN_PASSWORD) to force the stored password
+  // to match on boot, then remove the flag. Also reactivates the account.
+  if (!created && String(process.env.ADMIN_RESET_PASSWORD).toLowerCase() === "true" && process.env.ADMIN_PASSWORD) {
+    admin.password = await bcrypt.hash(process.env.ADMIN_PASSWORD, 10);
+    admin.active = true;
+    if (process.env.ADMIN_NAME) admin.name = process.env.ADMIN_NAME;
+    await admin.save();
+    console.log(`\x1b[33m⚠ Admin password reset from ADMIN_PASSWORD for ${admin.email}. Remove ADMIN_RESET_PASSWORD from .env now.\x1b[0m`);
+  }
+
   // 2) Content (only when tables are empty, so we never clobber edits)
   if ((await Project.count()) === 0) {
     await Project.bulkCreate(PROJECTS.map((p, i) => ({ ...p, slug: slug(p.title), position: i, status: "published" })));
