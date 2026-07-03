@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Mark } from "@/components/icons";
-import { getToken, clearToken, isMock } from "@/lib/adminApi";
+import { getToken, clearToken } from "@/lib/adminApi";
+import BackendStatus from "@/components/admin/BackendStatus";
 
 const NAV: [string, string, React.ReactNode][] = [
   ["/admin", "Dashboard", <path key="a" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />],
@@ -62,6 +63,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           );
         })}
         <div className="spacer" />
+        <BackendStatus />
         <Link href="/" className="adm-logout" style={{ marginBottom: 8 }} title="View site">
           <svg viewBox="0 0 24 24" width={16} fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 3h6v6M10 14L21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg>
           <span className="adm-lbl">View site</span>
@@ -80,11 +82,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
           <Link href="/admin" className="brand" style={{ fontSize: 16 }}><Mark /> Finvera</Link>
         </div>
-        {isMock() && (
-          <div className="adm-msg" style={{ marginBottom: 18, background: "rgba(91,127,212,.1)", border: "1px solid var(--line-2)", color: "var(--muted)" }}>
-            <b style={{ color: "#fff" }}>Demo mode</b> — running on local mock data (saved in your browser). Set <code>NEXT_PUBLIC_API_URL</code> to connect the live backend.
-          </div>
-        )}
         {children}
       </div>
     </div>

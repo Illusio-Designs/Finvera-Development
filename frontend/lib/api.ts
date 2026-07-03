@@ -1,61 +1,58 @@
 /* =========================================================
-   Server-side API client (SSR).
-   Fetches from the backend when API_URL is configured;
-   falls back to mock data so the site works before deploy.
+   Server-side API client (SSR) — live data only.
+   Fetches from the backend; on failure returns empty data
+   (or minimal metadata defaults) so the build never breaks.
    ========================================================= */
-import * as mock from "./mock";
-import type { Project, Service, Testimonial, TeamMember, BlogPost, Seo, Settings } from "./mock";
+import type { Project, Service, Testimonial, TeamMember, BlogPost, Seo, Settings } from "./types";
 
 const API = (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "https://api.finvera.solutions").replace(/\/$/, "");
 
-/** How often SSR pages revalidate their data (ISR). 0 = always fresh. */
+/** ISR revalidation seconds for API data. 0 = always fresh. */
 const REVALIDATE = Number(process.env.API_REVALIDATE ?? 60);
 
 async function apiGet<T>(path: string, fallback: T): Promise<T> {
-  if (!API) return fallback;
   try {
     const res = await fetch(`${API}/api${path}`, {
       next: { revalidate: REVALIDATE },
       headers: { accept: "application/json" },
     });
     if (!res.ok) return fallback;
-    const data = (await res.json()) as T;
-    // guard against empty arrays wiping the UI
-    if (Array.isArray(data) && data.length === 0 && Array.isArray(fallback) && (fallback as unknown[]).length) return fallback;
-    return data;
+    return (await res.json()) as T;
   } catch {
     return fallback;
   }
 }
 
-export const getProjects = () => apiGet<Project[]>("/projects", mock.projects);
-export const getServices = () => apiGet<Service[]>("/services", mock.services);
-export const getTestimonials = () => apiGet<Testimonial[]>("/testimonials", mock.testimonials);
-export const getTeam = () => apiGet<TeamMember[]>("/team", mock.team);
-export const getBlog = () => apiGet<BlogPost[]>("/blog", mock.blog);
+export const getProjects = () => apiGet<Project[]>("/projects", []);
+export const getServices = () => apiGet<Service[]>("/services", []);
+export const getTestimonials = () => apiGet<Testimonial[]>("/testimonials", []);
+export const getTeam = () => apiGet<TeamMember[]>("/team", []);
+export const getBlog = () => apiGet<BlogPost[]>("/blog", []);
 
 export async function getProject(slug: string): Promise<Project | undefined> {
-  const fallback = mock.projects.find((x) => x.slug === slug);
-  if (!API) return fallback;
   try {
     const res = await fetch(`${API}/api/projects/${slug}`, { next: { revalidate: REVALIDATE } });
-    if (!res.ok) return fallback;
+    if (!res.ok) return undefined;
     return (await res.json()) as Project;
-  } catch { return fallback; }
+  } catch { return undefined; }
 }
 
 export async function getPost(slug: string): Promise<BlogPost | undefined> {
-  const fallback = mock.blog.find((x) => x.slug === slug);
-  if (!API) return fallback;
   try {
     const res = await fetch(`${API}/api/blog/${slug}`, { next: { revalidate: REVALIDATE } });
-    if (!res.ok) return fallback;
+    if (!res.ok) return undefined;
     return (await res.json()) as BlogPost;
-  } catch { return fallback; }
+  } catch { return undefined; }
 }
 
-export const getSeo = (page: string) => apiGet<Seo>(`/seo/${page}`, mock.seo[page] || { page, title: "Finvera", description: mock.settings.site_tagline });
-export const getSettings = () => apiGet<Settings>("/settings", mock.settings);
+const DEFAULT_SEO: Seo = {
+  page: "home",
+  title: "Finvera — Future-Driven SaaS & CRM Development",
+  description: "Finvera builds high-quality SaaS platforms and CRM systems that help businesses grow, scale and innovate.",
+};
+
+export const getSeo = (page: string) => apiGet<Seo>(`/seo/${page}`, { ...DEFAULT_SEO, page });
+export const getSettings = () => apiGet<Settings>("/settings", {});
 
 export const apiBase = API;
-export const contactEndpoint = API ? `${API}/api/contact` : "";
+export const contactEndpoint = `${API}/api/contact`;

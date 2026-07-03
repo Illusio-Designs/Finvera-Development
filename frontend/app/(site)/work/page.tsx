@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { Arrow } from "@/components/icons";
 import SiteShot from "@/components/SiteShot";
 import { getProjects, getSeo } from "@/lib/api";
-import type { Project } from "@/lib/mock";
+import type { Project } from "@/lib/types";
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSeo("work");
