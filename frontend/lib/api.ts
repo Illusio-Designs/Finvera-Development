@@ -6,7 +6,7 @@
 import * as mock from "./mock";
 import type { Project, Service, Testimonial, TeamMember, BlogPost, Seo, Settings } from "./mock";
 
-const API = (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+const API = (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "https://api.finvera.solutions").replace(/\/$/, "");
 
 /** How often SSR pages revalidate their data (ISR). 0 = always fresh. */
 const REVALIDATE = Number(process.env.API_REVALIDATE ?? 60);
