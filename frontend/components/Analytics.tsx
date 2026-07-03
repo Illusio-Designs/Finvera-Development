@@ -1,5 +1,5 @@
 import Script from "next/script";
-import type { Settings } from "@/lib/mock";
+import type { Settings } from "@/lib/types";
 
 /* Server-injected analytics/pixels driven by backend settings. */
 export default function Analytics({ settings }: { settings: Settings }) {
