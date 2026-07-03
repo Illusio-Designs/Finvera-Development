@@ -38,7 +38,6 @@ function ProjectCard({ p, i }: { p: Project; i: number }) {
           <div className="pf-info"><span className="cat">{p.category}</span><h3>{p.title}</h3></div>
         </div>
       </div>
-      <span className="pf-btn">View case study <Arrow /></span>
     </Link>
   );
 }
