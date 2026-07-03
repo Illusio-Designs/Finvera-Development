@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/adminApi";
+import { toast } from "@/lib/toast";
 
 type Col = { id: string; title: string };
 type Task = { id: number; title: string; description?: string; column: string; position: number; assignee?: string; priority?: string; label?: string; dueDate?: string | null };
@@ -13,6 +14,7 @@ export default function Kanban() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Partial<Task> | null>(null);
   const [overCol, setOverCol] = useState<string | null>(null);
+  const [justDone, setJustDone] = useState<number | null>(null);
   const dragId = useRef<number | null>(null);
   const overColRef = useRef<string | null>(null);
   const hoverIdRef = useRef<number | null>(null);
@@ -39,10 +41,17 @@ export default function Kanban() {
     const id = dragId.current;
     setOverCol(null);
     if (id == null) return;
+    const destTitle = (cols.find((c) => c.id === toCol)?.title || "").toLowerCase();
+    const isDone = /done|complete|shipped|✅/.test(destTitle);
     setTasks((prev) => {
       const moved = prev.find((t) => t.id === id);
       if (!moved) return prev;
       const fromCol = moved.column;
+      if (isDone && fromCol !== toCol) {
+        toast("Task complete 🎉");
+        setJustDone(id);
+        setTimeout(() => setJustDone((v) => (v === id ? null : v)), 900);
+      }
       const without = prev.filter((t) => t.id !== id);
       const target = without.filter((t) => t.column === toCol).sort((a, b) => a.position - b.position);
       let idx = beforeId == null ? target.length : target.findIndex((t) => t.id === beforeId);
@@ -125,7 +134,7 @@ export default function Kanban() {
                   <div
                     key={t.id}
                     data-id={t.id}
-                    className="kb-card"
+                    className={"kb-card" + (justDone === t.id ? " done-pop" : "")}
                     draggable
                     onDragStart={(e) => { dragId.current = t.id; (e.currentTarget as HTMLElement).classList.add("dragging"); }}
                     onDragEnd={(e) => (e.currentTarget as HTMLElement).classList.remove("dragging")}

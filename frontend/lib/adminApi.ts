@@ -16,9 +16,11 @@ async function req(path: string, options: RequestInit = {}, auth = true): Promis
   if (auth && token) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(`${API_BASE}/api${path}`, { ...options, headers });
-  if (res.status === 401) {
+  // Only treat 401 as an expired session for authed requests — NOT for login,
+  // where a 401 just means wrong credentials (let the real message through).
+  if (res.status === 401 && auth) {
     clearToken();
-    if (typeof window !== "undefined" && !location.pathname.endsWith("/admin/login")) location.href = "/admin/login";
+    if (typeof window !== "undefined" && location.pathname !== "/login") location.href = "/login";
     throw new Error("Session expired. Please sign in again.");
   }
   const text = await res.text();

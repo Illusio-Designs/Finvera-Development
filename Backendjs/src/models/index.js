@@ -84,6 +84,7 @@ const BlogPost = sequelize.define("BlogPost", {
 const ContactSubmission = sequelize.define("ContactSubmission", {
   name: { type: DataTypes.STRING, allowNull: false },
   email: { type: DataTypes.STRING, allowNull: false },
+  phone: { type: DataTypes.STRING },
   company: { type: DataTypes.STRING },
   projectType: { type: DataTypes.STRING },
   message: { type: DataTypes.TEXT, allowNull: false },

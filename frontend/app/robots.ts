@@ -6,7 +6,7 @@ const base = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.finvera.solutions
 
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: [{ userAgent: "*", allow: "/", disallow: ["/admin", "/widgets"] }],
+    rules: [{ userAgent: "*", allow: "/", disallow: ["/dashboard", "/login", "/widgets"] }],
     sitemap: `${base}/sitemap.xml`,
   };
 }
