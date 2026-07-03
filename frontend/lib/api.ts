@@ -37,7 +37,10 @@ async function apiGet<T>(path: string, fallback: T): Promise<T> {
       headers: { accept: "application/json" },
     });
     if (!res.ok) return fallback;
-    return (await res.json()) as T;
+    const data = await res.json();
+    // If we expected a list but got something else, fall back so .map never throws.
+    if (Array.isArray(fallback) && !Array.isArray(data)) return fallback;
+    return data as T;
   } catch {
     return fallback;
   }
