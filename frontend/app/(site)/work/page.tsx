@@ -24,7 +24,7 @@ function Thumb({ p }: { p: Project }) {
 
 function ProjectCard({ p, i }: { p: Project; i: number }) {
   return (
-    <a className="pcard reveal" href={p.url} target="_blank" rel="noopener noreferrer" data-cursor>
+    <Link className="pcard reveal" href={`/work/${p.slug}`} data-cursor>
       <div className="thumb">
         <Thumb p={p} />
         <span className="go"><Arrow /></span>
@@ -37,7 +37,7 @@ function ProjectCard({ p, i }: { p: Project; i: number }) {
         </div>
         <span className="pnum">{String(i + 1).padStart(2, "0")}</span>
       </div>
-    </a>
+    </Link>
   );
 }
 

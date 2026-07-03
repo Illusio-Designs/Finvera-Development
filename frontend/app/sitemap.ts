@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { getBlog } from "@/lib/api";
+import { getBlog, getProjects } from "@/lib/api";
 
 export const dynamic = "force-static";
 
@@ -19,5 +19,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .map((p) => ({ url: `${base}/blog/${p.slug}`, changeFrequency: "monthly" as const, priority: 0.6, lastModified: p.publishedAt || undefined }));
   } catch { /* ignore */ }
 
-  return [...staticRoutes, ...posts];
+  let projects: MetadataRoute.Sitemap = [];
+  try {
+    projects = (await getProjects())
+      .filter((p) => p.status === "published")
+      .map((p) => ({ url: `${base}/work/${p.slug}`, changeFrequency: "monthly" as const, priority: 0.6 }));
+  } catch { /* ignore */ }
+
+  return [...staticRoutes, ...posts, ...projects];
 }
