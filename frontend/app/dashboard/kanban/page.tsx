@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
+import { BoardSkeleton } from "@/components/admin/Skeleton";
 
 type Col = { id: string; title: string };
 type Label = { id: string; name: string; color: string };
@@ -199,7 +200,12 @@ export default function Kanban() {
   };
   const overdue = (t: Task) => t.dueDate && !t.completed && new Date(t.dueDate) < new Date(new Date().toDateString());
 
-  if (loading) return <div className="adm-empty">Loading…</div>;
+  if (loading) return (
+    <>
+      <div className="adm-top"><div><h1>Project boards</h1><p>Loading your boards…</p></div></div>
+      <BoardSkeleton cols={4} />
+    </>
+  );
 
   return (
     <>
