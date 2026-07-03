@@ -90,6 +90,7 @@ uploadRouter.post("/many", requireAuth, upload.array("files", 12), uploadCtrl.up
 router.use("/uploads", uploadRouter);
 
 /* ── Health ──────────────────────────────────────────── */
-router.get("/health", (_req, res) => res.json({ status: "ok", time: new Date().toISOString() }));
+const { health } = require("../controllers/health.controller");
+router.get("/health", health);
 
 module.exports = router;
