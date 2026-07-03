@@ -254,8 +254,8 @@ section{position:relative;z-index:2}
 /* hero product card */
 .hero-card{position:relative}
 .code-card{
-  position:relative;border-radius:var(--radius-lg);border:1px solid var(--line-2);
-  background:linear-gradient(180deg,rgba(20,26,48,.97),rgba(255,255,255,.97));
+  position:relative;border-radius:var(--radius-lg);border:1px solid #232a44;
+  background:linear-gradient(180deg,#161c30,#0f1424);
   box-shadow:var(--shadow-glow);overflow:hidden;
   transform-style:preserve-3d;transition:transform .2s var(--ease);
 }
@@ -263,13 +263,14 @@ section{position:relative;z-index:2}
   background:linear-gradient(140deg,rgba(109,143,224,.6),transparent 40%,transparent 60%,rgba(124,92,255,.4));
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
   -webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
-.cc-bar{display:flex;align-items:center;gap:8px;padding:12px 15px;border-bottom:1px solid var(--line)}
+.cc-bar{display:flex;align-items:center;gap:8px;padding:12px 15px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02)}
 .cc-bar .dots{display:flex;gap:6px}
 .cc-bar .dots i{width:11px;height:11px;border-radius:50%;display:block}
 .cc-bar .dots i:nth-child(1){background:#ff5f57}.cc-bar .dots i:nth-child(2){background:#febc2e}.cc-bar .dots i:nth-child(3){background:#28c840}
 .cc-bar .tab{margin-left:8px;font-size:11.5px;color:var(--muted-2);font-family:var(--mono)}
 .cc-bar .cc-actions{margin-left:auto;display:flex;gap:6px}
-.cc-bar .cc-actions i{width:24px;height:24px;border-radius:8px;background:rgba(16,30,60,.05);display:grid;place-items:center;font-size:11px;color:var(--muted)}
+.cc-bar .cc-actions i{width:24px;height:24px;border-radius:8px;background:rgba(255,255,255,.06);display:grid;place-items:center;font-size:11px;color:#9aa4c2}
+.cc-bar .tab{color:#8891ad}
 .code{padding:18px 20px;font-family:var(--mono);font-size:12.5px;line-height:1.8;color:#cdd6f4;overflow:hidden}
 .code .ln{display:block;white-space:pre;opacity:0;transform:translateY(6px);animation:lineIn .5s forwards}
 .code .k{color:#c792ea}.code .f{color:#82aaff}.code .s{color:#c3e88d}.code .n{color:#f78c6c}.code .c{color:#546e7a}.code .p{color:#89ddff}
