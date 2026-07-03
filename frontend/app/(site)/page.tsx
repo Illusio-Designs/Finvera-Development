@@ -180,8 +180,18 @@ export default async function Home() {
             <h2>A proven path from <span className="grad-word">idea to impact</span></h2>
           </div>
           <div className="steps">
-            {[["01", "Discover", "We map your goals, users and constraints into a sharp product blueprint."], ["02", "Design", "Wireframes to polished UI with motion, validated against real users."], ["03", "Build", "Agile sprints, weekly demos and production-grade, tested code."], ["04", "Scale", "Launch, monitor and iterate — we grow with you long after go-live."]].map(([n, h, p], i) => (
-              <div className={"step reveal" + (i ? " d" + i : "")} key={n}><div className="num">{n}</div><h4>{h}</h4><p>{p}</p></div>
+            {[
+              { n: "01", h: "Discover", p: "We map your goals, users and constraints into a sharp product blueprint.", ic: <><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></> },
+              { n: "02", h: "Design", p: "Wireframes to polished UI with motion, validated against real users.", ic: <><path d="M12 19l7-7 3 3-7 7-3-3z" /><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" /><path d="M2 2l7.586 7.586" /><circle cx="11" cy="11" r="2" /></> },
+              { n: "03", h: "Build", p: "Agile sprints, weekly demos and production-grade, tested code.", ic: <><path d="M16 18l6-6-6-6M8 6l-6 6 6 6" /></> },
+              { n: "04", h: "Scale", p: "Launch, monitor and iterate — we grow with you long after go-live.", ic: <><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" /><path d="M12 15l-3-3a22 22 0 0 1 8-10c1.5 1.5 3 5 3 7a22 22 0 0 1-8 6z" /><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" /></> },
+            ].map((s, i) => (
+              <div className={"step reveal c" + (i + 1) + (i ? " d" + i : "")} key={s.n}>
+                <span className="step-tag">Step {s.n}</span>
+                <span className="step-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">{s.ic}</svg></span>
+                <h4>{s.h}</h4>
+                <p>{s.p}</p>
+              </div>
             ))}
           </div>
         </div>

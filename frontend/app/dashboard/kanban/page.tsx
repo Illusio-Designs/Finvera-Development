@@ -13,12 +13,14 @@ type Task = {
   id: number; title: string; description?: string; boardId: number; column: string; position: number;
   priority?: string; dueDate?: string | null; completed?: boolean; cover?: string | null;
   memberIds?: number[]; labelIds?: string[]; checklist?: ChecklistItem[]; attachments?: Attachment[];
+  label?: string;
 };
 type User = { id: number; name: string; avatar?: string | null; title?: string | null };
 type Comment = { id: number; body: string; createdAt: string; author?: { id: number; name: string; avatar?: string | null } | null };
 
 const uid = (p = "id") => p + "-" + Math.random().toString(36).slice(2, 8);
 const COVER_SWATCHES = ["", "#3e60ab", "#8b5cf6", "#22c55e", "#f59e0b", "#ef4444", "#0ea5e9", "#ec4899"];
+const PRIO_LABEL: Record<string, string> = { high: "Urgent priority", medium: "Medium priority", low: "Low priority" };
 
 function initials(name = "") {
   return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
@@ -271,7 +273,7 @@ export default function Kanban() {
                   const coverImg = t.cover && !t.cover.startsWith("#") ? t.cover : null;
                   return (
                     <div key={t.id} data-id={t.id}
-                      className={"kb-card" + (justDone === t.id ? " done-pop" : "") + (t.completed ? " is-done" : "")}
+                      className={"kb-card p-" + (t.priority || "medium") + (justDone === t.id ? " done-pop" : "") + (t.completed ? " is-done" : "")}
                       draggable
                       onDragStart={(e) => { dragId.current = t.id; (e.currentTarget as HTMLElement).classList.add("dragging"); }}
                       onDragEnd={(e) => (e.currentTarget as HTMLElement).classList.remove("dragging")}
@@ -297,18 +299,30 @@ export default function Kanban() {
                       onClick={() => { if (didDrag.current) { didDrag.current = false; return; } openCard(t); }}>
                       {coverImg && <div className="kb-cover-img" style={{ backgroundImage: `url(${coverImg})` }} />}
                       {cover && <div className="kb-cover" style={{ background: cover }} />}
-                      {!!cardLabels.length && (
-                        <div className="kb-labels">
-                          {cardLabels.map((l) => <span key={l.id} className="kb-lbl" style={{ background: l.color }} title={l.name} />)}
+                      <div className="kb-card-top">
+                        <span className={"kb-prio-pill " + (t.priority || "medium")}>
+                          <i />{PRIO_LABEL[t.priority || "medium"]}
+                        </span>
+                        {!!cardLabels.length && (
+                          <span className="kb-labels">
+                            {cardLabels.slice(0, 3).map((l) => <span key={l.id} className="kb-lbl" style={{ background: l.color }} title={l.name} />)}
+                          </span>
+                        )}
+                      </div>
+                      {(cardLabels[0]?.name || t.label) && <span className="kb-cat">{cardLabels[0]?.name || t.label}</span>}
+                      <h4 className={t.completed ? "done" : ""}>{t.completed && <span className="kb-check">✓</span>}{t.title}</h4>
+                      {t.description && <p className="kb-desc">{t.description}</p>}
+                      {ck && (
+                        <div className="kb-prog">
+                          <div className="kb-prog-top"><span>Progress</span><b>{Math.round((ck.done / ck.total) * 100)}%</b></div>
+                          <div className="kb-prog-bar"><span style={{ width: `${Math.round((ck.done / ck.total) * 100)}%` }} /></div>
                         </div>
                       )}
-                      <h4 className={t.completed ? "done" : ""}>{t.completed && <span className="kb-check">✓</span>}{t.title}</h4>
-                      <div className="meta">
-                        <span className={"kb-prio " + (t.priority || "medium")} />
-                        <span className="kb-prio-t">{t.priority || "medium"}</span>
+                      <div className="kb-card-foot">
+                        <span className="kb-stat" title="Checklist">☑ {ck ? `${ck.done}/${ck.total}` : 0}</span>
+                        <span className="kb-stat" title="Attachments">🔗 {(t.attachments || []).length}</span>
                         {overdue(t) && <span className="kb-due over">⏰ {t.dueDate}</span>}
-                        {t.dueDate && !overdue(t) && <span className="kb-due">📅 {t.dueDate}</span>}
-                        {ck && <span className="kb-ck">☑ {ck.done}/{ck.total}</span>}
+                        {t.dueDate && !overdue(t) && <span className="kb-due">📅 {String(t.dueDate).slice(5)}</span>}
                         <span style={{ flex: 1 }} />
                         <span className="kb-avstack">
                           {members.slice(0, 3).map((m) => <Avatar key={m.id} user={m} size={22} />)}
