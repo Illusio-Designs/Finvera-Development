@@ -55,7 +55,7 @@ export default async function Home() {
         <div className="container">
           <div className="hero-grid">
             <div className="hero-copy">
-              <span className="pill reveal"><span className="dot" /> Empowering Global SaaS &amp; CRM Growth</span>
+              <span className="pill reveal"><span className="dot" /> SaaS &amp; CRM Development Agency</span>
               <h1 data-split>
                 <span className="line"><span>Future-Driven</span></span>
                 <span className="line"><span>SaaS &amp; CRM</span></span>

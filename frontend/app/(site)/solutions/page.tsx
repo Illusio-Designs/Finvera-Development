@@ -72,8 +72,8 @@ export default function Solutions() {
       <section className="page-hero">
         <div className="container">
           <span className="eyebrow reveal">Solutions</span>
-          <h1 className="reveal d1">Software for every<br /><span className="grad-word">stage of growth</span></h1>
-          <p className="reveal d2">Whether you&apos;re launching an MVP or scaling to millions, we have a solution shaped to your goals — not a template.</p>
+          <h1 className="reveal d1">SaaS &amp; CRM for every<br /><span className="grad-word">stage of growth</span></h1>
+          <p className="reveal d2">As a SaaS &amp; CRM development agency, whether you&apos;re launching an MVP or scaling to millions, we build a solution shaped to your goals — not a template.</p>
           <div className="crumbs reveal d3"><Link href="/">Home</Link><span className="sep">/</span><span>Solutions</span></div>
         </div>
       </section>
