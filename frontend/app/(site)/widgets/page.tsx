@@ -4,6 +4,8 @@ import {
   FaqItem, TestimonialCard, Step, InfoItem, CTABand, Marquee, BarsMock, RingMock, Field,
 } from "@/components/ui";
 import { Arrow } from "@/components/icons";
+import PhoneInput from "@/components/PhoneInput";
+import { PasswordDemo, ToastDemo, TooltipDemo, ConfirmDemo, SuccessCheckDemo } from "@/components/WidgetDemos";
 
 /* Hidden route — intentionally NOT linked from Nav or Footer. */
 export const metadata = {
@@ -132,6 +134,34 @@ const WIDGETS: { id: string; name: string; comp: string; node: ReactNode; note?:
     node: <div style={{ width: "100%" }}><CTABand title="Ready to build?" text="Book a free 30-minute strategy call." cta={{ label: "Book a consultation", href: "/contact" }} /></div>,
   },
   {
+    id: "phone", name: "Phone input (flags)", comp: "<PhoneInput />",
+    node: (
+      <div style={{ width: "100%", maxWidth: 360 }}>
+        <PhoneInput name="wg_phone" />
+      </div>
+    ),
+  },
+  {
+    id: "password", name: "Password field (eye toggle)", comp: "<PasswordDemo />",
+    node: <PasswordDemo />,
+  },
+  {
+    id: "tooltip", name: "Tooltips", comp: "data-tip",
+    node: <TooltipDemo />,
+  },
+  {
+    id: "toast", name: "Toast notifications", comp: "toast()",
+    node: <ToastDemo />,
+  },
+  {
+    id: "confirm", name: "Confirm dialog", comp: "<ConfirmDemo />",
+    node: <ConfirmDemo />,
+  },
+  {
+    id: "success", name: "Success check (micro-animation)", comp: ".success-check",
+    node: <SuccessCheckDemo />,
+  },
+  {
     id: "chrome", name: "Global chrome (ambient)", comp: "<Chrome />",
     node: <p className="wg-note">Preloader, blue <b>waterfall light beam</b> backdrop, animated grid + orbs, custom cursor + spotlight, scroll-progress bar, back-to-top button and the cookie banner are always present via the shared <code>Chrome</code> component — visible everywhere on this page too.</p>,
   },
@@ -160,7 +190,7 @@ export default function Widgets() {
                 <b>{w.name}</b>
                 <code>{w.comp}</code>
               </div>
-              <div className={"wg-body" + (["heading", "stats", "features", "steps", "faq", "marquee", "cta", "info", "fields", "chrome"].includes(w.id) ? " col" : "")}>
+              <div className={"wg-body" + (["heading", "stats", "features", "steps", "faq", "marquee", "cta", "info", "fields", "phone", "password", "chrome"].includes(w.id) ? " col" : "")}>
                 {w.node}
               </div>
             </div>

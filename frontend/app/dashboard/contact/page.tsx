@@ -35,10 +35,11 @@ export default function AdminContact() {
           : rows.length === 0 ? <div className="adm-empty">No messages yet.</div>
           : (
             <table className="adm-table">
-              <thead><tr><th>From</th><th>Email</th><th>Project</th><th>Received</th><th>Status</th><th style={{ textAlign: "right" }}>Actions</th></tr></thead>
+              <thead><tr><th style={{ width: 44 }}>#</th><th>From</th><th>Email</th><th>Project</th><th>Received</th><th>Status</th><th style={{ textAlign: "right" }}>Actions</th></tr></thead>
               <tbody>
-                {rows.map((m) => (
+                {rows.map((m, i) => (
                   <tr key={m.id} style={{ fontWeight: m.isRead ? 400 : 600 }}>
+                    <td style={{ color: "var(--muted-2)", fontVariantNumeric: "tabular-nums" }}>{i + 1}</td>
                     <td>{m.name}</td>
                     <td>{m.email}</td>
                     <td>{m.projectType || "—"}</td>

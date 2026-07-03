@@ -1,10 +1,9 @@
 "use client";
 import { useState } from "react";
 import { Arrow, Check } from "./icons";
+import PhoneInput from "./PhoneInput";
 
-const endpoint = process.env.NEXT_PUBLIC_API_URL
-  ? `${process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "")}/api/contact`
-  : "";
+const endpoint = `${(process.env.NEXT_PUBLIC_API_URL || "https://api.finvera.solutions").replace(/\/$/, "")}/api/contact`;
 
 export default function ContactForm() {
   const [state, setState] = useState<"idle" | "sending" | "ok" | "error">("idle");
@@ -50,9 +49,15 @@ export default function ContactForm() {
           <input id="email" name="email" type="email" required placeholder="jane@company.com" />
         </div>
       </div>
-      <div className="field">
-        <label htmlFor="company">Company</label>
-        <input id="company" name="company" placeholder="Acme Inc." />
+      <div className="field row">
+        <div className="field" style={{ margin: 0, flex: 1 }}>
+          <label htmlFor="company">Company</label>
+          <input id="company" name="company" placeholder="Acme Inc." />
+        </div>
+        <div className="field" style={{ margin: 0, flex: 1 }}>
+          <label>Phone</label>
+          <PhoneInput name="phone" />
+        </div>
       </div>
       <div className="field">
         <label htmlFor="projectType">Project type</label>

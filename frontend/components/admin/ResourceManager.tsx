@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/adminApi";
+import { toast } from "@/lib/toast";
 import RichText from "./RichText";
 
 export type Field = {
@@ -62,6 +63,15 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
   const [editing, setEditing] = useState<Record<string, any> | null>(null);
   const [saving, setSaving] = useState(false);
   const [formErr, setFormErr] = useState("");
+  const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<string>("");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(1);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const PER_PAGE = 10;
+
+  useEffect(() => { setPage(1); }, [query, sortKey, sortDir]);
 
   async function load() {
     setLoading(true); setError("");
@@ -78,19 +88,45 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
       const payload: Record<string, any> = { ...editing };
       // empty strings → null so blank dates/optionals don't fail validation
       Object.keys(payload).forEach((k) => { if (payload[k] === "") payload[k] = null; });
-      if (editing?.id) await api.update(resource, editing.id, payload);
+      const editingItem = editing?.id;
+      if (editingItem) await api.update(resource, editing.id, payload);
       else await api.create(resource, payload);
       setEditing(null);
       await load();
-    } catch (e) { setFormErr(e instanceof Error ? e.message : "Save failed"); }
+      toast(editingItem ? "Changes saved" : "Item created");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Save failed";
+      setFormErr(msg); toast(msg, "err");
+    }
     finally { setSaving(false); }
   }
 
-  async function del(id: number) {
-    if (!confirm("Delete this item? This cannot be undone.")) return;
-    try { await api.remove(resource, id); await load(); }
-    catch (e) { alert(e instanceof Error ? e.message : "Delete failed"); }
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try { await api.remove(resource, deleteTarget.id); setDeleteTarget(null); await load(); toast("Item deleted"); }
+    catch (e) { toast(e instanceof Error ? e.message : "Delete failed", "err"); }
+    finally { setDeleting(false); }
   }
+
+  const toggleSort = (name: string) => {
+    if (sortKey === name) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(name); setSortDir("asc"); }
+  };
+
+  const filtered = query
+    ? rows.filter((r) => JSON.stringify(r).toLowerCase().includes(query.toLowerCase()))
+    : rows;
+
+  const sortVal = (r: any) => { const v = r[sortKey]; return Array.isArray(v) ? v.join(",") : v; };
+  const sorted = !sortKey ? filtered : [...filtered].sort((a, b) => {
+    const av = sortVal(a), bv = sortVal(b);
+    const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av ?? "").localeCompare(String(bv ?? ""));
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PER_PAGE));
+  const pageSafe = Math.min(page, totalPages);
+  const paged = sorted.slice((pageSafe - 1) * PER_PAGE, pageSafe * PER_PAGE);
 
   const setField = (name: string, value: any) => setEditing((s) => ({ ...(s || {}), [name]: value }));
 
@@ -98,10 +134,16 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
     <>
       <div className="adm-top">
         <div><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>
-        <button className="adm-btn primary" onClick={() => { setFormErr(""); setEditing(emptyFrom(fields, defaults)); }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 5v14M5 12h14" /></svg>
-          New
-        </button>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <label className="adm-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.3-4.3" /></svg>
+            <input placeholder={`Search ${title.toLowerCase()}…`} value={query} onChange={(e) => setQuery(e.target.value)} />
+          </label>
+          <button className="adm-btn primary" onClick={() => { setFormErr(""); setEditing(emptyFrom(fields, defaults)); }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 5v14M5 12h14" /></svg>
+            New
+          </button>
+        </div>
       </div>
 
       {error && <div className="adm-msg err">{error}</div>}
@@ -111,14 +153,28 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
           <div className="adm-empty">Loading…</div>
         ) : rows.length === 0 ? (
           <div className="adm-empty">No items yet. Click “New” to add one.</div>
+        ) : sorted.length === 0 ? (
+          <div className="adm-empty">No matches for “{query}”.</div>
         ) : (
+          <>
           <table className="adm-table">
             <thead>
-              <tr>{columns.map((c) => <th key={c.name}>{c.label}</th>)}<th style={{ textAlign: "right" }}>Actions</th></tr>
+              <tr>
+                <th style={{ width: 44 }}>#</th>
+                {columns.map((c) => (
+                  <th key={c.name} className={c.type !== "image" ? "adm-th-sort" : ""}
+                    onClick={() => c.type !== "image" && toggleSort(c.name)}>
+                    {c.label}
+                    {sortKey === c.name && <span className="ar">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                  </th>
+                ))}
+                <th style={{ textAlign: "right" }}>Actions</th>
+              </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {paged.map((row, i) => (
                 <tr key={row.id}>
+                  <td style={{ color: "var(--muted-2)", fontVariantNumeric: "tabular-nums" }}>{(pageSafe - 1) * PER_PAGE + i + 1}</td>
                   {columns.map((c) => (
                     <td key={c.name}>
                       {c.type === "image" ? (
@@ -137,10 +193,10 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                   ))}
                   <td>
                     <div className="adm-rowbtns">
-                      <button className="adm-ibtn" title="Edit" onClick={() => { setFormErr(""); setEditing({ ...row }); }}>
+                      <button className="adm-ibtn" data-tip="Edit" onClick={() => { setFormErr(""); setEditing({ ...row }); }}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
                       </button>
-                      <button className="adm-ibtn danger" title="Delete" onClick={() => del(row.id)}>
+                      <button className="adm-ibtn danger" data-tip="Delete" onClick={() => setDeleteTarget(row)}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /></svg>
                       </button>
                     </div>
@@ -149,6 +205,17 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
               ))}
             </tbody>
           </table>
+          {sorted.length > PER_PAGE && (
+            <div className="adm-pager">
+              <span>Showing {(pageSafe - 1) * PER_PAGE + 1}–{Math.min(pageSafe * PER_PAGE, sorted.length)} of {sorted.length}</span>
+              <div className="pg">
+                <button disabled={pageSafe <= 1} onClick={() => setPage(pageSafe - 1)}>Prev</button>
+                <span>Page {pageSafe} / {totalPages}</span>
+                <button disabled={pageSafe >= totalPages} onClick={() => setPage(pageSafe + 1)}>Next</button>
+              </div>
+            </div>
+          )}
+          </>
         )}
       </div>
 
@@ -192,6 +259,22 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
               <button className="adm-btn ghost" type="button" onClick={() => setEditing(null)}>Cancel</button>
             </div>
           </form>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="adm-overlay center" onMouseDown={(e) => { if (e.target === e.currentTarget) setDeleteTarget(null); }}>
+          <div className="adm-confirm">
+            <div className="adm-confirm-ic">
+              <svg viewBox="0 0 24 24" width={22} fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /></svg>
+            </div>
+            <h3>Delete this {title.replace(/s$/, "").toLowerCase()}?</h3>
+            <p>{deleteTarget.title || deleteTarget.name || `Item #${deleteTarget.id}`} will be permanently removed. This can&apos;t be undone.</p>
+            <div className="adm-confirm-actions">
+              <button className="adm-btn ghost" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</button>
+              <button className="adm-btn danger" onClick={confirmDelete} disabled={deleting}>{deleting ? "Deleting…" : "Delete"}</button>
+            </div>
+          </div>
         </div>
       )}
     </>
