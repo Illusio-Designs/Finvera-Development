@@ -2,9 +2,7 @@
 import { useState } from "react";
 import { Arrow, Check } from "./icons";
 
-const endpoint = process.env.NEXT_PUBLIC_API_URL
-  ? `${process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "")}/api/contact`
-  : "";
+const endpoint = `${(process.env.NEXT_PUBLIC_API_URL || "https://api.finvera.solutions").replace(/\/$/, "")}/api/contact`;
 
 export default function ContactForm() {
   const [state, setState] = useState<"idle" | "sending" | "ok" | "error">("idle");
