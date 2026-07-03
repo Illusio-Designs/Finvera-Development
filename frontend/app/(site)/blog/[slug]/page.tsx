@@ -2,7 +2,16 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Arrow } from "@/components/icons";
-import { getPost } from "@/lib/api";
+import { getPost, getBlog } from "@/lib/api";
+
+export async function generateStaticParams() {
+  try {
+    const posts = await getBlog();
+    return posts.filter((p) => p.status === "published").map((p) => ({ slug: p.slug }));
+  } catch {
+    return [];
+  }
+}
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
