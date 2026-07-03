@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, hasApi } from "@/lib/adminApi";
+import { api } from "@/lib/adminApi";
+import BackendStatus from "@/components/admin/BackendStatus";
 
 const RESOURCES = [
   ["projects", "Projects", "/admin/projects"],
@@ -16,7 +17,6 @@ export default function Dashboard() {
   const [inbox, setInbox] = useState(0);
 
   useEffect(() => {
-    if (!hasApi()) return;
     (async () => {
       const c: Record<string, number> = {};
       await Promise.all(RESOURCES.map(async ([r]) => { try { c[r] = (await api.list(r)).length; } catch { c[r] = 0; } }));
@@ -31,6 +31,8 @@ export default function Dashboard() {
         <div><h1>Dashboard</h1><p>Welcome back — here&apos;s what&apos;s on your site.</p></div>
         <Link href="/" className="adm-btn ghost">View site ↗</Link>
       </div>
+
+      <BackendStatus variant="card" />
 
       <div className="adm-cards">
         {RESOURCES.map(([r, label]) => (
