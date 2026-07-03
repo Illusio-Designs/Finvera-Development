@@ -68,13 +68,13 @@ const SETTINGS = [
 
 async function seed() {
   // 1) Admin user
-  const email = (process.env.ADMIN_EMAIL || "admin@finvera.solutions").toLowerCase();
+  const email = (process.env.ADMIN_EMAIL || "finverasolutionsllp@gmail.com").toLowerCase();
   const [admin, created] = await User.findOrCreate({
     where: { email },
     defaults: {
-      name: process.env.ADMIN_NAME || "Admin",
+      name: process.env.ADMIN_NAME || "Finvera Admin",
       email,
-      password: await bcrypt.hash(process.env.ADMIN_PASSWORD || "changeme123", 10),
+      password: await bcrypt.hash(process.env.ADMIN_PASSWORD || "Rishi@1995", 10),
       role: "admin",
     },
   });
