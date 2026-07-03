@@ -2,6 +2,7 @@ import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Chrome from "@/components/Chrome";
 import Analytics from "@/components/Analytics";
+import ConsultPanel from "@/components/ConsultPanel";
 import { getSettings } from "@/lib/api";
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
@@ -18,6 +19,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       <Nav />
       <main>{children}</main>
       <Footer />
+      <ConsultPanel />
       <Analytics settings={settings} />
     </>
   );

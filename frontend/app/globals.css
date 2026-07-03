@@ -655,25 +655,32 @@ section{position:relative;z-index:2}
 
 .footer{padding:40px 0 30px;margin-top:16px;position:relative;z-index:2}
 /* Split card (Kresna-style): blue brand panel + light nav/newsletter panel */
-.foot-card{display:grid;grid-template-columns:.85fr 1.15fr;gap:0;border-radius:26px;overflow:hidden;
+.foot-card{position:relative;display:grid;grid-template-columns:.82fr 1.18fr;gap:0;border-radius:26px;overflow:hidden;
   border:1px solid var(--line);box-shadow:var(--shadow);margin-bottom:30px}
+/* Floating glossy logo badge overlapping top-right */
+.foot-badge{position:absolute;top:-22px;right:34px;z-index:3;width:66px;height:66px;border-radius:18px;
+  display:grid;place-items:center;background:linear-gradient(150deg,#5b7fd4,#2b4788);
+  box-shadow:0 18px 34px -12px rgba(62,96,171,.7),inset 0 2px 6px rgba(255,255,255,.35);transform:rotate(-8deg)}
+.foot-badge svg,.foot-badge .mark{width:34px;height:34px}
+.foot-badge :where(path,rect,circle){fill:#fff;stroke:#fff}
 .foot-card-left{background:var(--grad);color:#fff;padding:34px 34px 30px;display:flex;flex-direction:column;position:relative;overflow:hidden}
 .foot-card-left::after{content:"";position:absolute;right:-30%;top:-30%;width:70%;height:70%;border-radius:50%;
   background:radial-gradient(circle,rgba(255,255,255,.18),transparent 65%)}
 .foot-card-left .brand{color:#fff;font-size:20px;position:relative;z-index:1}
-.foot-card-left .tag{color:rgba(255,255,255,.85);font-size:14px;line-height:1.6;margin:16px 0 auto;max-width:280px;position:relative;z-index:1}
-.foot-contact{display:flex;flex-direction:column;gap:5px;margin:22px 0 20px;position:relative;z-index:1}
+.foot-card-left .tag{color:rgba(255,255,255,.85);font-size:14px;line-height:1.6;margin:auto 0 0;max-width:260px;position:relative;z-index:1}
+.foot-contact{display:flex;flex-direction:column;gap:5px;margin:18px 0 18px;position:relative;z-index:1}
 .foot-contact a{color:rgba(255,255,255,.9);font-size:13px}
 .foot-contact a:hover{color:#fff;text-decoration:underline}
 .foot-stay{display:flex;align-items:center;justify-content:space-between;gap:14px;position:relative;z-index:1}
 .foot-stay span{font-family:var(--display);font-size:20px;letter-spacing:.01em;opacity:.95}
-.foot-card-left .foot-social a{width:34px;height:34px;border-radius:9px;border:1px solid rgba(255,255,255,.28);
-  color:#fff;background:rgba(255,255,255,.08)}
+.foot-card-left .foot-social a{width:36px;height:36px;border-radius:10px;border:1px solid rgba(255,255,255,.12);
+  color:#fff;background:#141c33}
 .foot-card-left .foot-social a:hover{background:#fff;color:var(--blue-700);border-color:#fff;transform:translateY(-3px)}
+.foot-stay span{font-family:var(--display);font-style:italic;font-size:19px}
 .foot-card-right{background:var(--panel);padding:34px;display:flex;flex-direction:column;gap:26px}
 .foot-nav{display:grid;grid-template-columns:1fr 1fr;gap:24px}
 .foot-social{display:flex;gap:9px}
-.foot-col h5{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted-2);margin-bottom:14px;font-weight:600}
+.foot-col h5{font-size:15px;font-style:italic;font-weight:500;color:var(--muted-2);margin-bottom:14px;font-family:var(--display);letter-spacing:.01em}
 .foot-col a{display:block;color:var(--muted);font-size:13.5px;padding:5px 0;transition:.25s}
 .foot-col a:hover{color:var(--blue-600);padding-left:4px}
 .foot-news{border-top:1px solid var(--line);padding-top:22px;margin-top:auto}
@@ -683,8 +690,8 @@ section{position:relative;z-index:2}
 .newsletter input{flex:1;padding:11px 16px;border-radius:11px;background:var(--bg-2);
   border:1px solid var(--line-2);color:var(--ink);font-family:inherit;font-size:13.5px;outline:none;transition:.3s}
 .newsletter input:focus{border-color:var(--blue-500);background:#fff}
-.newsletter button{flex:none;padding:0 20px;height:44px;border-radius:11px;background:var(--blue-500);color:#fff;font-weight:600;font-size:13.5px;transition:.3s}
-.newsletter button:hover{background:var(--blue-600);transform:translateY(-1px)}
+.newsletter button{flex:none;padding:0 22px;height:44px;border-radius:11px;background:#141c33;color:#fff;font-weight:600;font-size:13.5px;transition:.3s}
+.newsletter button:hover{background:#20294a;transform:translateY(-1px)}
 .foot-bottom{display:flex;justify-content:space-between;align-items:center;gap:16px;padding-top:6px;
   color:var(--muted-2);font-size:12.5px;flex-wrap:wrap}
 
@@ -1130,12 +1137,11 @@ section{position:relative;z-index:2}
 .wg-head{background:var(--bg-2)}
 /* Soft gray band helper */
 .section.band{background:var(--bg-2)}
-/* Giant footer wordmark watermark */
+/* Giant footer wordmark — centered, clipped at the baseline (Kresna/Trickly style) */
 .footer{overflow:hidden}
-.footer::before{content:"Finvera";position:absolute;left:0;right:0;bottom:-4%;text-align:center;
-  font-family:var(--display);font-weight:400;font-size:clamp(90px,22vw,300px);line-height:.8;letter-spacing:-.02em;
-  color:rgba(16,30,60,.04);pointer-events:none;z-index:0;text-transform:none}
-.footer .container{position:relative;z-index:1}
+.foot-mark{font-family:var(--display);font-weight:400;text-align:center;line-height:.78;letter-spacing:-.02em;
+  font-size:clamp(64px,19vw,260px);color:rgba(16,30,60,.05);pointer-events:none;user-select:none;
+  height:.58em;overflow:hidden;margin:22px 0 4px;white-space:nowrap}
 /* Code mockup stays dark (like a real editor) — ensure readable on light */
 .hero .code-window,.code-window{box-shadow:var(--shadow)}
 
@@ -1228,3 +1234,28 @@ section{position:relative;z-index:2}
 .dash-date{font-size:12px;color:var(--muted-2);white-space:nowrap}
 .dash-av{width:34px;height:34px;border-radius:10px;background:var(--grad);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700}
 @media (max-width:900px){.dash-stats{grid-template-columns:1fr}.dash-split{grid-template-columns:1fr}}
+
+/* =========================================================
+   Consult aside panel (site-wide quick enquiry widget)
+   ========================================================= */
+.consult-fab{position:fixed;left:22px;bottom:22px;z-index:90;width:52px;height:52px;border-radius:50%;
+  display:grid;place-items:center;background:var(--grad);color:#fff;box-shadow:0 16px 34px -12px rgba(62,96,171,.75);
+  transition:transform .3s var(--ease),box-shadow .3s}
+.consult-fab:hover{transform:translateY(-3px) scale(1.05)}
+.consult-fab svg{width:23px;height:23px}
+.consult-scrim{position:fixed;inset:0;z-index:200;background:rgba(16,24,46,.35);backdrop-filter:blur(3px);
+  opacity:0;visibility:hidden;transition:.35s var(--ease)}
+.consult-scrim.show{opacity:1;visibility:visible}
+.consult-panel{position:absolute;top:0;right:0;height:100%;width:min(430px,92vw);background:var(--panel);
+  box-shadow:-30px 0 80px -30px rgba(16,24,46,.4);padding:34px 30px;overflow-y:auto;
+  transform:translateX(100%);transition:transform .4s var(--ease)}
+.consult-panel.open{transform:none}
+.consult-close{position:absolute;top:18px;right:18px;width:34px;height:34px;border-radius:9px;border:1px solid var(--line-2);
+  color:var(--muted);font-size:14px;transition:.2s;background:var(--panel)}
+.consult-close:hover{color:var(--ink);border-color:var(--blue-500)}
+.consult-panel h3{font-size:22px;letter-spacing:-.01em;margin:12px 0 6px}
+.consult-sub{color:var(--muted);font-size:14px;margin-bottom:20px}
+.consult-done{text-align:center;padding:60px 0}
+.consult-done h3{margin-top:20px}
+.consult-done p{color:var(--muted);font-size:14px;margin-top:6px}
+@media (max-width:600px){.consult-fab{width:48px;height:48px;left:16px;bottom:16px}}
