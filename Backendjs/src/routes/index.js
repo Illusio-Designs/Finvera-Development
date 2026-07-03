@@ -1,7 +1,7 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
 
-const { Project, Service, Testimonial, TeamMember, BlogPost, Task } = require("../models");
+const { Project, Service, Testimonial, TeamMember, BlogPost, Task, Board } = require("../models");
 const { crudController } = require("../utils/crud");
 const { requireAuth, requireRole, optionalAuth } = require("../middleware/auth");
 const { upload } = require("../middleware/upload");
@@ -42,15 +42,30 @@ resource("/testimonials", Testimonial, { hasStatus: true, searchable: ["name", "
 resource("/team", TeamMember, { hasStatus: true, searchable: ["name", "role"] });
 resource("/blog", BlogPost, { slugFrom: "title", hasStatus: true, order: [["publishedAt", "DESC"], ["createdAt", "DESC"]], searchable: ["title", "excerpt", "category"] });
 
-/* ── Kanban tasks (all endpoints require auth) ───────── */
+/* ── Kanban boards (all endpoints require auth) ──────── */
+const boardCtrl = crudController(Board, { order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["name"] });
+const boardRouter = express.Router();
+boardRouter.get("/", requireAuth, boardCtrl.list);
+boardRouter.get("/:id", requireAuth, boardCtrl.getOne);
+boardRouter.post("/", requireAuth, boardCtrl.create);
+boardRouter.put("/:id", requireAuth, boardCtrl.update);
+boardRouter.patch("/:id", requireAuth, boardCtrl.update);
+boardRouter.delete("/:id", requireAuth, boardCtrl.remove);
+router.use("/boards", boardRouter);
+
+/* ── Kanban tasks + comments (all require auth) ──────── */
 const taskCtrl = crudController(Task, { order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["title", "assignee", "label"] });
+const tasksCustom = require("../controllers/tasks.controller");
 const taskRouter = express.Router();
-taskRouter.get("/", requireAuth, taskCtrl.list);
+taskRouter.get("/", requireAuth, tasksCustom.list);          // supports ?boardId=
 taskRouter.post("/", requireAuth, taskCtrl.create);
 taskRouter.put("/:id", requireAuth, taskCtrl.update);
 taskRouter.patch("/:id", requireAuth, taskCtrl.update);
 taskRouter.delete("/:id", requireAuth, taskCtrl.remove);
+taskRouter.get("/:taskId/comments", requireAuth, tasksCustom.listComments);
+taskRouter.post("/:taskId/comments", requireAuth, tasksCustom.addComment);
 router.use("/tasks", taskRouter);
+router.delete("/comments/:id", requireAuth, tasksCustom.deleteComment);
 
 /* ── Users (admin only) ──────────────────────────────── */
 const usersRouter = express.Router();

@@ -21,7 +21,13 @@ function toArray(v: unknown): string[] {
   }
   return [];
 }
-const normProject = (p: Project): Project => ({ ...p, tags: toArray(p.tags) });
+const normProject = (p: Project): Project => ({
+  ...p,
+  tags: toArray(p.tags),
+  tech: toArray(p.tech),
+  gallery: toArray(p.gallery),
+  results: toArray(p.results),
+});
 const normPost = (p: BlogPost): BlogPost => ({ ...p, tags: toArray(p.tags) });
 
 async function apiGet<T>(path: string, fallback: T): Promise<T> {

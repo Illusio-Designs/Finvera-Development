@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
 import RichText from "./RichText";
+import { TableSkeleton } from "./Skeleton";
 
 export type Field = {
   name: string;
@@ -150,7 +151,7 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
 
       <div className="adm-panel">
         {loading ? (
-          <div className="adm-empty">Loading…</div>
+          <TableSkeleton rows={6} cols={Math.max(2, columns.length)} />
         ) : rows.length === 0 ? (
           <div className="adm-empty">No items yet. Click “New” to add one.</div>
         ) : sorted.length === 0 ? (
