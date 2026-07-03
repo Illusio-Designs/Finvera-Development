@@ -1,6 +1,8 @@
 import type { MetadataRoute } from "next";
 import { getBlog } from "@/lib/api";
 
+export const dynamic = "force-static";
+
 const base = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.finvera.solutions").replace(/\/$/, "");
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

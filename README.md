@@ -7,10 +7,17 @@ company. Built with **Next.js (App Router) + TypeScript**, using the Finvera bra
 This is a monorepo:
 
 - [`frontend/`](frontend) — the Next.js website (App Router + TypeScript).
-- [`backend/`](backend) — a Node/Express + **MySQL** REST API that manages all
+- [`Backendjs/`](Backendjs) — a Node/Express + **MySQL** REST API that manages all
   content (projects, services, testimonials, team, blog, contact submissions,
   per‑page SEO and analytics/pixel settings) with admin auth and image uploads.
-  See [`backend/README.md`](backend/README.md).
+  See [`Backendjs/README.md`](Backendjs/README.md).
+
+## Deployment
+
+- **Frontend** → **Vercel** (auto-deploys on push to `main`, Root Directory `frontend`).
+- **Backend** → **GitHub Actions → FTP** (`.github/workflows/backend-deploy.yml`, deploys `Backendjs/` on push to the `backend` branch).
+
+See [`DEPLOY.md`](DEPLOY.md) for the exact secrets / env vars to add (with example values).
 
 ## ✨ Highlights
 
