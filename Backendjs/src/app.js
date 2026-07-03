@@ -31,8 +31,12 @@ app.use(cors({
 /* Static uploads */
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
+/* Health check (top-level, for load balancers / cPanel / uptime monitors) */
+const { health } = require("./controllers/health.controller");
+app.get(["/health", "/healthz"], health);
+
 /* API */
-app.get("/", (_req, res) => res.json({ name: "Finvera API", version: "1.0.0", docs: "/api/health" }));
+app.get("/", (_req, res) => res.json({ name: "Finvera API", version: "1.0.0", health: "/health", docs: "/api/health" }));
 app.use("/api", routes);
 
 /* Errors */
