@@ -1,16 +1,16 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
-import { Poppins, Anton, Fira_Code } from "next/font/google";
+import { Sora, Inter } from "next/font/google";
 import LogoDefs from "@/components/LogoDefs";
 
-const poppins = Poppins({
+// Premium 2-font system: Inter for text, Sora for display/headings.
+const inter = Inter({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
-  variable: "--font-poppins",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-inter",
   display: "swap",
 });
-const anton = Anton({ subsets: ["latin"], weight: "400", variable: "--font-anton", display: "swap" });
-const fira = Fira_Code({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-fira", display: "swap" });
+const sora = Sora({ subsets: ["latin"], weight: ["500", "600", "700", "800"], variable: "--font-sora", display: "swap" });
 
 export const metadata: Metadata = {
   title: {
@@ -31,7 +31,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${poppins.variable} ${anton.variable} ${fira.variable}`}>
+    <html lang="en" className={`${inter.variable} ${sora.variable}`}>
       <body>
         <LogoDefs />
         {children}
