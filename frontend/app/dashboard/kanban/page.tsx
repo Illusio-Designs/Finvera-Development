@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
+import { dialog } from "@/lib/dialog";
 import { BoardSkeleton } from "@/components/admin/Skeleton";
 
 type Col = { id: string; title: string };
@@ -142,7 +143,9 @@ export default function Kanban() {
     reloadTasks();
   }
   async function deleteCard() {
-    if (editing?.id && confirm("Delete this card?")) { await api.deleteTask(editing.id); setEditing(null); toast("Card deleted"); reloadTasks(); }
+    if (editing?.id && await dialog.confirm({ title: "Delete this card?", message: "This can't be undone.", danger: true, confirmText: "Delete" })) {
+      await api.deleteTask(editing.id); setEditing(null); toast("Card deleted"); reloadTasks();
+    }
   }
 
   /* ── board / column management ── */
@@ -153,7 +156,7 @@ export default function Kanban() {
     await api.updateBoard(board.id, patch);
   }
   async function addBoard() {
-    const name = prompt("Board name?");
+    const name = await dialog.prompt({ title: "New board", placeholder: "Board name", confirmText: "Create" });
     if (!name) return;
     const b = normBoard(await api.createBoard({
       name,
@@ -165,29 +168,29 @@ export default function Kanban() {
   }
   async function renameBoard() {
     if (!board) return;
-    const name = prompt("Rename board", board.name);
+    const name = await dialog.prompt({ title: "Rename board", defaultValue: board.name, confirmText: "Rename" });
     if (name) saveBoard({ name });
   }
   async function deleteBoard() {
     if (!board) return;
-    if (!confirm(`Delete board "${board.name}" and all its cards?`)) return;
+    if (!(await dialog.confirm({ title: `Delete "${board.name}"?`, message: "The board and all its cards will be removed.", danger: true, confirmText: "Delete" }))) return;
     await api.deleteBoard(board.id);
     const rest = boards.filter((b) => b.id !== board.id);
     setBoards(rest); toast("Board deleted");
     if (rest[0]) switchBoard(rest[0].id); else { setActiveId(null); setTasks([]); }
   }
-  function addColumn() {
-    const title = prompt("Column name?");
+  async function addColumn() {
+    const title = await dialog.prompt({ title: "New column", placeholder: "Column name", confirmText: "Add" });
     if (title) saveBoard({ columns: [...cols, { id: uid("col"), title }] });
   }
-  function renameColumn(c: Col) {
-    const title = prompt("Rename column", c.title);
+  async function renameColumn(c: Col) {
+    const title = await dialog.prompt({ title: "Rename column", defaultValue: c.title, confirmText: "Rename" });
     if (title) saveBoard({ columns: cols.map((x) => (x.id === c.id ? { ...x, title } : x)) });
   }
   async function deleteColumn(c: Col) {
-    if (!confirm(`Delete column "${c.title}"? Its cards move to the first column.`)) return;
+    if (!(await dialog.confirm({ title: `Delete column "${c.title}"?`, message: "Its cards move to the first column.", danger: true, confirmText: "Delete" }))) return;
     const rest = cols.filter((x) => x.id !== c.id);
-    if (!rest.length) return alert("Keep at least one column.");
+    if (!rest.length) return dialog.alert({ title: "Keep at least one column." });
     await Promise.all(inCol(c.id).map((t) => api.updateTask(t.id, { column: rest[0].id })));
     saveBoard({ columns: rest }); reloadTasks();
   }

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/adminApi";
+import { dialog } from "@/lib/dialog";
 
 export default function AdminContact() {
   const [rows, setRows] = useState<any[]>([]);
@@ -20,7 +21,7 @@ export default function AdminContact() {
     try { await api.markContact(m.id, !m.isRead); await load(); } catch { /* */ }
   }
   async function del(id: number) {
-    if (!confirm("Delete this message?")) return;
+    if (!(await dialog.confirm({ title: "Delete this message?", message: "This can't be undone.", danger: true, confirmText: "Delete" }))) return;
     try { await api.removeContact(id); setOpen(null); await load(); } catch { /* */ }
   }
 

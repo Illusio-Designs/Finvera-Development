@@ -907,6 +907,9 @@ section{position:relative;z-index:2}
 .adm-confirm h3{font-size:18px;margin-bottom:8px}
 .adm-confirm p{color:var(--muted);font-size:14px;margin-bottom:22px;line-height:1.6}
 .adm-confirm-actions{display:flex;gap:10px;justify-content:center}
+.adm-dialog-input{width:100%;padding:11px 14px;border-radius:11px;background:var(--bg-2);border:1px solid var(--line-2);
+  color:var(--ink);font-family:inherit;font-size:14px;outline:none;margin-bottom:20px;transition:.2s}
+.adm-dialog-input:focus{border-color:var(--blue-500);background:#fff}
 .adm-btn.danger{background:#ff5f57;color:#fff}
 .adm-btn.danger:hover{background:#ff463d;box-shadow:0 12px 28px -12px rgba(255,95,87,.8)}
 
