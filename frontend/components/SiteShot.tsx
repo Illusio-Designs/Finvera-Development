@@ -1,34 +1,21 @@
-"use client";
-import { useState } from "react";
-
 /**
- * Renders a live screenshot of an external site inside a device frame.
- * Screenshots are generated on-demand by thum.io (with a WordPress mShots
- * fallback) so they stay current. The build environment can't reach these
- * domains, but the deployed site can.
+ * On-brand preview placeholder shown when a project has no uploaded screenshot.
+ * Reliable and intentional-looking (no flaky third-party screenshot service).
+ * Upload a desktop/mobile image in the admin to show a real screenshot instead.
  */
-export default function SiteShot({ url, kind, alt }: { url: string; kind: "desktop" | "mobile"; alt: string }) {
+export default function SiteShot({ url, kind }: { url: string; kind: "desktop" | "mobile"; alt?: string }) {
   const clean = url.replace(/\/$/, "");
-  const primary =
-    kind === "mobile"
-      ? `https://image.thum.io/get/viewportWidth/400/width/520/crop/1100/noanimate/${clean}`
-      : `https://image.thum.io/get/viewportWidth/1280/width/1280/crop/800/noanimate/${clean}`;
-  const fallback = `https://s0.wp.com/mshots/v1/${encodeURIComponent(clean)}?w=${kind === "mobile" ? 520 : 1280}`;
-
-  const [src, setSrc] = useState(primary);
-  const [ready, setReady] = useState(false);
-
+  const host = (() => {
+    try { return new URL(clean).host.replace(/^www\./, ""); }
+    catch { return clean.replace(/^https?:\/\//, ""); }
+  })();
   return (
-    <div className="shot-wrap">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        className={"shot" + (ready ? " ready" : "")}
-        src={src}
-        alt={alt}
-        loading="lazy"
-        onLoad={() => setReady(true)}
-        onError={() => { if (src !== fallback) { setReady(false); setSrc(fallback); } }}
-      />
+    <div className={"shot-ph " + kind}>
+      <div className="shot-ph-glow" />
+      <span className="shot-ph-host">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z" /></svg>
+        {host}
+      </span>
     </div>
   );
 }
