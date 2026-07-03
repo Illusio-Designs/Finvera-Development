@@ -7,7 +7,7 @@ name: Backend CI/CD
 #
 # Required GitHub secrets — Settings → Secrets and variables → Actions
 # (or the `production` environment):
-#   FTP_PASS        → ftp password                 (REQUIRED)
+#   FTP_PASSWORD    → ftp password                 (REQUIRED; FTP_PASS also accepted)
 #   BACKEND_ENV     → full contents of the backend .env (recommended)
 # These have baked-in defaults below (override with a secret if needed):
 #   FTP_SERVER      → default ftp.illusiodesigns.agency
@@ -49,7 +49,7 @@ jobs:
       # Fail early with a clear message if the FTP password secret is missing.
       - name: Check required secrets
         env:
-          FTP_PASS: ${{ secrets.FTP_PASS }}
+          FTP_PASS: ${{ secrets.FTP_PASSWORD || secrets.FTP_PASS }}
         run: |
           if [ -z "$FTP_PASS" ]; then
             echo "::error::FTP_PASS secret is not set. Add it under Settings → Secrets and variables → Actions (New repository secret), then re-run this workflow."
@@ -71,7 +71,7 @@ jobs:
         with:
           server: ${{ secrets.FTP_SERVER || 'ftp.illusiodesigns.agency' }}
           username: ${{ secrets.FTP_USER || 'informative' }}
-          password: ${{ secrets.FTP_PASS }}
+          password: ${{ secrets.FTP_PASSWORD || secrets.FTP_PASS }}
           # Explicit FTPS over port 21 (AUTH TLS). Switch to `ftp` if your host
           # does not support TLS.
           protocol: ftps
@@ -117,7 +117,7 @@ jobs:
         env:
           FTP_HOST: ${{ secrets.FTP_SERVER || 'ftp.illusiodesigns.agency' }}
           FTP_USER: ${{ secrets.FTP_USER || 'informative' }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASS }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD || secrets.FTP_PASS }}
           FTP_BASE_DIR: ${{ secrets.FTP_REMOTE_DIR || 'api.finvera.solutions/' }}
           BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
         run: |
@@ -158,7 +158,7 @@ jobs:
         env:
           FTP_HOST: ${{ secrets.FTP_SERVER || 'ftp.illusiodesigns.agency' }}
           FTP_USER: ${{ secrets.FTP_USER || 'informative' }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASS }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD || secrets.FTP_PASS }}
           FTP_BASE_DIR: ${{ secrets.FTP_REMOTE_DIR || 'api.finvera.solutions/' }}
         run: |
           set -e

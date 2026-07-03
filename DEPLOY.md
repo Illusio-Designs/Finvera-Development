@@ -35,7 +35,7 @@ so you only strictly need to add **`FTP_PASS`** and **`BACKEND_ENV`**.
 
 | Secret           | Required? | Value                            | Notes |
 |------------------|-----------|----------------------------------|-------|
-| `FTP_PASS`       | **Yes**   | *your FTP password*              | Password for user `informative`. |
+| `FTP_PASSWORD`   | **Yes**   | *your FTP password*              | Password for user `informative` (`FTP_PASS` also accepted). |
 | `BACKEND_ENV`    | Recommended | *(the multi-line block below)* | Full backend `.env`; uploaded to the app dir on every deploy. |
 | `FTP_SERVER`     | No (default) | `ftp.illusiodesigns.agency`   | Override only if the host changes. |
 | `FTP_USER`       | No (default) | `informative`                 | Override only if the user changes. |
