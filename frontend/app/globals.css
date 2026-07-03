@@ -1052,3 +1052,22 @@ section{position:relative;z-index:2}
 .footer .container{position:relative;z-index:1}
 /* Code mockup stays dark (like a real editor) — ensure readable on light */
 .hero .code-window,.code-window{box-shadow:var(--shadow)}
+
+/* =========================================================
+   Skeleton loaders (shimmer)
+   ========================================================= */
+.skel{position:relative;overflow:hidden;background:rgba(16,30,60,.07);border-radius:8px;display:block}
+.skel::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent);animation:skelShimmer 1.25s infinite}
+@keyframes skelShimmer{100%{transform:translateX(100%)}}
+.skel-line{height:12px;border-radius:6px}
+.skel-circle{border-radius:50%}
+.skel-table{width:100%}
+.skel-row{display:flex;align-items:center;gap:16px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.skel-row:last-child{border-bottom:0}
+.skel-kb{display:flex;gap:16px}
+.skel-kbcol{flex:0 0 284px;background:#f4f6fb;border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.skel-kbcard{height:64px;border-radius:11px}
+/* Inline spinner */
+.spinner{width:34px;height:34px;border-radius:50%;border:3px solid rgba(16,30,60,.12);border-top-color:var(--blue-500);animation:spin .7s linear infinite;margin:0 auto}
+@keyframes spin{to{transform:rotate(360deg)}}
