@@ -1160,26 +1160,41 @@ section{position:relative;z-index:2}
 /* =========================================================
    Kanban card — Layers/Trello-style (priority pill, progress, footer)
    ========================================================= */
-.kb-card{padding:0;border-radius:16px;box-shadow:var(--shadow-sm);overflow:hidden;background:#fff}
-.kb-banner{text-align:center;padding:7px;font-size:10.5px;font-weight:700;letter-spacing:.07em;color:#fff;text-transform:uppercase}
-.kb-banner.high{background:linear-gradient(100deg,#ff7a7a,#ee4b4b)}
-.kb-banner.medium{background:linear-gradient(100deg,#ffb057,#ff8a3d)}
-.kb-banner.low{background:linear-gradient(100deg,#4fd08a,#25b06a)}
-.kb-inner{margin:11px;border:1.5px dashed var(--line-2);border-radius:12px;padding:13px}
-.kb-inner .kb-cover{height:8px;border-radius:5px;margin:-2px 0 9px}
-.kb-inner .kb-cover-img{height:64px;border-radius:8px;margin:-2px 0 9px;background-size:cover;background-position:center}
-.kb-inner h4{font-size:15px;font-weight:700;line-height:1.3;margin:0 0 6px}
+.kb-cards{gap:15px}
+.kb-card{padding:0;border-radius:18px;border:0;background:#fff;overflow:hidden;
+  box-shadow:0 10px 26px -14px rgba(23,43,92,.28),0 2px 6px -2px rgba(23,43,92,.08)}
+.kb-card:hover{transform:translateY(-3px);border-color:transparent;
+  box-shadow:0 18px 40px -16px rgba(23,43,92,.4),0 3px 8px -2px rgba(23,43,92,.1)}
+.kb-banner{text-align:center;padding:8px;font-size:10.5px;font-weight:800;letter-spacing:.09em;color:#fff;text-transform:uppercase}
+.kb-banner.high{background:linear-gradient(180deg,#ff6b6b,#ee4b4b)}
+.kb-banner.medium{background:linear-gradient(180deg,#ffa64d,#ff8a3d)}
+.kb-banner.low{background:linear-gradient(180deg,#42cf86,#25b06a)}
+.kb-inner{margin:13px;border:1.5px dashed var(--line-2);border-radius:14px;padding:15px}
+.kb-inner .kb-cover{height:8px;border-radius:5px;margin:-3px 0 10px}
+.kb-inner .kb-cover-img{height:66px;border-radius:9px;margin:-3px 0 10px;background-size:cover;background-position:center}
+.kb-inner h4{font-size:16px;font-weight:700;line-height:1.3;margin:0 0 7px;color:var(--ink)}
 .kb-inner h4.done{text-decoration:line-through;color:var(--muted-2)}
-.kb-desc{font-size:12px;color:var(--muted);line-height:1.5;margin:0 0 13px;
+.kb-desc{font-size:12.5px;color:var(--muted);line-height:1.5;margin:0 0 15px;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .kb-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.kb-row .kb-avstack .kb-av{margin-left:-9px}
-.kb-status{font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:8px;background:var(--bg-2);color:var(--muted);white-space:nowrap}
-.kb-foot{display:flex;align-items:center;gap:15px;padding:0 15px 13px;color:var(--muted-2);font-size:12.5px;font-weight:600}
+.kb-row .kb-avstack .kb-av{margin-left:-9px;box-shadow:0 0 0 2px #fff}
+/* Status pill — subtle colour by keyword (In Progress / Review / Correction / Pending) */
+.kb-status{font-size:11.5px;font-weight:600;padding:6px 13px;border-radius:9px;background:var(--bg-2);color:var(--muted-2);white-space:nowrap}
+.kb-status.st-progress{background:rgba(62,96,171,.12);color:var(--blue-700)}
+.kb-status.st-review{background:rgba(124,92,255,.14);color:#6d3fd6}
+.kb-status.st-correction{background:rgba(245,158,11,.16);color:#b45309}
+.kb-status.st-done{background:rgba(34,197,94,.15);color:#15803d}
+.kb-foot{display:flex;align-items:center;gap:16px;padding:2px 16px 14px;color:var(--muted-2);font-size:12.5px;font-weight:600}
 .kb-fs{display:inline-flex;align-items:center;gap:5px}
 .kb-fs svg{width:15px;height:15px}
 .kb-fdate{margin-left:auto;font-weight:500;font-size:12px;color:var(--muted-2)}
 .kb-fdate.over{color:#dc2626;font-weight:600}
+/* Column header — colour bar + title + task count (reference) */
+.kb-col{background:#eef1f7}
+.kb-col-head{padding:4px 4px 0}
+.kb-col-head .kb-cbar{width:4px;height:20px;border-radius:3px;background:var(--blue-500);flex:none}
+.kb-col-head .t{font-size:17px;font-weight:700}
+.kb-col-sub{font-size:12px;color:var(--muted-2);margin:-4px 0 4px 12px}
 
 /* =========================================================
    Dashboard overview (OripioFin-style)
