@@ -28,6 +28,9 @@ export default function Nav() {
                 {label}
               </Link>
             ))}
+            <Link href="/contact" className="nav-menu-cta" data-cursor>
+              Get Started <Arrow />
+            </Link>
           </nav>
           <div className="nav-cta">
             <Link href="/contact" className="btn btn-primary" data-cursor>

@@ -5,7 +5,7 @@ import {
 } from "@/components/ui";
 import { Arrow } from "@/components/icons";
 import PhoneInput from "@/components/PhoneInput";
-import { PasswordDemo, ToastDemo, TooltipDemo, ConfirmDemo, SuccessCheckDemo } from "@/components/WidgetDemos";
+import { PasswordDemo, ToastDemo, TooltipDemo, ConfirmDemo, SuccessCheckDemo, TableDemo, DatePickerDemo } from "@/components/WidgetDemos";
 
 /* Hidden route — intentionally NOT linked from Nav or Footer. */
 export const metadata = {
@@ -162,6 +162,14 @@ const WIDGETS: { id: string; name: string; comp: string; node: ReactNode; note?:
     node: <SuccessCheckDemo />,
   },
   {
+    id: "table", name: "Data table (search · sort · paginate)", comp: "<DataTable />",
+    node: <TableDemo />,
+  },
+  {
+    id: "datepicker", name: "Date picker", comp: 'type="date"',
+    node: <DatePickerDemo />,
+  },
+  {
     id: "chrome", name: "Global chrome (ambient)", comp: "<Chrome />",
     node: <p className="wg-note">Preloader, blue <b>waterfall light beam</b> backdrop, animated grid + orbs, custom cursor + spotlight, scroll-progress bar, back-to-top button and the cookie banner are always present via the shared <code>Chrome</code> component — visible everywhere on this page too.</p>,
   },
@@ -190,7 +198,7 @@ export default function Widgets() {
                 <b>{w.name}</b>
                 <code>{w.comp}</code>
               </div>
-              <div className={"wg-body" + (["heading", "stats", "features", "steps", "faq", "marquee", "cta", "info", "fields", "phone", "password", "chrome"].includes(w.id) ? " col" : "")}>
+              <div className={"wg-body" + (["heading", "stats", "features", "steps", "faq", "marquee", "cta", "info", "fields", "phone", "password", "table", "datepicker", "chrome"].includes(w.id) ? " col" : "")}>
                 {w.node}
               </div>
             </div>

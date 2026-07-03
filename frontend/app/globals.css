@@ -215,6 +215,7 @@ section{position:relative;z-index:2}
   background:var(--grad);border-radius:2px;transform:scaleX(0);transform-origin:left;transition:.3s var(--ease)}
 .nav-links a:hover::after,.nav-links a.active::after{transform:scaleX(1)}
 .nav-cta{display:flex;align-items:center;gap:9px}
+.nav-menu-cta{display:none}
 .nav-login{font-size:13.5px;color:var(--muted);padding:8px 12px;transition:.25s}
 .nav-login:hover{color:#fff}
 .burger{display:none;width:42px;height:42px;border-radius:12px;border:1px solid var(--line-2);
@@ -913,6 +914,9 @@ section{position:relative;z-index:2}
 @media (max-width:760px){
   .nav-links,.nav-login{display:none}
   .burger{display:grid}
+  /* On mobile the header bar is just logo + burger; the CTA lives in the menu. */
+  .nav-cta .btn-primary{display:none}
+  .nav-cta{margin-left:auto}
   /* solid full-width bar on mobile — no floating pill, so content can't bleed around it */
   .nav{background:rgba(8,11,20,.92);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
   .nav.scrolled{background:rgba(8,11,20,.97)}
@@ -920,6 +924,11 @@ section{position:relative;z-index:2}
   .nav.open .nav-links{display:flex;position:absolute;top:60px;left:5%;right:5%;flex-direction:column;
     background:rgba(9,12,24,.98);border:1px solid var(--line-2);border-radius:18px;padding:12px;gap:3px;backdrop-filter:blur(18px)}
   .nav.open .nav-links a{width:100%}
+  /* Get Started button inside the mobile dropdown */
+  .nav.open .nav-menu-cta{display:flex;align-items:center;justify-content:center;gap:8px;
+    margin-top:8px;padding:13px;border-radius:12px;background:#fff;color:#05060b;font-weight:600;
+    font-size:15px}
+  .nav.open .nav-menu-cta::after{display:none}
   .grid-3,.grid-2,.grid-4,.stats,.foot-grid,.steps{grid-template-columns:1fr}
   .hero{padding-top:118px}
   .float-card{display:none}
