@@ -54,14 +54,23 @@ export const api = {
     return req(`/uploads`, { method: "POST", body: fd });
   },
 
-  /* Kanban board */
-  getColumns: async (): Promise<{ id: string; title: string }[]> => {
-    const s = await req(`/settings`);
-    try { return JSON.parse(s.kanban_columns || "[]"); } catch { return []; }
-  },
-  saveColumns: (columns: any[]) => req(`/settings`, { method: "PUT", body: JSON.stringify({ kanban_columns: JSON.stringify(columns) }) }),
-  listTasks: () => req(`/tasks`),
+  /* Users (for assigning members) */
+  listUsers: () => req(`/users`),
+
+  /* Kanban — boards (Trello-style) */
+  listBoards: () => req(`/boards`),
+  createBoard: (body: any) => req(`/boards`, { method: "POST", body: JSON.stringify(body) }),
+  updateBoard: (id: number, body: any) => req(`/boards/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteBoard: (id: number) => req(`/boards/${id}`, { method: "DELETE" }),
+
+  /* Kanban — cards */
+  listTasks: (boardId?: number) => req(`/tasks${boardId ? `?boardId=${boardId}` : ""}`),
   createTask: (body: any) => req(`/tasks`, { method: "POST", body: JSON.stringify(body) }),
   updateTask: (id: number, body: any) => req(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteTask: (id: number) => req(`/tasks/${id}`, { method: "DELETE" }),
+
+  /* Kanban — comments */
+  listComments: (taskId: number) => req(`/tasks/${taskId}/comments`),
+  addComment: (taskId: number, body: string) => req(`/tasks/${taskId}/comments`, { method: "POST", body: JSON.stringify({ body }) }),
+  deleteComment: (id: number) => req(`/comments/${id}`, { method: "DELETE" }),
 };

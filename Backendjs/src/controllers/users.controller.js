@@ -2,7 +2,7 @@ const bcrypt = require("bcryptjs");
 const { User } = require("../models");
 const { asyncHandler } = require("../utils/crud");
 
-const safe = (u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, active: u.active, createdAt: u.createdAt });
+const safe = (u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, active: u.active, avatar: u.avatar, title: u.title, createdAt: u.createdAt });
 
 const list = asyncHandler(async (_req, res) => {
   const users = await User.findAll({ order: [["createdAt", "ASC"]] });
@@ -10,13 +10,15 @@ const list = asyncHandler(async (_req, res) => {
 });
 
 const create = asyncHandler(async (req, res) => {
-  const { name, email, password, role, active } = req.body;
+  const { name, email, password, role, active, avatar, title } = req.body;
   if (!name || !email || !password) return res.status(400).json({ message: "Name, email and password are required." });
   const user = await User.create({
     name, email: String(email).toLowerCase().trim(),
     password: await bcrypt.hash(password, 10),
     role: role === "editor" ? "editor" : "admin",
     active: active !== false,
+    avatar: avatar || null,
+    title: title || null,
   });
   res.status(201).json(safe(user));
 });
@@ -24,11 +26,13 @@ const create = asyncHandler(async (req, res) => {
 const update = asyncHandler(async (req, res) => {
   const user = await User.findByPk(req.params.id);
   if (!user) return res.status(404).json({ message: "User not found." });
-  const { name, email, password, role, active } = req.body;
+  const { name, email, password, role, active, avatar, title } = req.body;
   if (name != null) user.name = name;
   if (email != null) user.email = String(email).toLowerCase().trim();
   if (role != null) user.role = role === "editor" ? "editor" : "admin";
   if (active != null) user.active = active;
+  if (avatar !== undefined) user.avatar = avatar || null;
+  if (title !== undefined) user.title = title || null;
   if (password) user.password = await bcrypt.hash(password, 10);
   await user.save();
   res.json(safe(user));
