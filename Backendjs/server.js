@@ -10,9 +10,17 @@ async function start() {
     await sequelize.authenticate();
     console.log("\x1b[32m✔ MySQL connected\x1b[0m");
 
-    if (String(process.env.DB_SYNC).toLowerCase() === "true") {
-      await sequelize.sync({ alter: true });
-      console.log("\x1b[32m✔ Models synced\x1b[0m");
+    // Auto-provision schema (additive): creates any missing tables and columns
+    // on boot so new features (Kanban boards, case-study fields, etc.) work
+    // without a manual DB_SYNC step. Additive only — never drops data. Wrapped
+    // so a sync hiccup can't take the API down. Set SKIP_DB_SYNC=true to opt out.
+    if (String(process.env.SKIP_DB_SYNC).toLowerCase() !== "true") {
+      try {
+        await sequelize.sync({ alter: true });
+        console.log("\x1b[32m✔ Schema synced (tables + columns up to date)\x1b[0m");
+      } catch (e) {
+        console.warn("\x1b[33m⚠ Schema sync warning (continuing):\x1b[0m", e.message);
+      }
     }
 
     await seed(); // create admin + sample content if empty

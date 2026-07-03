@@ -5,6 +5,11 @@ export type Project = {
   tags: string[]; blurb: string; content?: string;
   desktopImage: string | null; mobileImage: string | null; coverImage: string | null;
   featured: boolean; status: string;
+  // case-study / trust fields
+  client?: string; industry?: string; year?: string; duration?: string; role?: string;
+  challenge?: string; approach?: string;
+  results?: string[]; tech?: string[]; gallery?: string[];   // results: "value — label" strings
+  testimonialQuote?: string; testimonialName?: string; testimonialRole?: string;
 };
 export type Service = { id: number; title: string; slug: string; icon: string; description: string };
 export type Testimonial = { id: number; name: string; role: string; company: string; avatar: string; quote: string; rating: number };

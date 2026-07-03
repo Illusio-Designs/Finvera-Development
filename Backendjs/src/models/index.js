@@ -27,6 +27,20 @@ const Project = sequelize.define("Project", {
   featured: { type: DataTypes.BOOLEAN, defaultValue: false },
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
   status: { type: DataTypes.ENUM("draft", "published"), defaultValue: "published" },
+  // ── Case-study / trust fields ──
+  client: { type: DataTypes.STRING },      // client name (falls back to title)
+  industry: { type: DataTypes.STRING },
+  year: { type: DataTypes.STRING },
+  duration: { type: DataTypes.STRING },    // e.g. "6 weeks"
+  role: { type: DataTypes.STRING },        // e.g. "Design & Development"
+  challenge: { type: DataTypes.TEXT },
+  approach: { type: DataTypes.TEXT },
+  results: { type: DataTypes.JSON, defaultValue: [] },   // [{ value, label }]
+  tech: { type: DataTypes.JSON, defaultValue: [] },      // ["Next.js", "Node", ...]
+  gallery: { type: DataTypes.JSON, defaultValue: [] },   // [imageUrl, ...]
+  testimonialQuote: { type: DataTypes.TEXT },
+  testimonialName: { type: DataTypes.STRING },
+  testimonialRole: { type: DataTypes.STRING },
   seoTitle: { type: DataTypes.STRING },
   seoDescription: { type: DataTypes.TEXT },
 }, { tableName: "projects" });
