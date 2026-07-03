@@ -178,8 +178,12 @@ jobs:
               secure: true,
               secureOptions: { rejectUnauthorized: false },
             });
+            // ensureDir() navigates the FTP session INTO `${base}/tmp` (creating
+            // it if missing), so the upload path must be the bare filename —
+            // re-passing the full path would nest it under the current dir and
+            // fail with "553 Can't open that file".
             await client.ensureDir(`${base}/tmp`);
-            await client.uploadFrom(Readable.from(['restart\n']), `${base}/tmp/restart.txt`);
+            await client.uploadFrom(Readable.from(['restart\n']), 'restart.txt');
             console.log(`✅ Passenger restart triggered: ${base}/tmp/restart.txt`);
           } catch (err) {
             console.error('Restart failed:', err.message);
