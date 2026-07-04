@@ -30,7 +30,7 @@ const codeHtml = `
 <span class="ln"> </span>
 <span class="ln"><span class="f">crm</span>.<span class="f">deploy</span>();  <span class="c">// ship in minutes</span></span>`;
 
-const FB_LOGOS = ["Nexora", "Orbital", "Vaultly", "Prismix", "Loopwork", "Quanta"];
+const FB_LOGOS: { name: string; image?: string }[] = []; // logos come from the backend/CMS only
 const FB_STATS = [{ value: "250+", label: "Projects delivered" }, { value: "99%", label: "Uptime guaranteed" }, { value: "18+", label: "Countries served" }, { value: "4min", label: "Avg. deploy time" }];
 const FB_FEATURES = [
   { title: "Smart pipelines", description: "Drag-and-drop deal stages with automated hand-offs." },
@@ -65,7 +65,7 @@ export default async function Home() {
   const featured = (projects.filter((p) => p.featured).length ? projects.filter((p) => p.featured) : projects).slice(0, 3);
   const tRow = [...testimonials, ...testimonials];
   const faqs = faqsRes.length ? faqsRes : FB_FAQS;
-  const logos = logosRes.length ? logosRes : FB_LOGOS.map((name, id) => ({ id, name, image: undefined as string | undefined }));
+  const logos = logosRes.length ? logosRes : FB_LOGOS.map((l, id) => ({ id, ...l }));
   const stats = statsRes.length ? statsRes : FB_STATS;
   const features = featuresRes.length ? featuresRes : FB_FEATURES;
 
@@ -121,7 +121,8 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* Logos marquee */}
+      {/* Logos marquee (from CMS) */}
+      {logos.length > 0 && (
       <section className="section" style={{ paddingTop: 0 }} aria-label="Trusted by">
         <div className="container">
           <p className="reveal" style={{ textAlign: "center", color: "var(--muted-2)", fontSize: 12, letterSpacing: ".14em", textTransform: "uppercase", marginBottom: 30 }}>
@@ -141,6 +142,7 @@ export default async function Home() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Services */}
       <section className="section" id="services">

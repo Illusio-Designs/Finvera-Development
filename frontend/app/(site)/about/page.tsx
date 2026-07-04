@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { Arrow } from "@/components/icons";
 import ContentIcon from "@/components/contentIcon";
 import BrandShowcase from "@/components/BrandShowcase";
-import { getTeam, getSeo, getBrands, getMilestones, getValues } from "@/lib/api";
+import { getTeam, getSeo, getBrands, getMilestones, getValues, getLogos } from "@/lib/api";
 import type { Brand, Milestone, ValueItem } from "@/lib/types";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -34,7 +34,7 @@ const FB_VALUES: ValueItem[] = [
 ];
 
 export default async function About() {
-  const [team, brandsRes, timelineRes, valuesRes] = await Promise.all([getTeam(), getBrands(), getMilestones(), getValues()]);
+  const [team, brandsRes, timelineRes, valuesRes, clientLogos] = await Promise.all([getTeam(), getBrands(), getMilestones(), getValues(), getLogos()]);
   const brands = brandsRes.length ? brandsRes : FB_BRANDS;
   const timeline = timelineRes.length ? timelineRes : FB_TIMELINE;
   const values = valuesRes.length ? valuesRes : FB_VALUES;
@@ -128,6 +128,29 @@ export default async function About() {
                     ? <img src={m.photo} alt={m.name} />
                     : m.initials}</div><h4>{m.name}</h4><span>{m.role}</span><p>{m.bio}</p>
                 </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Brands we've served — logo box grid (from CMS) */}
+      {clientLogos.length > 0 && (
+        <section className="section" style={{ paddingTop: 0 }}>
+          <div className="container">
+            <div className="section-head center reveal">
+              <span className="eyebrow">Our clients</span>
+              <h2>Brands we&apos;ve <span className="grad-word">worked with</span></h2>
+              <p>A few of the brands we&apos;ve designed, built and shipped for.</p>
+            </div>
+            <div className="logo-grid">
+              {clientLogos.map((l, i) => (
+                <span className={"logo-item reveal-x" + (i % 2 ? " r" : "") + " d" + ((i % 4) + 1)} key={l.id}>
+                  {l.image
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    ? <img className="logo-img" src={l.image} alt={l.name} loading="lazy" />
+                    : <span className="logo-name">{l.name}</span>}
+                </span>
               ))}
             </div>
           </div>
