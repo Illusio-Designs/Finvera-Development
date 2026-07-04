@@ -148,14 +148,16 @@ export default function Chrome() {
         // Reveal anything already in view immediately, so above-the-fold content
         // (e.g. the hero) is never left stuck at opacity:0 while ScrollTrigger/Lenis settle.
         if (el.getBoundingClientRect().top < innerHeight * 0.92) el.classList.add("in");
+        // The kinetic hero reveals once and stays — never let it be un-revealed.
+        const oneWay = el.matches("[data-split]") || el.classList.contains("hero-copy");
         const st = ScrollTrigger.create({
           trigger: el,
           start: "top 90%",
           end: "bottom 8%",
           onEnter: () => el.classList.add("in"),
           onEnterBack: () => el.classList.add("in"),
-          onLeave: () => el.classList.remove("in"),
-          onLeaveBack: () => el.classList.remove("in"),
+          onLeave: oneWay ? undefined : () => el.classList.remove("in"),
+          onLeaveBack: oneWay ? undefined : () => el.classList.remove("in"),
         });
         cleanups.push(() => st.kill());
       });
