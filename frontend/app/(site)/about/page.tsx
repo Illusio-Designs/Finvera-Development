@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { Arrow } from "@/components/icons";
 import ContentIcon from "@/components/contentIcon";
+import BrandShowcase from "@/components/BrandShowcase";
 import { getTeam, getSeo, getBrands, getMilestones, getValues } from "@/lib/api";
 import type { Brand, Milestone, ValueItem } from "@/lib/types";
 
@@ -68,34 +69,8 @@ export default async function About() {
         </div>
       </section>
 
-      {/* Brand ecosystem */}
-      <section className="section" style={{ paddingTop: 0 }}>
-        <div className="container">
-          <div className="section-head center reveal">
-            <span className="eyebrow">Our ecosystem</span>
-            <h2>One group, <span className="grad-word">five brands</span></h2>
-            <p>Different products, one team and one standard of craft — each brand focused on a problem we care about solving well.</p>
-          </div>
-          <div className="brands">
-            {brands.map((b, i) => {
-              const cls = "brand-card reveal-x" + (i % 2 ? " r" : "") + " d" + ((i % 3) + 1);
-              const inner = (
-                <>
-                  <span className="brand-ic"><ContentIcon name={b.icon} size={24} /></span>
-                  <div className="brand-cat">{b.category}</div>
-                  <h3>{b.name}{b.url && <span className="brand-go" aria-hidden><Arrow /></span>}</h3>
-                  <p>{b.description}</p>
-                </>
-              );
-              return b.url ? (
-                <a className={cls + " is-link"} key={b.id} href={b.url} target="_blank" rel="noopener noreferrer" data-cursor>{inner}</a>
-              ) : (
-                <div className={cls} key={b.id} data-cursor>{inner}</div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+      {/* Brand ecosystem — pinned horizontal showcase (the /experience effect) */}
+      <BrandShowcase brands={brands} />
 
       {/* Timeline */}
       <section className="section" style={{ paddingTop: 0 }}>
