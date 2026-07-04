@@ -225,6 +225,7 @@ const Stat = sequelize.define("Stat", {
 }, { tableName: "stats" });
 const Logo = sequelize.define("Logo", {
   name: { type: DataTypes.STRING, allowNull: false },
+  image: { type: DataTypes.STRING },
   ...contentDefaults,
 }, { tableName: "logos" });
 const Feature = sequelize.define("Feature", {

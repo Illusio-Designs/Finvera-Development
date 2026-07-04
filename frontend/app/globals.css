@@ -604,6 +604,8 @@ section{position:relative;z-index:2}
   white-space:nowrap;opacity:.7;transition:.3s}
 .logo-item:hover{opacity:1;color:var(--ink)}
 .logo-item svg{width:24px;height:24px}
+.logo-img{height:30px;width:auto;max-width:150px;object-fit:contain;filter:grayscale(1);opacity:.85;transition:.3s}
+.logo-item:hover .logo-img{filter:grayscale(0);opacity:1}
 
 /* =========================================================
    FAQ
