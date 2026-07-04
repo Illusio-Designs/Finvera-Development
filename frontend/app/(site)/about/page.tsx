@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Arrow } from "@/components/icons";
 import ContentIcon from "@/components/contentIcon";
 import BrandShowcase from "@/components/BrandShowcase";
+import LogoMark from "@/components/LogoMark";
 import { getTeam, getSeo, getBrands, getMilestones, getValues, getLogos } from "@/lib/api";
 import type { Brand, Milestone, ValueItem } from "@/lib/types";
 
@@ -146,10 +147,7 @@ export default async function About() {
             <div className="logo-grid">
               {clientLogos.map((l, i) => (
                 <span className={"logo-item reveal-x" + (i % 2 ? " r" : "") + " d" + ((i % 4) + 1)} key={l.id}>
-                  {l.image
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    ? <img className="logo-img" src={l.image} alt={l.name} loading="lazy" />
-                    : <span className="logo-name">{l.name}</span>}
+                  <LogoMark name={l.name} image={l.image} />
                 </span>
               ))}
             </div>
