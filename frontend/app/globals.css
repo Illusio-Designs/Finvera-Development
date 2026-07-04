@@ -1712,3 +1712,33 @@ section{position:relative;z-index:2}
 .consult-done h3{margin-top:20px}
 .consult-done p{color:var(--muted);font-size:14px;margin-top:6px}
 @media (max-width:600px){.consult-fab{width:48px;height:48px;left:16px;bottom:16px}}
+
+/* =========================================================
+   Premium motion additions
+   ========================================================= */
+/* Char-level hero split (used alongside word split for a sharper entrance) */
+[data-split] .char{display:inline-block;opacity:0;transform:translateY(46px) rotate(6deg);
+  transition:opacity .6s var(--ease),transform .6s var(--ease);will-change:transform}
+[data-split].in .char{opacity:1;transform:none}
+/* Directional-ish fill on ghost buttons */
+.btn-ghost{position:relative;overflow:hidden;z-index:0}
+.btn-ghost::after{content:"";position:absolute;inset:0;z-index:-1;background:var(--grad);
+  transform:translateY(102%);transition:transform .45s var(--ease)}
+.btn-ghost:hover{color:#fff;border-color:transparent}
+.btn-ghost:hover::after{transform:translateY(0)}
+/* Animated underline draw for footer nav links */
+.foot-col a{position:relative;width:max-content}
+.foot-col a::after{content:"";position:absolute;left:0;bottom:1px;height:1.5px;width:100%;
+  background:currentColor;transform:scaleX(0);transform-origin:left;transition:transform .35s var(--ease)}
+.foot-col a:hover::after{transform:scaleX(1)}
+.foot-col a:hover{padding-left:0}
+/* Scroll-velocity skew on the trusted-by marquee (set via --skew from JS) */
+.marquee-track{transform:skewX(var(--skew,0deg));transition:transform .3s ease-out}
+/* Cursor contextual label (shows over [data-cursor-label] elements) */
+.cursor-ring.labelled{width:64px;height:64px;background:var(--grad);border-color:transparent;mix-blend-mode:normal}
+.cursor-label{position:fixed;left:0;top:0;z-index:9999;pointer-events:none;transform:translate(-50%,-50%);
+  font-size:11px;font-weight:700;letter-spacing:.04em;color:#fff;opacity:0;transition:opacity .2s}
+.cursor-label.show{opacity:1}
+/* Image curtain reveal */
+.reveal-clip{clip-path:inset(0 0 100% 0);transition:clip-path .9s var(--ease)}
+.reveal-clip.in{clip-path:inset(0 0 0 0)}

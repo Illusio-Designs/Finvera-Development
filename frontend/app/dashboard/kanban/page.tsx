@@ -4,6 +4,7 @@ import { api } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
 import { dialog } from "@/lib/dialog";
 import Select from "@/components/Select";
+import DatePicker from "@/components/ui/DatePicker";
 import { BoardSkeleton } from "@/components/admin/Skeleton";
 
 type Col = { id: string; title: string };
@@ -428,7 +429,7 @@ export default function Kanban() {
 
             <div className="field row" style={{ gap: 12, alignItems: "flex-end" }}>
               <div className="adm-field" style={{ flex: 1 }}><label>Due date</label>
-                <input type="date" value={String(editing.dueDate || "").slice(0, 10)} onChange={(e) => setEditing({ ...editing, dueDate: e.target.value })} /></div>
+                <DatePicker value={String(editing.dueDate || "").slice(0, 10)} onChange={(v) => setEditing({ ...editing, dueDate: v })} placeholder="Pick a date" /></div>
               <label className="kb-complete">
                 <input type="checkbox" checked={!!editing.completed} onChange={(e) => setEditing({ ...editing, completed: e.target.checked })} /> Complete
               </label>

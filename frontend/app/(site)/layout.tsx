@@ -1,6 +1,8 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Chrome from "@/components/Chrome";
+import SmoothScroll from "@/components/SmoothScroll";
+import PageTransition from "@/components/PageTransition";
 import Analytics from "@/components/Analytics";
 import ConsultPanel from "@/components/ConsultPanel";
 import { getSettings } from "@/lib/api";
@@ -16,6 +18,8 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
         </noscript>
       )}
       <Chrome />
+      <SmoothScroll />
+      <PageTransition />
       <Nav />
       <main>{children}</main>
       <Footer />

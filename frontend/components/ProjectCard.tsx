@@ -16,7 +16,7 @@ function Thumb({ p }: { p: Project }) {
 
 export default function ProjectCard({ p, i }: { p: Project; i: number }) {
   return (
-    <Link className={"pcard reveal-x" + (i % 2 ? " r" : "") + " d" + ((i % 3) + 1)} href={`/work/${p.slug}`} data-cursor>
+    <Link className={"pcard reveal-x" + (i % 2 ? " r" : "") + " d" + ((i % 3) + 1)} href={`/work/${p.slug}`} data-cursor data-cursor-label="View">
       <div className="pfolder">
         <svg className="pf-back" viewBox="0 0 50 40" preserveAspectRatio="none" fill="none" aria-hidden>
           <path d="M0 4C0 1.79086 1.79086 0 4 0H16.524C17.721 0 18.8415 0.54051 19.574 1.4673L22.426 5.0654C23.1585 5.99219 24.279 6.5327 25.476 6.5327H46C48.2091 6.5327 50 8.32356 50 10.5327V36C50 38.2091 48.2091 40 46 40H4C1.79086 40 0 38.2091 0 36V4Z" fill="#1c3f86" />

@@ -25,7 +25,8 @@ export default function Chrome() {
     /* Nav scroll + progress + back-to-top */
     const nav = $("#nav"), progress = $("#progress"), toTop = $("#toTop"), cue = $("#scrollCue");
     let maxScroll = document.documentElement.scrollHeight - innerHeight;
-    let ticking = false;
+    let ticking = false, lastY = scrollY, skewTimer = 0;
+    const marquees = $$(".marquee-track");
     const applyScroll = () => {
       ticking = false;
       const y = scrollY;
@@ -33,6 +34,14 @@ export default function Chrome() {
       if (progress) progress.style.transform = `scaleX(${maxScroll > 0 ? Math.min(y / maxScroll, 1) : 0})`;
       toTop && toTop.classList.toggle("show", y > 700);
       cue && cue.classList.toggle("show", y < 120 && maxScroll > 240);
+      /* Scroll-velocity skew on the trusted-by marquee */
+      if (marquees.length) {
+        const skew = Math.max(-6, Math.min(6, (y - lastY) * 0.35));
+        marquees.forEach((m) => m.style.setProperty("--skew", skew.toFixed(2) + "deg"));
+        clearTimeout(skewTimer);
+        skewTimer = window.setTimeout(() => marquees.forEach((m) => m.style.setProperty("--skew", "0deg")), 120);
+      }
+      lastY = y;
     };
     const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(applyScroll); } };
     const onResize = () => { maxScroll = document.documentElement.scrollHeight - innerHeight; };
@@ -82,19 +91,34 @@ export default function Chrome() {
 
     /* Custom cursor (delegated hover) */
     if (!reduce && !matchMedia("(pointer: coarse)").matches) {
-      const dot = $("#cDot"), ring = $("#cRing"), spot = $("#spotlight");
+      const dot = $("#cDot"), ring = $("#cRing"), spot = $("#spotlight"), label = $("#cLabel");
+      const orbA = $(".orb.a"), orbB = $(".orb.b");
       let mx = innerWidth / 2, my = innerHeight / 2, rx = mx, ry = my, raf = 0;
       const move = (e: MouseEvent) => {
         mx = e.clientX; my = e.clientY;
         if (dot) dot.style.transform = `translate(${mx}px,${my}px) translate(-50%,-50%)`;
         if (spot) spot.style.transform = `translate(${mx}px,${my}px) translate(-50%,-50%)`;
+        if (label) label.style.transform = `translate(${mx}px,${my}px) translate(-50%,-50%)`;
+        /* gradient blobs drift with the cursor for depth */
+        const nx = (mx / innerWidth - 0.5), ny = (my / innerHeight - 0.5);
+        if (orbA) orbA.style.transform = `translate(${nx * 40}px,${ny * 40}px)`;
+        if (orbB) orbB.style.transform = `translate(${nx * -55}px,${ny * -45}px)`;
       };
       addEventListener("mousemove", move, { passive: true });
       const loop = () => { rx += (mx - rx) * 0.18; ry += (my - ry) * 0.18; if (ring) ring.style.transform = `translate(${rx}px,${ry}px) translate(-50%,-50%)`; raf = requestAnimationFrame(loop); };
       loop();
       const hoverSel = "[data-cursor], a, button, input, textarea, select";
-      const onOver = (e: Event) => { if ((e.target as HTMLElement).closest(hoverSel)) { dot?.classList.add("hover"); ring?.classList.add("hover"); } };
-      const onOut = (e: Event) => { if ((e.target as HTMLElement).closest(hoverSel)) { dot?.classList.remove("hover"); ring?.classList.remove("hover"); } };
+      const onOver = (e: Event) => {
+        const t = e.target as HTMLElement;
+        if (t.closest(hoverSel)) { dot?.classList.add("hover"); ring?.classList.add("hover"); }
+        const lbEl = t.closest("[data-cursor-label]") as HTMLElement | null;
+        if (lbEl && label) { label.textContent = lbEl.dataset.cursorLabel || ""; label.classList.add("show"); ring?.classList.add("labelled"); }
+      };
+      const onOut = (e: Event) => {
+        const t = e.target as HTMLElement;
+        if (t.closest(hoverSel)) { dot?.classList.remove("hover"); ring?.classList.remove("hover"); }
+        if (t.closest("[data-cursor-label]") && label) { label.classList.remove("show"); ring?.classList.remove("labelled"); }
+      };
       document.addEventListener("mouseover", onOver);
       document.addEventListener("mouseout", onOut);
       cleanups.push(() => { removeEventListener("mousemove", move); cancelAnimationFrame(raf); document.removeEventListener("mouseover", onOver); document.removeEventListener("mouseout", onOut); });
@@ -118,9 +142,9 @@ export default function Chrome() {
 
     /* Scroll reveal — GSAP premium: re-triggers on every scroll (down & up) */
     if (reduce) {
-      $$(".reveal, .reveal-x, [data-split], .mock").forEach((el) => el.classList.add("in"));
+      $$(".reveal, .reveal-x, .reveal-clip, [data-split], .mock").forEach((el) => el.classList.add("in"));
     } else {
-      $$(".reveal, .reveal-x, [data-split], .mock").forEach((el) => {
+      $$(".reveal, .reveal-x, .reveal-clip, [data-split], .mock").forEach((el) => {
         const st = ScrollTrigger.create({
           trigger: el,
           start: "top 90%",
@@ -142,13 +166,13 @@ export default function Chrome() {
       requestAnimationFrame(() => ScrollTrigger.refresh());
     }
 
-    /* Split headline words */
+    /* Split headline into characters (sharper kinetic entrance) */
     $$("[data-split]").forEach((el) => {
       $$(".line > span", el).forEach((span) => {
-        if (span.classList.contains("brace") || span.querySelector(".word")) return;
-        span.innerHTML = span.textContent!.split(" ").map((w) => `<span class="word">${w}</span>`).join(" ");
+        if (span.classList.contains("brace") || span.querySelector(".char")) return;
+        span.innerHTML = (span.textContent || "").split("").map((c) => (c === " " ? " " : `<span class="char">${c}</span>`)).join("");
       });
-      $$(".word", el).forEach((w, i) => (w.style.transitionDelay = 0.2 + i * 0.08 + "s"));
+      $$(".char", el).forEach((c, i) => (c.style.transitionDelay = 0.15 + i * 0.03 + "s"));
     });
 
     /* Manifesto-style word reveal for every section/page heading */
@@ -274,6 +298,7 @@ export default function Chrome() {
       <div className="spotlight" id="spotlight" />
       <div className="cursor-ring" id="cRing" />
       <div className="cursor-dot" id="cDot" />
+      <div className="cursor-label" id="cLabel" aria-hidden />
       <div className="progress" id="progress" />
 
       <div className={"cookie" + (cookieVisible ? " show" : "")} id="cookie">

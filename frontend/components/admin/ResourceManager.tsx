@@ -5,6 +5,9 @@ import { toast } from "@/lib/toast";
 import RichText from "./RichText";
 import CalendlyButton from "./CalendlyButton";
 import Select from "../Select";
+import DatePicker from "../ui/DatePicker";
+import Toggle from "../ui/Toggle";
+import Tooltip from "../ui/Tooltip";
 import { TableSkeleton } from "./Skeleton";
 
 export type Field = {
@@ -233,12 +236,16 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                   ))}
                   <td>
                     <div className="adm-rowbtns">
-                      <button className="adm-ibtn" title="Edit" aria-label="Edit" onClick={() => { setFormErr(""); setEditing({ ...row }); }}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
-                      </button>
-                      <button className="adm-ibtn danger" title="Delete" aria-label="Delete" onClick={() => setDeleteTarget(row)}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /></svg>
-                      </button>
+                      <Tooltip label="Edit">
+                        <button className="adm-ibtn" aria-label="Edit" onClick={() => { setFormErr(""); setEditing({ ...row }); }}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+                        </button>
+                      </Tooltip>
+                      <Tooltip label="Delete">
+                        <button className="adm-ibtn danger" aria-label="Delete" onClick={() => setDeleteTarget(row)}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /></svg>
+                        </button>
+                      </Tooltip>
                     </div>
                   </td>
                 </tr>
@@ -276,10 +283,7 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                   <Select id={f.name} value={editing[f.name] ?? ""} onChange={(v) => setField(f.name, v)}
                     options={f.options || []} ariaLabel={f.label} />
                 ) : f.type === "boolean" ? (
-                  <label className="adm-check">
-                    <input type="checkbox" checked={!!editing[f.name]} onChange={(e) => setField(f.name, e.target.checked)} />
-                    <span className="txt">{f.placeholder || "Enabled"}</span>
-                  </label>
+                  <Toggle checked={!!editing[f.name]} onChange={(v) => setField(f.name, v)} label={f.placeholder || "Enabled"} />
                 ) : f.type === "tags" ? (
                   <input id={f.name} value={Array.isArray(editing[f.name]) ? editing[f.name].join(", ") : (editing[f.name] ?? "")}
                     placeholder={f.placeholder || "comma, separated, tags"}
@@ -292,9 +296,12 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                   <PasswordInput id={f.name} value={editing[f.name] ?? ""} placeholder={f.placeholder} onChange={(v) => setField(f.name, v)} />
                 ) : f.type === "calendly" ? (
                   <CalendlyButton url={calendlyUrl} name={editing.name} email={editing.email} />
+                ) : f.type === "date" ? (
+                  <DatePicker id={f.name} name={f.name} value={String(editing[f.name] ?? "").slice(0, 10)}
+                    onChange={(v) => setField(f.name, v)} placeholder={f.placeholder || "Select a date"} />
                 ) : (
-                  <input id={f.name} type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
-                    value={f.type === "date" ? String(editing[f.name] ?? "").slice(0, 10) : (editing[f.name] ?? "")} placeholder={f.placeholder}
+                  <input id={f.name} type={f.type === "number" ? "number" : "text"}
+                    value={editing[f.name] ?? ""} placeholder={f.placeholder}
                     onChange={(e) => setField(f.name, f.type === "number" ? Number(e.target.value) : e.target.value)} />
                 )}
               </div>
