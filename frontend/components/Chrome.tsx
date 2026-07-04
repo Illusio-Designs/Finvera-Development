@@ -151,6 +151,45 @@ export default function Chrome() {
       $$(".word", el).forEach((w, i) => (w.style.transitionDelay = 0.2 + i * 0.08 + "s"));
     });
 
+    /* Manifesto-style word reveal for every section/page heading */
+    if (!reduce) {
+      const buildWords = (node: Node): DocumentFragment => {
+        const out = document.createDocumentFragment();
+        node.childNodes.forEach((child) => {
+          if (child.nodeType === 3) {
+            (child.textContent || "").split(/(\s+)/).forEach((part) => {
+              if (part === "") return;
+              if (/^\s+$/.test(part)) out.appendChild(document.createTextNode(" "));
+              else { const s = document.createElement("span"); s.className = "hw"; s.textContent = part; out.appendChild(s); }
+            });
+          } else if (child.nodeName === "BR") {
+            out.appendChild(document.createElement("br"));
+          } else if (child.nodeType === 1) {
+            const wrap = (child as HTMLElement).cloneNode(false);
+            wrap.appendChild(buildWords(child));
+            out.appendChild(wrap);
+          }
+        });
+        return out;
+      };
+      const headings = [...$$(".section-head h2"), ...$$(".page-hero h1")] as HTMLElement[];
+      headings.forEach((el) => {
+        if (el.dataset.wsplit || el.querySelector("[data-split], .word")) return;
+        el.classList.remove("reveal", "in", "d1", "d2", "d3", "d4");
+        const frag = buildWords(el);
+        el.innerHTML = "";
+        el.appendChild(frag);
+        el.dataset.wsplit = "1";
+        $$(".hw", el).forEach((w, i) => (w.style.transitionDelay = i * 0.055 + "s"));
+        const st = ScrollTrigger.create({
+          trigger: el, start: "top 88%", end: "bottom 12%",
+          onEnter: () => el.classList.add("in-h"), onEnterBack: () => el.classList.add("in-h"),
+          onLeave: () => el.classList.remove("in-h"), onLeaveBack: () => el.classList.remove("in-h"),
+        });
+        cleanups.push(() => st.kill());
+      });
+    }
+
     /* Count-up */
     const counter = new IntersectionObserver((es, o) => es.forEach((e) => {
       if (!e.isIntersecting) return;
@@ -204,6 +243,13 @@ export default function Chrome() {
       q.addEventListener("click", click);
       cleanups.push(() => q.removeEventListener("click", click));
     });
+
+    /* Positions shift after headings are split / content settles — refresh so any
+       pinned sections (e.g. the brand showcase) start at the correct scroll point. */
+    if (!reduce) {
+      const rt = setTimeout(() => ScrollTrigger.refresh(), 450);
+      cleanups.push(() => clearTimeout(rt));
+    }
 
     return () => cleanups.forEach((c) => c());
   }, [path]);

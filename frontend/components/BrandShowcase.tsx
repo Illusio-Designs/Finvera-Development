@@ -23,10 +23,13 @@ export default function BrandShowcase({ brands }: { brands: Brand[] }) {
       const q = self.selector!;
       const track = q(".xp-track")[0] as HTMLElement;
       if (!track) return;
-      const dist = () => track.scrollWidth - window.innerWidth;
+      const dist = () => Math.max(0, track.scrollWidth - window.innerWidth);
       const horiz = gsap.to(track, {
         x: () => -dist(), ease: "none",
-        scrollTrigger: { trigger: ".xp-pin", start: "top top", end: () => "+=" + dist(), pin: true, scrub: 1, invalidateOnRefresh: true },
+        scrollTrigger: {
+          trigger: ".xp-pin", start: "top top", end: () => "+=" + dist(),
+          pin: true, scrub: 1, anticipatePin: 1, invalidateOnRefresh: true,
+        },
       });
       q(".xp-panel").forEach((p: Element) => {
         gsap.from((p as HTMLElement).querySelectorAll(".xp-panel-in > *"), {
@@ -35,8 +38,12 @@ export default function BrandShowcase({ brands }: { brands: Brand[] }) {
         });
       });
     }, root);
-    const t = setTimeout(() => ScrollTrigger.refresh(), 300);
-    return () => { clearTimeout(t); ctx.revert(); };
+    // Refresh after fonts/layout settle so the pin starts at the first panel (not partway)
+    const refresh = () => ScrollTrigger.refresh();
+    const t1 = setTimeout(refresh, 400);
+    const t2 = setTimeout(refresh, 1200);
+    addEventListener("load", refresh);
+    return () => { clearTimeout(t1); clearTimeout(t2); removeEventListener("load", refresh); ctx.revert(); };
   }, [brands.length]);
 
   return (
