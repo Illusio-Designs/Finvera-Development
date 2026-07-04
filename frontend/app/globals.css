@@ -997,7 +997,9 @@ section{position:relative;z-index:2}
 /* Content wrapper so header/footer span full width but content keeps padding.
    Flex column + min-height keeps the footer pinned to the bottom on short pages. */
 .adm-main.has-chrome{padding:0;min-height:100vh;display:flex;flex-direction:column}
-.adm-content{padding:26px clamp(18px,3vw,40px);flex:1 0 auto}
+.adm-content{padding:26px clamp(18px,3vw,40px);flex:1 0 auto;animation:admContentIn .5s var(--ease)}
+@keyframes admContentIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.adm-content{animation:none}}
 .adm-footer{flex:none}
 
 /* Backend status — header dot variant */
@@ -1036,60 +1038,6 @@ section{position:relative;z-index:2}
 /* Hugeicons — force the Rounded style (free set ships square caps) */
 .hgi,.hgi *{stroke-linecap:round!important;stroke-linejoin:round!important}
 .adm-side a .hgi{width:19px;height:19px;flex:none}
-
-/* =========================================================
-   Experience — GSAP premium showcase page
-   ========================================================= */
-.xp{background:var(--bg);overflow:clip}
-.xp .grad{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
-.xp-eyebrow{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--blue-500)}
-/* Hero */
-.xp-hero{position:relative;min-height:100vh;display:flex;align-items:center;overflow:hidden}
-.xp-orb{position:absolute;top:-10%;right:-8%;width:60vw;height:60vw;border-radius:50%;pointer-events:none;
-  background:radial-gradient(circle at 30% 30%,rgba(91,127,212,.5),rgba(109,92,255,.28) 40%,transparent 70%);filter:blur(30px)}
-.xp-title{font-family:var(--display);font-weight:700;letter-spacing:-.03em;line-height:1;
-  font-size:clamp(38px,7vw,92px);margin:16px 0 20px}
-.xp-title .line{display:block;overflow:hidden;padding-bottom:.05em}
-.xp-title .word{display:inline-block}
-.xp-sub{max-width:520px;color:var(--muted);font-size:clamp(15px,1.7vw,19px);line-height:1.6}
-.xp-scroll{margin-top:40px;display:inline-flex;align-items:center;gap:11px;font-size:12.5px;font-weight:600;
-  letter-spacing:.08em;text-transform:uppercase;color:var(--muted-2)}
-.xp-scroll-dot{width:22px;height:34px;border:2px solid var(--line-2);border-radius:999px;position:relative;flex:none}
-.xp-scroll-dot::before{content:"";position:absolute;left:50%;top:6px;width:4px;height:7px;margin-left:-2px;border-radius:2px;
-  background:var(--blue-500);animation:xpScroll 1.5s var(--ease) infinite}
-@keyframes xpScroll{0%{opacity:0;transform:translateY(-4px)}40%{opacity:1}100%{opacity:0;transform:translateY(10px)}}
-/* Pinned horizontal */
-.xp-pin{height:100vh;overflow:hidden}
-.xp-track{display:flex;height:100vh;width:max-content;will-change:transform}
-.xp-panel{width:min(78vw,560px);height:100vh;flex:none;display:flex;align-items:center;justify-content:center;
-  padding:0 clamp(24px,5vw,80px);position:relative}
-.xp-panel::after{content:"";position:absolute;right:0;top:22%;height:56%;width:1px;background:var(--line)}
-.xp-panel:last-child::after{display:none}
-.xp-panel-in{max-width:400px}
-.xp-panel-n{font-family:var(--display);font-weight:700;font-size:15px;color:var(--muted-2);letter-spacing:.1em}
-.xp-panel-ic{display:grid;place-items:center;width:64px;height:64px;border-radius:19px;margin:16px 0 20px;
-  background:color-mix(in srgb,var(--c,#3e60ab) 14%,transparent);color:var(--c,#3e60ab)}
-.xp-panel-cat{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--c,#3e60ab)}
-.xp-panel h3{font-family:var(--display);font-weight:700;font-size:clamp(28px,3.6vw,44px);letter-spacing:-.02em;margin-top:8px;line-height:1.02}
-.xp-intro .xp-panel-in h2{font-family:var(--display);font-weight:700;font-size:clamp(32px,5vw,58px);letter-spacing:-.03em;line-height:1;margin:14px 0 12px}
-.xp-intro .xp-panel-in p{color:var(--muted-2);font-size:14px;letter-spacing:.04em}
-/* Manifesto */
-.xp-manifesto{padding:clamp(90px,16vh,180px) 0}
-.xp-manifesto p{font-family:var(--display);font-weight:600;letter-spacing:-.02em;line-height:1.3;
-  font-size:clamp(22px,3.4vw,44px);max-width:900px}
-.xp-manifesto .w{opacity:.14;transition:opacity .2s;display:inline-block}
-/* Stats */
-.xp-stats{padding:0 0 clamp(60px,10vh,120px)}
-.xp-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(16px,3vw,40px);
-  border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:clamp(40px,7vh,80px) 0}
-.xp-num{font-family:var(--display);font-weight:700;font-size:clamp(34px,4.6vw,58px);letter-spacing:-.03em;line-height:1;color:var(--ink)}
-.xp-num span{color:var(--blue-500)}
-.xp-stat-label{color:var(--muted-2);font-size:13.5px;margin-top:8px;display:block}
-/* CTA */
-.xp-cta{padding:clamp(80px,14vh,160px) 0;text-align:center}
-.xp-cta h2{font-family:var(--display);font-weight:700;font-size:clamp(34px,5vw,66px);letter-spacing:-.03em;margin-bottom:30px;line-height:1.02}
-@media (max-width:700px){.xp-stat-grid{grid-template-columns:repeat(2,1fr)}.xp-panel{width:86vw}}
-
 /* About — brand ecosystem cards */
 .brands{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(16px,2vw,22px)}
 .brand-card{border:1px solid var(--line);border-radius:20px;background:var(--panel);padding:26px;

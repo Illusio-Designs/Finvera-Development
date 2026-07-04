@@ -1,6 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
 
 export default function Chrome() {
   const [cookieVisible, setCookieVisible] = useState(false);
@@ -111,10 +115,25 @@ export default function Chrome() {
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const cleanups: (() => void)[] = [];
 
-    /* Scroll reveal */
-    const revealer = new IntersectionObserver((es, o) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("in"); o.unobserve(e.target); } }), { threshold: 0.14 });
-    $$(".reveal, [data-split], .mock").forEach((el) => revealer.observe(el));
-    cleanups.push(() => revealer.disconnect());
+    /* Scroll reveal — GSAP premium: grouped stagger + gentle parallax */
+    if (reduce) {
+      $$(".reveal, [data-split], .mock").forEach((el) => el.classList.add("in"));
+    } else {
+      const triggers = ScrollTrigger.batch(".reveal, [data-split], .mock", {
+        start: "top 88%",
+        once: true,
+        onEnter: (els) => (els as HTMLElement[]).forEach((el, i) => { const d = setTimeout(() => el.classList.add("in"), i * 80); cleanups.push(() => clearTimeout(d)); }),
+      });
+      cleanups.push(() => triggers.forEach((t) => t.kill()));
+
+      /* Parallax accents — depth on decorative media */
+      $$("[data-parallax], .about-media, .hero-card, .code-window").forEach((el) => {
+        const tw = gsap.to(el, { yPercent: -9, ease: "none", scrollTrigger: { trigger: el, start: "top bottom", end: "bottom top", scrub: 0.6 } });
+        cleanups.push(() => { tw.scrollTrigger?.kill(); tw.kill(); });
+      });
+
+      requestAnimationFrame(() => ScrollTrigger.refresh());
+    }
 
     /* Split headline words */
     $$("[data-split]").forEach((el) => {
@@ -134,11 +153,6 @@ export default function Chrome() {
     }), { threshold: 0.6 });
     $$("[data-count]").forEach((el) => counter.observe(el));
     cleanups.push(() => counter.disconnect());
-
-    /* Mock bars */
-    const mockObs = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && e.target.classList.add("in")), { threshold: 0.3 });
-    $$(".mock").forEach((m) => mockObs.observe(m));
-    cleanups.push(() => mockObs.disconnect());
 
     /* Staggered code lines */
     $$("#codeBlock .ln").forEach((ln, i) => (ln.style.animationDelay = 1.4 + i * 0.06 + "s"));
