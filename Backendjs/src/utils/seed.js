@@ -1,6 +1,6 @@
 const bcrypt = require("bcryptjs");
 const slugify = require("slugify");
-const { User, Project, Service, Testimonial, TeamMember, BlogPost, Seo, Setting, Board, Task, Page } = require("../models");
+const { User, Project, Service, Testimonial, TeamMember, BlogPost, Seo, Setting, Board, Task, Page, Lead } = require("../models");
 
 const slug = (s) => slugify(String(s), { lower: true, strict: true });
 
@@ -77,6 +77,14 @@ const LEGAL_PAGES = [
   },
 ];
 
+const LEADS = [
+  { name: "Priya Sharma", company: "Nexora Retail", email: "priya@nexora.io", phone: "+91 98200 11223", source: "Website", stage: "qualified", value: 42000, owner: "Arjun Rao", priority: "high", notes: "Wants a custom CRM + storefront integration. Demo booked." },
+  { name: "Daniel Brooks", company: "Vaultly", email: "dan@vaultly.com", phone: "+1 415 555 0198", source: "Referral", stage: "proposal", value: 68000, owner: "Arjun Rao", priority: "high", notes: "Proposal sent for SaaS dashboard revamp. Awaiting sign-off." },
+  { name: "Meera Nair", company: "Kart&Co", email: "meera@kartandco.in", phone: "+91 90040 55667", source: "LinkedIn", stage: "contacted", value: 18000, owner: "Nadia Patel", priority: "medium", notes: "Intro call done; needs omni-channel inventory scope." },
+  { name: "Tom Hughes", company: "Prismix", email: "tom@prismix.co", phone: "+44 20 7946 0102", source: "Cold outreach", stage: "new", value: 25000, owner: "Nadia Patel", priority: "medium", notes: "Replied to outreach — schedule discovery." },
+  { name: "Sara Lopez", company: "Orbital", email: "sara@orbital.app", phone: "+1 646 555 0177", source: "Event", stage: "won", value: 54000, owner: "Arjun Rao", priority: "high", notes: "Closed — CRM build kicking off next sprint." },
+];
+
 const SETTINGS = [
   { key: "site_name", value: "Finvera Solutions LLP", group: "general", isPublic: true },
   { key: "site_tagline", value: "Future-Driven SaaS & CRM Development", group: "general", isPublic: true },
@@ -87,14 +95,13 @@ const SETTINGS = [
   { key: "social_x", value: "https://x.com/", group: "social", isPublic: true },
   { key: "social_linkedin", value: "https://linkedin.com/", group: "social", isPublic: true },
   { key: "social_github", value: "https://github.com/", group: "social", isPublic: true },
-  { key: "google_analytics_id", value: "", group: "analytics", isPublic: true },   // e.g. G-XXXXXXX
-  { key: "google_tag_manager_id", value: "", group: "analytics", isPublic: true }, // e.g. GTM-XXXXXX
+  { key: "google_analytics_id", value: "", group: "analytics", isPublic: true },
+  { key: "google_tag_manager_id", value: "", group: "analytics", isPublic: true },
   { key: "facebook_pixel_id", value: "", group: "analytics", isPublic: true },
   { key: "google_site_verification", value: "", group: "analytics", isPublic: true },
 ];
 
 async function seed() {
-  // 1) Admin user
   const email = (process.env.ADMIN_EMAIL || "finverasolutionsllp@gmail.com").toLowerCase();
   const [admin, created] = await User.findOrCreate({
     where: { email },
@@ -105,24 +112,19 @@ async function seed() {
       role: "admin",
     },
   });
-  if (created) console.log(`\x1b[32m✔ Seeded admin user: ${admin.email}\x1b[0m`);
+  if (created) console.log(`\\x1b[32m✔ Seeded admin user: ${admin.email}\\x1b[0m`);
 
-  // Password self-heal: findOrCreate only sets the password on FIRST creation,
-  // so changing ADMIN_PASSWORD later never updates an existing admin. Set
-  // ADMIN_RESET_PASSWORD=true (with ADMIN_PASSWORD) to force the stored password
-  // to match on boot, then remove the flag. Also reactivates the account.
   if (!created && String(process.env.ADMIN_RESET_PASSWORD).toLowerCase() === "true" && process.env.ADMIN_PASSWORD) {
     admin.password = await bcrypt.hash(process.env.ADMIN_PASSWORD, 10);
     admin.active = true;
     if (process.env.ADMIN_NAME) admin.name = process.env.ADMIN_NAME;
     await admin.save();
-    console.log(`\x1b[33m⚠ Admin password reset from ADMIN_PASSWORD for ${admin.email}. Remove ADMIN_RESET_PASSWORD from .env now.\x1b[0m`);
+    console.log(`\\x1b[33m⚠ Admin password reset from ADMIN_PASSWORD for ${admin.email}.\\x1b[0m`);
   }
 
-  // 2) Content (only when tables are empty, so we never clobber edits)
   if ((await Project.count()) === 0) {
     await Project.bulkCreate(PROJECTS.map((p, i) => ({ ...p, slug: slug(p.title), position: i, status: "published" })));
-    console.log(`\x1b[32m✔ Seeded ${PROJECTS.length} projects\x1b[0m`);
+    console.log(`\\x1b[32m✔ Seeded ${PROJECTS.length} projects\\x1b[0m`);
   }
   if ((await Service.count()) === 0) {
     await Service.bulkCreate(SERVICES.map((s, i) => ({ ...s, slug: slug(s.title), position: i, status: "published" })));
@@ -147,9 +149,16 @@ async function seed() {
   }
   if (Page) {
     for (const p of LEGAL_PAGES) {
-      // eslint-disable-next-line no-await-in-loop
       await Page.findOrCreate({ where: { slug: p.slug }, defaults: { ...p, status: "published" } });
     }
+  }
+  if (Lead) {
+    try {
+      if ((await Lead.count()) === 0) {
+        await Lead.bulkCreate(LEADS.map((l, i) => ({ ...l, position: i })));
+        console.log(`\\x1b[32m✔ Seeded ${LEADS.length} sample leads\\x1b[0m`);
+      }
+    } catch (e) { console.warn(`\\x1b[33m⚠ Lead seed skipped: ${e.message}\\x1b[0m`); }
   }
   for (const s of SEO_PAGES) {
     await Seo.findOrCreate({ where: { page: s.page }, defaults: s });
@@ -158,10 +167,6 @@ async function seed() {
     await Setting.findOrCreate({ where: { key: s.key }, defaults: s });
   }
 
-  // 3) Default Kanban board (Trello-style). Migrate existing global columns +
-  //    orphan tasks onto it so nothing is lost. Wrapped so that if the boards
-  //    table doesn't exist yet (deployed before DB_SYNC=true), the API still
-  //    boots instead of hard-crashing on startup.
   try {
     if ((await Board.count()) === 0) {
       let columns = [
@@ -184,18 +189,16 @@ async function seed() {
         ],
         position: 0,
       });
-      // adopt any pre-existing tasks that have no board yet
       await Task.update({ boardId: board.id }, { where: { boardId: null } });
-      console.log(`\x1b[32m✔ Seeded default Kanban board\x1b[0m`);
+      console.log(`\\x1b[32m✔ Seeded default Kanban board\\x1b[0m`);
     }
   } catch (e) {
-    console.warn(`\x1b[33m⚠ Kanban board seed skipped (run once with DB_SYNC=true to create the boards table): ${e.message}\x1b[0m`);
+    console.warn(`\\x1b[33m⚠ Kanban board seed skipped: ${e.message}\\x1b[0m`);
   }
 }
 
 module.exports = seed;
 
-/* Allow running standalone: `npm run seed` */
 if (require.main === module) {
   require("dotenv").config();
   const { sequelize } = require("../models");
@@ -203,7 +206,7 @@ if (require.main === module) {
     await sequelize.authenticate();
     await sequelize.sync({ alter: true });
     await seed();
-    console.log("\x1b[32m✔ Seed complete\x1b[0m");
+    console.log("\\x1b[32m✔ Seed complete\\x1b[0m");
     process.exit(0);
   })().catch((e) => { console.error(e); process.exit(1); });
 }
