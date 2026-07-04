@@ -342,6 +342,8 @@ section{position:relative;z-index:2}
 .feature-list li{display:flex;gap:13px;align-items:flex-start}
 .feature-list .fi{width:32px;height:32px;flex:none;border-radius:10px;background:var(--grad-soft);
   border:1px solid var(--line-2);display:grid;place-items:center;color:var(--blue-400)}
+/* Center the tick glyph within the box (larger fill reads as centred) */
+.feature-list .fi svg,.feature-list .fi .hgi{display:block;width:18px;height:18px}
 .feature-list h4{font-size:15px;margin-bottom:2px}
 .feature-list p{color:var(--muted);font-size:13.5px}
 .mock{position:relative;border-radius:var(--radius-lg);border:1px solid var(--line-2);overflow:hidden;
@@ -918,9 +920,9 @@ section{position:relative;z-index:2}
   border:1.8px solid var(--line-2);border-radius:6px;background:#fff;cursor:pointer;position:relative;transition:.18s var(--ease)}
 .adm-check input[type="checkbox"]:hover,.adm-drawer input[type="checkbox"]:hover{border-color:var(--blue-500)}
 .adm-check input[type="checkbox"]:checked,.adm-drawer input[type="checkbox"]:checked{background:var(--blue-500);border-color:var(--blue-500)}
-.adm-check input[type="checkbox"]:checked::after,.adm-drawer input[type="checkbox"]:checked::after{content:"";position:absolute;left:6px;top:2.5px;width:5px;height:9px;
-  border:solid #fff;border-width:0 2.2px 2.2px 0;transform:rotate(45deg);animation:ckPop .22s var(--ease)}
-@keyframes ckPop{0%{transform:rotate(45deg) scale(0)}60%{transform:rotate(45deg) scale(1.25)}100%{transform:rotate(45deg) scale(1)}}
+.adm-check input[type="checkbox"]:checked::after,.adm-drawer input[type="checkbox"]:checked::after{content:"";position:absolute;left:50%;top:46%;width:5px;height:9px;
+  border:solid #fff;border-width:0 2.2px 2.2px 0;transform:translate(-50%,-50%) rotate(45deg);animation:ckPop .22s var(--ease)}
+@keyframes ckPop{0%{transform:translate(-50%,-50%) rotate(45deg) scale(0)}60%{transform:translate(-50%,-50%) rotate(45deg) scale(1.25)}100%{transform:translate(-50%,-50%) rotate(45deg) scale(1)}}
 .adm-check .txt{color:var(--muted)}
 /* Uploader — polished drop card with hover + success pop */
 .adm-uploader{display:flex;align-items:center;gap:16px}
