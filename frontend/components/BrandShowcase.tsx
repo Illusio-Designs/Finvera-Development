@@ -65,7 +65,7 @@ export default function BrandShowcase({ brands }: { brands: Brand[] }) {
     );
     const style = { ["--c" as string]: color } as React.CSSProperties;
     return b.url ? (
-      <a className="xp-panel is-link" key={b.id} style={style} href={b.url} target="_blank" rel="noopener noreferrer" data-cursor>{inner}</a>
+      <a className="xp-panel is-link" key={b.id} style={style} href={b.url} target="_blank" rel="noopener noreferrer" data-cursor data-cursor-label="Visit">{inner}</a>
     ) : (
       <div className="xp-panel" key={b.id} style={style}>{inner}</div>
     );
