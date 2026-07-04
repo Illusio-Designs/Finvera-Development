@@ -30,8 +30,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
+  const [today, setToday] = useState("");
   useEffect(() => { setCollapsed(localStorage.getItem("fv_admin_collapsed") === "1"); }, []);
+  useEffect(() => { setToday(new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })); }, []);
   const toggleCollapsed = () => setCollapsed((c) => { localStorage.setItem("fv_admin_collapsed", c ? "0" : "1"); return !c; });
+
+  const pageTitle = [...NAV]
+    .filter(([href]) => (href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href)))
+    .sort((a, b) => (b[0] as string).length - (a[0] as string).length)[0]?.[1] || "Dashboard";
 
   useEffect(() => {
     if (!getToken()) { router.replace("/login"); return; }
@@ -75,14 +81,38 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {open && <div className="adm-scrim" onClick={() => setOpen(false)} />}
-      <div className="adm-main">
+      <div className="adm-main has-chrome">
         <div className="adm-mobbar">
           <button className="adm-burger" onClick={() => setOpen((o) => !o)} aria-label="Menu">
             <svg viewBox="0 0 24 24" width={18} fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 12h18M3 6h18M3 18h18" /></svg>
           </button>
           <Link href="/dashboard" className="brand" style={{ fontSize: 16 }}><Mark /> Finvera</Link>
         </div>
-        {children}
+
+        <header className="adm-header">
+          <div>
+            <div className="ah-crumb">Manage</div>
+            <div className="ah-title">{pageTitle}</div>
+          </div>
+          <div className="ah-right">
+            {today && <span className="ah-date">{today}</span>}
+            <Link href="/" target="_blank" className="ah-site">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 3h6v6M10 14L21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg>
+              View site
+            </Link>
+          </div>
+        </header>
+
+        <div className="adm-content">{children}</div>
+
+        <footer className="adm-footer">
+          <span>© 2026 Finvera Solutions LLP. All rights reserved.</span>
+          <div className="af-links">
+            <Link href="/privacy" target="_blank">Privacy</Link>
+            <Link href="/terms" target="_blank">Terms</Link>
+            <Link href="/" target="_blank">Website</Link>
+          </div>
+        </footer>
       </div>
       <Toaster />
       <DialogHost />

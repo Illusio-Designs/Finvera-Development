@@ -822,20 +822,53 @@ section{position:relative;z-index:2}
 .adm-overlay{position:fixed;inset:0;z-index:200;background:rgba(3,5,10,.66);backdrop-filter:blur(4px);
   display:flex;justify-content:flex-end}
 .adm-drawer{width:min(560px,100%);height:100%;background:#f7f9fc;border-left:1px solid var(--line-2);
-  overflow-y:auto;padding:24px clamp(18px,3vw,30px);animation:drawerIn .35s var(--ease)}
+  overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  padding:24px clamp(18px,3vw,30px) 8px;animation:drawerIn .35s var(--ease)}
 @keyframes drawerIn{from{transform:translateX(30px);opacity:.4}to{transform:none;opacity:1}}
 .adm-drawer h2{font-size:20px;margin-bottom:4px}
 .adm-drawer .sub{color:var(--muted-2);font-size:13px;margin-bottom:20px}
-.adm-field{display:flex;flex-direction:column;gap:6px;margin-bottom:15px}
-.adm-field label{font-size:12.5px;color:var(--muted);font-weight:500}
+.adm-field{display:flex;flex-direction:column;gap:7px;margin-bottom:16px}
+.adm-field label{font-size:12.5px;color:var(--ink);font-weight:600;letter-spacing:.01em}
 .adm-field input,.adm-field textarea,.adm-field select{
-  padding:11px 13px;border-radius:10px;background:rgba(16,30,60,.03);border:1px solid var(--line-2);
-  color:var(--ink);font-family:inherit;font-size:14px;outline:none;transition:.2s;width:100%}
-.adm-field textarea{resize:vertical;min-height:90px}
-.adm-field input:focus,.adm-field textarea:focus,.adm-field select:focus{border-color:var(--blue-500);background:rgba(91,127,212,.06)}
-.adm-uploader{display:flex;align-items:center;gap:14px}
-.adm-uploader img{width:88px;height:60px;object-fit:cover;border-radius:9px;border:1px solid var(--line-2);background:#ffffff}
-.adm-drawer-actions{display:flex;gap:10px;margin-top:22px;position:sticky;bottom:0;background:#f7f9fc;padding-top:14px}
+  padding:11px 13px;border-radius:10px;background:#fff;border:1px solid var(--line-2);
+  color:var(--ink);font-family:inherit;font-size:14px;outline:none;transition:.2s;width:100%;box-shadow:0 1px 2px rgba(16,30,60,.03)}
+.adm-field input::placeholder,.adm-field textarea::placeholder{color:var(--muted-2)}
+.adm-field textarea{resize:vertical;min-height:90px;line-height:1.6}
+.adm-field input:focus,.adm-field textarea:focus,.adm-field select:focus{border-color:var(--blue-500);background:#fff;box-shadow:0 0 0 3px rgba(62,96,171,.14)}
+.adm-field input:hover:not(:focus),.adm-field textarea:hover:not(:focus),.adm-field select:hover:not(:focus){border-color:var(--muted-2)}
+/* Native select — custom chevron */
+.adm-field select{appearance:none;-webkit-appearance:none;-moz-appearance:none;padding-right:38px;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238a93a8' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 13px center}
+.adm-field select:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%233e60ab' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")}
+/* Native date — themed calendar icon */
+.adm-field input[type="date"]{cursor:pointer}
+.adm-field input[type="date"]::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.55;transition:.2s;
+  filter:invert(38%) sepia(18%) saturate(1200%) hue-rotate(190deg)}
+.adm-field input[type="date"]:hover::-webkit-calendar-picker-indicator{opacity:1}
+/* Checkbox — square, accented, animated tick */
+.adm-check{display:flex;align-items:center;gap:11px;cursor:pointer;font-size:13.5px;color:var(--ink);
+  padding:11px 13px;border:1px solid var(--line-2);border-radius:10px;background:#fff;transition:.2s;user-select:none}
+.adm-check:hover{border-color:var(--blue-500);background:rgba(91,127,212,.05)}
+.adm-check input[type="checkbox"],.adm-drawer input[type="checkbox"]{appearance:none;-webkit-appearance:none;width:20px;height:20px;flex:none;margin:0;
+  border:1.8px solid var(--line-2);border-radius:6px;background:#fff;cursor:pointer;position:relative;transition:.18s var(--ease)}
+.adm-check input[type="checkbox"]:hover,.adm-drawer input[type="checkbox"]:hover{border-color:var(--blue-500)}
+.adm-check input[type="checkbox"]:checked,.adm-drawer input[type="checkbox"]:checked{background:var(--blue-500);border-color:var(--blue-500)}
+.adm-check input[type="checkbox"]:checked::after,.adm-drawer input[type="checkbox"]:checked::after{content:"";position:absolute;left:6px;top:2.5px;width:5px;height:9px;
+  border:solid #fff;border-width:0 2.2px 2.2px 0;transform:rotate(45deg);animation:ckPop .22s var(--ease)}
+@keyframes ckPop{0%{transform:rotate(45deg) scale(0)}60%{transform:rotate(45deg) scale(1.25)}100%{transform:rotate(45deg) scale(1)}}
+.adm-check .txt{color:var(--muted)}
+/* Uploader — polished drop card with hover + success pop */
+.adm-uploader{display:flex;align-items:center;gap:16px}
+.adm-uploader img{width:96px;height:66px;object-fit:cover;object-position:center;border-radius:11px;border:1px solid var(--line-2);
+  background:#fff;box-shadow:0 4px 12px -6px rgba(16,30,60,.25);animation:upPop .3s var(--ease)}
+@keyframes upPop{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+.adm-uploader .up-empty{width:96px;height:66px;border-radius:11px;border:1.6px dashed var(--line-2);flex:none;
+  display:grid;place-items:center;color:var(--muted-2);background:rgba(16,30,60,.02);transition:.2s}
+.adm-uploader .up-empty svg{width:22px;height:22px}
+.adm-uploader:hover .up-empty{border-color:var(--blue-500);color:var(--blue-500)}
+.adm-drawer-actions{display:flex;gap:10px;margin-top:24px;position:sticky;bottom:0;background:linear-gradient(180deg,rgba(247,249,252,0),#f7f9fc 22%);
+  padding:16px 0 4px;border-top:1px solid var(--line);z-index:2}
 .adm-msg{padding:11px 14px;border-radius:10px;font-size:13.5px;margin-bottom:16px}
 .adm-msg.err{background:rgba(255,95,87,.12);border:1px solid rgba(255,95,87,.3);color:#ffb4ae}
 .adm-msg.ok{background:rgba(40,200,64,.12);border:1px solid rgba(40,200,64,.3);color:#8fe6a0}
@@ -917,6 +950,56 @@ section{position:relative;z-index:2}
 .adm-statuspill{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:10px;
   border:1px solid var(--line);font-size:12.5px;color:var(--muted);margin-bottom:8px}
 @media (min-width:861px){.adm.collapsed .adm-statuspill{justify-content:center}}
+
+/* =========================================================
+   Admin polish — header/footer, avatars, buttons, micro-anim
+   ========================================================= */
+/* Desktop header bar */
+.adm-header{display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:14px clamp(18px,3vw,40px);border-bottom:1px solid var(--line);background:rgba(247,249,252,.86);
+  backdrop-filter:blur(10px);position:sticky;top:0;z-index:35}
+.adm-header .ah-title{font-size:15px;font-weight:700;color:var(--ink);letter-spacing:-.01em}
+.adm-header .ah-crumb{font-size:11.5px;color:var(--muted-2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}
+.adm-header .ah-right{display:flex;align-items:center;gap:10px}
+.adm-header .ah-date{font-size:12.5px;color:var(--muted-2);font-weight:500}
+.adm-header .ah-site{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border-radius:9px;border:1px solid var(--line-2);
+  background:#fff;color:var(--muted);font-size:12.5px;font-weight:600;transition:.2s}
+.adm-header .ah-site:hover{color:var(--ink);border-color:var(--blue-500);box-shadow:0 6px 16px -10px rgba(62,96,171,.6)}
+.adm-header .ah-site svg{width:14px;height:14px}
+@media (max-width:860px){.adm-header{display:none}}
+/* Footer */
+.adm-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  margin-top:36px;padding:20px clamp(18px,3vw,40px);border-top:1px solid var(--line);color:var(--muted-2);font-size:12.5px}
+.adm-footer a{color:var(--muted);font-weight:500}.adm-footer a:hover{color:var(--blue-600)}
+.adm-footer .af-links{display:flex;gap:16px;flex-wrap:wrap}
+/* Content wrapper so header/footer span full width but content keeps padding */
+.adm-content{padding:26px clamp(18px,3vw,40px)}
+.adm-main.has-chrome{padding:0}
+
+/* Avatars — perfectly round, centred faces */
+.adm-avatar,.kb-av{object-fit:cover;object-position:center}
+.adm-avatar{border-radius:50%;display:inline-grid;place-items:center;flex:none;overflow:hidden;
+  background:var(--grad);color:#fff;font-weight:700;box-shadow:0 0 0 2px #fff,0 4px 10px -4px rgba(16,30,60,.4)}
+.adm-avatar img{width:100%;height:100%;object-fit:cover;object-position:center;border-radius:50%}
+.kb-av{border-radius:50%!important}
+
+/* Save/primary button — spinner while busy + press feedback */
+.adm-btn{position:relative;overflow:hidden}
+.adm-btn:active:not(:disabled){transform:scale(.97)}
+.adm-btn.primary:disabled{opacity:1;color:rgba(255,255,255,.9)}
+.adm-btn .spin{width:15px;height:15px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;
+  animation:admSpin .6s linear infinite;flex:none}
+@keyframes admSpin{to{transform:rotate(360deg)}}
+.adm-btn.ok-pulse{animation:okPulse .5s var(--ease)}
+@keyframes okPulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.5)}100%{box-shadow:0 0 0 12px rgba(34,197,94,0)}}
+
+/* Row buttons + panel: let native title tooltips show (no clipping) */
+.adm-ibtn{cursor:pointer}
+.adm-table tr:hover td{background:rgba(91,127,212,.05)}
+
+/* Field entrance stagger in the drawer */
+.adm-drawer .adm-field{animation:fieldIn .32s var(--ease) both}
+@keyframes fieldIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
 /* Kanban board */
 .kb-card{touch-action:none}
