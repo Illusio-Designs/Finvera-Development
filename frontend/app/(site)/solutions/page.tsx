@@ -35,31 +35,53 @@ const solutions = [
   },
 ];
 
+const TrendUp = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l6-6 4 4 8-8" /><path d="M21 7v5h-5" /></svg>
+);
+
 function Mock({ type }: { type: string }) {
   if (type === "crm")
     return (
       <div className="mock reveal d1">
-        <div className="mock-head"><b>Pipeline</b><small>This week</small></div>
+        <div className="mock-head">
+          <div><b>Sales pipeline</b><span className="mock-sub">This week</span></div>
+          <span className="mock-trend up"><TrendUp /> 24%</span>
+        </div>
+        <div className="mock-kpi"><strong>$64,000</strong><span>3 active deals</span></div>
         <div className="crm-rows">
-          <div className="crm-row"><span className="av" /><span className="nm">Acme Corp<small>Enterprise • $48k</small></span><span className="tag">Won</span></div>
-          <div className="crm-row"><span className="av" /><span className="nm">Globex<small>Growth • $12k</small></span><span className="tag">Negotiation</span></div>
-          <div className="crm-row"><span className="av" /><span className="nm">Initech<small>Starter • $4k</small></span><span className="tag">New</span></div>
+          <div className="crm-row"><span className="av">AC</span><span className="nm">Acme Corp<small>Enterprise • $48k</small></span><span className="tag win">Won</span></div>
+          <div className="crm-row"><span className="av">GX</span><span className="nm">Globex<small>Growth • $12k</small></span><span className="tag neg">Negotiation</span></div>
+          <div className="crm-row"><span className="av">IT</span><span className="nm">Initech<small>Starter • $4k</small></span><span className="tag prop">New</span></div>
         </div>
       </div>
     );
   if (type === "ring")
     return (
       <div className="mock reveal d1">
-        <div className="mock-head"><b>Uptime</b><small>Rolling 90 days</small></div>
+        <div className="mock-head">
+          <div><b>Platform uptime</b><span className="mock-sub">Rolling 90 days</span></div>
+          <span className="mock-trend up"><TrendUp /> SLA</span>
+        </div>
         <div className="ring" style={{ ["--p" as string]: "356deg" } as React.CSSProperties}><b>99.9%</b></div>
+        <div className="crm-rows">
+          <div className="crm-row"><span className="av">P</span><span className="nm">p95 response<small>API latency</small></span><span className="tag win">142ms</span></div>
+          <div className="crm-row"><span className="av">I</span><span className="nm">Incidents<small>Last 30 days</small></span><span className="tag prop">0</span></div>
+        </div>
       </div>
     );
   return (
     <div className="mock reveal d1">
-      <div className="mock-head"><b>Revenue overview</b><small>Last 30 days</small></div>
+      <div className="mock-head">
+        <div><b>Revenue overview</b><span className="mock-sub">Last 30 days</span></div>
+        <span className="mock-trend up"><TrendUp /> 18.2%</span>
+      </div>
+      <div className="mock-kpi"><strong>$128,400</strong><span>closed · 42 deals</span></div>
       <div className="bars">
-        {[0.4, 0.6, 0.45, 0.85, 0.6, 0.95, 0.7, 1].map((h, i) => (
-          <span className="bar" key={i} style={{ ["--h" as string]: h } as React.CSSProperties} />
+        {[{ d: "Mon", h: 0.48 }, { d: "Tue", h: 0.66 }, { d: "Wed", h: 0.4 }, { d: "Thu", h: 0.82 }, { d: "Fri", h: 0.58 }, { d: "Sat", h: 1 }, { d: "Sun", h: 0.72 }].map((b) => (
+          <span className="bar-col" key={b.d}>
+            <span className="bar" style={{ ["--h" as string]: b.h } as React.CSSProperties} />
+            <span className="bar-x">{b.d}</span>
+          </span>
         ))}
       </div>
     </div>
