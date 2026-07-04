@@ -1,7 +1,7 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
 
-const { Project, Service, Testimonial, TeamMember, BlogPost, Task, Board, Page } = require("../models");
+const { Project, Service, Testimonial, TeamMember, BlogPost, Task, Board, Page, Lead } = require("../models");
 const { crudController } = require("../utils/crud");
 const { requireAuth, requireRole, optionalAuth } = require("../middleware/auth");
 const { upload } = require("../middleware/upload");
@@ -67,6 +67,17 @@ taskRouter.get("/:taskId/comments", requireAuth, tasksCustom.listComments);
 taskRouter.post("/:taskId/comments", requireAuth, tasksCustom.addComment);
 router.use("/tasks", taskRouter);
 router.delete("/comments/:id", requireAuth, tasksCustom.deleteComment);
+
+/* ── Leads (private BD pipeline — auth on every endpoint) ─ */
+const leadCtrl = crudController(Lead, { order: [["position", "ASC"], ["createdAt", "DESC"]], searchable: ["name", "company", "email", "source", "owner"] });
+const leadRouter = express.Router();
+leadRouter.get("/", requireAuth, leadCtrl.list);
+leadRouter.get("/:id", requireAuth, leadCtrl.getOne);
+leadRouter.post("/", requireAuth, leadCtrl.create);
+leadRouter.put("/:id", requireAuth, leadCtrl.update);
+leadRouter.patch("/:id", requireAuth, leadCtrl.update);
+leadRouter.delete("/:id", requireAuth, leadCtrl.remove);
+router.use("/leads", leadRouter);
 
 /* ── Users (admin only) ──────────────────────────────── */
 const usersRouter = express.Router();

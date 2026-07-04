@@ -815,9 +815,16 @@ section{position:relative;z-index:2}
 .adm-table tr:last-child td{border-bottom:0}
 .adm-table tr:hover td{background:rgba(16,30,60,.02)}
 .adm-thumb{width:52px;height:36px;border-radius:7px;object-fit:cover;border:1px solid var(--line-2);background:#f7f9fc}
-.adm-badge{font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px}
+.adm-badge{font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;text-transform:capitalize}
 .adm-badge.published{background:rgba(40,200,64,.14);color:#7ee08a}
 .adm-badge.draft{background:rgba(254,188,46,.14);color:#ffd271}
+/* Lead pipeline stages */
+.adm-badge.new{background:rgba(100,116,139,.16);color:#475569}
+.adm-badge.contacted{background:rgba(62,96,171,.14);color:var(--blue-700)}
+.adm-badge.qualified{background:rgba(124,92,255,.16);color:#6d3fd6}
+.adm-badge.proposal{background:rgba(245,158,11,.18);color:#b45309}
+.adm-badge.won{background:rgba(34,197,94,.16);color:#15803d}
+.adm-badge.lost{background:rgba(239,68,68,.14);color:#dc2626}
 .adm-rowbtns{display:flex;gap:8px;justify-content:flex-end}
 .adm-ibtn{width:32px;height:32px;border-radius:8px;border:1px solid var(--line-2);display:grid;place-items:center;
   color:var(--muted);background:transparent;transition:.2s}

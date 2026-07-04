@@ -1,6 +1,6 @@
 const bcrypt = require("bcryptjs");
 const slugify = require("slugify");
-const { User, Project, Service, Testimonial, TeamMember, BlogPost, Seo, Setting, Board, Task, Page } = require("../models");
+const { User, Project, Service, Testimonial, TeamMember, BlogPost, Seo, Setting, Board, Task, Page, Lead } = require("../models");
 
 const slug = (s) => slugify(String(s), { lower: true, strict: true });
 
@@ -77,6 +77,14 @@ const LEGAL_PAGES = [
   },
 ];
 
+const LEADS = [
+  { name: "Priya Sharma", company: "Nexora Retail", email: "priya@nexora.io", phone: "+91 98200 11223", source: "Website", stage: "qualified", value: 42000, owner: "Arjun Rao", priority: "high", notes: "Wants a custom CRM + storefront integration. Demo booked." },
+  { name: "Daniel Brooks", company: "Vaultly", email: "dan@vaultly.com", phone: "+1 415 555 0198", source: "Referral", stage: "proposal", value: 68000, owner: "Arjun Rao", priority: "high", notes: "Proposal sent for SaaS dashboard revamp. Awaiting sign-off." },
+  { name: "Meera Nair", company: "Kart&Co", email: "meera@kartandco.in", phone: "+91 90040 55667", source: "LinkedIn", stage: "contacted", value: 18000, owner: "Nadia Patel", priority: "medium", notes: "Intro call done; needs omni-channel inventory scope." },
+  { name: "Tom Hughes", company: "Prismix", email: "tom@prismix.co", phone: "+44 20 7946 0102", source: "Cold outreach", stage: "new", value: 25000, owner: "Nadia Patel", priority: "medium", notes: "Replied to outreach — schedule discovery." },
+  { name: "Sara Lopez", company: "Orbital", email: "sara@orbital.app", phone: "+1 646 555 0177", source: "Event", stage: "won", value: 54000, owner: "Arjun Rao", priority: "high", notes: "Closed — CRM build kicking off next sprint." },
+];
+
 const SETTINGS = [
   { key: "site_name", value: "Finvera Solutions LLP", group: "general", isPublic: true },
   { key: "site_tagline", value: "Future-Driven SaaS & CRM Development", group: "general", isPublic: true },
@@ -150,6 +158,14 @@ async function seed() {
       // eslint-disable-next-line no-await-in-loop
       await Page.findOrCreate({ where: { slug: p.slug }, defaults: { ...p, status: "published" } });
     }
+  }
+  if (Lead) {
+    try {
+      if ((await Lead.count()) === 0) {
+        await Lead.bulkCreate(LEADS.map((l, i) => ({ ...l, position: i })));
+        console.log(`\x1b[32m✔ Seeded ${LEADS.length} sample leads\x1b[0m`);
+      }
+    } catch (e) { console.warn(`\x1b[33m⚠ Lead seed skipped: ${e.message}\x1b[0m`); }
   }
   for (const s of SEO_PAGES) {
     await Seo.findOrCreate({ where: { page: s.page }, defaults: s });

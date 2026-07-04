@@ -11,6 +11,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   DashboardSquare01Icon, FolderLibraryIcon, GridViewIcon, QuoteDownIcon, UserGroupIcon,
   News01Icon, File01Icon, KanbanIcon, Mail01Icon, UserMultipleIcon, Search01Icon, Settings02Icon,
+  Target02Icon,
 } from "@hugeicons/core-free-icons";
 
 const NAV: [string, string, typeof DashboardSquare01Icon][] = [
@@ -22,6 +23,7 @@ const NAV: [string, string, typeof DashboardSquare01Icon][] = [
   ["/dashboard/blog", "Blog", News01Icon],
   ["/dashboard/pages", "Pages", File01Icon],
   ["/dashboard/kanban", "Project board", KanbanIcon],
+  ["/dashboard/leads", "Leads", Target02Icon],
   ["/dashboard/contact", "Contact inbox", Mail01Icon],
   ["/dashboard/users", "Users", UserMultipleIcon],
   ["/dashboard/seo", "SEO", Search01Icon],
