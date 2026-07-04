@@ -7,7 +7,7 @@ export default function AdminProjects() {
       title="Projects"
       subtitle="Portfolio items shown on the Work page."
       columns={[
-        { name: "desktopImage", label: "Preview", type: "image" },
+        { name: "desktopImage", label: "Main image", type: "image" },
         { name: "title", label: "Title" },
         { name: "category", label: "Category" },
         { name: "status", label: "Status", type: "status" },
@@ -32,7 +32,7 @@ export default function AdminProjects() {
         { name: "testimonialName", label: "Quote — name", type: "text" },
         { name: "testimonialRole", label: "Quote — role", type: "text" },
         { name: "content", label: "Case study (long)", type: "richtext" },
-        { name: "desktopImage", label: "Desktop screenshot", type: "image" },
+        { name: "desktopImage", label: "Main image (shown on Work + Home cards)", type: "image" },
         { name: "mobileImage", label: "Mobile screenshot", type: "image" },
         { name: "coverImage", label: "Cover image", type: "image" },
         { name: "featured", label: "Featured", type: "boolean", placeholder: "Show on the home page" },

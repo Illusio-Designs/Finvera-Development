@@ -20,5 +20,6 @@ export type BlogPost = {
   status: string; publishedAt: string | null;
   seoTitle?: string; seoDescription?: string; seoKeywords?: string;
 };
+export type Page = { id: number; slug: string; title: string; content: string; status: string; updatedAt?: string };
 export type Seo = { page: string; title: string; description: string; keywords?: string; ogImage?: string; noindex?: boolean };
 export type Settings = Record<string, string>;

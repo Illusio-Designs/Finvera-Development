@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Arrow, Check, XIcon, LinkedIn, Instagram } from "@/components/icons";
+import ProjectCard from "@/components/ProjectCard";
 import ServiceIcon from "@/components/serviceIcons";
 import { getServices, getProjects, getTestimonials, getSeo } from "@/lib/api";
 
@@ -204,14 +205,11 @@ export default async function Home() {
             <span className="eyebrow">Selected work</span>
             <h2>Products we&apos;re <span className="grad-word">proud of</span></h2>
           </div>
-          <div className="grid-3">
-            {featured.map((w, i) => (
-              <article className={"card reveal" + (i ? " d" + i : "")} data-tilt data-cursor key={w.id}>
-                <div className="mock-head" style={{ marginBottom: 14 }}><b style={{ color: "var(--blue-400)" }}>{w.category}</b></div>
-                <h3>{w.title}</h3><p>{w.blurb}</p>
-                <Link href="/work" className="more" data-cursor>View case study <Arrow /></Link>
-              </article>
-            ))}
+          <div className="pgrid">
+            {featured.map((w, i) => <ProjectCard key={w.id} p={w} i={i} />)}
+          </div>
+          <div className="reveal" style={{ textAlign: "center", marginTop: 44 }}>
+            <Link href="/work" className="btn btn-ghost" data-cursor data-magnetic>View all work <Arrow /></Link>
           </div>
         </div>
       </section>
