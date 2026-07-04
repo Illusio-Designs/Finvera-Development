@@ -1,18 +1,18 @@
 const sequelize = require("../config/db");
 const { DataTypes } = require("sequelize");
 
-/* ── User (admin auth) ───────────────────────────────── */
+/* User (admin auth) */
 const User = sequelize.define("User", {
   name: { type: DataTypes.STRING, allowNull: false },
   email: { type: DataTypes.STRING, allowNull: false, unique: true, validate: { isEmail: true } },
   password: { type: DataTypes.STRING, allowNull: false },
   role: { type: DataTypes.ENUM("admin", "editor"), defaultValue: "admin" },
   active: { type: DataTypes.BOOLEAN, defaultValue: true },
-  avatar: { type: DataTypes.STRING },   // profile image URL
-  title: { type: DataTypes.STRING },    // job title / role label
+  avatar: { type: DataTypes.STRING },
+  title: { type: DataTypes.STRING },
 }, { tableName: "users" });
 
-/* ── Project / Work ──────────────────────────────────── */
+/* Project / Work */
 const Project = sequelize.define("Project", {
   title: { type: DataTypes.STRING, allowNull: false },
   slug: { type: DataTypes.STRING, allowNull: false, unique: true },
@@ -27,17 +27,16 @@ const Project = sequelize.define("Project", {
   featured: { type: DataTypes.BOOLEAN, defaultValue: false },
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
   status: { type: DataTypes.ENUM("draft", "published"), defaultValue: "published" },
-  // ── Case-study / trust fields ──
-  client: { type: DataTypes.STRING },      // client name (falls back to title)
+  client: { type: DataTypes.STRING },
   industry: { type: DataTypes.STRING },
   year: { type: DataTypes.STRING },
-  duration: { type: DataTypes.STRING },    // e.g. "6 weeks"
-  role: { type: DataTypes.STRING },        // e.g. "Design & Development"
+  duration: { type: DataTypes.STRING },
+  role: { type: DataTypes.STRING },
   challenge: { type: DataTypes.TEXT },
   approach: { type: DataTypes.TEXT },
-  results: { type: DataTypes.JSON, defaultValue: [] },   // [{ value, label }]
-  tech: { type: DataTypes.JSON, defaultValue: [] },      // ["Next.js", "Node", ...]
-  gallery: { type: DataTypes.JSON, defaultValue: [] },   // [imageUrl, ...]
+  results: { type: DataTypes.JSON, defaultValue: [] },
+  tech: { type: DataTypes.JSON, defaultValue: [] },
+  gallery: { type: DataTypes.JSON, defaultValue: [] },
   testimonialQuote: { type: DataTypes.TEXT },
   testimonialName: { type: DataTypes.STRING },
   testimonialRole: { type: DataTypes.STRING },
@@ -45,7 +44,7 @@ const Project = sequelize.define("Project", {
   seoDescription: { type: DataTypes.TEXT },
 }, { tableName: "projects" });
 
-/* ── Service ─────────────────────────────────────────── */
+/* Service */
 const Service = sequelize.define("Service", {
   title: { type: DataTypes.STRING, allowNull: false },
   slug: { type: DataTypes.STRING, allowNull: false, unique: true },
@@ -55,7 +54,7 @@ const Service = sequelize.define("Service", {
   status: { type: DataTypes.ENUM("draft", "published"), defaultValue: "published" },
 }, { tableName: "services" });
 
-/* ── Testimonial ─────────────────────────────────────── */
+/* Testimonial */
 const Testimonial = sequelize.define("Testimonial", {
   name: { type: DataTypes.STRING, allowNull: false },
   role: { type: DataTypes.STRING },
@@ -67,7 +66,7 @@ const Testimonial = sequelize.define("Testimonial", {
   status: { type: DataTypes.ENUM("draft", "published"), defaultValue: "published" },
 }, { tableName: "testimonials" });
 
-/* ── Team member ─────────────────────────────────────── */
+/* Team member */
 const TeamMember = sequelize.define("TeamMember", {
   name: { type: DataTypes.STRING, allowNull: false },
   role: { type: DataTypes.STRING },
@@ -79,7 +78,7 @@ const TeamMember = sequelize.define("TeamMember", {
   status: { type: DataTypes.ENUM("draft", "published"), defaultValue: "published" },
 }, { tableName: "team_members" });
 
-/* ── Blog post ───────────────────────────────────────── */
+/* Blog post */
 const BlogPost = sequelize.define("BlogPost", {
   title: { type: DataTypes.STRING, allowNull: false },
   slug: { type: DataTypes.STRING, allowNull: false, unique: true },
@@ -96,7 +95,7 @@ const BlogPost = sequelize.define("BlogPost", {
   seoKeywords: { type: DataTypes.STRING },
 }, { tableName: "blog_posts" });
 
-/* ── Contact submission ──────────────────────────────── */
+/* Contact submission */
 const ContactSubmission = sequelize.define("ContactSubmission", {
   name: { type: DataTypes.STRING, allowNull: false },
   email: { type: DataTypes.STRING, allowNull: false },
@@ -108,48 +107,45 @@ const ContactSubmission = sequelize.define("ContactSubmission", {
   isRead: { type: DataTypes.BOOLEAN, defaultValue: false },
 }, { tableName: "contact_submissions" });
 
-/* ── Kanban board (Trello-style) ─────────────────────── */
+/* Kanban board */
 const Board = sequelize.define("Board", {
   name: { type: DataTypes.STRING, allowNull: false },
   description: { type: DataTypes.TEXT },
   color: { type: DataTypes.STRING, defaultValue: "#3e60ab" },
-  // columns live on the board: [{ id, title }]
   columns: { type: DataTypes.JSON, defaultValue: [] },
-  // reusable label palette for this board: [{ id, name, color }]
   labels: { type: DataTypes.JSON, defaultValue: [] },
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
 }, { tableName: "boards" });
 
-/* ── Kanban task (card) ──────────────────────────────── */
+/* Kanban task (card) */
 const Task = sequelize.define("Task", {
   title: { type: DataTypes.STRING, allowNull: false },
   description: { type: DataTypes.TEXT },
   boardId: { type: DataTypes.INTEGER },
-  column: { type: DataTypes.STRING, defaultValue: "backlog" }, // column id
+  column: { type: DataTypes.STRING, defaultValue: "backlog" },
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
   priority: { type: DataTypes.ENUM("low", "medium", "high"), defaultValue: "medium" },
   dueDate: { type: DataTypes.DATEONLY },
   completed: { type: DataTypes.BOOLEAN, defaultValue: false },
-  cover: { type: DataTypes.STRING },                          // hex color or image URL
-  memberIds: { type: DataTypes.JSON, defaultValue: [] },      // assigned user ids
-  labelIds: { type: DataTypes.JSON, defaultValue: [] },       // board label ids on this card
-  checklist: { type: DataTypes.JSON, defaultValue: [] },      // [{ id, text, done }]
-  attachments: { type: DataTypes.JSON, defaultValue: [] },    // [{ id, url, name }]
-  // legacy free-text fields kept for backward compatibility
+  cover: { type: DataTypes.STRING },
+  memberIds: { type: DataTypes.JSON, defaultValue: [] },
+  labelIds: { type: DataTypes.JSON, defaultValue: [] },
+  checklist: { type: DataTypes.JSON, defaultValue: [] },
+  attachments: { type: DataTypes.JSON, defaultValue: [] },
   assignee: { type: DataTypes.STRING },
   label: { type: DataTypes.STRING },
 }, { tableName: "tasks" });
 
-/* ── Card comment ────────────────────────────────────── */
+/* Card comment */
 const Comment = sequelize.define("Comment", {
   taskId: { type: DataTypes.INTEGER, allowNull: false },
   userId: { type: DataTypes.INTEGER },
   body: { type: DataTypes.TEXT, allowNull: false },
 }, { tableName: "task_comments" });
 
-/* ── Per-page SEO ────────────────────────────────────── */
+/* Per-page SEO */
 const Seo = sequelize.define("Seo", {
-  page: { type: DataTypes.STRING, allowNull: false, unique: true }, // home, work, about...
+  page: { type: DataTypes.STRING, allowNull: false, unique: true },
   title: { type: DataTypes.STRING },
   description: { type: DataTypes.TEXT },
   keywords: { type: DataTypes.STRING },
@@ -158,27 +154,42 @@ const Seo = sequelize.define("Seo", {
   noindex: { type: DataTypes.BOOLEAN, defaultValue: false },
 }, { tableName: "seo_meta" });
 
-/* ── CMS-managed content pages (privacy, terms…) ─────── */
+/* CMS-managed content pages (privacy, terms) */
 const Page = sequelize.define("Page", {
-  slug: { type: DataTypes.STRING, allowNull: false, unique: true }, // privacy, terms…
+  slug: { type: DataTypes.STRING, allowNull: false, unique: true },
   title: { type: DataTypes.STRING, allowNull: false },
   content: { type: DataTypes.TEXT("long") },
   status: { type: DataTypes.ENUM("draft", "published"), defaultValue: "published" },
 }, { tableName: "pages" });
 
-/* ── Site settings (key/value: analytics, pixels, brand) ─ */
+/* Business-development leads (private CRM pipeline) */
+const Lead = sequelize.define("Lead", {
+  name: { type: DataTypes.STRING, allowNull: false },
+  company: { type: DataTypes.STRING },
+  email: { type: DataTypes.STRING },
+  phone: { type: DataTypes.STRING },
+  source: { type: DataTypes.STRING, defaultValue: "Website" },
+  stage: { type: DataTypes.ENUM("new", "contacted", "qualified", "proposal", "won", "lost"), defaultValue: "new" },
+  value: { type: DataTypes.INTEGER, defaultValue: 0 },
+  owner: { type: DataTypes.STRING },
+  priority: { type: DataTypes.ENUM("low", "medium", "high"), defaultValue: "medium" },
+  nextFollowUp: { type: DataTypes.DATEONLY },
+  notes: { type: DataTypes.TEXT },
+  position: { type: DataTypes.INTEGER, defaultValue: 0 },
+}, { tableName: "leads" });
+
+/* Site settings */
 const Setting = sequelize.define("Setting", {
   key: { type: DataTypes.STRING, allowNull: false, unique: true },
   value: { type: DataTypes.TEXT },
-  group: { type: DataTypes.STRING, defaultValue: "general" }, // general | analytics | social
+  group: { type: DataTypes.STRING, defaultValue: "general" },
   isPublic: { type: DataTypes.BOOLEAN, defaultValue: true },
 }, { tableName: "settings" });
 
-/* ── Author association (optional) ───────────────────── */
+/* Associations */
 BlogPost.belongsTo(User, { as: "editor", foreignKey: { name: "userId", allowNull: true } });
 User.hasMany(BlogPost, { as: "posts", foreignKey: "userId" });
 
-/* ── Kanban associations ─────────────────────────────── */
 Board.hasMany(Task, { as: "tasks", foreignKey: "boardId", onDelete: "CASCADE" });
 Task.belongsTo(Board, { foreignKey: "boardId" });
 Task.hasMany(Comment, { as: "comments", foreignKey: "taskId", onDelete: "CASCADE" });
@@ -188,5 +199,5 @@ Comment.belongsTo(User, { as: "author", foreignKey: "userId" });
 module.exports = {
   sequelize,
   User, Project, Service, Testimonial, TeamMember,
-  BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page,
+  BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page, Lead,
 };
