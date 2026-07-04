@@ -620,15 +620,23 @@ section{position:relative;z-index:2}
    Marquee
    ========================================================= */
 .marquee{overflow:hidden;-webkit-mask:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)}
-.marquee-track{display:flex;gap:54px;width:max-content;animation:scrollX var(--dur,30s) linear infinite;will-change:transform}
+.marquee-track{display:flex;gap:26px;width:max-content;animation:scrollX var(--dur,30s) linear infinite;will-change:transform}
 .marquee:hover .marquee-track{animation-play-state:paused}
 @keyframes scrollX{to{transform:translateX(-50%)}}
-.logo-item{display:flex;align-items:center;gap:9px;color:var(--muted-2);font-weight:600;font-size:18px;
-  white-space:nowrap;opacity:.7;transition:.3s}
-.logo-item:hover{opacity:1;color:var(--ink)}
-.logo-item svg{width:24px;height:24px}
-.logo-img{height:30px;width:auto;max-width:150px;object-fit:contain;filter:grayscale(1);opacity:.85;transition:.3s}
-.logo-item:hover .logo-img{filter:grayscale(0);opacity:1}
+/* Every logo sits in an identical white card, so mixed brand logos line up at
+   one uniform size and all stay fully visible (full colour). */
+.logo-item{display:flex;align-items:center;justify-content:center;flex:none;
+  height:74px;width:190px;padding:0 22px;background:#fff;border:1px solid var(--line);
+  border-radius:16px;box-shadow:0 8px 22px -16px rgba(23,43,92,.4);
+  color:var(--muted-2);font-weight:600;font-size:16px;white-space:nowrap;
+  transition:transform .3s var(--ease),box-shadow .3s var(--ease)}
+.logo-item:hover{transform:translateY(-3px);box-shadow:0 16px 30px -18px rgba(23,43,92,.5)}
+.logo-item svg{width:22px;height:22px}
+.logo-img{max-height:46px;max-width:146px;width:auto;height:auto;object-fit:contain;display:block}
+.logo-name{font-size:15px;font-weight:600;color:var(--muted-2)}
+@media (max-width:640px){.logo-item{height:64px;width:158px}.logo-img{max-height:40px;max-width:120px}}
+/* Static box grid of client logos (About page) */
+.logo-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:18px;margin-top:8px}
 
 /* =========================================================
    FAQ
