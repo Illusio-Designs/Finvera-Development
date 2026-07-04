@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { Check } from "@/components/icons";
 import ContactForm from "@/components/ContactForm";
 import { getSeo, getSettings } from "@/lib/api";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Mail01Icon, Call02Icon, Location01Icon } from "@hugeicons/core-free-icons";
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSeo("contact");
@@ -12,9 +14,9 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function Contact() {
   const settings = await getSettings();
   const info = [
-    { t: "Email us", d: settings.contact_email || "hello@finvera.dev", i: <><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M22 7l-10 6L2 7" /></> },
-    { t: "Call us", d: settings.contact_phone || "+91 84900 09684", i: <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" /> },
-    { t: "Visit us", d: settings.contact_address || "B-603, 6th Floor, Darshan Shrusti Apartment, Nanavati Chowk, Rajkot", i: <><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></> },
+    { t: "Email us", d: settings.contact_email || "hello@finvera.dev", i: Mail01Icon },
+    { t: "Call us", d: settings.contact_phone || "+91 84900 09684", i: Call02Icon },
+    { t: "Visit us", d: settings.contact_address || "B-603, 6th Floor, Darshan Shrusti Apartment, Nanavati Chowk, Rajkot", i: Location01Icon },
   ];
 
   return (
@@ -40,7 +42,7 @@ export default async function Contact() {
             <div className="contact-info">
               {info.map((it, i) => (
                 <div className={"info-item reveal" + (i ? " d" + i : "")} key={it.t}>
-                  <div className="ic"><svg viewBox="0 0 24 24" width={20} fill="none" stroke="currentColor" strokeWidth={2}>{it.i}</svg></div>
+                  <div className="ic"><HugeiconsIcon icon={it.i} size={20} strokeWidth={1.8} className="hgi" /></div>
                   <div><h4>{it.t}</h4><p>{it.d}</p></div>
                 </div>
               ))}
