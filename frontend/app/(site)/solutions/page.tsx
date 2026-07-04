@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Arrow, Check } from "@/components/icons";
+import Manifesto from "@/components/Manifesto";
 import { getSeo } from "@/lib/api";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -119,6 +120,8 @@ export default function Solutions() {
           </div>
         </section>
       ))}
+
+      <Manifesto text="One platform, shaped to your goals — not a template — engineered to grow from your first user to your millionth." />
 
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container">

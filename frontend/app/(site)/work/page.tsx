@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { Arrow } from "@/components/icons";
 import ProjectCard from "@/components/ProjectCard";
+import Manifesto from "@/components/Manifesto";
 import { getProjects, getSeo } from "@/lib/api";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -29,6 +30,8 @@ export default async function Work() {
           </div>
         </div>
       </section>
+
+      <Manifesto text="Real products, shipped and scaled — design and engineering our clients trust to move their business forward." />
 
       <section className="section">
         <div className="container">

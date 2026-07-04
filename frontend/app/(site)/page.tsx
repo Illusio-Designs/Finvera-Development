@@ -4,6 +4,7 @@ import { Arrow, Check, XIcon, LinkedIn, Instagram } from "@/components/icons";
 import ProjectCard from "@/components/ProjectCard";
 import ServiceGrid from "@/components/ServiceGrid";
 import ProcessSteps from "@/components/ProcessSteps";
+import Manifesto from "@/components/Manifesto";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AnalyticsUpIcon } from "@hugeicons/core-free-icons";
 import { getServices, getProjects, getTestimonials, getSeo, getFaqs, getLogos, getStats, getFeatures } from "@/lib/api";
@@ -270,6 +271,8 @@ export default async function Home() {
           </div>
         </div>
       </section>
+
+      <Manifesto text="We craft SaaS and CRM software that helps businesses grow, scale and innovate — where every release moves your revenue forward." />
 
       {/* CTA */}
       <section className="section">
