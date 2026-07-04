@@ -122,7 +122,7 @@ export default async function About() {
             </div>
             <div className="grid-4">
               {team.map((m, i) => (
-                <div className={"card team-card reveal" + (i ? " d" + i : "")} data-cursor key={m.id}>
+                <div className={"card team-card reveal-x" + (i % 2 ? " r" : "") + " d" + ((i % 4) + 1)} data-cursor key={m.id}>
                   <div className="ph">{m.photo
                     /* eslint-disable-next-line @next/next/no-img-element */
                     ? <img src={m.photo} alt={m.name} />

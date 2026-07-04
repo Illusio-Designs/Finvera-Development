@@ -31,7 +31,10 @@ export default function SmoothScroll(): null {
     try {
       gsap.registerPlugin(ScrollTrigger);
 
+      if ("scrollRestoration" in history) history.scrollRestoration = "manual";
       lenis = new Lenis({ duration: 1.1, smoothWheel: true });
+      // Start at the very top on (re)load, not a restored position.
+      lenis.scrollTo(0, { immediate: true });
 
       lenis.on("scroll", ScrollTrigger.update);
 
