@@ -33,22 +33,8 @@ export default function Experience() {
       // Hero orb parallax
       gsap.to(q(".xp-orb"), { yPercent: 40, ease: "none", scrollTrigger: { trigger: ".xp-hero", start: "top top", end: "bottom top", scrub: true } });
 
-      // Pinned horizontal scroll
-      const track = q(".xp-track")[0] as HTMLElement;
-      if (track) {
-        const dist = () => track.scrollWidth - window.innerWidth;
-        const horiz = gsap.to(track, {
-          x: () => -dist(), ease: "none",
-          scrollTrigger: { trigger: ".xp-pin", start: "top top", end: () => "+=" + dist(), pin: true, scrub: 1, invalidateOnRefresh: true },
-        });
-        // reveal each panel's contents as it enters the viewport horizontally
-        q(".xp-panel").forEach((p: Element) => {
-          gsap.from((p as HTMLElement).querySelectorAll(".xp-panel-in > *"), {
-            y: 44, opacity: 0, duration: 0.7, ease: "power3.out", stagger: 0.08,
-            scrollTrigger: { trigger: p as HTMLElement, containerAnimation: horiz, start: "left 80%" },
-          });
-        });
-      }
+      // Horizontal scroll is handled by the native sticky + scroll-progress
+      // effect below (see stickyOuter) — always locked to the page scroll.
 
       // Manifesto word-by-word scrub
       gsap.to(q(".xp-manifesto .w"), {
@@ -72,7 +58,43 @@ export default function Experience() {
     }, root);
     // Recalculate after fonts/layout settle
     const t = setTimeout(() => ScrollTrigger.refresh(), 300);
-    return () => { clearTimeout(t); ctx.revert(); };
+
+    /* Native sticky + scroll-progress horizontal scroll (same as About) —
+       the track's x is derived from real scroll position, so it's always in
+       lock-step with the page. */
+    const outer = root.current?.querySelector(".xp-sticky-outer") as HTMLElement | null;
+    const track = root.current?.querySelector(".xp-sticky .xp-track") as HTMLElement | null;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const coarse = matchMedia("(pointer: coarse)").matches;
+    let raf = 0, dist = 0, scrollable = 1;
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(apply); };
+    function apply() {
+      raf = 0;
+      if (!outer || !track) return;
+      const top = outer.getBoundingClientRect().top;
+      const p = Math.min(Math.max(-top / scrollable, 0), 1);
+      track.style.transform = `translate3d(${(-p * dist).toFixed(2)}px,0,0)`;
+    }
+    function measure() {
+      if (!outer || !track) return;
+      dist = Math.max(0, track.scrollWidth - window.innerWidth);
+      outer.style.height = window.innerHeight + dist + "px";
+      scrollable = Math.max(1, outer.offsetHeight - window.innerHeight);
+      apply();
+    }
+    if (outer && track && !reduce && !coarse) {
+      measure();
+      addEventListener("scroll", onScroll, { passive: true });
+      addEventListener("resize", measure, { passive: true });
+      addEventListener("load", measure);
+    }
+    const t2 = setTimeout(measure, 400);
+
+    return () => {
+      clearTimeout(t); clearTimeout(t2); cancelAnimationFrame(raf); ctx.revert();
+      removeEventListener("scroll", onScroll); removeEventListener("resize", measure); removeEventListener("load", measure);
+      if (outer) outer.style.height = ""; if (track) track.style.transform = "";
+    };
   }, []);
 
   return (
@@ -91,8 +113,9 @@ export default function Experience() {
         </div>
       </section>
 
-      {/* Pinned horizontal brands */}
-      <section className="xp-pin">
+      {/* Horizontal brands — native sticky + scroll-progress */}
+      <section className="xp-sticky-outer">
+        <div className="xp-sticky">
         <div className="xp-track">
           <div className="xp-panel xp-intro">
             <div className="xp-panel-in">
@@ -111,6 +134,7 @@ export default function Experience() {
               </div>
             </div>
           ))}
+        </div>
         </div>
       </section>
 
