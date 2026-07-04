@@ -23,7 +23,7 @@ export default function Chrome() {
     cleanups.push(() => clearTimeout(t));
 
     /* Nav scroll + progress + back-to-top */
-    const nav = $("#nav"), progress = $("#progress"), toTop = $("#toTop");
+    const nav = $("#nav"), progress = $("#progress"), toTop = $("#toTop"), cue = $("#scrollCue");
     let maxScroll = document.documentElement.scrollHeight - innerHeight;
     let ticking = false;
     const applyScroll = () => {
@@ -32,6 +32,7 @@ export default function Chrome() {
       nav && nav.classList.toggle("scrolled", y > 30);
       if (progress) progress.style.transform = `scaleX(${maxScroll > 0 ? Math.min(y / maxScroll, 1) : 0})`;
       toTop && toTop.classList.toggle("show", y > 700);
+      cue && cue.classList.toggle("show", y < 120 && maxScroll > 240);
     };
     const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(applyScroll); } };
     const onResize = () => { maxScroll = document.documentElement.scrollHeight - innerHeight; };
@@ -117,9 +118,9 @@ export default function Chrome() {
 
     /* Scroll reveal — GSAP premium: re-triggers on every scroll (down & up) */
     if (reduce) {
-      $$(".reveal, [data-split], .mock").forEach((el) => el.classList.add("in"));
+      $$(".reveal, .reveal-x, [data-split], .mock").forEach((el) => el.classList.add("in"));
     } else {
-      $$(".reveal, [data-split], .mock").forEach((el) => {
+      $$(".reveal, .reveal-x, [data-split], .mock").forEach((el) => {
         const st = ScrollTrigger.create({
           trigger: el,
           start: "top 90%",
@@ -236,6 +237,11 @@ export default function Chrome() {
           <button className="btn btn-ghost" onClick={() => closeCookie("declined")} data-cursor>Decline</button>
           <button className="btn btn-primary" onClick={() => closeCookie("accepted")} data-cursor>Accept</button>
         </div>
+      </div>
+
+      <div className="scroll-cue" id="scrollCue" aria-hidden="true">
+        <div className="mouse" />
+        <span>Scroll</span>
       </div>
 
       <button className="to-top" id="toTop" aria-label="Back to top">

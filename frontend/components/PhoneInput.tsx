@@ -2,20 +2,22 @@
 import { useState } from "react";
 import { usePhoneInput } from "react-international-phone";
 
-/* Swiggy-style phone field: floating label + static +91 prefix + divider.
+/* Clean phone field: India flag + static +91 prefix + divider + numeric input.
    Headless logic from react-international-phone, styled with our own CSS. */
-export default function PhoneInput({ name = "phone", label = "Phone" }: { name?: string; label?: string }) {
+export default function PhoneInput({ name = "phone" }: { name?: string; label?: string }) {
   const [focused, setFocused] = useState(false);
   const { inputValue, phone, handlePhoneValueChange, inputRef } = usePhoneInput({
     defaultCountry: "in",
     disableDialCodeAndPrefix: true,
     disableCountryGuess: true,
   });
-  const active = focused || inputValue.trim().length > 0;
   return (
-    <div className={"swphone" + (focused ? " focus" : "") + (active ? " active" : "")}>
-      <label className="swphone-label">{label}</label>
-      <span className="swphone-cc" aria-hidden>+91<i className="swphone-div" /></span>
+    <div className={"swphone" + (focused ? " focus" : "")}>
+      <span className="swphone-cc" aria-hidden>
+        <span className="swphone-flag">🇮🇳</span>
+        <span className="swphone-code">+91</span>
+        <i className="swphone-div" />
+      </span>
       <input
         ref={inputRef}
         className="swphone-input"
@@ -26,7 +28,8 @@ export default function PhoneInput({ name = "phone", label = "Phone" }: { name?:
         onChange={handlePhoneValueChange}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        aria-label={label}
+        placeholder="98765 43210"
+        aria-label="Phone number"
       />
       <input type="hidden" name={name} value={phone || (inputValue ? `+91 ${inputValue}` : "")} />
     </div>

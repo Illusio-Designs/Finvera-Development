@@ -81,7 +81,8 @@ export default function Solutions() {
       {solutions.map((s, i) => (
         <section className="section" style={i === 0 ? { paddingTop: 40 } : { paddingTop: 0 }} key={s.t}>
           <div className={"container split" + (i % 2 ? " rev" : "")}>
-            <div className="reveal">
+            <div className={"reveal-x" + (i % 2 ? " r" : "")}>
+              <span className="sol-idx">{String(i + 1).padStart(2, "0")}</span>
               <span className="eyebrow">{s.tag}</span>
               <h2 style={{ margin: "14px 0 12px", fontSize: "clamp(24px,3.2vw,36px)", letterSpacing: "-.02em" }}>{s.t}</h2>
               <p style={{ color: "var(--muted)" }}>{s.d}</p>
