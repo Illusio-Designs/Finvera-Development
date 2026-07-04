@@ -1,7 +1,7 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
 
-const { Project, Service, Testimonial, TeamMember, BlogPost, Task, Board } = require("../models");
+const { Project, Service, Testimonial, TeamMember, BlogPost, Task, Board, Page } = require("../models");
 const { crudController } = require("../utils/crud");
 const { requireAuth, requireRole, optionalAuth } = require("../middleware/auth");
 const { upload } = require("../middleware/upload");
@@ -41,6 +41,7 @@ resource("/services", Service, { slugFrom: "title", hasStatus: true, searchable:
 resource("/testimonials", Testimonial, { hasStatus: true, searchable: ["name", "company", "quote"] });
 resource("/team", TeamMember, { hasStatus: true, searchable: ["name", "role"] });
 resource("/blog", BlogPost, { slugFrom: "title", hasStatus: true, order: [["publishedAt", "DESC"], ["createdAt", "DESC"]], searchable: ["title", "excerpt", "category"] });
+resource("/pages", Page, { slugFrom: "title", hasStatus: true, order: [["title", "ASC"]], searchable: ["title", "slug"] });
 
 /* ── Kanban boards (all endpoints require auth) ──────── */
 const boardCtrl = crudController(Board, { order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["name"] });

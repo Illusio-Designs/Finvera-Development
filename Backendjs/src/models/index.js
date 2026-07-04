@@ -158,6 +158,14 @@ const Seo = sequelize.define("Seo", {
   noindex: { type: DataTypes.BOOLEAN, defaultValue: false },
 }, { tableName: "seo_meta" });
 
+/* ── CMS-managed content pages (privacy, terms…) ─────── */
+const Page = sequelize.define("Page", {
+  slug: { type: DataTypes.STRING, allowNull: false, unique: true }, // privacy, terms…
+  title: { type: DataTypes.STRING, allowNull: false },
+  content: { type: DataTypes.TEXT("long") },
+  status: { type: DataTypes.ENUM("draft", "published"), defaultValue: "published" },
+}, { tableName: "pages" });
+
 /* ── Site settings (key/value: analytics, pixels, brand) ─ */
 const Setting = sequelize.define("Setting", {
   key: { type: DataTypes.STRING, allowNull: false, unique: true },
@@ -180,5 +188,5 @@ Comment.belongsTo(User, { as: "author", foreignKey: "userId" });
 module.exports = {
   sequelize,
   User, Project, Service, Testimonial, TeamMember,
-  BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment,
+  BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page,
 };
