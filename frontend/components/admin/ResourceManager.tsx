@@ -8,11 +8,11 @@ import { TableSkeleton } from "./Skeleton";
 export type Field = {
   name: string;
   label: string;
-  type?: "text" | "textarea" | "number" | "select" | "boolean" | "tags" | "image" | "date" | "richtext";
+  type?: "text" | "password" | "textarea" | "number" | "select" | "boolean" | "tags" | "image" | "avatar" | "date" | "richtext";
   options?: string[];
   placeholder?: string;
 };
-export type Column = { name: string; label: string; type?: "image" | "status" | "tags" | "text" };
+export type Column = { name: string; label: string; type?: "image" | "avatar" | "status" | "tags" | "text" };
 
 type Props = {
   resource: string;
@@ -29,7 +29,7 @@ const emptyFrom = (fields: Field[], defaults?: Record<string, any>) => {
   return o;
 };
 
-function ImageInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function ImageInput({ value, onChange, round }: { value: string; onChange: (v: string) => void; round?: boolean }) {
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -42,7 +42,7 @@ function ImageInput({ value, onChange }: { value: string; onChange: (v: string) 
     finally { setBusy(false); }
   }
   return (
-    <div className="adm-uploader">
+    <div className={"adm-uploader" + (round ? " round" : "")}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {value ? <img src={value} alt="" /> : (
         <div className="up-empty">
@@ -57,6 +57,23 @@ function ImageInput({ value, onChange }: { value: string; onChange: (v: string) 
         {err && <div className="adm-msg err" style={{ marginTop: 8 }}>{err}</div>}
         <input ref={ref} type="file" accept="image/*" hidden onChange={pick} />
       </div>
+    </div>
+  );
+}
+
+function PasswordInput({ id, value, placeholder, onChange }: { id: string; value: string; placeholder?: string; onChange: (v: string) => void }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="adm-pass">
+      <input id={id} type={show ? "text" : "password"} value={value} placeholder={placeholder} autoComplete="new-password"
+        onChange={(e) => onChange(e.target.value)} />
+      <button type="button" className="adm-eye" onClick={() => setShow((s) => !s)} aria-label={show ? "Hide password" : "Show password"} title={show ? "Hide" : "Show"}>
+        {show ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22M9.9 9.9a3 3 0 0 0 4.2 4.2" /></svg>
+        ) : (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+        )}
+      </button>
     </div>
   );
 }
@@ -182,11 +199,13 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                   <td style={{ color: "var(--muted-2)", fontVariantNumeric: "tabular-nums" }}>{(pageSafe - 1) * PER_PAGE + i + 1}</td>
                   {columns.map((c) => (
                     <td key={c.name}>
-                      {c.type === "image" ? (
+                      {c.type === "image" || c.type === "avatar" ? (
                         row[c.name]
                           // eslint-disable-next-line @next/next/no-img-element
-                          ? <img className="adm-thumb" src={row[c.name]} alt="" />
-                          : <span style={{ color: "var(--muted-2)" }}>—</span>
+                          ? <img className={c.type === "avatar" ? "adm-avatar-cell" : "adm-thumb"} src={row[c.name]} alt="" />
+                          : (c.type === "avatar"
+                              ? <span className="adm-avatar-cell adm-avatar-fb">{String(row.name || row.title || "?").slice(0, 1).toUpperCase()}</span>
+                              : <span style={{ color: "var(--muted-2)" }}>—</span>)
                       ) : c.type === "status" ? (
                         <span className={"adm-badge " + (row[c.name] || "published")}>{row[c.name]}</span>
                       ) : c.type === "tags" ? (
@@ -252,6 +271,10 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                     onChange={(e) => setField(f.name, e.target.value.split(",").map((s) => s.trim()).filter(Boolean))} />
                 ) : f.type === "image" ? (
                   <ImageInput value={editing[f.name] ?? ""} onChange={(v) => setField(f.name, v)} />
+                ) : f.type === "avatar" ? (
+                  <ImageInput round value={editing[f.name] ?? ""} onChange={(v) => setField(f.name, v)} />
+                ) : f.type === "password" ? (
+                  <PasswordInput id={f.name} value={editing[f.name] ?? ""} placeholder={f.placeholder} onChange={(v) => setField(f.name, v)} />
                 ) : (
                   <input id={f.name} type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
                     value={f.type === "date" ? String(editing[f.name] ?? "").slice(0, 10) : (editing[f.name] ?? "")} placeholder={f.placeholder}
