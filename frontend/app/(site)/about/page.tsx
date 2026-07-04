@@ -11,17 +11,17 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 const FB_BRANDS: Brand[] = [
-  { id: 1, name: "Illusio Designs", category: "Design & Marketing", icon: "paint", description: "Our founding studio. Brand identity, web design and growth marketing — the craft that gives every product a sharp, memorable presence." },
-  { id: 2, name: "Fintranzact", category: "Accounting SaaS", icon: "calculator", description: "Cloud accounting built for modern businesses — invoicing, reconciliation, tax-ready books and real-time financial clarity." },
-  { id: 3, name: "Kartuq", category: "Omni-Channel SaaS", icon: "store", description: "One platform to run every sales channel — inventory, orders and fulfilment synced across marketplaces, retail and D2C." },
-  { id: 4, name: "Collabhype", category: "Influencer Collaboration", icon: "megaphone", description: "Where brands and creators meet — discover, manage and measure influencer campaigns from first message to final report." },
-  { id: 5, name: "Finvera", category: "CRM & SaaS Development", icon: "code", description: "Our flagship — custom CRM systems and SaaS platforms engineered to help businesses grow, scale and innovate." },
+  { id: 1, name: "Illusio Designs", category: "Design & Marketing", icon: "paint", url: "https://illusiodesigns.agency", description: "Our founding studio. Brand identity, web design and growth marketing — the craft that gives every product a sharp, memorable presence." },
+  { id: 2, name: "Fintranzact", category: "Accounting SaaS", icon: "calculator", url: "https://fintranzact.com", description: "Cloud accounting built for modern businesses — invoicing, reconciliation, tax-ready books and real-time financial clarity." },
+  { id: 3, name: "Kartriq", category: "Omni-Channel SaaS", icon: "store", url: "https://kartriq.com", description: "One platform to run every sales channel — inventory, orders and fulfilment synced across marketplaces, retail and D2C." },
+  { id: 4, name: "Collabhype", category: "Influencer Collaboration", icon: "megaphone", url: "https://collabhype.in", description: "Where brands and creators meet — discover, manage and measure influencer campaigns from first message to final report." },
+  { id: 5, name: "Finvera", category: "CRM & SaaS Development", icon: "code", url: "https://finvera.solutions", description: "Our flagship — custom CRM systems and SaaS platforms engineered to help businesses grow, scale and innovate." },
 ];
 const FB_TIMELINE: Milestone[] = [
   { id: 1, year: "2017", title: "Illusio Designs is born", description: "We start as a small design & marketing studio, helping brands look sharper and sell better." },
   { id: 2, year: "2019", title: "Into web & product", description: "Client demand pulls us from brand design into websites, product UI and front-end engineering." },
   { id: 3, year: "2021", title: "Our first SaaS", description: "We ship our first SaaS products — for clients and for ourselves — and fall for building software." },
-  { id: 4, year: "2023", title: "The brand family grows", description: "Fintranzact, Kartuq and Collabhype take shape — accounting, omni-channel retail and creator collaboration." },
+  { id: 4, year: "2023", title: "The brand family grows", description: "Fintranzact, Kartriq and Collabhype take shape — accounting, omni-channel retail and creator collaboration." },
   { id: 5, year: "2024", title: "Finvera Solutions LLP", description: "We formally incorporate. Finvera becomes our CRM & SaaS development flagship." },
   { id: 6, year: "Today", title: "A multi-product group", description: "Five brands, one team — building design, software and SaaS for businesses worldwide." },
 ];
@@ -77,14 +77,22 @@ export default async function About() {
             <p>Different products, one team and one standard of craft — each brand focused on a problem we care about solving well.</p>
           </div>
           <div className="brands">
-            {brands.map((b, i) => (
-              <div className={"brand-card reveal" + (i % 3 ? " d" + (i % 3) : "")} key={b.id} data-cursor>
-                <span className="brand-ic"><ContentIcon name={b.icon} size={24} /></span>
-                <div className="brand-cat">{b.category}</div>
-                <h3>{b.name}</h3>
-                <p>{b.description}</p>
-              </div>
-            ))}
+            {brands.map((b, i) => {
+              const cls = "brand-card reveal-x" + (i % 2 ? " r" : "") + " d" + ((i % 3) + 1);
+              const inner = (
+                <>
+                  <span className="brand-ic"><ContentIcon name={b.icon} size={24} /></span>
+                  <div className="brand-cat">{b.category}</div>
+                  <h3>{b.name}{b.url && <span className="brand-go" aria-hidden><Arrow /></span>}</h3>
+                  <p>{b.description}</p>
+                </>
+              );
+              return b.url ? (
+                <a className={cls + " is-link"} key={b.id} href={b.url} target="_blank" rel="noopener noreferrer" data-cursor>{inner}</a>
+              ) : (
+                <div className={cls} key={b.id} data-cursor>{inner}</div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -98,7 +106,7 @@ export default async function About() {
           </div>
           <div className="timeline">
             {timeline.map((s, i) => (
-              <div className={"tl-item reveal" + (i ? " d" + (i % 3) : "")} key={s.id}>
+              <div className={"tl-item reveal-x" + (i % 2 ? " r" : "")} key={s.id}>
                 <div className="tl-marker"><span className="tl-dot" /></div>
                 <div className="tl-body">
                   <span className="tl-year">{s.year}</span>

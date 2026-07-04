@@ -99,17 +99,17 @@ const VALUES = [
   { title: "Partner, not vendor", description: "We work as an extension of your team — transparent and hands-on.", icon: "agreement" },
 ];
 const BRANDS = [
-  { name: "Illusio Designs", category: "Design & Marketing", icon: "paint", description: "Our founding studio. Brand identity, web design and growth marketing — the craft that gives every product a sharp, memorable presence." },
-  { name: "Fintranzact", category: "Accounting SaaS", icon: "calculator", description: "Cloud accounting built for modern businesses — invoicing, reconciliation, tax-ready books and real-time financial clarity." },
-  { name: "Kartuq", category: "Omni-Channel SaaS", icon: "store", description: "One platform to run every sales channel — inventory, orders and fulfilment synced across marketplaces, retail and D2C." },
-  { name: "Collabhype", category: "Influencer Collaboration", icon: "megaphone", description: "Where brands and creators meet — discover, manage and measure influencer campaigns from first message to final report." },
-  { name: "Finvera", category: "CRM & SaaS Development", icon: "code", description: "Our flagship — custom CRM systems and SaaS platforms engineered to help businesses grow, scale and innovate." },
+  { name: "Illusio Designs", category: "Design & Marketing", icon: "paint", url: "https://illusiodesigns.agency", description: "Our founding studio. Brand identity, web design and growth marketing — the craft that gives every product a sharp, memorable presence." },
+  { name: "Fintranzact", category: "Accounting SaaS", icon: "calculator", url: "https://fintranzact.com", description: "Cloud accounting built for modern businesses — invoicing, reconciliation, tax-ready books and real-time financial clarity." },
+  { name: "Kartriq", category: "Omni-Channel SaaS", icon: "store", url: "https://kartriq.com", description: "One platform to run every sales channel — inventory, orders and fulfilment synced across marketplaces, retail and D2C." },
+  { name: "Collabhype", category: "Influencer Collaboration", icon: "megaphone", url: "https://collabhype.in", description: "Where brands and creators meet — discover, manage and measure influencer campaigns from first message to final report." },
+  { name: "Finvera", category: "CRM & SaaS Development", icon: "code", url: "https://finvera.solutions", description: "Our flagship — custom CRM systems and SaaS platforms engineered to help businesses grow, scale and innovate." },
 ];
 const MILESTONES = [
   { year: "2017", title: "Illusio Designs is born", description: "We start as a small design & marketing studio, helping brands look sharper and sell better." },
   { year: "2019", title: "Into web & product", description: "Client demand pulls us from brand design into websites, product UI and front-end engineering." },
   { year: "2021", title: "Our first SaaS", description: "We ship our first SaaS products — for clients and for ourselves — and fall for building software." },
-  { year: "2023", title: "The brand family grows", description: "Fintranzact, Kartuq and Collabhype take shape — accounting, omni-channel retail and creator collaboration." },
+  { year: "2023", title: "The brand family grows", description: "Fintranzact, Kartriq and Collabhype take shape — accounting, omni-channel retail and creator collaboration." },
   { year: "2024", title: "Finvera Solutions LLP", description: "We formally incorporate. Finvera becomes our CRM & SaaS development flagship." },
   { year: "Today", title: "A multi-product group", description: "Five brands, one team — building design, software and SaaS for businesses worldwide." },
 ];
@@ -148,10 +148,26 @@ const SETTINGS = [
 
 /* Bump when you add a versioned migration below. Content collections are also
    seeded when empty (count === 0), so first-run population is automatic. */
-const SEED_VERSION = 1;
+const SEED_VERSION = 2;
 const MIGRATIONS = {
   // Example — runs once, only on DBs whose stored seed_version is < 1:
   // 1: async () => { /* backfill / one-time data fix */ },
+  // v2 — rename Kartuq → Kartriq and backfill brand website URLs on existing DBs.
+  2: async () => {
+    const urls = {
+      "Illusio Designs": "https://illusiodesigns.agency",
+      "Fintranzact": "https://fintranzact.com",
+      "Kartriq": "https://kartriq.com",
+      "Collabhype": "https://collabhype.in",
+      "Finvera": "https://finvera.solutions",
+    };
+    await Brand.update({ name: "Kartriq" }, { where: { name: "Kartuq" } });
+    for (const [name, url] of Object.entries(urls)) {
+      await Brand.update({ url }, { where: { name } });
+    }
+    const m = await Milestone.findOne({ where: { title: "The brand family grows" } });
+    if (m && /Kartuq/.test(m.description || "")) { m.description = m.description.replace(/Kartuq/g, "Kartriq"); await m.save(); }
+  },
 };
 
 async function runVersionedSeed() {
