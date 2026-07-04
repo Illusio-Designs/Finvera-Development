@@ -12,7 +12,7 @@ export default function AdminLeads() {
         { name: "purpose", label: "Purpose" },
         { name: "value", label: "Amount", type: "money" },
         { name: "owner", label: "Owner" },
-        { name: "progress", label: "Progress", type: "progress" },
+        { name: "progress", label: "Progress", type: "stageprogress" },
         { name: "stage", label: "Stage", type: "status" },
       ]}
       calendlyUrl={process.env.NEXT_PUBLIC_CALENDLY_URL}
@@ -25,9 +25,8 @@ export default function AdminLeads() {
         { name: "email", label: "Email", type: "text", placeholder: "name@company.com" },
         { name: "phone", label: "Phone", type: "text" },
         { name: "source", label: "Source", type: "select", options: ["Website", "Referral", "LinkedIn", "Cold outreach", "Event", "Other"] },
-        { name: "stage", label: "Stage", type: "select", options: ["new", "contacted", "qualified", "proposal", "won", "lost"] },
+        { name: "stage", label: "Stage (drives the progress score)", type: "select", options: ["new", "contacted", "qualified", "proposal", "won", "lost"] },
         { name: "value", label: "Estimated value (₹)", type: "number", placeholder: "e.g. 25000" },
-        { name: "progress", label: "Progress (%)", type: "number", placeholder: "0–100" },
         { name: "owner", label: "Owner (BD)", type: "text", placeholder: "Who owns this lead" },
         { name: "priority", label: "Priority", type: "select", options: ["low", "medium", "high"] },
         { name: "nextFollowUp", label: "Next follow-up", type: "date" },
