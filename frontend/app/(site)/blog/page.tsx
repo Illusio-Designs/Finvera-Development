@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Arrow } from "@/components/icons";
+import Manifesto from "@/components/Manifesto";
 import { getBlog, getSeo } from "@/lib/api";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -54,6 +55,8 @@ export default async function Blog() {
           )}
         </div>
       </section>
+
+      <Manifesto text="Notes from the team building SaaS and CRM software — product and engineering thinking, shared openly." />
     </>
   );
 }

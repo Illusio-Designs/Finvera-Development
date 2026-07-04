@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Arrow } from "@/components/icons";
 import ServiceGrid from "@/components/ServiceGrid";
 import ProcessSteps from "@/components/ProcessSteps";
+import Manifesto from "@/components/Manifesto";
 import { getServices, getSeo } from "@/lib/api";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -30,6 +31,8 @@ export default async function Services() {
       </section>
 
       <ProcessSteps />
+
+      <Manifesto text="From first line of code to global scale, we design, build and operate the software that powers modern businesses." />
 
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container">
