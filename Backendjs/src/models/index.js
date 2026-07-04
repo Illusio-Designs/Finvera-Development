@@ -166,6 +166,22 @@ const Page = sequelize.define("Page", {
   status: { type: DataTypes.ENUM("draft", "published"), defaultValue: "published" },
 }, { tableName: "pages" });
 
+/* ── Business-development leads (private CRM pipeline) ── */
+const Lead = sequelize.define("Lead", {
+  name: { type: DataTypes.STRING, allowNull: false },
+  company: { type: DataTypes.STRING },
+  email: { type: DataTypes.STRING },
+  phone: { type: DataTypes.STRING },
+  source: { type: DataTypes.STRING, defaultValue: "Website" }, // Website, Referral, LinkedIn, Cold outreach, Event
+  stage: { type: DataTypes.ENUM("new", "contacted", "qualified", "proposal", "won", "lost"), defaultValue: "new" },
+  value: { type: DataTypes.INTEGER, defaultValue: 0 },          // estimated deal value
+  owner: { type: DataTypes.STRING },                            // BD owner / assignee
+  priority: { type: DataTypes.ENUM("low", "medium", "high"), defaultValue: "medium" },
+  nextFollowUp: { type: DataTypes.DATEONLY },
+  notes: { type: DataTypes.TEXT },
+  position: { type: DataTypes.INTEGER, defaultValue: 0 },
+}, { tableName: "leads" });
+
 /* ── Site settings (key/value: analytics, pixels, brand) ─ */
 const Setting = sequelize.define("Setting", {
   key: { type: DataTypes.STRING, allowNull: false, unique: true },
@@ -188,5 +204,5 @@ Comment.belongsTo(User, { as: "author", foreignKey: "userId" });
 module.exports = {
   sequelize,
   User, Project, Service, Testimonial, TeamMember,
-  BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page,
+  BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page, Lead,
 };

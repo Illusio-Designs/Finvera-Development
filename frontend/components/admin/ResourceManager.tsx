@@ -12,7 +12,7 @@ export type Field = {
   options?: string[];
   placeholder?: string;
 };
-export type Column = { name: string; label: string; type?: "image" | "avatar" | "status" | "tags" | "text" };
+export type Column = { name: string; label: string; type?: "image" | "avatar" | "status" | "tags" | "text" | "money" };
 
 type Props = {
   resource: string;
@@ -210,6 +210,8 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                         <span className={"adm-badge " + (row[c.name] || "published")}>{row[c.name]}</span>
                       ) : c.type === "tags" ? (
                         (Array.isArray(row[c.name]) ? row[c.name] : []).slice(0, 3).join(", ")
+                      ) : c.type === "money" ? (
+                        Number(row[c.name]) ? `₹${Number(row[c.name]).toLocaleString("en-IN")}` : <span style={{ color: "var(--muted-2)" }}>—</span>
                       ) : (
                         String(row[c.name] ?? "").slice(0, 60)
                       )}
