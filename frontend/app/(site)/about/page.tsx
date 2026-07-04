@@ -147,7 +147,10 @@ export default async function About() {
             <div className="grid-4">
               {team.map((m, i) => (
                 <div className={"card team-card reveal" + (i ? " d" + i : "")} data-cursor key={m.id}>
-                  <div className="ph">{m.initials}</div><h4>{m.name}</h4><span>{m.role}</span><p>{m.bio}</p>
+                  <div className="ph">{m.photo
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    ? <img src={m.photo} alt={m.name} />
+                    : m.initials}</div><h4>{m.name}</h4><span>{m.role}</span><p>{m.bio}</p>
                 </div>
               ))}
             </div>

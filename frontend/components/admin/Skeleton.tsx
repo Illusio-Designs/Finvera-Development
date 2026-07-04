@@ -5,7 +5,7 @@ export function TableSkeleton({ rows = 6, cols = 4 }: { rows?: number; cols?: nu
     <div className="skel-table" aria-busy="true" aria-label="Loading">
       {Array.from({ length: rows }).map((_, r) => (
         <div className="skel-row" key={r}>
-          <span className="skel skel-circle" style={{ width: 22, height: 22, flex: "none" }} />
+          <span className="skel skel-circle" style={{ width: 34, height: 34, flex: "none" }} />
           {Array.from({ length: cols }).map((_, c) => (
             <span
               key={c}
