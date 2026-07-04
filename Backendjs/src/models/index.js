@@ -182,6 +182,57 @@ const Lead = sequelize.define("Lead", {
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
 }, { tableName: "leads" });
 
+/* ── Editable content collections (CMS) ──────────────── */
+const contentDefaults = {
+  position: { type: DataTypes.INTEGER, defaultValue: 0 },
+  status: { type: DataTypes.ENUM("draft", "published"), defaultValue: "published" },
+};
+const Faq = sequelize.define("Faq", {
+  question: { type: DataTypes.STRING, allowNull: false },
+  answer: { type: DataTypes.TEXT },
+  ...contentDefaults,
+}, { tableName: "faqs" });
+const Value = sequelize.define("Value", {
+  title: { type: DataTypes.STRING, allowNull: false },
+  description: { type: DataTypes.TEXT },
+  icon: { type: DataTypes.STRING, defaultValue: "rocket" },
+  ...contentDefaults,
+}, { tableName: "values" });
+const Brand = sequelize.define("Brand", {
+  name: { type: DataTypes.STRING, allowNull: false },
+  category: { type: DataTypes.STRING },
+  description: { type: DataTypes.TEXT },
+  icon: { type: DataTypes.STRING, defaultValue: "code" },
+  ...contentDefaults,
+}, { tableName: "brands" });
+const Milestone = sequelize.define("Milestone", {
+  year: { type: DataTypes.STRING },
+  title: { type: DataTypes.STRING, allowNull: false },
+  description: { type: DataTypes.TEXT },
+  ...contentDefaults,
+}, { tableName: "milestones" });
+const ProcessStep = sequelize.define("ProcessStep", {
+  step: { type: DataTypes.STRING },
+  title: { type: DataTypes.STRING, allowNull: false },
+  description: { type: DataTypes.TEXT },
+  icon: { type: DataTypes.STRING, defaultValue: "search" },
+  ...contentDefaults,
+}, { tableName: "process_steps" });
+const Stat = sequelize.define("Stat", {
+  value: { type: DataTypes.STRING, allowNull: false },
+  label: { type: DataTypes.STRING },
+  ...contentDefaults,
+}, { tableName: "stats" });
+const Logo = sequelize.define("Logo", {
+  name: { type: DataTypes.STRING, allowNull: false },
+  ...contentDefaults,
+}, { tableName: "logos" });
+const Feature = sequelize.define("Feature", {
+  title: { type: DataTypes.STRING, allowNull: false },
+  description: { type: DataTypes.TEXT },
+  ...contentDefaults,
+}, { tableName: "features" });
+
 /* ── Site settings (key/value: analytics, pixels, brand) ─ */
 const Setting = sequelize.define("Setting", {
   key: { type: DataTypes.STRING, allowNull: false, unique: true },
@@ -205,4 +256,5 @@ module.exports = {
   sequelize,
   User, Project, Service, Testimonial, TeamMember,
   BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page, Lead,
+  Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature,
 };

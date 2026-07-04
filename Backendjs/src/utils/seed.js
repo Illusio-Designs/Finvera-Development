@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const slugify = require("slugify");
-const { User, Project, Service, Testimonial, TeamMember, BlogPost, Seo, Setting, Board, Task, Page, Lead } = require("../models");
+const { User, Project, Service, Testimonial, TeamMember, BlogPost, Seo, Setting, Board, Task, Page, Lead,
+  Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature } = require("../models");
 
 const slug = (s) => slugify(String(s), { lower: true, strict: true });
 
@@ -85,6 +86,50 @@ const LEADS = [
   { name: "Sara Lopez", company: "Orbital", email: "sara@orbital.app", phone: "+1 646 555 0177", source: "Event", stage: "won", value: 54000, owner: "Arjun Rao", priority: "high", notes: "Closed — CRM build kicking off next sprint." },
 ];
 
+const FAQS = [
+  { question: "How fast can you start on my project?", answer: "Most engagements kick off within one week. After a short discovery call we assemble a squad and schedule your first sprint immediately." },
+  { question: "Do you build both SaaS and CRM products?", answer: "Yes — it's our core focus. We build multi-tenant SaaS platforms and fully custom CRM systems, including migrations from tools like Salesforce and HubSpot." },
+  { question: "Who owns the code and IP?", answer: "You do, 100%. All source code, designs and infrastructure are transferred to your organization with full documentation." },
+  { question: "Can you take over an existing codebase?", answer: "Absolutely. We regularly audit, stabilize and scale existing products — starting with a technical review before any changes ship." },
+];
+const VALUES = [
+  { title: "Ship fast", description: "Momentum compounds. We deliver working software every single week.", icon: "rocket" },
+  { title: "Own the outcome", description: "We measure success by your metrics, not billed hours.", icon: "target" },
+  { title: "Craft matters", description: "Details are the product. We sweat the pixels and the milliseconds.", icon: "award" },
+  { title: "Partner, not vendor", description: "We work as an extension of your team — transparent and hands-on.", icon: "agreement" },
+];
+const BRANDS = [
+  { name: "Illusio Designs", category: "Design & Marketing", icon: "paint", description: "Our founding studio. Brand identity, web design and growth marketing — the craft that gives every product a sharp, memorable presence." },
+  { name: "Fintranzact", category: "Accounting SaaS", icon: "calculator", description: "Cloud accounting built for modern businesses — invoicing, reconciliation, tax-ready books and real-time financial clarity." },
+  { name: "Kartuq", category: "Omni-Channel SaaS", icon: "store", description: "One platform to run every sales channel — inventory, orders and fulfilment synced across marketplaces, retail and D2C." },
+  { name: "Collabhype", category: "Influencer Collaboration", icon: "megaphone", description: "Where brands and creators meet — discover, manage and measure influencer campaigns from first message to final report." },
+  { name: "Finvera", category: "CRM & SaaS Development", icon: "code", description: "Our flagship — custom CRM systems and SaaS platforms engineered to help businesses grow, scale and innovate." },
+];
+const MILESTONES = [
+  { year: "2017", title: "Illusio Designs is born", description: "We start as a small design & marketing studio, helping brands look sharper and sell better." },
+  { year: "2019", title: "Into web & product", description: "Client demand pulls us from brand design into websites, product UI and front-end engineering." },
+  { year: "2021", title: "Our first SaaS", description: "We ship our first SaaS products — for clients and for ourselves — and fall for building software." },
+  { year: "2023", title: "The brand family grows", description: "Fintranzact, Kartuq and Collabhype take shape — accounting, omni-channel retail and creator collaboration." },
+  { year: "2024", title: "Finvera Solutions LLP", description: "We formally incorporate. Finvera becomes our CRM & SaaS development flagship." },
+  { year: "Today", title: "A multi-product group", description: "Five brands, one team — building design, software and SaaS for businesses worldwide." },
+];
+const PROCESS_STEPS = [
+  { step: "01", title: "Discover", description: "We map your goals, users and constraints into a sharp product blueprint.", icon: "search" },
+  { step: "02", title: "Design", description: "Wireframes to polished UI with motion, validated against real users.", icon: "paint" },
+  { step: "03", title: "Build", description: "Agile sprints, weekly demos and production-grade, tested code.", icon: "code" },
+  { step: "04", title: "Scale", description: "Launch, monitor and iterate — we grow with you long after go-live.", icon: "rocket" },
+];
+const STATS = [
+  { value: "250+", label: "Projects delivered" }, { value: "99%", label: "Uptime guaranteed" },
+  { value: "18+", label: "Countries served" }, { value: "4min", label: "Avg. deploy time" },
+];
+const LOGOS = [{ name: "Nexora" }, { name: "Orbital" }, { name: "Vaultly" }, { name: "Prismix" }, { name: "Loopwork" }, { name: "Quanta" }];
+const FEATURES = [
+  { title: "Smart pipelines", description: "Drag-and-drop deal stages with automated hand-offs." },
+  { title: "AI lead scoring", description: "Know which leads to call first, ranked in real time." },
+  { title: "Live analytics", description: "Boardroom-ready dashboards updated to the second." },
+];
+
 const SETTINGS = [
   { key: "site_name", value: "Finvera Solutions LLP", group: "general", isPublic: true },
   { key: "site_tagline", value: "Future-Driven SaaS & CRM Development", group: "general", isPublic: true },
@@ -100,6 +145,32 @@ const SETTINGS = [
   { key: "facebook_pixel_id", value: "", group: "analytics", isPublic: true },
   { key: "google_site_verification", value: "", group: "analytics", isPublic: true },
 ];
+
+/* Bump when you add a versioned migration below. Content collections are also
+   seeded when empty (count === 0), so first-run population is automatic. */
+const SEED_VERSION = 1;
+const MIGRATIONS = {
+  // Example — runs once, only on DBs whose stored seed_version is < 1:
+  // 1: async () => { /* backfill / one-time data fix */ },
+};
+
+async function runVersionedSeed() {
+  // Reads the last applied seed version from settings, runs any pending
+  // migrations up to SEED_VERSION, then records the new version.
+  let stored = 0;
+  const [vs] = await Setting.findOrCreate({ where: { key: "seed_version" }, defaults: { value: "0", group: "system", isPublic: false } });
+  stored = Number(vs.value) || 0;
+  if (stored >= SEED_VERSION) { console.log(`\x1b[36mℹ Seed up to date (v${stored})\x1b[0m`); return; }
+  for (let v = stored + 1; v <= SEED_VERSION; v++) {
+    if (typeof MIGRATIONS[v] === "function") {
+      try { await MIGRATIONS[v](); console.log(`\x1b[32m✔ Applied seed migration v${v}\x1b[0m`); }
+      catch (e) { console.warn(`\x1b[33m⚠ Seed migration v${v} failed: ${e.message}\x1b[0m`); }
+    }
+  }
+  vs.value = String(SEED_VERSION);
+  await vs.save();
+  console.log(`\x1b[32m✔ Seed version updated ${stored} → ${SEED_VERSION}\x1b[0m`);
+}
 
 async function seed() {
   // 1) Admin user
@@ -167,6 +238,16 @@ async function seed() {
       }
     } catch (e) { console.warn(`\x1b[33m⚠ Lead seed skipped: ${e.message}\x1b[0m`); }
   }
+  // Editable content collections — seed each only when empty
+  const CONTENT = [[Faq, FAQS], [Value, VALUES], [Brand, BRANDS], [Milestone, MILESTONES],
+    [ProcessStep, PROCESS_STEPS], [Stat, STATS], [Logo, LOGOS], [Feature, FEATURES]];
+  for (const [Model, rows] of CONTENT) {
+    try {
+      if (Model && (await Model.count()) === 0) {
+        await Model.bulkCreate(rows.map((r, i) => ({ ...r, position: i, status: "published" })));
+      }
+    } catch (e) { console.warn(`\x1b[33m⚠ ${Model && Model.name} seed skipped: ${e.message}\x1b[0m`); }
+  }
   for (const s of SEO_PAGES) {
     await Seo.findOrCreate({ where: { page: s.page }, defaults: s });
   }
@@ -207,6 +288,10 @@ async function seed() {
   } catch (e) {
     console.warn(`\x1b[33m⚠ Kanban board seed skipped (run once with DB_SYNC=true to create the boards table): ${e.message}\x1b[0m`);
   }
+
+  // 4) Versioned migrations — run pending steps + record the seed version.
+  try { await runVersionedSeed(); }
+  catch (e) { console.warn(`\x1b[33m⚠ Versioned seed skipped: ${e.message}\x1b[0m`); }
 }
 
 module.exports = seed;

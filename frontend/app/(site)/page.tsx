@@ -6,7 +6,7 @@ import ServiceGrid from "@/components/ServiceGrid";
 import ProcessSteps from "@/components/ProcessSteps";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AnalyticsUpIcon } from "@hugeicons/core-free-icons";
-import { getServices, getProjects, getTestimonials, getSeo } from "@/lib/api";
+import { getServices, getProjects, getTestimonials, getSeo, getFaqs, getLogos, getStats, getFeatures } from "@/lib/api";
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSeo("home");
@@ -29,7 +29,14 @@ const codeHtml = `
 <span class="ln"> </span>
 <span class="ln"><span class="f">crm</span>.<span class="f">deploy</span>();  <span class="c">// ship in minutes</span></span>`;
 
-const logos = ["Nexora", "Orbital", "Vaultly", "Prismix", "Loopwork", "Quanta"];
+const FB_LOGOS = ["Nexora", "Orbital", "Vaultly", "Prismix", "Loopwork", "Quanta"];
+const FB_STATS = [{ value: "250+", label: "Projects delivered" }, { value: "99%", label: "Uptime guaranteed" }, { value: "18+", label: "Countries served" }, { value: "4min", label: "Avg. deploy time" }];
+const FB_FEATURES = [
+  { title: "Smart pipelines", description: "Drag-and-drop deal stages with automated hand-offs." },
+  { title: "AI lead scoring", description: "Know which leads to call first, ranked in real time." },
+  { title: "Live analytics", description: "Boardroom-ready dashboards updated to the second." },
+];
+const splitStat = (v: string) => { const m = /^(\d+)(.*)$/.exec(v || ""); return m ? { n: m[1], s: m[2] } : { n: v, s: "" }; };
 const revBars = [
   { d: "Mon", h: 0.48 }, { d: "Tue", h: 0.66 }, { d: "Wed", h: 0.4 }, { d: "Thu", h: 0.82 },
   { d: "Fri", h: 0.58 }, { d: "Sat", h: 1 }, { d: "Sun", h: 0.72 },
@@ -39,11 +46,11 @@ const pipeline = [
   { co: "Globex", meta: "Growth • $12k", tag: "Negotiation", cls: "neg", in: "GX" },
   { co: "Nexora", meta: "Startup • $6k", tag: "Proposal", cls: "prop", in: "NX" },
 ];
-const faqs = [
-  ["How fast can you start on my project?", "Most engagements kick off within one week. After a short discovery call we assemble a squad and schedule your first sprint immediately."],
-  ["Do you build both SaaS and CRM products?", "Yes — it's our core focus. We build multi-tenant SaaS platforms and fully custom CRM systems, including migrations from tools like Salesforce and HubSpot."],
-  ["Who owns the code and IP?", "You do, 100%. All source code, designs and infrastructure are transferred to your organization with full documentation."],
-  ["Can you take over an existing codebase?", "Absolutely. We regularly audit, stabilize and scale existing products — starting with a technical review before any changes ship."],
+const FB_FAQS = [
+  { id: 1, question: "How fast can you start on my project?", answer: "Most engagements kick off within one week. After a short discovery call we assemble a squad and schedule your first sprint immediately." },
+  { id: 2, question: "Do you build both SaaS and CRM products?", answer: "Yes — it's our core focus. We build multi-tenant SaaS platforms and fully custom CRM systems, including migrations from tools like Salesforce and HubSpot." },
+  { id: 3, question: "Who owns the code and IP?", answer: "You do, 100%. All source code, designs and infrastructure are transferred to your organization with full documentation." },
+  { id: 4, question: "Can you take over an existing codebase?", answer: "Absolutely. We regularly audit, stabilize and scale existing products — starting with a technical review before any changes ship." },
 ];
 
 const Ic = ({ children }: { children: React.ReactNode }) => (
@@ -51,9 +58,15 @@ const Ic = ({ children }: { children: React.ReactNode }) => (
 );
 
 export default async function Home() {
-  const [services, projects, testimonials] = await Promise.all([getServices(), getProjects(), getTestimonials()]);
+  const [services, projects, testimonials, faqsRes, logosRes, statsRes, featuresRes] = await Promise.all([
+    getServices(), getProjects(), getTestimonials(), getFaqs(), getLogos(), getStats(), getFeatures(),
+  ]);
   const featured = (projects.filter((p) => p.featured).length ? projects.filter((p) => p.featured) : projects).slice(0, 3);
   const tRow = [...testimonials, ...testimonials];
+  const faqs = faqsRes.length ? faqsRes : FB_FAQS;
+  const logos = logosRes.length ? logosRes.map((l) => l.name) : FB_LOGOS;
+  const stats = statsRes.length ? statsRes : FB_STATS;
+  const features = featuresRes.length ? featuresRes : FB_FEATURES;
 
   return (
     <>
@@ -143,8 +156,8 @@ export default async function Home() {
             <h2 style={{ margin: "14px 0 12px", fontSize: "clamp(24px,3.2vw,38px)", letterSpacing: "-.02em" }}>One platform to <span className="grad-word">run your revenue</span></h2>
             <p style={{ color: "var(--muted)" }}>Finvera unifies your product, sales and success teams around a single source of truth — so nothing slips through the cracks.</p>
             <ul className="feature-list">
-              {[["Smart pipelines", "Drag-and-drop deal stages with automated hand-offs."], ["AI lead scoring", "Know which leads to call first, ranked in real time."], ["Live analytics", "Boardroom-ready dashboards updated to the second."]].map(([h, p]) => (
-                <li key={h}><span className="fi"><Check width={15} /></span><div><h4>{h}</h4><p>{p}</p></div></li>
+              {features.map((f) => (
+                <li key={f.title}><span className="fi"><Check width={15} /></span><div><h4>{f.title}</h4><p>{f.description}</p></div></li>
               ))}
             </ul>
             <Link href="/solutions" className="btn btn-grad" data-cursor data-magnetic style={{ marginTop: 26 }}>Explore solutions <Arrow /></Link>
@@ -183,10 +196,15 @@ export default async function Home() {
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container">
           <div className="stats reveal">
-            <div className="stat"><b data-count="250" data-suffix="+">0</b><span>Projects delivered</span></div>
-            <div className="stat"><b data-count="99" data-suffix="%">0</b><span>Uptime guaranteed</span></div>
-            <div className="stat"><b data-count="18" data-suffix="+">0</b><span>Countries served</span></div>
-            <div className="stat"><b data-count="4" data-suffix="min">0</b><span>Avg. deploy time</span></div>
+            {stats.map((st, i) => {
+              const { n, s: suf } = splitStat(st.value);
+              return (
+                <div className="stat" key={i}>
+                  {/^\d+$/.test(n) ? <b data-count={n} data-suffix={suf}>0</b> : <b>{st.value}</b>}
+                  <span>{st.label}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -238,10 +256,10 @@ export default async function Home() {
             <h2>Questions, <span className="grad-word">answered</span></h2>
           </div>
           <div className="faq">
-            {faqs.map(([q, a], i) => (
-              <div className={"qa reveal" + (i ? " d" + i : "")} key={q}>
-                <button className="q">{q}<span className="pm" /></button>
-                <div className="a"><p>{a}</p></div>
+            {faqs.map((f, i) => (
+              <div className={"qa reveal" + (i ? " d" + i : "")} key={f.id ?? i}>
+                <button className="q">{f.question}<span className="pm" /></button>
+                <div className="a"><p>{f.answer}</p></div>
               </div>
             ))}
           </div>
