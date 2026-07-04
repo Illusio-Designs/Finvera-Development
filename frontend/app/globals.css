@@ -1174,8 +1174,15 @@ section{position:relative;z-index:2}
 /* Progress column (leads) */
 .adm-progress{display:inline-flex;align-items:center;gap:9px;min-width:120px}
 .adm-progress-track{flex:1;height:7px;border-radius:999px;background:var(--bg-2);overflow:hidden;min-width:64px}
-.adm-progress-fill{display:block;height:100%;border-radius:999px;background:var(--grad)}
+.adm-progress-fill{display:block;height:100%;border-radius:999px;background:var(--grad);transition:width .4s var(--ease)}
 .adm-progress b{font-size:12px;color:var(--muted);font-weight:600;min-width:34px;text-align:right}
+/* Stage-based progress fill colours (match the stage badges) */
+.adm-progress-fill.st-new{background:linear-gradient(90deg,#94a3b8,#64748b)}
+.adm-progress-fill.st-contacted{background:linear-gradient(90deg,#5b7fd4,#3e60ab)}
+.adm-progress-fill.st-qualified{background:linear-gradient(90deg,#8b6ff0,#6d3fd6)}
+.adm-progress-fill.st-proposal{background:linear-gradient(90deg,#f5b13b,#d9880f)}
+.adm-progress-fill.st-won{background:linear-gradient(90deg,#34d17a,#15803d)}
+.adm-progress-fill.st-lost{background:linear-gradient(90deg,#f08a80,#dc2626)}
 
 /* Site-content hub */
 .content-hub{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}

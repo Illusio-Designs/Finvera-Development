@@ -13,7 +13,14 @@ export type Field = {
   options?: string[];
   placeholder?: string;
 };
-export type Column = { name: string; label: string; type?: "image" | "avatar" | "status" | "tags" | "text" | "money" | "progress" };
+export type Column = { name: string; label: string; type?: "image" | "avatar" | "status" | "tags" | "text" | "money" | "progress" | "stageprogress" };
+
+/* Pipeline stage → completion score. Drives the stage-based progress bar so the
+   bar always reflects where a lead sits in the funnel (no manual % to keep in sync). */
+export const STAGE_SCORE: Record<string, number> = {
+  new: 10, contacted: 35, qualified: 60, proposal: 85, won: 100, lost: 0,
+};
+const stageScore = (stage: string) => STAGE_SCORE[String(stage || "").toLowerCase()] ?? 0;
 
 type Props = {
   resource: string;
@@ -216,6 +223,8 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                         Number(row[c.name]) ? `₹${Number(row[c.name]).toLocaleString("en-IN")}` : <span style={{ color: "var(--muted-2)" }}>—</span>
                       ) : c.type === "progress" ? (
                         <span className="adm-progress"><span className="adm-progress-track"><span className="adm-progress-fill" style={{ width: `${Math.max(0, Math.min(100, Number(row[c.name]) || 0))}%` }} /></span><b>{Math.max(0, Math.min(100, Number(row[c.name]) || 0))}%</b></span>
+                      ) : c.type === "stageprogress" ? (
+                        <span className="adm-progress"><span className="adm-progress-track"><span className={"adm-progress-fill st-" + String(row.stage || "new").toLowerCase()} style={{ width: `${stageScore(row.stage)}%` }} /></span><b>{stageScore(row.stage)}%</b></span>
                       ) : (
                         String(row[c.name] ?? "").slice(0, 60)
                       )}
