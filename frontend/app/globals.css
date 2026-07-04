@@ -1153,6 +1153,37 @@ section{position:relative;z-index:2}
 .swphone-opt .dc{font-size:13px;color:var(--muted-2);font-weight:600;flex:none}
 .swphone-empty{padding:16px;text-align:center;color:var(--muted-2);font-size:13px}
 
+/* =========================================================
+   Shared custom select (replaces native <select> site-wide)
+   ========================================================= */
+.cselect{position:relative;width:100%}
+.cselect-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
+  font-family:inherit;font-size:14px;color:var(--ink);cursor:pointer;text-align:left;transition:.2s;
+  border:1px solid var(--line-2);border-radius:12px;background:#fff;padding:13px 15px}
+.cselect-btn:hover{border-color:var(--muted-2)}
+.cselect.open .cselect-btn{border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(62,96,171,.14)}
+.cselect-val{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cselect-val.ph{color:var(--muted-2)}
+.cselect-caret{color:var(--muted-2);flex:none;transition:transform .25s var(--ease)}
+.cselect.open .cselect-caret{transform:rotate(180deg)}
+.cselect.disabled{opacity:.6;pointer-events:none}
+.cselect-drop{position:absolute;left:0;top:calc(100% + 6px);z-index:60;width:100%;list-style:none;margin:0;
+  padding:6px;max-height:264px;overflow-y:auto;overscroll-behavior:contain;background:#fff;
+  border:1px solid var(--line-2);border-radius:12px;box-shadow:0 26px 60px -20px rgba(23,43,92,.4);
+  animation:errIn .16s var(--ease)}
+.cselect-drop li{margin:0}
+.cselect-opt{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
+  padding:10px 12px;border-radius:9px;background:transparent;cursor:pointer;text-align:left;
+  font-family:inherit;font-size:14px;color:var(--ink);transition:background .12s}
+.cselect-opt.active{background:rgba(16,30,60,.05)}
+.cselect-opt.on{color:var(--blue-700);font-weight:600}
+.cselect-opt svg{color:var(--blue-600);flex:none}
+/* Marketing-site field context */
+.field .cselect-btn{background:rgba(16,30,60,.03)}
+/* Dashboard field context */
+.adm-field .cselect-btn{padding:11px 13px;border-radius:10px;box-shadow:0 1px 2px rgba(16,30,60,.03)}
+.adm-field .cselect-drop{border-radius:10px}
+
 /* Blog cards (list) */
 .blog-card{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--panel);
   transition:transform .3s var(--ease),box-shadow .3s var(--ease),border-color .3s var(--ease)}

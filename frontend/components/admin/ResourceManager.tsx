@@ -4,6 +4,7 @@ import { api } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
 import RichText from "./RichText";
 import CalendlyButton from "./CalendlyButton";
+import Select from "../Select";
 import { TableSkeleton } from "./Skeleton";
 
 export type Field = {
@@ -272,9 +273,8 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                 ) : f.type === "textarea" ? (
                   <textarea id={f.name} value={editing[f.name] ?? ""} placeholder={f.placeholder} onChange={(e) => setField(f.name, e.target.value)} />
                 ) : f.type === "select" ? (
-                  <select id={f.name} value={editing[f.name] ?? ""} onChange={(e) => setField(f.name, e.target.value)}>
-                    {(f.options || []).map((o) => <option key={o} value={o}>{o}</option>)}
-                  </select>
+                  <Select id={f.name} value={editing[f.name] ?? ""} onChange={(v) => setField(f.name, v)}
+                    options={f.options || []} ariaLabel={f.label} />
                 ) : f.type === "boolean" ? (
                   <label className="adm-check">
                     <input type="checkbox" checked={!!editing[f.name]} onChange={(e) => setField(f.name, e.target.checked)} />

@@ -2,7 +2,10 @@
 import { useState } from "react";
 import { Arrow, Check } from "./icons";
 import PhoneInput from "./PhoneInput";
+import Select from "./Select";
 import { toast } from "@/lib/toast";
+
+const PROJECT_TYPES = ["SaaS platform", "CRM system", "Cloud & DevOps", "AI & automation", "Something else"];
 
 const endpoint = `${(process.env.NEXT_PUBLIC_API_URL || "https://api.finvera.solutions").replace(/\/$/, "")}/api/contact`;
 
@@ -10,6 +13,7 @@ export default function ContactForm() {
   const [state, setState] = useState<"idle" | "sending" | "ok" | "error">("idle");
   const [error, setError] = useState("");
   const [bad, setBad] = useState<Record<string, string>>({});
+  const [projectType, setProjectType] = useState(PROJECT_TYPES[0]);
   const clr = (k: string) => setBad((b) => (b[k] ? (() => { const n = { ...b }; delete n[k]; return n; })() : b));
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -49,6 +53,7 @@ export default function ContactForm() {
       }
       setState("ok");
       form.reset();
+      setProjectType(PROJECT_TYPES[0]);
       toast("Message sent — we'll be in touch shortly! 🎉");
     } catch (err) {
       setState("error");
@@ -88,13 +93,8 @@ export default function ContactForm() {
       </div>
       <div className="field">
         <label htmlFor="projectType">Project type</label>
-        <select id="projectType" name="projectType">
-          <option>SaaS platform</option>
-          <option>CRM system</option>
-          <option>Cloud &amp; DevOps</option>
-          <option>AI &amp; automation</option>
-          <option>Something else</option>
-        </select>
+        <Select id="projectType" name="projectType" value={projectType} onChange={setProjectType}
+          options={PROJECT_TYPES} ariaLabel="Project type" />
       </div>
       <div className="field">
         <label htmlFor="message">Project details *</label>
