@@ -2,9 +2,10 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { Arrow, Check, XIcon, LinkedIn, Instagram } from "@/components/icons";
 import ProjectCard from "@/components/ProjectCard";
-import ServiceIcon from "@/components/serviceIcons";
+import ServiceGrid from "@/components/ServiceGrid";
+import ProcessSteps from "@/components/ProcessSteps";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Search01Icon, PaintBoardIcon, SourceCodeIcon, Rocket01Icon, AnalyticsUpIcon } from "@hugeicons/core-free-icons";
+import { AnalyticsUpIcon } from "@hugeicons/core-free-icons";
 import { getServices, getProjects, getTestimonials, getSeo } from "@/lib/api";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -130,16 +131,7 @@ export default async function Home() {
             <h2>End-to-end <span className="grad-word">product engineering</span></h2>
             <p>From first line of code to global scale — we design, build, and operate the software that powers modern businesses.</p>
           </div>
-          <div className="grid-3">
-            {services.map((s, i) => (
-              <article className={"card reveal" + (i % 3 ? " d" + (i % 3) : "")} data-tilt data-cursor key={s.id}>
-                <div className="ic"><ServiceIcon name={s.icon} /></div>
-                <h3>{s.title}</h3>
-                <p>{s.description}</p>
-                <Link href="/services" className="more" data-cursor>Learn more <Arrow /></Link>
-              </article>
-            ))}
-          </div>
+          <ServiceGrid services={services} cta="Learn more" href="/services" />
         </div>
       </section>
 
@@ -199,30 +191,8 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* Process */}
-      <section className="section" id="process">
-        <div className="container">
-          <div className="section-head center reveal">
-            <span className="eyebrow">How we work</span>
-            <h2>A proven path from <span className="grad-word">idea to impact</span></h2>
-          </div>
-          <div className="steps">
-            {[
-              { n: "01", h: "Discover", p: "We map your goals, users and constraints into a sharp product blueprint.", ic: Search01Icon },
-              { n: "02", h: "Design", p: "Wireframes to polished UI with motion, validated against real users.", ic: PaintBoardIcon },
-              { n: "03", h: "Build", p: "Agile sprints, weekly demos and production-grade, tested code.", ic: SourceCodeIcon },
-              { n: "04", h: "Scale", p: "Launch, monitor and iterate — we grow with you long after go-live.", ic: Rocket01Icon },
-            ].map((s, i) => (
-              <div className={"step reveal" + (i ? " d" + i : "")} key={s.n}>
-                <span className="step-num">{s.n}.</span>
-                <span className="step-ic"><HugeiconsIcon icon={s.ic} strokeWidth={1.8} className="hgi" /></span>
-                <h4>{s.h}</h4>
-                <p>{s.p}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* Process — shared component (identical on Services) */}
+      <ProcessSteps />
 
       {/* Work preview */}
       <section className="section" id="work" style={{ paddingTop: 0 }}>

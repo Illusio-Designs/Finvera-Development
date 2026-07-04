@@ -1,15 +1,14 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Arrow } from "@/components/icons";
-import ServiceIcon from "@/components/serviceIcons";
+import ServiceGrid from "@/components/ServiceGrid";
+import ProcessSteps from "@/components/ProcessSteps";
 import { getServices, getSeo } from "@/lib/api";
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSeo("services");
   return { title: s.title, description: s.description, keywords: s.keywords };
 }
-
-const steps = [["01", "Discover", "We map your goals, users and constraints into a sharp product blueprint."], ["02", "Design", "Wireframes to polished UI with motion, validated against real users."], ["03", "Build", "Agile sprints, weekly demos and production-grade, tested code."], ["04", "Scale", "Launch, monitor and iterate — we grow with you long after go-live."]];
 
 export default async function Services() {
   const services = await getServices();
@@ -26,31 +25,11 @@ export default async function Services() {
 
       <section className="section" style={{ paddingTop: 40 }}>
         <div className="container">
-          <div className="grid-3">
-            {services.map((s, i) => (
-              <article className={"card reveal" + (i % 3 ? " d" + (i % 3) : "")} data-tilt data-cursor key={s.id}>
-                <div className="ic"><ServiceIcon name={s.icon} /></div>
-                <h3>{s.title}</h3><p>{s.description}</p>
-                <Link href="/contact" className="more" data-cursor>Get a quote <Arrow /></Link>
-              </article>
-            ))}
-          </div>
+          <ServiceGrid services={services} cta="Get a quote" href="/contact" />
         </div>
       </section>
 
-      <section className="section" style={{ paddingTop: 0 }} id="process">
-        <div className="container">
-          <div className="section-head center reveal">
-            <span className="eyebrow">How we work</span>
-            <h2>A proven path from <span className="grad-word">idea to impact</span></h2>
-          </div>
-          <div className="steps">
-            {steps.map(([n, h, p], i) => (
-              <div className={"step reveal" + (i ? " d" + i : "")} key={n}><div className="num">{n}</div><h4>{h}</h4><p>{p}</p></div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <ProcessSteps />
 
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container">
