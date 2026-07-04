@@ -187,6 +187,7 @@ const Brand = sequelize.define("Brand", {
   category: { type: DataTypes.STRING },
   description: { type: DataTypes.TEXT },
   icon: { type: DataTypes.STRING, defaultValue: "code" },
+  url: { type: DataTypes.STRING },
   ...contentDefaults,
 }, { tableName: "brands" });
 const Milestone = sequelize.define("Milestone", {
