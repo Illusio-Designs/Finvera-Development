@@ -44,10 +44,14 @@ function ImageInput({ value, onChange }: { value: string; onChange: (v: string) 
   return (
     <div className="adm-uploader">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      {value ? <img src={value} alt="" /> : <div style={{ width: 88, height: 60, borderRadius: 9, border: "1px dashed var(--line-2)" }} />}
+      {value ? <img src={value} alt="" /> : (
+        <div className="up-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M17 8l-5-5-5 5" /><path d="M12 3v12" /></svg>
+        </div>
+      )}
       <div>
         <button type="button" className="adm-btn ghost" onClick={() => ref.current?.click()} disabled={busy}>
-          {busy ? "Uploading…" : value ? "Replace" : "Upload"}
+          {busy ? <><span className="spin" style={{ borderColor: "rgba(62,96,171,.35)", borderTopColor: "var(--blue-500)" }} /> Uploading…</> : value ? "Replace" : "Upload"}
         </button>
         {value && <button type="button" className="adm-btn ghost" style={{ marginLeft: 8 }} onClick={() => onChange("")}>Remove</button>}
         {err && <div className="adm-msg err" style={{ marginTop: 8 }}>{err}</div>}
@@ -194,10 +198,10 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                   ))}
                   <td>
                     <div className="adm-rowbtns">
-                      <button className="adm-ibtn" data-tip="Edit" onClick={() => { setFormErr(""); setEditing({ ...row }); }}>
+                      <button className="adm-ibtn" title="Edit" aria-label="Edit" onClick={() => { setFormErr(""); setEditing({ ...row }); }}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
                       </button>
-                      <button className="adm-ibtn danger" data-tip="Delete" onClick={() => setDeleteTarget(row)}>
+                      <button className="adm-ibtn danger" title="Delete" aria-label="Delete" onClick={() => setDeleteTarget(row)}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /></svg>
                       </button>
                     </div>
@@ -238,9 +242,9 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                     {(f.options || []).map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
                 ) : f.type === "boolean" ? (
-                  <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-                    <input type="checkbox" checked={!!editing[f.name]} onChange={(e) => setField(f.name, e.target.checked)} style={{ width: 18, height: 18 }} />
-                    <span style={{ color: "var(--muted)", fontSize: 13 }}>{f.placeholder || "Enabled"}</span>
+                  <label className="adm-check">
+                    <input type="checkbox" checked={!!editing[f.name]} onChange={(e) => setField(f.name, e.target.checked)} />
+                    <span className="txt">{f.placeholder || "Enabled"}</span>
                   </label>
                 ) : f.type === "tags" ? (
                   <input id={f.name} value={Array.isArray(editing[f.name]) ? editing[f.name].join(", ") : (editing[f.name] ?? "")}
@@ -256,7 +260,7 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
               </div>
             ))}
             <div className="adm-drawer-actions">
-              <button className="adm-btn primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+              <button className="adm-btn primary" type="submit" disabled={saving}>{saving ? <><span className="spin" /> Saving…</> : "Save"}</button>
               <button className="adm-btn ghost" type="button" onClick={() => setEditing(null)}>Cancel</button>
             </div>
           </form>
@@ -273,7 +277,7 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
             <p>{deleteTarget.title || deleteTarget.name || `Item #${deleteTarget.id}`} will be permanently removed. This can&apos;t be undone.</p>
             <div className="adm-confirm-actions">
               <button className="adm-btn ghost" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</button>
-              <button className="adm-btn danger" onClick={confirmDelete} disabled={deleting}>{deleting ? "Deleting…" : "Delete"}</button>
+              <button className="adm-btn danger" onClick={confirmDelete} disabled={deleting}>{deleting ? <><span className="spin" /> Deleting…</> : "Delete"}</button>
             </div>
           </div>
         </div>
