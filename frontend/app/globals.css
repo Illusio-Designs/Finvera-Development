@@ -794,6 +794,14 @@ section{position:relative;z-index:2}
 .reveal-x.d1{transition-delay:.07s}.reveal-x.d2{transition-delay:.14s}.reveal-x.d3{transition-delay:.21s}
 .reveal-x.d4{transition-delay:.28s}.reveal-x.d5{transition-delay:.35s}.reveal-x.d6{transition-delay:.42s}
 
+/* Manifesto-style word-by-word reveal for section/page headings */
+.section-head h2[data-wsplit],.page-hero h1[data-wsplit]{opacity:1}
+.section-head h2 .hw,.page-hero h1 .hw{display:inline-block;opacity:0;transform:translateY(16px);
+  transition:opacity .55s var(--ease),transform .55s var(--ease)}
+.section-head h2.in-h .hw,.page-hero h1.in-h .hw{opacity:1;transform:none}
+/* keep gradient words gradient once split into per-word spans */
+.grad-word .hw,.grad-word.hw{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+
 /* Scroll-down cue — appears on the first viewport, fades after scrolling (all pages) */
 .scroll-cue{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:60;
   display:flex;flex-direction:column;align-items:center;gap:7px;pointer-events:none;
