@@ -77,17 +77,17 @@ const VALUES = [
   { title: "Partner, not vendor", description: "We work as an extension of your team, transparent and hands-on.", icon: "agreement" },
 ];
 const BRANDS = [
-  { name: "Illusio Designs", category: "Design & Marketing", icon: "paint", description: "Our founding studio. Brand identity, web design and growth marketing." },
-  { name: "Fintranzact", category: "Accounting SaaS", icon: "calculator", description: "Cloud accounting built for modern businesses." },
-  { name: "Kartuq", category: "Omni-Channel SaaS", icon: "store", description: "One platform to run every sales channel." },
-  { name: "Collabhype", category: "Influencer Collaboration", icon: "megaphone", description: "Where brands and creators meet." },
-  { name: "Finvera", category: "CRM & SaaS Development", icon: "code", description: "Our flagship, custom CRM systems and SaaS platforms." },
+  { name: "Illusio Designs", category: "Design & Marketing", icon: "paint", url: "https://illusiodesigns.agency", description: "Our founding studio. Brand identity, web design and growth marketing." },
+  { name: "Fintranzact", category: "Accounting SaaS", icon: "calculator", url: "https://fintranzact.com", description: "Cloud accounting built for modern businesses." },
+  { name: "Kartriq", category: "Omni-Channel SaaS", icon: "store", url: "https://kartriq.com", description: "One platform to run every sales channel." },
+  { name: "Collabhype", category: "Influencer Collaboration", icon: "megaphone", url: "https://collabhype.in", description: "Where brands and creators meet." },
+  { name: "Finvera", category: "CRM & SaaS Development", icon: "code", url: "https://finvera.solutions", description: "Our flagship, custom CRM systems and SaaS platforms." },
 ];
 const MILESTONES = [
   { year: "2017", title: "Illusio Designs is born", description: "We start as a small design & marketing studio." },
   { year: "2019", title: "Into web & product", description: "We expand into websites, product UI and front-end engineering." },
   { year: "2021", title: "Our first SaaS", description: "We ship our first SaaS products." },
-  { year: "2023", title: "The brand family grows", description: "Fintranzact, Kartuq and Collabhype take shape." },
+  { year: "2023", title: "The brand family grows", description: "Fintranzact, Kartriq and Collabhype take shape." },
   { year: "2024", title: "Finvera Solutions LLP", description: "We formally incorporate." },
   { year: "Today", title: "A multi-product group", description: "Five brands, one team." },
 ];
@@ -123,23 +123,39 @@ const SETTINGS = [
   { key: "google_site_verification", value: "", group: "analytics", isPublic: true },
 ];
 
-const SEED_VERSION = 1;
-const MIGRATIONS = {};
+const SEED_VERSION = 2;
+const MIGRATIONS = {
+  2: async () => {
+    const urls = {
+      "Illusio Designs": "https://illusiodesigns.agency",
+      "Fintranzact": "https://fintranzact.com",
+      "Kartriq": "https://kartriq.com",
+      "Collabhype": "https://collabhype.in",
+      "Finvera": "https://finvera.solutions",
+    };
+    await Brand.update({ name: "Kartriq" }, { where: { name: "Kartuq" } });
+    for (const [name, url] of Object.entries(urls)) {
+      await Brand.update({ url }, { where: { name } });
+    }
+    const m = await Milestone.findOne({ where: { title: "The brand family grows" } });
+    if (m && /Kartuq/.test(m.description || "")) { m.description = m.description.replace(/Kartuq/g, "Kartriq"); await m.save(); }
+  },
+};
 
 async function runVersionedSeed() {
   let stored = 0;
   const [vs] = await Setting.findOrCreate({ where: { key: "seed_version" }, defaults: { value: "0", group: "system", isPublic: false } });
   stored = Number(vs.value) || 0;
-  if (stored >= SEED_VERSION) { console.log(`\\x1b[36mℹ Seed up to date (v${stored})\\x1b[0m`); return; }
+  if (stored >= SEED_VERSION) { console.log(`\x1b[36mSeed up to date (v${stored})\x1b[0m`); return; }
   for (let v = stored + 1; v <= SEED_VERSION; v++) {
     if (typeof MIGRATIONS[v] === "function") {
-      try { await MIGRATIONS[v](); console.log(`\\x1b[32m✔ Applied seed migration v${v}\\x1b[0m`); }
-      catch (e) { console.warn(`\\x1b[33m⚠ Seed migration v${v} failed: ${e.message}\\x1b[0m`); }
+      try { await MIGRATIONS[v](); console.log(`\x1b[32mApplied seed migration v${v}\x1b[0m`); }
+      catch (e) { console.warn(`\x1b[33mSeed migration v${v} failed: ${e.message}\x1b[0m`); }
     }
   }
   vs.value = String(SEED_VERSION);
   await vs.save();
-  console.log(`\\x1b[32m✔ Seed version updated ${stored} to ${SEED_VERSION}\\x1b[0m`);
+  console.log(`\x1b[32mSeed version updated ${stored} to ${SEED_VERSION}\x1b[0m`);
 }
 
 async function seed() {
@@ -148,14 +164,14 @@ async function seed() {
     where: { email },
     defaults: { name: process.env.ADMIN_NAME || "Finvera Admin", email, password: await bcrypt.hash(process.env.ADMIN_PASSWORD || "Rishi@1995", 10), role: "admin" },
   });
-  if (created) console.log(`\\x1b[32m✔ Seeded admin user: ${admin.email}\\x1b[0m`);
+  if (created) console.log(`\x1b[32mSeeded admin user: ${admin.email}\x1b[0m`);
 
   if (!created && String(process.env.ADMIN_RESET_PASSWORD).toLowerCase() === "true" && process.env.ADMIN_PASSWORD) {
     admin.password = await bcrypt.hash(process.env.ADMIN_PASSWORD, 10);
     admin.active = true;
     if (process.env.ADMIN_NAME) admin.name = process.env.ADMIN_NAME;
     await admin.save();
-    console.log(`\\x1b[33m⚠ Admin password reset for ${admin.email}.\\x1b[0m`);
+    console.log(`\x1b[33mAdmin password reset for ${admin.email}.\x1b[0m`);
   }
 
   if ((await Project.count()) === 0) await Project.bulkCreate(PROJECTS.map((p, i) => ({ ...p, slug: slug(p.title), position: i, status: "published" })));
@@ -164,12 +180,12 @@ async function seed() {
   if ((await TeamMember.count()) === 0) await TeamMember.bulkCreate(TEAM.map((t, i) => ({ ...t, position: i, status: "published" })));
   if ((await BlogPost.count()) === 0) await BlogPost.create({ title: "Welcome to the Finvera blog", slug: "welcome-to-the-finvera-blog", excerpt: "Product and engineering insights.", content: "<p>This is your first post. Edit or delete it from the admin.</p>", author: "Finvera", category: "Company", tags: ["announcement"], status: "published", publishedAt: new Date(), seoTitle: "Welcome to the Finvera blog", seoDescription: "Insights from Finvera." });
   if (Page) for (const p of LEGAL_PAGES) await Page.findOrCreate({ where: { slug: p.slug }, defaults: { ...p, status: "published" } });
-  if (Lead) { try { if ((await Lead.count()) === 0) await Lead.bulkCreate(LEADS.map((l, i) => ({ ...l, position: i }))); } catch (e) { console.warn(`\\x1b[33m⚠ Lead seed skipped: ${e.message}\\x1b[0m`); } }
+  if (Lead) { try { if ((await Lead.count()) === 0) await Lead.bulkCreate(LEADS.map((l, i) => ({ ...l, position: i }))); } catch (e) { console.warn(`\x1b[33mLead seed skipped: ${e.message}\x1b[0m`); } }
 
   const CONTENT = [[Faq, FAQS], [Value, VALUES], [Brand, BRANDS], [Milestone, MILESTONES], [ProcessStep, PROCESS_STEPS], [Stat, STATS], [Logo, LOGOS], [Feature, FEATURES]];
   for (const [Model, rows] of CONTENT) {
     try { if (Model && (await Model.count()) === 0) await Model.bulkCreate(rows.map((r, i) => ({ ...r, position: i, status: "published" }))); }
-    catch (e) { console.warn(`\\x1b[33m⚠ ${Model && Model.name} seed skipped: ${e.message}\\x1b[0m`); }
+    catch (e) { console.warn(`\x1b[33m${Model && Model.name} seed skipped: ${e.message}\x1b[0m`); }
   }
 
   for (const s of SEO_PAGES) await Seo.findOrCreate({ where: { page: s.page }, defaults: s });
@@ -181,9 +197,9 @@ async function seed() {
       const board = await Board.create({ name: "Main Board", description: "Plan and track work across the team.", columns, labels: [{ id: "l1", name: "Design", color: "#8b5cf6" }, { id: "l2", name: "Development", color: "#3e60ab" }, { id: "l3", name: "QA", color: "#f59e0b" }, { id: "l4", name: "Urgent", color: "#ef4444" }, { id: "l5", name: "Done", color: "#22c55e" }], position: 0 });
       await Task.update({ boardId: board.id }, { where: { boardId: null } });
     }
-  } catch (e) { console.warn(`\\x1b[33m⚠ Kanban board seed skipped: ${e.message}\\x1b[0m`); }
+  } catch (e) { console.warn(`\x1b[33mKanban board seed skipped: ${e.message}\x1b[0m`); }
 
-  try { await runVersionedSeed(); } catch (e) { console.warn(`\\x1b[33m⚠ Versioned seed skipped: ${e.message}\\x1b[0m`); }
+  try { await runVersionedSeed(); } catch (e) { console.warn(`\x1b[33mVersioned seed skipped: ${e.message}\x1b[0m`); }
 }
 
 module.exports = seed;
@@ -195,7 +211,7 @@ if (require.main === module) {
     await sequelize.authenticate();
     await sequelize.sync({ alter: true });
     await seed();
-    console.log("\\x1b[32m✔ Seed complete\\x1b[0m");
+    console.log("\x1b[32mSeed complete\x1b[0m");
     process.exit(0);
   })().catch((e) => { console.error(e); process.exit(1); });
 }
