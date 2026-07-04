@@ -13,7 +13,7 @@ export type Project = {
 };
 export type Service = { id: number; title: string; slug: string; icon: string; description: string };
 export type Testimonial = { id: number; name: string; role: string; company: string; avatar: string; quote: string; rating: number };
-export type TeamMember = { id: number; name: string; role: string; initials: string; bio: string };
+export type TeamMember = { id: number; name: string; role: string; initials: string; bio: string; photo?: string | null };
 export type BlogPost = {
   id: number; title: string; slug: string; excerpt: string; content: string;
   coverImage: string | null; author: string; category: string; tags: string[];

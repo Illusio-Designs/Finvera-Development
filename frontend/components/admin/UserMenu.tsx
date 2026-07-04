@@ -28,6 +28,17 @@ export default function UserMenu({ me, onLogout }: { me: Me; onLogout: () => voi
       : <span className="adm-avatar" style={{ width: size, height: size, fontSize: Math.round(size * 0.4) }}>{initials(me?.name)}</span>
   );
 
+  if (!me) {
+    return (
+      <div className="adm-usermenu">
+        <div className="adm-usermenu-btn" style={{ pointerEvents: "none" }}>
+          <span className="skel skel-circle" style={{ width: 34, height: 34, flex: "none" }} />
+          <span className="skel skel-line" style={{ width: 74, height: 12 }} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="adm-usermenu" ref={ref}>
       <button className="adm-usermenu-btn" onClick={() => setOpen((o) => !o)} aria-label="Account menu" aria-expanded={open}>
