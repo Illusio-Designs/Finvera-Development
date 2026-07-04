@@ -34,15 +34,21 @@ export default async function Blog() {
           ) : (
             <div className="grid-3">
               {posts.map((post, i) => (
-                <article className={"card reveal" + (i % 3 ? " d" + (i % 3) : "")} data-tilt data-cursor key={post.id}>
-                  <div className="mock-head" style={{ marginBottom: 12 }}>
-                    <b style={{ color: "var(--blue-400)" }}>{post.category || "Article"}</b>
-                    <small style={{ color: "var(--muted-2)" }}>{fmt(post.publishedAt)}</small>
+                <Link href={`/blog/${post.slug}`} className={"blog-card reveal-x" + (i % 2 ? " r" : "") + " d" + ((i % 3) + 1)} data-cursor key={post.id}>
+                  <div className="blog-card-media">
+                    {post.coverImage
+                      // eslint-disable-next-line @next/next/no-img-element
+                      ? <img src={post.coverImage} alt={post.title} loading="lazy" />
+                      : <span className="blog-card-ph">{(post.category || "Article").slice(0, 1)}</span>}
+                    <span className="blog-card-cat">{post.category || "Article"}</span>
                   </div>
-                  <h3 style={{ marginBottom: 10 }}>{post.title}</h3>
-                  <p>{post.excerpt}</p>
-                  <Link href={`/blog/${post.slug}`} className="more" data-cursor>Read article <Arrow /></Link>
-                </article>
+                  <div className="blog-card-body">
+                    <small className="blog-card-date">{fmt(post.publishedAt)}</small>
+                    <h3>{post.title}</h3>
+                    <p>{post.excerpt}</p>
+                    <span className="more">Read article <Arrow /></span>
+                  </div>
+                </Link>
               ))}
             </div>
           )}

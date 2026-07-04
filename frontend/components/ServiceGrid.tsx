@@ -8,7 +8,7 @@ export default function ServiceGrid({ services, cta = "Learn more", href = "/ser
   return (
     <div className="grid-3">
       {services.map((s, i) => (
-        <article className={"card reveal" + (i % 3 ? " d" + (i % 3) : "")} data-tilt data-cursor key={s.id}>
+        <article className={"card reveal-x" + (i % 2 ? " r" : "") + " d" + ((i % 3) + 1)} data-tilt data-cursor key={s.id}>
           <div className="ic"><ServiceIcon name={s.icon} /></div>
           <h3>{s.title}</h3>
           <p>{s.description}</p>
