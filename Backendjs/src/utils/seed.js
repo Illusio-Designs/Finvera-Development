@@ -1,6 +1,6 @@
 const bcrypt = require("bcryptjs");
 const slugify = require("slugify");
-const { User, Project, Service, Testimonial, TeamMember, BlogPost, Seo, Setting, Board, Task } = require("../models");
+const { User, Project, Service, Testimonial, TeamMember, BlogPost, Seo, Setting, Board, Task, Page } = require("../models");
 
 const slug = (s) => slugify(String(s), { lower: true, strict: true });
 
@@ -48,6 +48,33 @@ const SEO_PAGES = [
   { page: "solutions", title: "Solutions — Finvera", description: "Software for every stage of growth — SaaS, CRM, cloud and AI solutions shaped to your goals." },
   { page: "work", title: "Work — Finvera", description: "Real products we've designed and developed for brands around the world." },
   { page: "contact", title: "Contact — Finvera", description: "Tell us about your product and goals. We'll get back to you within one business day." },
+];
+
+const LEGAL_PAGES = [
+  {
+    slug: "privacy",
+    title: "Privacy Policy",
+    content:
+      "<p>This Privacy Policy explains how Finvera Solutions LLP (\"Finvera\", \"we\", \"us\") collects, uses and protects the information you share with us when you use our website and services.</p>" +
+      "<h3>Information we collect</h3><p>We collect information you provide directly — such as your name, email address and any details submitted through our contact forms — as well as basic usage data (pages visited, device and browser type) via analytics tools.</p>" +
+      "<h3>How we use your information</h3><p>We use your information to respond to enquiries, deliver and improve our services, and communicate with you about your project. We do not sell your personal data.</p>" +
+      "<h3>Cookies</h3><p>We use cookies and similar technologies to understand how the site is used and to improve your experience. You can control cookies through your browser settings.</p>" +
+      "<h3>Data retention & security</h3><p>We retain personal data only as long as necessary for the purposes described here, and we apply reasonable technical and organisational measures to protect it.</p>" +
+      "<h3>Your rights</h3><p>You may request access to, correction of, or deletion of your personal data at any time by contacting us.</p>" +
+      "<h3>Contact</h3><p>Questions about this policy? Email us at finverasolutionsllp@gmail.com.</p>",
+  },
+  {
+    slug: "terms",
+    title: "Terms & Conditions",
+    content:
+      "<p>These Terms & Conditions govern your use of the Finvera Solutions LLP website and services. By using our site you agree to these terms.</p>" +
+      "<h3>Use of our services</h3><p>You agree to use our website and services lawfully and not to misuse, disrupt or attempt to gain unauthorised access to any part of them.</p>" +
+      "<h3>Intellectual property</h3><p>All content on this site is owned by Finvera unless stated otherwise. Work delivered under a signed agreement is transferred to the client as set out in that agreement.</p>" +
+      "<h3>Engagements & payment</h3><p>Project scope, timelines and fees are defined in individual proposals or contracts. Those documents take precedence over this page for the specific engagement.</p>" +
+      "<h3>Limitation of liability</h3><p>Our website is provided \"as is\". To the extent permitted by law, we are not liable for indirect or consequential losses arising from its use.</p>" +
+      "<h3>Changes</h3><p>We may update these terms from time to time. Continued use of the site after changes constitutes acceptance of the revised terms.</p>" +
+      "<h3>Contact</h3><p>Questions about these terms? Email us at finverasolutionsllp@gmail.com.</p>",
+  },
 ];
 
 const SETTINGS = [
@@ -117,6 +144,12 @@ async function seed() {
       seoTitle: "Welcome to the Finvera blog",
       seoDescription: "Product and engineering insights from Finvera.",
     });
+  }
+  if (Page) {
+    for (const p of LEGAL_PAGES) {
+      // eslint-disable-next-line no-await-in-loop
+      await Page.findOrCreate({ where: { slug: p.slug }, defaults: { ...p, status: "published" } });
+    }
   }
   for (const s of SEO_PAGES) {
     await Seo.findOrCreate({ where: { page: s.page }, defaults: s });
