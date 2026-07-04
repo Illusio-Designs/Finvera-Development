@@ -1,6 +1,6 @@
 import ResourceManager from "@/components/admin/ResourceManager";
 export default function AdminStats() {
-  return <ResourceManager resource="stats" title="Stats" subtitle="The stats band on the home page."
+  return <ResourceManager resource="stats" backHref="/dashboard/content" backLabel="Site content" title="Stats" subtitle="The stats band on the home page."
     columns={[{ name: "value", label: "Value" }, { name: "label", label: "Label" }, { name: "status", label: "Status", type: "status" }]}
     defaults={{ status: "published" }}
     fields={[

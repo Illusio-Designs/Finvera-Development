@@ -1,7 +1,7 @@
 import ResourceManager from "@/components/admin/ResourceManager";
 const ICONS = ["paint", "calculator", "store", "megaphone", "code", "cloud", "team", "ai", "rocket", "target"];
 export default function AdminBrands() {
-  return <ResourceManager resource="brands" title="Brands" subtitle="The brand-ecosystem cards on the About page."
+  return <ResourceManager resource="brands" backHref="/dashboard/content" backLabel="Site content" title="Brands" subtitle="The brand-ecosystem cards on the About page."
     columns={[{ name: "name", label: "Name" }, { name: "category", label: "Category" }, { name: "status", label: "Status", type: "status" }]}
     defaults={{ status: "published", icon: "code" }}
     fields={[

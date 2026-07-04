@@ -1,6 +1,6 @@
 import ResourceManager from "@/components/admin/ResourceManager";
 export default function AdminTimeline() {
-  return <ResourceManager resource="milestones" title="Timeline" subtitle="The journey milestones on the About page."
+  return <ResourceManager resource="milestones" backHref="/dashboard/content" backLabel="Site content" title="Timeline" subtitle="The journey milestones on the About page."
     columns={[{ name: "year", label: "Year" }, { name: "title", label: "Title" }, { name: "status", label: "Status", type: "status" }]}
     defaults={{ status: "published" }}
     fields={[

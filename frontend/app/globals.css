@@ -884,6 +884,11 @@ section{position:relative;z-index:2}
   font-size:14px;border:1px solid var(--line);background:transparent;width:100%;justify-content:flex-start}
 .adm-logout:hover{color:var(--ink);border-color:var(--line-2)}
 .adm-main{padding:26px clamp(18px,3vw,40px);max-width:100%;min-width:0}
+.adm-back{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--muted);
+  margin-bottom:14px;padding:6px 12px 6px 8px;border:1px solid var(--line-2);border-radius:9px;
+  background:#fff;transition:.2s}
+.adm-back:hover{color:var(--blue-600);border-color:var(--blue-500)}
+.adm-back svg{width:16px;height:16px}
 .adm-top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:26px;flex-wrap:wrap}
 .adm-top h1{font-size:26px;letter-spacing:-.02em}
 .adm-top p{color:var(--muted-2);font-size:13.5px;margin-top:3px}
