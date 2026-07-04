@@ -171,13 +171,13 @@ export default function Chrome() {
       requestAnimationFrame(() => ScrollTrigger.refresh());
     }
 
-    /* Split headline into characters (sharper kinetic entrance) */
+    /* Split headline into words (Safari-safe — gradient clips per word) */
     $$("[data-split]").forEach((el) => {
       $$(".line > span", el).forEach((span) => {
-        if (span.classList.contains("brace") || span.querySelector(".char")) return;
-        span.innerHTML = (span.textContent || "").split("").map((c) => (c === " " ? " " : `<span class="char">${c}</span>`)).join("");
+        if (span.classList.contains("brace") || span.querySelector(".word")) return;
+        span.innerHTML = (span.textContent || "").split(" ").map((w) => `<span class="word">${w}</span>`).join(" ");
       });
-      $$(".char", el).forEach((c, i) => (c.style.transitionDelay = 0.15 + i * 0.03 + "s"));
+      $$(".word", el).forEach((w, i) => (w.style.transitionDelay = 0.2 + i * 0.08 + "s"));
     });
 
     /* Manifesto-style word reveal for every section/page heading */
