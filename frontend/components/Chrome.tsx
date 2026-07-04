@@ -145,6 +145,9 @@ export default function Chrome() {
       $$(".reveal, .reveal-x, .reveal-clip, [data-split], .mock").forEach((el) => el.classList.add("in"));
     } else {
       $$(".reveal, .reveal-x, .reveal-clip, [data-split], .mock").forEach((el) => {
+        // Reveal anything already in view immediately, so above-the-fold content
+        // (e.g. the hero) is never left stuck at opacity:0 while ScrollTrigger/Lenis settle.
+        if (el.getBoundingClientRect().top < innerHeight * 0.92) el.classList.add("in");
         const st = ScrollTrigger.create({
           trigger: el,
           start: "top 90%",
