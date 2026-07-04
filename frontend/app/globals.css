@@ -1126,8 +1126,9 @@ section{position:relative;z-index:2}
 .xp-scroll-dot::before{content:"";position:absolute;left:50%;top:6px;width:4px;height:7px;margin-left:-2px;border-radius:2px;
   background:var(--blue-500);animation:xpScroll 1.5s var(--ease) infinite}
 @keyframes xpScroll{0%{opacity:0;transform:translateY(-4px)}40%{opacity:1}100%{opacity:0;transform:translateY(10px)}}
-/* Pinned horizontal */
-.xp-pin{height:100vh;overflow:hidden}
+/* Horizontal scroll — native sticky + scroll-progress (locked to page scroll) */
+.xp-sticky-outer{position:relative}
+.xp-sticky{position:sticky;top:0;height:100vh;overflow:hidden;display:flex;align-items:center}
 .xp-track{display:flex;height:100vh;width:max-content;will-change:transform}
 .xp-panel{width:min(78vw,560px);height:100vh;flex:none;display:flex;align-items:center;justify-content:center;
   padding:0 clamp(24px,5vw,80px);position:relative}
@@ -1164,16 +1165,18 @@ section{position:relative;z-index:2}
 .xp-panel.is-link:hover .xp-panel-go{opacity:1;transform:translateX(0)}
 .xp-panel.is-link:hover h3{color:var(--c,#3e60ab)}
 .xp-panel h3{transition:color .3s var(--ease)}
-/* Embedded showcase (inside About) — touch / reduced-motion fallback = swipe strip */
+/* Touch / reduced-motion fallback = plain horizontal swipe strip (no sticky/JS) */
 @media (hover:none),(pointer:coarse){
-  .xp-embed{height:auto;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory}
-  .xp-embed .xp-track{height:auto}
-  .xp-embed .xp-panel{height:auto;min-height:66vh;width:82vw;scroll-snap-align:center}
+  .xp-sticky-outer{height:auto!important}
+  .xp-sticky{position:static;height:auto;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory}
+  .xp-sticky .xp-track{height:auto;transform:none!important}
+  .xp-sticky .xp-panel{height:auto;min-height:66vh;width:82vw;scroll-snap-align:center}
 }
 @media (prefers-reduced-motion:reduce){
-  .xp-embed{height:auto;overflow-x:auto;overflow-y:hidden}
-  .xp-embed .xp-track,.xp-embed .xp-panel{height:auto}
-  .xp-embed .xp-panel{min-height:60vh}
+  .xp-sticky-outer{height:auto!important}
+  .xp-sticky{position:static;height:auto;overflow-x:auto;overflow-y:hidden}
+  .xp-sticky .xp-track{height:auto;transform:none!important}
+  .xp-sticky .xp-panel{height:auto;min-height:60vh}
 }
 @media (max-width:900px){.brands{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:600px){.brands{grid-template-columns:1fr}}
