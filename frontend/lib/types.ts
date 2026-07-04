@@ -31,5 +31,5 @@ export type Brand = { id: number; name: string; category: string; description: s
 export type Milestone = { id: number; year: string; title: string; description: string; position?: number; status?: string };
 export type ProcessStep = { id: number; step: string; title: string; description: string; icon: string; position?: number; status?: string };
 export type Stat = { id: number; value: string; label: string; position?: number; status?: string };
-export type Logo = { id: number; name: string; position?: number; status?: string };
+export type Logo = { id: number; name: string; image?: string; position?: number; status?: string };
 export type Feature = { id: number; title: string; description: string; position?: number; status?: string };

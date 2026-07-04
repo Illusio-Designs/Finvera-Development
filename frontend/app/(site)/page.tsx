@@ -64,7 +64,7 @@ export default async function Home() {
   const featured = (projects.filter((p) => p.featured).length ? projects.filter((p) => p.featured) : projects).slice(0, 3);
   const tRow = [...testimonials, ...testimonials];
   const faqs = faqsRes.length ? faqsRes : FB_FAQS;
-  const logos = logosRes.length ? logosRes.map((l) => l.name) : FB_LOGOS;
+  const logos = logosRes.length ? logosRes : FB_LOGOS.map((name, id) => ({ id, name, image: undefined as string | undefined }));
   const stats = statsRes.length ? statsRes : FB_STATS;
   const features = featuresRes.length ? featuresRes : FB_FEATURES;
 
@@ -129,7 +129,12 @@ export default async function Home() {
           <div className="marquee">
             <div className="marquee-track">
               {[...logos, ...logos].map((l, i) => (
-                <span className="logo-item" key={i}><Ic><rect x="3" y="3" width="18" height="18" rx="4" /></Ic>{l}</span>
+                <span className="logo-item" key={i}>
+                  {l.image
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img className="logo-img" src={l.image} alt={l.name} loading="lazy" />
+                    : <><Ic><rect x="3" y="3" width="18" height="18" rx="4" /></Ic>{l.name}</>}
+                </span>
               ))}
             </div>
           </div>
