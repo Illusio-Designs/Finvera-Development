@@ -17,6 +17,12 @@ export default function Chrome() {
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const cleanups: (() => void)[] = [];
 
+    /* Always open at the top on (re)load — disable the browser restoring the
+       previous scroll position (which, with the JS-sized sticky section, could
+       land you near the end of the page). */
+    if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+    window.scrollTo(0, 0);
+
     /* Preloader */
     const pre = $("#preloader");
     const t = setTimeout(() => pre && pre.classList.add("done"), reduce ? 0 : 1300);
