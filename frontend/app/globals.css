@@ -1412,6 +1412,17 @@ section{position:relative;z-index:2}
   .cookie{flex-direction:column;text-align:center}.cookie .ck-actions{margin:0}
   .tcard{min-width:280px;max-width:280px}
   .field.row{flex-direction:column}
+  /* Hero code card: shrink type + padding so the pre-formatted lines fit the
+     phone width instead of being clipped at the right edge. */
+  .hero-card{max-width:none;margin:0 auto;width:100%}
+  .cc-bar{padding:10px 12px;gap:6px}
+  .cc-bar .tab{margin-left:6px;font-size:11px}
+  .cc-bar .cc-actions{gap:5px}
+  .cc-bar .cc-actions i{width:22px;height:22px}
+  .code{font-size:11px;padding:15px 14px;line-height:1.7}
+}
+@media (max-width:400px){
+  .code{font-size:10px}
 }
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.001ms!important;transition-duration:.001ms!important;animation-iteration-count:1!important}
