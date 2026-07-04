@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
 import { dialog } from "@/lib/dialog";
+import Select from "@/components/Select";
 import { BoardSkeleton } from "@/components/admin/Skeleton";
 
 type Col = { id: string; title: string };
@@ -416,13 +417,13 @@ export default function Kanban() {
 
             <div className="field row" style={{ gap: 12 }}>
               <div className="adm-field" style={{ flex: 1 }}><label>Priority</label>
-                <select value={editing.priority || "medium"} onChange={(e) => setEditing({ ...editing, priority: e.target.value })}>
-                  <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
-                </select></div>
+                <Select value={editing.priority || "medium"} onChange={(v) => setEditing({ ...editing, priority: v })}
+                  ariaLabel="Priority"
+                  options={[{ value: "low", label: "Low" }, { value: "medium", label: "Medium" }, { value: "high", label: "High" }]} /></div>
               <div className="adm-field" style={{ flex: 1 }}><label>Column</label>
-                <select value={editing.column} onChange={(e) => setEditing({ ...editing, column: e.target.value })}>
-                  {cols.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
-                </select></div>
+                <Select value={String(editing.column ?? "")} onChange={(v) => setEditing({ ...editing, column: v })}
+                  ariaLabel="Column"
+                  options={cols.map((c) => ({ value: String(c.id), label: c.title }))} /></div>
             </div>
 
             <div className="field row" style={{ gap: 12, alignItems: "flex-end" }}>
