@@ -42,8 +42,8 @@ export default function Footer() {
                 <h5>Company</h5>
                 <Link href="/about">About</Link>
                 <Link href="/contact">Contact</Link>
-                <Link href="/">Privacy Policy</Link>
-                <Link href="/">Terms &amp; Conditions</Link>
+                <Link href="/privacy">Privacy Policy</Link>
+                <Link href="/terms">Terms &amp; Conditions</Link>
               </div>
             </div>
             <div className="foot-news">

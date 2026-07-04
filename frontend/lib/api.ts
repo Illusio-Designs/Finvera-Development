@@ -3,7 +3,7 @@
    Fetches from the backend; on failure returns empty data
    (or minimal metadata defaults) so the build never breaks.
    ========================================================= */
-import type { Project, Service, Testimonial, TeamMember, BlogPost, Seo, Settings } from "./types";
+import type { Project, Service, Testimonial, TeamMember, BlogPost, Seo, Settings, Page } from "./types";
 
 const API = (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "https://api.finvera.solutions").replace(/\/$/, "");
 
@@ -65,6 +65,14 @@ export async function getPost(slug: string): Promise<BlogPost | undefined> {
     const res = await fetch(`${API}/api/blog/${slug}`, { next: { revalidate: REVALIDATE } });
     if (!res.ok) return undefined;
     return normPost((await res.json()) as BlogPost);
+  } catch { return undefined; }
+}
+
+export async function getPage(slug: string): Promise<Page | undefined> {
+  try {
+    const res = await fetch(`${API}/api/pages/${slug}`, { next: { revalidate: REVALIDATE } });
+    if (!res.ok) return undefined;
+    return (await res.json()) as Page;
   } catch { return undefined; }
 }
 

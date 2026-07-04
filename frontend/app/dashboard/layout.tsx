@@ -15,6 +15,7 @@ const NAV: [string, string, React.ReactNode][] = [
   ["/dashboard/testimonials", "Testimonials", <path key="a" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />],
   ["/dashboard/team", "Team", <><path key="a" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle key="b" cx="9" cy="7" r="4" /><path key="c" d="M23 21v-2a4 4 0 0 0-3-3.87" /></>],
   ["/dashboard/blog", "Blog", <><path key="a" d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path key="b" d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></>],
+  ["/dashboard/pages", "Pages", <><path key="a" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path key="b" d="M14 2v6h6M8 13h8M8 17h6" /></>],
   ["/dashboard/kanban", "Project board", <><rect key="a" x="3" y="3" width="18" height="18" rx="2" /><path key="b" d="M9 3v18M15 3v10" /></>],
   ["/dashboard/contact", "Contact inbox", <><rect key="a" x="2" y="4" width="20" height="16" rx="2" /><path key="b" d="M22 7l-10 6L2 7" /></>],
   ["/dashboard/users", "Users", <><path key="a" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle key="b" cx="9" cy="7" r="4" /><path key="c" d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>],
