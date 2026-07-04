@@ -1138,7 +1138,7 @@ section{position:relative;z-index:2}
 .xp-manifesto{padding:clamp(90px,16vh,180px) 0}
 .xp-manifesto p{font-family:var(--display);font-weight:600;letter-spacing:-.02em;line-height:1.3;
   font-size:clamp(22px,3.4vw,44px);max-width:900px}
-.xp-manifesto .w{opacity:.14;transition:opacity .2s;display:inline-block}
+.xp-manifesto .w{opacity:.14;transition:opacity .2s;display:inline-block;margin-right:.28em}
 /* Stats */
 .xp-stats{padding:0 0 clamp(60px,10vh,120px)}
 .xp-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(16px,3vw,40px);
@@ -1150,6 +1150,24 @@ section{position:relative;z-index:2}
 .xp-cta{padding:clamp(80px,14vh,160px) 0;text-align:center}
 .xp-cta h2{font-family:var(--display);font-weight:700;font-size:clamp(34px,5vw,66px);letter-spacing:-.03em;margin-bottom:30px;line-height:1.02}
 @media (max-width:700px){.xp-stat-grid{grid-template-columns:repeat(2,1fr)}.xp-panel{width:86vw}}
+/* Clickable brand panels + "visit" hint (embedded showcase) */
+.xp-panel.is-link{color:inherit;cursor:pointer}
+.xp-panel-go{display:inline-block;margin-top:16px;font-size:12.5px;font-weight:700;letter-spacing:.04em;
+  color:var(--c,#3e60ab);opacity:0;transform:translateX(-6px);transition:.3s var(--ease)}
+.xp-panel.is-link:hover .xp-panel-go{opacity:1;transform:translateX(0)}
+.xp-panel.is-link:hover h3{color:var(--c,#3e60ab)}
+.xp-panel h3{transition:color .3s var(--ease)}
+/* Embedded showcase (inside About) — touch / reduced-motion fallback = swipe strip */
+@media (hover:none),(pointer:coarse){
+  .xp-embed{height:auto;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory}
+  .xp-embed .xp-track{height:auto}
+  .xp-embed .xp-panel{height:auto;min-height:66vh;width:82vw;scroll-snap-align:center}
+}
+@media (prefers-reduced-motion:reduce){
+  .xp-embed{height:auto;overflow-x:auto;overflow-y:hidden}
+  .xp-embed .xp-track,.xp-embed .xp-panel{height:auto}
+  .xp-embed .xp-panel{min-height:60vh}
+}
 @media (max-width:900px){.brands{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:600px){.brands{grid-template-columns:1fr}}
 
