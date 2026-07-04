@@ -1,6 +1,6 @@
 import ResourceManager from "@/components/admin/ResourceManager";
 export default function AdminFeatures() {
-  return <ResourceManager resource="features" title="Solution features" subtitle="The feature list in the 'run your revenue' section on the home page."
+  return <ResourceManager resource="features" backHref="/dashboard/content" backLabel="Site content" title="Solution features" subtitle="The feature list in the 'run your revenue' section on the home page."
     columns={[{ name: "title", label: "Title" }, { name: "status", label: "Status", type: "status" }]}
     defaults={{ status: "published" }}
     fields={[

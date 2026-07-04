@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
 import RichText from "./RichText";
@@ -34,6 +35,8 @@ type Props = {
   fields: Field[];
   defaults?: Record<string, any>;
   calendlyUrl?: string;
+  backHref?: string;
+  backLabel?: string;
 };
 
 const emptyFrom = (fields: Field[], defaults?: Record<string, any>) => {
@@ -91,7 +94,7 @@ function PasswordInput({ id, value, placeholder, onChange }: { id: string; value
   );
 }
 
-export default function ResourceManager({ resource, title, subtitle, columns, fields, defaults, calendlyUrl }: Props) {
+export default function ResourceManager({ resource, title, subtitle, columns, fields, defaults, calendlyUrl, backHref, backLabel }: Props) {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -167,6 +170,12 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
 
   return (
     <>
+      {backHref && (
+        <Link href={backHref} className="adm-back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+          {backLabel || "Back"}
+        </Link>
+      )}
       <div className="adm-top">
         <div><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>

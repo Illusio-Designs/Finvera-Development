@@ -1,7 +1,7 @@
 import ResourceManager from "@/components/admin/ResourceManager";
 const ICONS = ["search", "paint", "code", "rocket", "cloud", "team", "target", "award"];
 export default function AdminProcess() {
-  return <ResourceManager resource="process-steps" title="Process steps" subtitle="The 'How we work' steps shown on Home and Services."
+  return <ResourceManager resource="process-steps" backHref="/dashboard/content" backLabel="Site content" title="Process steps" subtitle="The 'How we work' steps shown on Home and Services."
     columns={[{ name: "step", label: "#" }, { name: "title", label: "Title" }, { name: "status", label: "Status", type: "status" }]}
     defaults={{ status: "published", icon: "search" }}
     fields={[
