@@ -5,6 +5,7 @@ import ProjectCard from "@/components/ProjectCard";
 import ServiceGrid from "@/components/ServiceGrid";
 import ProcessSteps from "@/components/ProcessSteps";
 import Manifesto from "@/components/Manifesto";
+import LogoMark from "@/components/LogoMark";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AnalyticsUpIcon } from "@hugeicons/core-free-icons";
 import { getServices, getProjects, getTestimonials, getSeo, getFaqs, getLogos, getStats, getFeatures } from "@/lib/api";
@@ -54,9 +55,6 @@ const FB_FAQS = [
   { id: 4, question: "Can you take over an existing codebase?", answer: "Absolutely. We regularly audit, stabilize and scale existing products — starting with a technical review before any changes ship." },
 ];
 
-const Ic = ({ children }: { children: React.ReactNode }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>{children}</svg>
-);
 
 export default async function Home() {
   const [services, projects, testimonials, faqsRes, logosRes, statsRes, featuresRes] = await Promise.all([
@@ -132,10 +130,7 @@ export default async function Home() {
             <div className="marquee-track">
               {[...logos, ...logos].map((l, i) => (
                 <span className="logo-item" key={i}>
-                  {l.image
-                    // eslint-disable-next-line @next/next/no-img-element
-                    ? <img className="logo-img" src={l.image} alt={l.name} loading="lazy" />
-                    : <><Ic><rect x="3" y="3" width="18" height="18" rx="4" /></Ic>{l.name}</>}
+                  <LogoMark name={l.name} image={l.image} />
                 </span>
               ))}
             </div>
