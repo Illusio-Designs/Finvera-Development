@@ -1132,18 +1132,20 @@ section{position:relative;z-index:2}
 .swphone-caret{color:var(--muted-2);transition:transform .25s var(--ease)}
 .swphone.open .swphone-caret{transform:rotate(180deg)}
 .swphone-div{width:1px;height:22px;background:var(--line-2);margin:0 2px 0 6px;display:inline-block}
-.swphone-input{flex:1;min-width:0;height:100%;border:0;outline:none;background:transparent;color:var(--ink);
-  font-family:inherit;font-size:15px;letter-spacing:.04em;padding:0 10px}
+/* scoped to beat the generic `.field input` box styling (border/radius/bg) */
+.swphone .swphone-input{flex:1;min-width:0;height:100%;border:0;border-radius:0;outline:none;background:transparent;
+  color:var(--ink);box-shadow:none;font-family:inherit;font-size:15px;letter-spacing:.04em;padding:0 10px}
+.swphone .swphone-input:focus{border:0;box-shadow:none;background:transparent}
 .swphone-input::placeholder{color:var(--muted-2);letter-spacing:.02em}
-@media (max-width:640px){.swphone-input{font-size:16px}}
+@media (max-width:640px){.swphone .swphone-input{font-size:16px}}
 /* Country dropdown */
 .swphone-drop{position:absolute;left:0;top:calc(100% + 8px);z-index:40;width:min(340px,100%);
   background:#fff;border:1px solid var(--line-2);border-radius:14px;box-shadow:0 26px 60px -20px rgba(23,43,92,.4);
   overflow:hidden;animation:errIn .18s var(--ease)}
 .swphone-search{display:flex;align-items:center;gap:8px;padding:11px 13px;border-bottom:1px solid var(--line)}
 .swphone-search svg{color:var(--muted-2);flex:none}
-.swphone-search input{flex:1;min-width:0;border:0;outline:none;background:transparent;font-family:inherit;
-  font-size:14px;color:var(--ink)}
+.swphone-search input,.swphone-search input:focus{flex:1;min-width:0;border:0;border-radius:0;outline:none;
+  background:transparent;box-shadow:none;font-family:inherit;font-size:14px;color:var(--ink);padding:0}
 .swphone-list{list-style:none;margin:0;padding:6px;max-height:260px;overflow-y:auto;overscroll-behavior:contain}
 .swphone-opt{display:flex;align-items:center;gap:10px;width:100%;padding:9px 11px;border-radius:9px;
   background:transparent;cursor:pointer;text-align:left;transition:background .15s}
