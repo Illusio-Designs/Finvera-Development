@@ -1128,8 +1128,8 @@ section{position:relative;z-index:2}
 @keyframes xpScroll{0%{opacity:0;transform:translateY(-4px)}40%{opacity:1}100%{opacity:0;transform:translateY(10px)}}
 /* Horizontal scroll — native sticky + scroll-progress (locked to page scroll) */
 .xp-sticky-outer{position:relative}
-.xp-sticky{position:sticky;top:0;height:100vh;overflow:hidden;display:flex;align-items:center}
-.xp-track{display:flex;height:100vh;width:max-content;will-change:transform}
+.xp-sticky{position:sticky;top:0;height:100vh;overflow:hidden}
+.xp-track{display:flex;height:100vh;width:max-content;align-items:center;will-change:transform}
 .xp-panel{width:min(78vw,560px);height:100vh;flex:none;display:flex;align-items:center;justify-content:center;
   padding:0 clamp(24px,5vw,80px);position:relative}
 .xp-panel::after{content:"";position:absolute;right:0;top:22%;height:56%;width:1px;background:var(--line)}
