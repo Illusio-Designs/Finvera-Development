@@ -27,6 +27,15 @@ const codeHtml = `
 <span class="ln"><span class="f">crm</span>.<span class="f">deploy</span>();  <span class="c">// ship in minutes</span></span>`;
 
 const logos = ["Nexora", "Orbital", "Vaultly", "Prismix", "Loopwork", "Quanta"];
+const revBars = [
+  { d: "Mon", h: 0.48 }, { d: "Tue", h: 0.66 }, { d: "Wed", h: 0.4 }, { d: "Thu", h: 0.82 },
+  { d: "Fri", h: 0.58 }, { d: "Sat", h: 1 }, { d: "Sun", h: 0.72 },
+];
+const pipeline = [
+  { co: "Acme Corp", meta: "Enterprise • $48k", tag: "Won", cls: "win", in: "AC" },
+  { co: "Globex", meta: "Growth • $12k", tag: "Negotiation", cls: "neg", in: "GX" },
+  { co: "Nexora", meta: "Startup • $6k", tag: "Proposal", cls: "prop", in: "NX" },
+];
 const faqs = [
   ["How fast can you start on my project?", "Most engagements kick off within one week. After a short discovery call we assemble a squad and schedule your first sprint immediately."],
   ["Do you build both SaaS and CRM products?", "Yes — it's our core focus. We build multi-tenant SaaS platforms and fully custom CRM systems, including migrations from tools like Salesforce and HubSpot."],
@@ -147,15 +156,30 @@ export default async function Home() {
             <Link href="/solutions" className="btn btn-grad" data-cursor data-magnetic style={{ marginTop: 26 }}>Explore solutions <Arrow /></Link>
           </div>
           <div className="mock reveal d2">
-            <div className="mock-head"><b>Revenue overview</b><small>Last 30 days</small></div>
+            <div className="mock-head">
+              <div><b>Revenue overview</b><span className="mock-sub">Last 30 days</span></div>
+              <span className="mock-trend up">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l6-6 4 4 8-8" /><path d="M21 7v5h-5" /></svg>
+                18.2%
+              </span>
+            </div>
+            <div className="mock-kpi"><strong>$128,400</strong><span>closed · 42 deals</span></div>
             <div className="bars">
-              {[0.45, 0.62, 0.4, 0.8, 0.55, 0.95, 0.7, 1].map((h, i) => (
-                <span className="bar" key={i} style={{ ["--h" as string]: h } as React.CSSProperties} />
+              {revBars.map((b, i) => (
+                <span className="bar-col" key={b.d}>
+                  <span className="bar" style={{ ["--h" as string]: b.h, animationDelay: `${i * 70}ms` } as React.CSSProperties} />
+                  <span className="bar-x">{b.d}</span>
+                </span>
               ))}
             </div>
             <div className="crm-rows">
-              <div className="crm-row"><span className="av" /><span className="nm">Acme Corp<small>Enterprise • $48k</small></span><span className="tag">Won</span></div>
-              <div className="crm-row"><span className="av" /><span className="nm">Globex<small>Growth • $12k</small></span><span className="tag">Negotiation</span></div>
+              {pipeline.map((p) => (
+                <div className="crm-row" key={p.co}>
+                  <span className="av">{p.in}</span>
+                  <span className="nm">{p.co}<small>{p.meta}</small></span>
+                  <span className={"tag " + p.cls}>{p.tag}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
