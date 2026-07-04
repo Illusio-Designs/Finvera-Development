@@ -12,7 +12,7 @@ export type Field = {
   options?: string[];
   placeholder?: string;
 };
-export type Column = { name: string; label: string; type?: "image" | "avatar" | "status" | "tags" | "text" | "money" };
+export type Column = { name: string; label: string; type?: "image" | "avatar" | "status" | "tags" | "text" | "money" | "progress" };
 
 type Props = {
   resource: string;
@@ -212,6 +212,8 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                         (Array.isArray(row[c.name]) ? row[c.name] : []).slice(0, 3).join(", ")
                       ) : c.type === "money" ? (
                         Number(row[c.name]) ? `₹${Number(row[c.name]).toLocaleString("en-IN")}` : <span style={{ color: "var(--muted-2)" }}>—</span>
+                      ) : c.type === "progress" ? (
+                        <span className="adm-progress"><span className="adm-progress-track"><span className="adm-progress-fill" style={{ width: `${Math.max(0, Math.min(100, Number(row[c.name]) || 0))}%` }} /></span><b>{Math.max(0, Math.min(100, Number(row[c.name]) || 0))}%</b></span>
                       ) : (
                         String(row[c.name] ?? "").slice(0, 60)
                       )}

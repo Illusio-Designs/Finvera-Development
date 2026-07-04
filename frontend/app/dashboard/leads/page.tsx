@@ -9,19 +9,23 @@ export default function AdminLeads() {
       columns={[
         { name: "name", label: "Lead" },
         { name: "company", label: "Company" },
-        { name: "stage", label: "Stage", type: "status" },
-        { name: "value", label: "Value", type: "money" },
+        { name: "purpose", label: "Purpose" },
+        { name: "value", label: "Amount", type: "money" },
         { name: "owner", label: "Owner" },
+        { name: "progress", label: "Progress", type: "progress" },
+        { name: "stage", label: "Stage", type: "status" },
       ]}
-      defaults={{ stage: "new", priority: "medium", source: "Website", value: 0 }}
+      defaults={{ stage: "new", priority: "medium", source: "Website", value: 0, progress: 0 }}
       fields={[
         { name: "name", label: "Contact name", placeholder: "Full name" },
         { name: "company", label: "Company", type: "text" },
+        { name: "purpose", label: "Purpose", type: "text", placeholder: "e.g. CRM Build, SaaS Revamp" },
         { name: "email", label: "Email", type: "text", placeholder: "name@company.com" },
         { name: "phone", label: "Phone", type: "text" },
         { name: "source", label: "Source", type: "select", options: ["Website", "Referral", "LinkedIn", "Cold outreach", "Event", "Other"] },
         { name: "stage", label: "Stage", type: "select", options: ["new", "contacted", "qualified", "proposal", "won", "lost"] },
         { name: "value", label: "Estimated value (₹)", type: "number", placeholder: "e.g. 25000" },
+        { name: "progress", label: "Progress (%)", type: "number", placeholder: "0–100" },
         { name: "owner", label: "Owner (BD)", type: "text", placeholder: "Who owns this lead" },
         { name: "priority", label: "Priority", type: "select", options: ["low", "medium", "high"] },
         { name: "nextFollowUp", label: "Next follow-up", type: "date" },
