@@ -1,49 +1,42 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Arrow } from "@/components/icons";
-import { getTeam, getSeo } from "@/lib/api";
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  PaintBoardIcon, Calculator01Icon, Store01Icon, Megaphone01Icon, SourceCodeIcon,
-  Rocket01Icon, Target02Icon, Award01Icon, Agreement01Icon,
-} from "@hugeicons/core-free-icons";
+import ContentIcon from "@/components/contentIcon";
+import { getTeam, getSeo, getBrands, getMilestones, getValues } from "@/lib/api";
+import type { Brand, Milestone, ValueItem } from "@/lib/types";
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSeo("about");
   return { title: s.title, description: s.description, keywords: s.keywords };
 }
 
-const brands = [
-  { name: "Illusio Designs", cat: "Design & Marketing", icon: PaintBoardIcon,
-    d: "Our founding studio. Brand identity, web design and growth marketing — the craft that gives every product a sharp, memorable presence." },
-  { name: "Fintranzact", cat: "Accounting SaaS", icon: Calculator01Icon,
-    d: "Cloud accounting built for modern businesses — invoicing, reconciliation, tax-ready books and real-time financial clarity." },
-  { name: "Kartuq", cat: "Omni-Channel SaaS", icon: Store01Icon,
-    d: "One platform to run every sales channel — inventory, orders and fulfilment synced across marketplaces, retail and D2C." },
-  { name: "Collabhype", cat: "Influencer Collaboration", icon: Megaphone01Icon,
-    d: "Where brands and creators meet — discover, manage and measure influencer campaigns from first message to final report." },
-  { name: "Finvera", cat: "CRM & SaaS Development", icon: SourceCodeIcon,
-    d: "Our flagship — custom CRM systems and SaaS platforms engineered to help businesses grow, scale and innovate." },
+const FB_BRANDS: Brand[] = [
+  { id: 1, name: "Illusio Designs", category: "Design & Marketing", icon: "paint", description: "Our founding studio. Brand identity, web design and growth marketing — the craft that gives every product a sharp, memorable presence." },
+  { id: 2, name: "Fintranzact", category: "Accounting SaaS", icon: "calculator", description: "Cloud accounting built for modern businesses — invoicing, reconciliation, tax-ready books and real-time financial clarity." },
+  { id: 3, name: "Kartuq", category: "Omni-Channel SaaS", icon: "store", description: "One platform to run every sales channel — inventory, orders and fulfilment synced across marketplaces, retail and D2C." },
+  { id: 4, name: "Collabhype", category: "Influencer Collaboration", icon: "megaphone", description: "Where brands and creators meet — discover, manage and measure influencer campaigns from first message to final report." },
+  { id: 5, name: "Finvera", category: "CRM & SaaS Development", icon: "code", description: "Our flagship — custom CRM systems and SaaS platforms engineered to help businesses grow, scale and innovate." },
 ];
-
-const timeline = [
-  { y: "2017", t: "Illusio Designs is born", d: "We start as a small design & marketing studio, helping brands look sharper and sell better." },
-  { y: "2019", t: "Into web & product", d: "Client demand pulls us from brand design into websites, product UI and front-end engineering." },
-  { y: "2021", t: "Our first SaaS", d: "We ship our first SaaS products — for clients and for ourselves — and fall for building software." },
-  { y: "2023", t: "The brand family grows", d: "Fintranzact, Kartuq and Collabhype take shape — accounting, omni-channel retail and creator collaboration." },
-  { y: "2024", t: "Finvera Solutions LLP", d: "We formally incorporate. Finvera becomes our CRM & SaaS development flagship." },
-  { y: "Today", t: "A multi-product group", d: "Five brands, one team — building design, software and SaaS for businesses worldwide." },
+const FB_TIMELINE: Milestone[] = [
+  { id: 1, year: "2017", title: "Illusio Designs is born", description: "We start as a small design & marketing studio, helping brands look sharper and sell better." },
+  { id: 2, year: "2019", title: "Into web & product", description: "Client demand pulls us from brand design into websites, product UI and front-end engineering." },
+  { id: 3, year: "2021", title: "Our first SaaS", description: "We ship our first SaaS products — for clients and for ourselves — and fall for building software." },
+  { id: 4, year: "2023", title: "The brand family grows", description: "Fintranzact, Kartuq and Collabhype take shape — accounting, omni-channel retail and creator collaboration." },
+  { id: 5, year: "2024", title: "Finvera Solutions LLP", description: "We formally incorporate. Finvera becomes our CRM & SaaS development flagship." },
+  { id: 6, year: "Today", title: "A multi-product group", description: "Five brands, one team — building design, software and SaaS for businesses worldwide." },
 ];
-
-const values = [
-  { t: "Ship fast", d: "Momentum compounds. We deliver working software every single week.", icon: Rocket01Icon },
-  { t: "Own the outcome", d: "We measure success by your metrics, not billed hours.", icon: Target02Icon },
-  { t: "Craft matters", d: "Details are the product. We sweat the pixels and the milliseconds.", icon: Award01Icon },
-  { t: "Partner, not vendor", d: "We work as an extension of your team — transparent and hands-on.", icon: Agreement01Icon },
+const FB_VALUES: ValueItem[] = [
+  { id: 1, title: "Ship fast", description: "Momentum compounds. We deliver working software every single week.", icon: "rocket" },
+  { id: 2, title: "Own the outcome", description: "We measure success by your metrics, not billed hours.", icon: "target" },
+  { id: 3, title: "Craft matters", description: "Details are the product. We sweat the pixels and the milliseconds.", icon: "award" },
+  { id: 4, title: "Partner, not vendor", description: "We work as an extension of your team — transparent and hands-on.", icon: "agreement" },
 ];
 
 export default async function About() {
-  const team = await getTeam();
+  const [team, brandsRes, timelineRes, valuesRes] = await Promise.all([getTeam(), getBrands(), getMilestones(), getValues()]);
+  const brands = brandsRes.length ? brandsRes : FB_BRANDS;
+  const timeline = timelineRes.length ? timelineRes : FB_TIMELINE;
+  const values = valuesRes.length ? valuesRes : FB_VALUES;
   return (
     <>
       <section className="page-hero">
@@ -85,11 +78,11 @@ export default async function About() {
           </div>
           <div className="brands">
             {brands.map((b, i) => (
-              <div className={"brand-card reveal" + (i % 3 ? " d" + (i % 3) : "")} key={b.name} data-cursor>
-                <span className="brand-ic"><HugeiconsIcon icon={b.icon} size={24} strokeWidth={1.8} className="hgi" /></span>
-                <div className="brand-cat">{b.cat}</div>
+              <div className={"brand-card reveal" + (i % 3 ? " d" + (i % 3) : "")} key={b.id} data-cursor>
+                <span className="brand-ic"><ContentIcon name={b.icon} size={24} /></span>
+                <div className="brand-cat">{b.category}</div>
                 <h3>{b.name}</h3>
-                <p>{b.d}</p>
+                <p>{b.description}</p>
               </div>
             ))}
           </div>
@@ -105,12 +98,12 @@ export default async function About() {
           </div>
           <div className="timeline">
             {timeline.map((s, i) => (
-              <div className={"tl-item reveal" + (i ? " d" + (i % 3) : "")} key={s.y}>
+              <div className={"tl-item reveal" + (i ? " d" + (i % 3) : "")} key={s.id}>
                 <div className="tl-marker"><span className="tl-dot" /></div>
                 <div className="tl-body">
-                  <span className="tl-year">{s.y}</span>
-                  <h4>{s.t}</h4>
-                  <p>{s.d}</p>
+                  <span className="tl-year">{s.year}</span>
+                  <h4>{s.title}</h4>
+                  <p>{s.description}</p>
                 </div>
               </div>
             ))}
@@ -127,9 +120,9 @@ export default async function About() {
           </div>
           <div className="grid-4">
             {values.map((v, i) => (
-              <div className={"card value reveal" + (i ? " d" + i : "")} data-cursor key={v.t}>
-                <div className="vic"><HugeiconsIcon icon={v.icon} size={22} strokeWidth={1.8} className="hgi" /></div>
-                <h4>{v.t}</h4><p>{v.d}</p>
+              <div className={"card value reveal" + (i ? " d" + i : "")} data-cursor key={v.id}>
+                <div className="vic"><ContentIcon name={v.icon} size={22} /></div>
+                <h4>{v.title}</h4><p>{v.description}</p>
               </div>
             ))}
           </div>

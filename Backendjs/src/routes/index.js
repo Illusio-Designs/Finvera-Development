@@ -1,7 +1,8 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
 
-const { Project, Service, Testimonial, TeamMember, BlogPost, Task, Board, Page, Lead } = require("../models");
+const { Project, Service, Testimonial, TeamMember, BlogPost, Task, Board, Page, Lead,
+  Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature } = require("../models");
 const { crudController } = require("../utils/crud");
 const { requireAuth, requireRole, optionalAuth } = require("../middleware/auth");
 const { upload } = require("../middleware/upload");
@@ -42,6 +43,17 @@ resource("/testimonials", Testimonial, { hasStatus: true, searchable: ["name", "
 resource("/team", TeamMember, { hasStatus: true, searchable: ["name", "role"] });
 resource("/blog", BlogPost, { slugFrom: "title", hasStatus: true, order: [["publishedAt", "DESC"], ["createdAt", "DESC"]], searchable: ["title", "excerpt", "category"] });
 resource("/pages", Page, { slugFrom: "title", hasStatus: true, order: [["title", "ASC"]], searchable: ["title", "slug"] });
+
+/* ── Editable content collections (public read, auth write) ─ */
+const CONTENT_ORDER = [["position", "ASC"], ["createdAt", "ASC"]];
+resource("/faqs", Faq, { hasStatus: true, order: CONTENT_ORDER, searchable: ["question", "answer"] });
+resource("/values", Value, { hasStatus: true, order: CONTENT_ORDER, searchable: ["title", "description"] });
+resource("/brands", Brand, { hasStatus: true, order: CONTENT_ORDER, searchable: ["name", "category"] });
+resource("/milestones", Milestone, { hasStatus: true, order: CONTENT_ORDER, searchable: ["year", "title"] });
+resource("/process-steps", ProcessStep, { hasStatus: true, order: CONTENT_ORDER, searchable: ["title"] });
+resource("/stats", Stat, { hasStatus: true, order: CONTENT_ORDER, searchable: ["label"] });
+resource("/logos", Logo, { hasStatus: true, order: CONTENT_ORDER, searchable: ["name"] });
+resource("/features", Feature, { hasStatus: true, order: CONTENT_ORDER, searchable: ["title"] });
 
 /* ── Kanban boards (all endpoints require auth) ──────── */
 const boardCtrl = crudController(Board, { order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["name"] });

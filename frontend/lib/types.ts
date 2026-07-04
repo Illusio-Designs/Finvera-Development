@@ -23,3 +23,13 @@ export type BlogPost = {
 export type Page = { id: number; slug: string; title: string; content: string; status: string; updatedAt?: string };
 export type Seo = { page: string; title: string; description: string; keywords?: string; ogImage?: string; noindex?: boolean };
 export type Settings = Record<string, string>;
+
+/* Editable content collections (CMS) */
+export type Faq = { id: number; question: string; answer: string; position?: number; status?: string };
+export type ValueItem = { id: number; title: string; description: string; icon: string; position?: number; status?: string };
+export type Brand = { id: number; name: string; category: string; description: string; icon: string; position?: number; status?: string };
+export type Milestone = { id: number; year: string; title: string; description: string; position?: number; status?: string };
+export type ProcessStep = { id: number; step: string; title: string; description: string; icon: string; position?: number; status?: string };
+export type Stat = { id: number; value: string; label: string; position?: number; status?: string };
+export type Logo = { id: number; name: string; position?: number; status?: string };
+export type Feature = { id: number; title: string; description: string; position?: number; status?: string };

@@ -3,7 +3,8 @@
    Fetches from the backend; on failure returns empty data
    (or minimal metadata defaults) so the build never breaks.
    ========================================================= */
-import type { Project, Service, Testimonial, TeamMember, BlogPost, Seo, Settings, Page } from "./types";
+import type { Project, Service, Testimonial, TeamMember, BlogPost, Seo, Settings, Page,
+  Faq, ValueItem, Brand, Milestone, ProcessStep, Stat, Logo, Feature } from "./types";
 
 const API = (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "https://api.finvera.solutions").replace(/\/$/, "");
 
@@ -84,6 +85,16 @@ const DEFAULT_SEO: Seo = {
 
 export const getSeo = (page: string) => apiGet<Seo>(`/seo/${page}`, { ...DEFAULT_SEO, page });
 export const getSettings = () => apiGet<Settings>("/settings", {});
+
+/* Editable content collections */
+export const getFaqs = () => apiGet<Faq[]>("/faqs", []);
+export const getValues = () => apiGet<ValueItem[]>("/values", []);
+export const getBrands = () => apiGet<Brand[]>("/brands", []);
+export const getMilestones = () => apiGet<Milestone[]>("/milestones", []);
+export const getProcessSteps = () => apiGet<ProcessStep[]>("/process-steps", []);
+export const getStats = () => apiGet<Stat[]>("/stats", []);
+export const getLogos = () => apiGet<Logo[]>("/logos", []);
+export const getFeatures = () => apiGet<Feature[]>("/features", []);
 
 export const apiBase = API;
 export const contactEndpoint = `${API}/api/contact`;
