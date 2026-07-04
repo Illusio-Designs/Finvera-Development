@@ -115,16 +115,22 @@ export default function Chrome() {
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const cleanups: (() => void)[] = [];
 
-    /* Scroll reveal — GSAP premium: grouped stagger + gentle parallax */
+    /* Scroll reveal — GSAP premium: re-triggers on every scroll (down & up) */
     if (reduce) {
       $$(".reveal, [data-split], .mock").forEach((el) => el.classList.add("in"));
     } else {
-      const triggers = ScrollTrigger.batch(".reveal, [data-split], .mock", {
-        start: "top 88%",
-        once: true,
-        onEnter: (els) => (els as HTMLElement[]).forEach((el, i) => { const d = setTimeout(() => el.classList.add("in"), i * 80); cleanups.push(() => clearTimeout(d)); }),
+      $$(".reveal, [data-split], .mock").forEach((el) => {
+        const st = ScrollTrigger.create({
+          trigger: el,
+          start: "top 90%",
+          end: "bottom 8%",
+          onEnter: () => el.classList.add("in"),
+          onEnterBack: () => el.classList.add("in"),
+          onLeave: () => el.classList.remove("in"),
+          onLeaveBack: () => el.classList.remove("in"),
+        });
+        cleanups.push(() => st.kill());
       });
-      cleanups.push(() => triggers.forEach((t) => t.kill()));
 
       /* Parallax accents — depth on decorative media */
       $$("[data-parallax], .about-media, .hero-card, .code-window").forEach((el) => {

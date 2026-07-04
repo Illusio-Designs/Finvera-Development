@@ -3,12 +3,13 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
 import RichText from "./RichText";
+import CalendlyButton from "./CalendlyButton";
 import { TableSkeleton } from "./Skeleton";
 
 export type Field = {
   name: string;
   label: string;
-  type?: "text" | "password" | "textarea" | "number" | "select" | "boolean" | "tags" | "image" | "avatar" | "date" | "richtext";
+  type?: "text" | "password" | "textarea" | "number" | "select" | "boolean" | "tags" | "image" | "avatar" | "date" | "richtext" | "calendly";
   options?: string[];
   placeholder?: string;
 };
@@ -21,6 +22,7 @@ type Props = {
   columns: Column[];
   fields: Field[];
   defaults?: Record<string, any>;
+  calendlyUrl?: string;
 };
 
 const emptyFrom = (fields: Field[], defaults?: Record<string, any>) => {
@@ -78,7 +80,7 @@ function PasswordInput({ id, value, placeholder, onChange }: { id: string; value
   );
 }
 
-export default function ResourceManager({ resource, title, subtitle, columns, fields, defaults }: Props) {
+export default function ResourceManager({ resource, title, subtitle, columns, fields, defaults, calendlyUrl }: Props) {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -279,6 +281,8 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                   <ImageInput round value={editing[f.name] ?? ""} onChange={(v) => setField(f.name, v)} />
                 ) : f.type === "password" ? (
                   <PasswordInput id={f.name} value={editing[f.name] ?? ""} placeholder={f.placeholder} onChange={(v) => setField(f.name, v)} />
+                ) : f.type === "calendly" ? (
+                  <CalendlyButton url={calendlyUrl} name={editing.name} email={editing.email} />
                 ) : (
                   <input id={f.name} type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
                     value={f.type === "date" ? String(editing[f.name] ?? "").slice(0, 10) : (editing[f.name] ?? "")} placeholder={f.placeholder}

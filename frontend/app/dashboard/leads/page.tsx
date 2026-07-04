@@ -15,8 +15,10 @@ export default function AdminLeads() {
         { name: "progress", label: "Progress", type: "progress" },
         { name: "stage", label: "Stage", type: "status" },
       ]}
+      calendlyUrl={process.env.NEXT_PUBLIC_CALENDLY_URL}
       defaults={{ stage: "new", priority: "medium", source: "Website", value: 0, progress: 0 }}
       fields={[
+        { name: "_meeting", label: "Meeting", type: "calendly" },
         { name: "name", label: "Contact name", placeholder: "Full name" },
         { name: "company", label: "Company", type: "text" },
         { name: "purpose", label: "Purpose", type: "text", placeholder: "e.g. CRM Build, SaaS Revamp" },
