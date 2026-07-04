@@ -4,7 +4,7 @@ import { API_BASE } from "@/lib/adminApi";
 
 type S = "checking" | "online" | "offline";
 
-export default function BackendStatus({ variant = "pill" }: { variant?: "pill" | "card" }) {
+export default function BackendStatus({ variant = "pill" }: { variant?: "pill" | "card" | "dot" }) {
   const [state, setState] = useState<S>("checking");
   const [info, setInfo] = useState<{ db?: string; uptime?: number; env?: string } | null>(null);
 
@@ -45,6 +45,15 @@ export default function BackendStatus({ variant = "pill" }: { variant?: "pill" |
           <a href={`${API_BASE}/api/health`} target="_blank" rel="noreferrer" className="adm-btn ghost" style={{ flex: "none" }}>Check</a>
         )}
       </div>
+    );
+  }
+
+  if (variant === "dot") {
+    return (
+      <span className="adm-status-dot" title={`${label}${info?.db ? ` · db ${info.db}` : ""} · ${host}`}>
+        <span className={"adm-statusdot" + (state === "online" ? " live" : "")} style={{ background: color }} />
+        <span className="adm-status-txt">{label}</span>
+      </span>
     );
   }
 

@@ -3,8 +3,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Mark } from "@/components/icons";
-import { getToken, clearToken } from "@/lib/adminApi";
+import { getToken, clearToken, api } from "@/lib/adminApi";
 import BackendStatus from "@/components/admin/BackendStatus";
+import UserMenu, { type Me } from "@/components/admin/UserMenu";
 import Toaster from "@/components/admin/Toaster";
 import DialogHost from "@/components/admin/DialogHost";
 
@@ -31,8 +32,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [collapsed, setCollapsed] = useState(false);
 
   const [today, setToday] = useState("");
+  const [me, setMe] = useState<Me>(null);
   useEffect(() => { setCollapsed(localStorage.getItem("fv_admin_collapsed") === "1"); }, []);
   useEffect(() => { setToday(new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })); }, []);
+  useEffect(() => { if (getToken()) api.me().then(setMe).catch(() => {}); }, []);
   const toggleCollapsed = () => setCollapsed((c) => { localStorage.setItem("fv_admin_collapsed", c ? "0" : "1"); return !c; });
 
   const pageTitle = [...NAV]
@@ -69,15 +72,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           );
         })}
         <div className="spacer" />
-        <BackendStatus />
-        <Link href="/" className="adm-logout" style={{ marginBottom: 8 }} data-tip="View site" data-tip-pos="right">
-          <svg viewBox="0 0 24 24" width={16} fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 3h6v6M10 14L21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg>
-          <span className="adm-lbl">View site</span>
-        </Link>
-        <button className="adm-logout" onClick={logout} data-tip="Sign out" data-tip-pos="right">
-          <svg viewBox="0 0 24 24" width={16} fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>
-          <span className="adm-lbl">Sign out</span>
-        </button>
       </aside>
 
       {open && <div className="adm-scrim" onClick={() => setOpen(false)} />}
@@ -87,6 +81,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <svg viewBox="0 0 24 24" width={18} fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 12h18M3 6h18M3 18h18" /></svg>
           </button>
           <Link href="/dashboard" className="brand" style={{ fontSize: 16 }}><Mark /> Finvera</Link>
+          <div className="adm-mobbar-right"><UserMenu me={me} onLogout={logout} /></div>
         </div>
 
         <header className="adm-header">
@@ -96,10 +91,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
           <div className="ah-right">
             {today && <span className="ah-date">{today}</span>}
-            <Link href="/" target="_blank" className="ah-site">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 3h6v6M10 14L21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg>
-              View site
-            </Link>
+            <BackendStatus variant="dot" />
+            <UserMenu me={me} onLogout={logout} />
           </div>
         </header>
 
@@ -110,7 +103,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="af-links">
             <Link href="/privacy" target="_blank">Privacy</Link>
             <Link href="/terms" target="_blank">Terms</Link>
-            <Link href="/" target="_blank">Website</Link>
           </div>
         </footer>
       </div>

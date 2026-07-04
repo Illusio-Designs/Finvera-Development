@@ -972,9 +972,53 @@ section{position:relative;z-index:2}
   margin-top:36px;padding:20px clamp(18px,3vw,40px);border-top:1px solid var(--line);color:var(--muted-2);font-size:12.5px}
 .adm-footer a{color:var(--muted);font-weight:500}.adm-footer a:hover{color:var(--blue-600)}
 .adm-footer .af-links{display:flex;gap:16px;flex-wrap:wrap}
-/* Content wrapper so header/footer span full width but content keeps padding */
-.adm-content{padding:26px clamp(18px,3vw,40px)}
-.adm-main.has-chrome{padding:0}
+/* Content wrapper so header/footer span full width but content keeps padding.
+   Flex column + min-height keeps the footer pinned to the bottom on short pages. */
+.adm-main.has-chrome{padding:0;min-height:100vh;display:flex;flex-direction:column}
+.adm-content{padding:26px clamp(18px,3vw,40px);flex:1 0 auto}
+.adm-footer{flex:none}
+
+/* Backend status — header dot variant */
+.adm-status-dot{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--muted);
+  padding:7px 12px;border:1px solid var(--line-2);border-radius:999px;background:#fff}
+.adm-status-dot .adm-statusdot{width:8px;height:8px;border-radius:50%;flex:none}
+@media (max-width:1040px){.adm-header .ah-date,.adm-status-dot .adm-status-txt{display:none}}
+@media (max-width:1040px){.adm-status-dot{padding:8px}}
+
+/* Account menu (avatar + dropdown) */
+.adm-usermenu{position:relative}
+.adm-usermenu-btn{display:inline-flex;align-items:center;gap:9px;padding:5px 10px 5px 5px;border-radius:999px;
+  border:1px solid var(--line-2);background:#fff;color:var(--ink);transition:.2s;cursor:pointer}
+.adm-usermenu-btn:hover{border-color:var(--blue-500);box-shadow:0 6px 16px -10px rgba(62,96,171,.6)}
+.adm-usermenu-btn .um-name{font-size:13px;font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adm-usermenu-btn .um-caret{width:15px;height:15px;color:var(--muted-2);transition:transform .2s}
+.adm-usermenu-btn .um-caret.up{transform:rotate(180deg)}
+.adm-usermenu-pop{position:absolute;top:calc(100% + 10px);right:0;width:250px;background:#fff;border:1px solid var(--line-2);
+  border-radius:14px;box-shadow:0 20px 44px -18px rgba(16,30,60,.5);padding:8px;z-index:60;animation:umPop .18s var(--ease)}
+@keyframes umPop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.adm-usermenu-pop .um-head{display:flex;align-items:center;gap:11px;padding:10px 10px 12px}
+.adm-usermenu-pop .um-id{min-width:0}
+.adm-usermenu-pop .um-id b{font-size:14px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adm-usermenu-pop .um-id small{font-size:12px;color:var(--muted-2);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adm-usermenu-pop .um-meta{display:flex;gap:8px;padding:0 10px 10px;flex-wrap:wrap}
+.adm-usermenu-pop .um-meta span{font-size:11.5px;color:var(--muted);background:var(--bg-2,#eef1f7);padding:3px 9px;border-radius:999px}
+.adm-usermenu-pop .um-meta .um-role{background:rgba(62,96,171,.12);color:var(--blue-700);text-transform:capitalize;font-weight:600}
+.adm-usermenu-pop .um-item{display:flex;align-items:center;gap:10px;width:100%;padding:10px 11px;border-radius:9px;
+  font-size:13.5px;font-weight:500;color:var(--ink);background:transparent;border-top:1px solid var(--line);transition:.15s;cursor:pointer}
+.adm-usermenu-pop .um-item svg{width:16px;height:16px}
+.adm-usermenu-pop .um-item:hover{background:rgba(16,30,60,.04)}
+.adm-usermenu-pop .um-item.danger{color:#dc2626}
+.adm-usermenu-pop .um-item.danger:hover{background:rgba(220,38,38,.08)}
+.adm-mobbar-right{margin-left:auto}
+
+/* Round avatar in tables (users) */
+.adm-avatar-cell{width:40px;height:40px;border-radius:50%;object-fit:cover;object-position:center;flex:none;
+  border:1px solid var(--line-2);box-shadow:0 0 0 2px #fff,0 4px 10px -6px rgba(16,30,60,.4)}
+.adm-avatar-fb{display:inline-grid;place-items:center;background:var(--grad);color:#fff;font-weight:700;font-size:15px}
+
+/* Circular uploader (avatars) */
+.adm-uploader.round img,.adm-uploader.round .up-empty{width:76px;height:76px;border-radius:50%}
+.adm-uploader.round .up-empty{border-style:dashed}
 
 /* Avatars — perfectly round, centred faces */
 .adm-avatar,.kb-av{object-fit:cover;object-position:center}
