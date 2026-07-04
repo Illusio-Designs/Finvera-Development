@@ -180,13 +180,13 @@ export default function Chrome() {
         el.innerHTML = "";
         el.appendChild(frag);
         el.dataset.wsplit = "1";
-        $$(".hw", el).forEach((w, i) => (w.style.transitionDelay = i * 0.055 + "s"));
-        const st = ScrollTrigger.create({
-          trigger: el, start: "top 88%", end: "bottom 12%",
-          onEnter: () => el.classList.add("in-h"), onEnterBack: () => el.classList.add("in-h"),
-          onLeave: () => el.classList.remove("in-h"), onLeaveBack: () => el.classList.remove("in-h"),
+        const words = $$(".hw", el);
+        // Manifesto-style: words light up (opacity .14 → 1) word-by-word, scrubbed to scroll
+        const tw = gsap.fromTo(words, { opacity: 0.14 }, {
+          opacity: 1, ease: "none", stagger: 0.4,
+          scrollTrigger: { trigger: el, start: "top 85%", end: "bottom 55%", scrub: true },
         });
-        cleanups.push(() => st.kill());
+        cleanups.push(() => { tw.scrollTrigger?.kill(); tw.kill(); });
       });
     }
 

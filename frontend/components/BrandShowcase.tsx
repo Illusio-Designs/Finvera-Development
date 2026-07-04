@@ -24,18 +24,12 @@ export default function BrandShowcase({ brands }: { brands: Brand[] }) {
       const track = q(".xp-track")[0] as HTMLElement;
       if (!track) return;
       const dist = () => Math.max(0, track.scrollWidth - window.innerWidth);
-      const horiz = gsap.to(track, {
+      gsap.to(track, {
         x: () => -dist(), ease: "none",
         scrollTrigger: {
           trigger: ".xp-pin", start: "top top", end: () => "+=" + dist(),
-          pin: true, scrub: 1, anticipatePin: 1, invalidateOnRefresh: true,
+          pin: true, scrub: true, anticipatePin: 1, invalidateOnRefresh: true,
         },
-      });
-      q(".xp-panel").forEach((p: Element) => {
-        gsap.from((p as HTMLElement).querySelectorAll(".xp-panel-in > *"), {
-          y: 44, opacity: 0, duration: 0.7, ease: "power3.out", stagger: 0.08,
-          scrollTrigger: { trigger: p as HTMLElement, containerAnimation: horiz, start: "left 80%" },
-        });
       });
     }, root);
     // Refresh after fonts/layout settle so the pin starts at the first panel (not partway)

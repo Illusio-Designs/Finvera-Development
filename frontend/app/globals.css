@@ -794,11 +794,10 @@ section{position:relative;z-index:2}
 .reveal-x.d1{transition-delay:.07s}.reveal-x.d2{transition-delay:.14s}.reveal-x.d3{transition-delay:.21s}
 .reveal-x.d4{transition-delay:.28s}.reveal-x.d5{transition-delay:.35s}.reveal-x.d6{transition-delay:.42s}
 
-/* Manifesto-style word-by-word reveal for section/page headings */
+/* Manifesto-style word-by-word reveal for section/page headings
+   (words start faded and light up as the heading scrolls through — GSAP scrubs opacity) */
 .section-head h2[data-wsplit],.page-hero h1[data-wsplit]{opacity:1}
-.section-head h2 .hw,.page-hero h1 .hw{display:inline-block;opacity:0;transform:translateY(16px);
-  transition:opacity .55s var(--ease),transform .55s var(--ease)}
-.section-head h2.in-h .hw,.page-hero h1.in-h .hw{opacity:1;transform:none}
+.section-head h2 .hw,.page-hero h1 .hw{display:inline-block;opacity:.14}
 /* keep gradient words gradient once split into per-word spans */
 .grad-word .hw,.grad-word.hw{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
 
