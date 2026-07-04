@@ -7,6 +7,7 @@ export default function AdminBrands() {
     fields={[
       { name: "name", label: "Name" },
       { name: "category", label: "Category", placeholder: "e.g. Accounting SaaS" },
+      { name: "url", label: "Website URL", type: "text", placeholder: "https://brand.com — card links here" },
       { name: "description", label: "Description", type: "textarea" },
       { name: "icon", label: "Icon", type: "select", options: ICONS },
       { name: "position", label: "Order", type: "number" },

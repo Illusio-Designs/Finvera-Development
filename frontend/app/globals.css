@@ -1091,8 +1091,12 @@ section{position:relative;z-index:2}
   margin-bottom:16px;transition:.3s}
 .brand-card:hover .brand-ic{background:var(--grad);color:#fff;box-shadow:0 14px 30px -12px rgba(62,96,171,.8)}
 .brand-cat{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--blue-500)}
-.brand-card h3{font-size:19px;margin:6px 0 9px;letter-spacing:-.01em}
+.brand-card h3{display:flex;align-items:center;gap:7px;font-size:19px;margin:6px 0 9px;letter-spacing:-.01em}
 .brand-card p{color:var(--muted);font-size:13.5px;line-height:1.65}
+.brand-card.is-link{display:block;color:inherit}
+.brand-go{display:inline-grid;place-items:center;opacity:0;transform:translateX(-4px);color:var(--blue-600);transition:.3s var(--ease)}
+.brand-go svg{width:15px;height:15px}
+.brand-card.is-link:hover .brand-go{opacity:1;transform:translateX(0)}
 @media (max-width:900px){.brands{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:600px){.brands{grid-template-columns:1fr}}
 
