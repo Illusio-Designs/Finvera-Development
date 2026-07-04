@@ -15,11 +15,13 @@ const RESOURCES: [string, string, string][] = [
 ];
 
 type Msg = { id: number; name: string; email: string; projectType?: string; createdAt: string; isRead: boolean };
+type Lead = { id: number; stage: string; value?: number };
+const OPEN_STAGES = ["new", "contacted", "qualified", "proposal"];
 
-/* Shimmer placeholder for a loading stat value */
 export default function Dashboard() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -28,9 +30,19 @@ export default function Dashboard() {
       await Promise.all(RESOURCES.map(async ([r]) => { try { c[r] = (await api.list(r)).length; } catch { c[r] = 0; } }));
       setCounts(c);
       try { setMsgs(await api.listContact()); } catch { /* */ }
+      try { setLeads(await api.list("leads")); } catch { /* */ }
       setReady(true);
     })();
   }, []);
+
+  // Lead KPIs
+  const openPipeline = leads.filter((l) => OPEN_STAGES.includes(l.stage)).reduce((s, l) => s + (Number(l.value) || 0), 0);
+  const wonCount = leads.filter((l) => l.stage === "won").length;
+  const lostCount = leads.filter((l) => l.stage === "lost").length;
+  const decided = wonCount + lostCount;
+  const winRate = decided ? Math.round((wonCount / decided) * 100) : 0;
+  const stageCount = (st: string) => leads.filter((l) => l.stage === st).length;
+  const inr = (n: number) => (n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : `₹${n.toLocaleString("en-IN")}`);
 
   const inbox = msgs.filter((m) => !m.isRead).length;
   const totalContent = RESOURCES.reduce((s, [r]) => s + (counts[r] || 0), 0);
@@ -111,6 +123,26 @@ export default function Dashboard() {
         </div>
       </div>
       </>
+      )}
+
+      {ready && leads.length > 0 && (
+        <div className="adm-panel" style={{ padding: 22, marginBottom: 18 }}>
+          <div className="dash-panel-head" style={{ marginBottom: 16 }}>
+            <h3>Leads pipeline</h3>
+            <Link href="/dashboard/leads" className="dash-chip soft">Open leads →</Link>
+          </div>
+          <div className="lead-kpis">
+            <div className="lead-kpi"><span className="lk-label">Open pipeline</span><b className="lk-val">{inr(openPipeline)}</b><span className="lk-sub">{leads.filter((l) => OPEN_STAGES.includes(l.stage)).length} active leads</span></div>
+            <div className="lead-kpi"><span className="lk-label">Won</span><b className="lk-val">{wonCount}</b><span className="lk-sub">{inr(leads.filter((l) => l.stage === "won").reduce((s, l) => s + (Number(l.value) || 0), 0))} closed</span></div>
+            <div className="lead-kpi"><span className="lk-label">Win rate</span><b className="lk-val">{winRate}%</b><span className="lk-sub">{wonCount} won · {lostCount} lost</span></div>
+            <div className="lead-kpi"><span className="lk-label">Total leads</span><b className="lk-val">{leads.length}</b><span className="lk-sub">across all stages</span></div>
+          </div>
+          <div className="lead-stagebar">
+            {["new", "contacted", "qualified", "proposal", "won", "lost"].map((st) => (
+              <span key={st} className={"adm-badge " + st}>{st} {stageCount(st)}</span>
+            ))}
+          </div>
+        </div>
       )}
 
       <div className="adm-panel" style={{ padding: 22 }}>
