@@ -1067,6 +1067,12 @@ section{position:relative;z-index:2}
 .tl-body p{color:var(--muted);font-size:13.5px;line-height:1.65}
 .value .vic .hgi{width:22px;height:22px}
 
+/* Progress column (leads) */
+.adm-progress{display:inline-flex;align-items:center;gap:9px;min-width:120px}
+.adm-progress-track{flex:1;height:7px;border-radius:999px;background:var(--bg-2);overflow:hidden;min-width:64px}
+.adm-progress-fill{display:block;height:100%;border-radius:999px;background:var(--grad)}
+.adm-progress b{font-size:12px;color:var(--muted);font-weight:600;min-width:34px;text-align:right}
+
 /* Site-content hub */
 .content-hub{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
 .content-hub-card{display:flex;flex-direction:column;gap:5px;padding:20px;border:1px solid var(--line);border-radius:16px;
