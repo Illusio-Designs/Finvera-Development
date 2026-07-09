@@ -1564,6 +1564,10 @@ section{position:relative;z-index:2}
     margin:-26px calc(-1 * clamp(18px,3vw,40px)) 18px}
   .adm-mobbar .brand{color:var(--ink);margin-left:2px}
   .adm-mobbar-right{margin-left:auto;display:flex;align-items:center}
+  /* Compact account on mobile — just the avatar circle (name + caret hidden) */
+  .adm-mobbar .adm-usermenu-btn{gap:0;padding:0;border-color:transparent;background:transparent;box-shadow:none}
+  .adm-mobbar .adm-usermenu-btn:hover{box-shadow:none;border-color:transparent}
+  .adm-mobbar .um-name,.adm-mobbar .um-caret{display:none}
   .adm-scrim{display:block;position:fixed;inset:0;background:rgba(3,5,10,.45);z-index:45}
 }
 .adm-scrim{display:none}
