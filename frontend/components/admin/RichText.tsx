@@ -16,16 +16,44 @@ const BLOCKS: [string, string][] = [
   ["blockquote", "❝"],
 ];
 
+/* Decode entity-escaped markup that got stored as plain text
+   (e.g. "&lt;p&gt;Hi&lt;/p&gt;" -> "<p>Hi</p>"). */
+function decodeEntities(s: string) {
+  const ta = document.createElement("textarea");
+  ta.innerHTML = s;
+  return ta.value;
+}
+const hasRealTags = (s: string) => /<\/?(p|h[1-6]|ul|ol|li|blockquote|strong|em|b|i|a|br)\b/i.test(s);
+const looksEscaped = (s: string) => /&lt;\/?(p|h[1-6]|ul|ol|li|blockquote|strong|em|b|i|a|br)\b/i.test(s);
+
 export default function RichText({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (ref.current && ref.current.innerHTML !== (value || "")) ref.current.innerHTML = value || "";
+    // Self-heal content that was pasted as raw HTML source and got escaped.
+    let v = value || "";
+    if (looksEscaped(v) && !hasRealTags(v)) {
+      v = decodeEntities(v);
+      onChange(v);
+    }
+    if (ref.current && ref.current.innerHTML !== v) ref.current.innerHTML = v;
     // run once on mount (keyed by item in parent)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const sync = () => onChange(ref.current?.innerHTML || "");
+
+  /* When someone pastes HTML source (plain text that is actually markup),
+     insert it as real HTML instead of showing the tags. */
+  const onPaste = (e: React.ClipboardEvent) => {
+    const html = e.clipboardData.getData("text/html");
+    const text = e.clipboardData.getData("text/plain");
+    if (!html && text && hasRealTags(text)) {
+      e.preventDefault();
+      document.execCommand("insertHTML", false, text);
+      sync();
+    }
+  };
   const exec = (cmd: string, val?: string) => {
     ref.current?.focus();
     document.execCommand(cmd, false, val);
@@ -57,7 +85,7 @@ export default function RichText({ value, onChange }: { value: string; onChange:
         <button type="button" title="Clear formatting" onMouseDown={(e) => { e.preventDefault(); exec("removeFormat"); block("p"); }}>✕</button>
       </div>
       <div ref={ref} className="rte-area prose" contentEditable suppressContentEditableWarning
-        onInput={sync} onBlur={sync} data-placeholder="Write here…" />
+        onInput={sync} onBlur={sync} onPaste={onPaste} data-placeholder="Write here…" />
     </div>
   );
 }

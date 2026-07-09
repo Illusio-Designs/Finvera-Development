@@ -789,7 +789,10 @@ section{position:relative;z-index:2}
 .prose :where(a){color:var(--blue-400)}
 .prose :where(a):hover{text-decoration:underline}
 .prose :where(ul,ol){margin:0 0 18px 20px;display:flex;flex-direction:column;gap:8px}
-.prose :where(li){list-style:disc}
+.prose :where(ul) li{list-style:disc}
+.prose :where(ol) li{list-style:decimal}
+.prose :where(strong,b){color:var(--ink);font-weight:700}
+.prose :where(h2):first-child,.prose :where(h3):first-child,.prose :where(p):first-child{margin-top:0}
 .prose :where(blockquote){border-left:3px solid var(--blue-600);padding:6px 18px;margin:22px 0;color:var(--ink);
   background:rgba(91,127,212,.06);border-radius:0 10px 10px 0}
 .prose :where(img){border-radius:14px;border:1px solid var(--line-2);margin:22px 0}

@@ -40,7 +40,8 @@ export default async function Post({ params }: { params: Promise<{ slug: string 
     <article className="section" style={{ paddingTop: 150 }}>
       <div className="container" style={{ maxWidth: 760 }}>
         <div className="reveal">
-          <div className="crumbs" style={{ marginBottom: 18 }}>
+          <div className="crumbs" style={{ marginTop: 0, marginBottom: 18 }}>
+            <Link href="/">Home</Link><span className="sep">/</span>
             <Link href="/blog">Blog</Link><span className="sep">/</span><span>{post.category || "Article"}</span>
           </div>
           <span className="eyebrow">{post.category || "Article"} · {fmt(post.publishedAt)}</span>
