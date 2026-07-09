@@ -33,49 +33,100 @@ function fmt(d: string | null) {
 
 export default async function Post({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const post = await getPost(slug);
+  const [post, all] = await Promise.all([getPost(slug), getBlog()]);
   if (!post || post.status !== "published") notFound();
 
+  const published = all.filter((p) => p.status === "published");
+  const idx = published.findIndex((x) => x.slug === post.slug);
+  const next = published.length > 1 ? published[(idx + 1) % published.length] : null;
+
+  const words = (post.content || "").replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
+  const readTime = Math.max(1, Math.round(words / 200));
+  const facts: [string, string][] = [
+    ["Category", post.category || "Article"],
+    ["Published", fmt(post.publishedAt)],
+    ["Author", post.author || "Finvera"],
+    ["Read time", `${readTime} min`],
+  ].filter(([, v]) => v) as [string, string][];
+
   return (
-    <article className="section" style={{ paddingTop: 150 }}>
-      <div className="container" style={{ maxWidth: 760 }}>
-        <div className="reveal">
-          <div className="crumbs" style={{ marginTop: 0, marginBottom: 18 }}>
+    <article className="pdetail">
+      {/* Hero — editorial, left aligned (matches work detail) */}
+      <section className="page-hero pdetail-hero">
+        <div className="container">
+          <div className="crumbs reveal">
             <Link href="/">Home</Link><span className="sep">/</span>
             <Link href="/blog">Blog</Link><span className="sep">/</span><span>{post.category || "Article"}</span>
           </div>
-          <span className="eyebrow">{post.category || "Article"} · {fmt(post.publishedAt)}</span>
-          <h1 style={{ fontFamily: "var(--display)", fontWeight: 400, textTransform: "uppercase", letterSpacing: ".01em", fontSize: "clamp(30px,5vw,56px)", lineHeight: 1, margin: "16px 0 14px" }}>
-            {post.title}
-          </h1>
-          <p style={{ color: "var(--muted)", fontSize: 17 }}>{post.excerpt}</p>
-        </div>
-
-        {post.coverImage && (
-          <div className="reveal d1" style={{ margin: "30px 0", borderRadius: "var(--radius-lg)", overflow: "hidden", border: "1px solid var(--line-2)" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={post.coverImage} alt={post.title} style={{ width: "100%", display: "block" }} loading="lazy" />
+          <span className="eyebrow reveal d1">{post.category || "Article"}</span>
+          <h1 className="reveal d1">{post.title}</h1>
+          <p className="reveal d2">{post.excerpt}</p>
+          <div className="pd-cta reveal d3">
+            <Link href="/contact" className="btn btn-primary" data-cursor data-magnetic>Start a project <Arrow /></Link>
+            <Link href="/blog" className="btn btn-ghost" data-cursor>← All articles</Link>
           </div>
-        )}
-
-        <div
-          className="reveal d1 prose"
-          style={{ marginTop: 30, color: "var(--muted)", fontSize: 16, lineHeight: 1.8 }}
-          dangerouslySetInnerHTML={{ __html: post.content || "" }}
-        />
-
-        <div style={{ marginTop: 40, display: "flex", alignItems: "center", gap: 12 }}>
-          <span className="tcard-av" style={{ width: 44, height: 44, borderRadius: 12, background: "var(--grad)", display: "grid", placeItems: "center", fontWeight: 700 }}>
-            {(post.author || "F").slice(0, 1)}
-          </span>
-          <div><b style={{ fontSize: 14 }}>{post.author || "Finvera"}</b><small style={{ display: "block", color: "var(--muted-2)", fontSize: 12 }}>Finvera team</small></div>
         </div>
+      </section>
 
-        <div style={{ marginTop: 44 }}>
-          <Link href="/blog" className="btn btn-ghost" data-cursor data-magnetic>← Back to blog</Link>
-          <Link href="/contact" className="btn btn-primary" data-cursor data-magnetic style={{ marginLeft: 12 }}>Start a project <Arrow /></Link>
+      {/* Facts strip */}
+      {!!facts.length && (
+        <section className="container">
+          <div className="pd-facts reveal">
+            {facts.map(([k, v]) => (<div key={k} className="pd-fact"><span>{k}</span><b>{v}</b></div>))}
+          </div>
+        </section>
+      )}
+
+      {/* Cover */}
+      {post.coverImage && (
+        <section className="section" style={{ paddingTop: 34 }}>
+          <div className="container">
+            <div className="pd-cover reveal">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={post.coverImage} alt={post.title} />
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Body */}
+      <section className="section" style={{ paddingTop: post.coverImage ? 44 : 34 }}>
+        <div className="container" style={{ maxWidth: 760 }}>
+          <div className="prose reveal" dangerouslySetInnerHTML={{ __html: post.content || "" }} />
+
+          <div className="pd-author reveal">
+            <span className="pd-author-av">{(post.author || "F").slice(0, 1)}</span>
+            <div>
+              <b>{post.author || "Finvera"}</b>
+              <small>Finvera team</small>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
+
+      {/* Next article */}
+      {next && next.slug !== post.slug && (
+        <section className="section" style={{ paddingTop: 0 }}>
+          <div className="container">
+            <Link href={`/blog/${next.slug}`} className="pdetail-next reveal" data-cursor>
+              <span className="lbl">Next article</span>
+              <span className="ttl">{next.title} <Arrow /></span>
+              <span className="cat">{next.category || "Article"}</span>
+            </Link>
+          </div>
+        </section>
+      )}
+
+      {/* CTA */}
+      <section className="section" style={{ paddingTop: 0 }}>
+        <div className="container">
+          <div className="cta-band reveal">
+            <h2>Have a project in mind?</h2>
+            <p>Let&apos;s build something worth writing about. Book a free strategy call today.</p>
+            <Link href="/contact" className="btn btn-primary" data-cursor data-magnetic>Start your project <Arrow /></Link>
+          </div>
+        </div>
+      </section>
     </article>
   );
 }
