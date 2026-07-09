@@ -5,8 +5,11 @@ export type Me = { name?: string; email?: string; role?: string; avatar?: string
 
 function initials(name?: string) {
   const p = (name || "").trim().split(/\s+/);
-  return ((p[0]?.[0] || "") + (p[1]?.[0] || "")).toUpperCase() || "?";
+  return ((p[0]?.[0] || "") + (p[1]?.[0] || "")).toUpperCase();
 }
+const UserGlyph = () => (
+  <svg viewBox="0 0 24 24" width="55%" height="55%" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" /></svg>
+);
 
 export default function UserMenu({ me, onLogout }: { me: Me; onLogout: () => void }) {
   const [open, setOpen] = useState(false);
@@ -21,12 +24,14 @@ export default function UserMenu({ me, onLogout }: { me: Me; onLogout: () => voi
     return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
   }, [open]);
 
-  const Avatar = ({ size }: { size: number }) => (
-    me?.avatar
+  const Avatar = ({ size }: { size: number }) => {
+    if (me?.avatar) {
       // eslint-disable-next-line @next/next/no-img-element
-      ? <img className="adm-avatar" src={me.avatar} alt={me?.name || ""} style={{ width: size, height: size }} />
-      : <span className="adm-avatar" style={{ width: size, height: size, fontSize: Math.round(size * 0.4) }}>{initials(me?.name)}</span>
-  );
+      return <img className="adm-avatar" src={me.avatar} alt={me?.name || ""} style={{ width: size, height: size }} />;
+    }
+    const ini = initials(me?.name);
+    return <span className="adm-avatar" style={{ width: size, height: size, fontSize: Math.round(size * 0.4) }}>{ini || <UserGlyph />}</span>;
+  };
 
   if (!me) {
     return (
