@@ -113,8 +113,8 @@ export default async function ProjectDetail({ params }: { params: Promise<{ slug
       {(p.challenge || p.approach) ? (
         <section className="section" style={{ paddingTop: 0 }}>
           <div className="container pd-narrative">
-            {p.challenge && <div className="reveal"><span className="case-index">The challenge</span><p>{p.challenge}</p></div>}
-            {p.approach && <div className="reveal d1"><span className="case-index">Our approach</span><p>{p.approach}</p></div>}
+            {p.challenge && <div className="reveal"><span className="case-index">The challenge</span><div className="prose" dangerouslySetInnerHTML={{ __html: p.challenge }} /></div>}
+            {p.approach && <div className="reveal d1"><span className="case-index">Our approach</span><div className="prose" dangerouslySetInnerHTML={{ __html: p.approach }} /></div>}
           </div>
         </section>
       ) : p.content ? (
