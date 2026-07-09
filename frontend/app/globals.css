@@ -511,7 +511,10 @@ section{position:relative;z-index:2}
 /* ── Project detail / case study ── */
 /* ── Project case study (modern editorial) ── */
 .pdetail-hero{text-align:left;padding-bottom:8px}
-.pdetail-hero h1{margin:16px 0 16px}
+/* breadcrumb + category each get their own line (they're inline-flex and would collide otherwise) */
+.pdetail-hero .crumbs{display:flex;flex-wrap:wrap;width:max-content;max-width:100%;margin:0 0 18px}
+.pdetail-hero .eyebrow{display:flex;justify-content:flex-start}
+.pdetail-hero h1{margin:12px 0 16px}
 .pdetail-hero p{color:var(--muted);max-width:640px;margin:0;font-size:clamp(15px,1.4vw,18px)}
 .pd-cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
 /* Facts strip */
