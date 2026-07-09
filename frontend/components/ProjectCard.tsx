@@ -1,15 +1,11 @@
 import Link from "next/link";
 import SiteShot from "@/components/SiteShot";
+import ProjectShot from "@/components/ProjectShot";
 import type { Project } from "@/lib/types";
 
 function Thumb({ p }: { p: Project }) {
   if (p.desktopImage) {
-    return (
-      <div className="shot-wrap">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="shot ready" src={p.desktopImage} alt={`${p.title} screenshot`} loading="lazy" />
-      </div>
-    );
+    return <ProjectShot src={p.desktopImage} alt={`${p.title} screenshot`} />;
   }
   return <SiteShot url={p.url} kind="desktop" alt={`${p.title} screenshot`} />;
 }
