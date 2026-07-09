@@ -35,19 +35,20 @@ export default async function Blog() {
           ) : (
             <div className="grid-3">
               {posts.map((post, i) => (
-                <Link href={`/blog/${post.slug}`} className={"blog-card reveal-x" + (i % 2 ? " r" : "") + " d" + ((i % 3) + 1)} data-cursor key={post.id}>
-                  <div className="blog-card-media reveal-clip">
+                <Link href={`/blog/${post.slug}`} className={"blog-card reveal-x" + (i % 2 ? " r" : "") + " d" + ((i % 3) + 1)} data-cursor data-cursor-label="Read" key={post.id}>
+                  <div className="blog-card-media">
                     {post.coverImage
                       // eslint-disable-next-line @next/next/no-img-element
                       ? <img src={post.coverImage} alt={post.title} loading="lazy" />
                       : <span className="blog-card-ph">{(post.category || "Article").slice(0, 1)}</span>}
                     <span className="blog-card-cat">{post.category || "Article"}</span>
+                    <span className="blog-card-go" aria-hidden><Arrow /></span>
                   </div>
                   <div className="blog-card-body">
                     <small className="blog-card-date">{fmt(post.publishedAt)}</small>
                     <h3>{post.title}</h3>
                     <p>{post.excerpt}</p>
-                    <span className="more">Read article <Arrow /></span>
+                    <span className="blog-card-more">Read article <Arrow /></span>
                   </div>
                 </Link>
               ))}
