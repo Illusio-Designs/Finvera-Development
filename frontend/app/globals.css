@@ -1536,13 +1536,15 @@ section{position:relative;z-index:2}
   .adm-burger{display:grid!important}
   .adm-table{display:block;overflow-x:auto;white-space:nowrap}
 }
-.adm-burger{display:none;width:40px;height:40px;border-radius:10px;border:1px solid var(--line-2);place-items:center;color:var(--ink);background:rgba(16,30,60,.03)}
+.adm-burger{display:none;width:42px;height:42px;flex:none;border-radius:11px;border:1px solid var(--line-2);place-items:center;color:var(--ink);background:rgba(16,30,60,.03);transition:.2s}
+.adm-burger:hover{border-color:var(--blue-500);color:var(--blue-600)}
 .adm-mobbar{display:none;align-items:center;gap:12px;position:sticky;top:0;z-index:40}
 @media (max-width:860px){
   .adm-mobbar{display:flex;background:rgba(247,249,252,.94);backdrop-filter:blur(10px);
-    border-bottom:1px solid var(--line);padding:11px clamp(18px,3vw,40px);
+    border-bottom:1px solid var(--line);padding:12px clamp(16px,4vw,40px);
     margin:-26px calc(-1 * clamp(18px,3vw,40px)) 18px}
-  .adm-mobbar .brand{color:var(--ink)}
+  .adm-mobbar .brand{color:var(--ink);margin-left:2px}
+  .adm-mobbar-right{margin-left:auto;display:flex;align-items:center}
   .adm-scrim{display:block;position:fixed;inset:0;background:rgba(3,5,10,.45);z-index:45}
 }
 .adm-scrim{display:none}
