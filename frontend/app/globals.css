@@ -1563,8 +1563,8 @@ section{position:relative;z-index:2}
 .adm-mobbar{display:none;align-items:center;gap:12px;position:sticky;top:0;z-index:40}
 @media (max-width:860px){
   .adm-mobbar{display:flex;background:rgba(247,249,252,.94);backdrop-filter:blur(10px);
-    border-bottom:1px solid var(--line);padding:12px clamp(20px,5vw,40px);
-    margin:-26px calc(-1 * clamp(18px,3vw,40px)) 18px}
+    border-bottom:1px solid var(--line);padding:15px clamp(24px,6vw,40px);
+    margin:-26px calc(-1 * clamp(18px,3vw,40px)) 22px}
   .adm-mobbar .brand{color:var(--ink);margin-left:2px}
   .adm-mobbar-right{margin-left:auto;display:flex;align-items:center}
   /* Compact account on mobile — just the avatar circle (name + caret hidden) */
