@@ -56,6 +56,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => { setOpen(false); }, [pathname]);
 
+  /* Close the mobile menu on outside-click / Escape (robust regardless of stacking) */
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent | TouchEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest(".adm-side") || t.closest(".adm-burger")) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("touchstart", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("touchstart", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   if (!ready) return <div style={{ minHeight: "100vh", background: "#070910" }} />;
 
   const logout = () => { clearToken(); router.replace("/login"); };
