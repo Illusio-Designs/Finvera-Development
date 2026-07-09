@@ -16,15 +16,21 @@ const BLOCKS: [string, string][] = [
   ["blockquote", "❝"],
 ];
 
-/* Decode entity-escaped markup that got stored as plain text
-   (e.g. "&lt;p&gt;Hi&lt;/p&gt;" -> "<p>Hi</p>"). */
-function decodeEntities(s: string) {
-  const ta = document.createElement("textarea");
-  ta.innerHTML = s;
-  return ta.value;
-}
 const hasRealTags = (s: string) => /<\/?(p|h[1-6]|ul|ol|li|blockquote|strong|em|b|i|a|br)\b/i.test(s);
-const looksEscaped = (s: string) => /&lt;\/?(p|h[1-6]|ul|ol|li|blockquote|strong|em|b|i|a|br)\b/i.test(s);
+const hasBlockTags = (s: string) => /<\/?(p|h[1-6]|ul|ol|li|blockquote)\b/i.test(s);
+
+/* If HTML source was pasted as plain text it gets stored escaped — often wrapped
+   in <div>/<br> from the paste. The *visible text* of that value is the real HTML
+   source, so pull it out and hand it back so it can be re-parsed as markup. */
+function healEscapedSource(value: string): string | null {
+  const v = value || "";
+  // Already well-formed rich text (has real <p>/<h2>/… elements) — leave it alone.
+  if (hasBlockTags(v)) return null;
+  const tmp = document.createElement("div");
+  tmp.innerHTML = v;
+  const text = (tmp.textContent || "").trim();
+  return hasBlockTags(text) ? text : null;
+}
 
 export default function RichText({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -32,8 +38,9 @@ export default function RichText({ value, onChange }: { value: string; onChange:
   useEffect(() => {
     // Self-heal content that was pasted as raw HTML source and got escaped.
     let v = value || "";
-    if (looksEscaped(v) && !hasRealTags(v)) {
-      v = decodeEntities(v);
+    const healed = healEscapedSource(v);
+    if (healed) {
+      v = healed;
       onChange(v);
     }
     if (ref.current && ref.current.innerHTML !== v) ref.current.innerHTML = v;
