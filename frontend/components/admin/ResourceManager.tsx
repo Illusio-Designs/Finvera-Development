@@ -9,6 +9,7 @@ import Select from "../Select";
 import DatePicker from "../ui/DatePicker";
 import Toggle from "../ui/Toggle";
 import Tooltip from "../ui/Tooltip";
+import TagsInput from "../ui/TagsInput";
 import { TableSkeleton } from "./Skeleton";
 
 export type Field = {
@@ -231,7 +232,9 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                       ) : c.type === "status" ? (
                         <span className={"adm-badge " + (row[c.name] || "published")}>{row[c.name]}</span>
                       ) : c.type === "tags" ? (
-                        (Array.isArray(row[c.name]) ? row[c.name] : []).slice(0, 3).join(", ")
+                        <span className="adm-cell-tags">
+                          {(Array.isArray(row[c.name]) ? row[c.name] : []).slice(0, 4).map((t: string) => <span className="adm-tag-pill sm" key={t}>{t}</span>)}
+                        </span>
                       ) : c.type === "money" ? (
                         Number(row[c.name]) ? `₹${Number(row[c.name]).toLocaleString("en-IN")}` : <span style={{ color: "var(--muted-2)" }}>—</span>
                       ) : c.type === "progress" ? (
@@ -294,9 +297,8 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                 ) : f.type === "boolean" ? (
                   <Toggle checked={!!editing[f.name]} onChange={(v) => setField(f.name, v)} label={f.placeholder || "Enabled"} />
                 ) : f.type === "tags" ? (
-                  <input id={f.name} value={Array.isArray(editing[f.name]) ? editing[f.name].join(", ") : (editing[f.name] ?? "")}
-                    placeholder={f.placeholder || "comma, separated, tags"}
-                    onChange={(e) => setField(f.name, e.target.value.split(",").map((s) => s.trim()).filter(Boolean))} />
+                  <TagsInput id={f.name} value={editing[f.name]} placeholder={f.placeholder || "Type and press comma…"}
+                    onChange={(v) => setField(f.name, v)} />
                 ) : f.type === "image" ? (
                   <ImageInput value={editing[f.name] ?? ""} onChange={(v) => setField(f.name, v)} />
                 ) : f.type === "avatar" ? (
