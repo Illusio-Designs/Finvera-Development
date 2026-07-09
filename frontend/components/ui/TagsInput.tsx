@@ -1,5 +1,21 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+/* Strip stray brackets/quotes and JSON-string artefacts from a single tag. */
+const clean = (t: unknown) => String(t ?? "").trim().replace(/^[[\]]+|[[\]]+$/g, "").replace(/^["']+|["']+$/g, "").trim();
+
+/* Turn any stored shape (array, comma string, or a JSON-encoded string) into a clean string[]. */
+export function normalizeTags(value: string[] | string | null | undefined): string[] {
+  if (Array.isArray(value)) return value.map(clean).filter(Boolean);
+  if (typeof value === "string" && value.trim()) {
+    const s = value.trim();
+    if (s.startsWith("[")) {
+      try { const a = JSON.parse(s); if (Array.isArray(a)) return a.map(clean).filter(Boolean); } catch { /* fall through */ }
+    }
+    return s.split(",").map(clean).filter(Boolean);
+  }
+  return [];
+}
 
 /* Capsule tag input — type and press comma/Enter to add a pill; each pill has an
    ×. Stores a plain string[] (comma-separated when serialised), not JSON text. */
@@ -11,9 +27,17 @@ export default function TagsInput({
   placeholder?: string;
   id?: string;
 }) {
-  const tags = Array.isArray(value) ? value : (typeof value === "string" && value ? value.split(",").map((s) => s.trim()).filter(Boolean) : []);
+  const tags = normalizeTags(value);
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Self-heal legacy JSON-string / dirty values into a clean array once, so
+  // saving (even without editing) stores a proper list.
+  useEffect(() => {
+    const isCleanArray = Array.isArray(value) && value.every((v) => clean(v) === v);
+    if (!isCleanArray) onChange(tags);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const add = (raw: string) => {
     const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);

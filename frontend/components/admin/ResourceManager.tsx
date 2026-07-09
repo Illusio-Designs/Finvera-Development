@@ -9,7 +9,7 @@ import Select from "../Select";
 import DatePicker from "../ui/DatePicker";
 import Toggle from "../ui/Toggle";
 import Tooltip from "../ui/Tooltip";
-import TagsInput from "../ui/TagsInput";
+import TagsInput, { normalizeTags } from "../ui/TagsInput";
 import { TableSkeleton } from "./Skeleton";
 
 export type Field = {
@@ -233,7 +233,7 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                         <span className={"adm-badge " + (row[c.name] || "published")}>{row[c.name]}</span>
                       ) : c.type === "tags" ? (
                         <span className="adm-cell-tags">
-                          {(Array.isArray(row[c.name]) ? row[c.name] : []).slice(0, 4).map((t: string) => <span className="adm-tag-pill sm" key={t}>{t}</span>)}
+                          {normalizeTags(row[c.name]).slice(0, 4).map((t) => <span className="adm-tag-pill sm" key={t}>{t}</span>)}
                         </span>
                       ) : c.type === "money" ? (
                         Number(row[c.name]) ? `₹${Number(row[c.name]).toLocaleString("en-IN")}` : <span style={{ color: "var(--muted-2)" }}>—</span>
