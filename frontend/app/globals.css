@@ -1435,6 +1435,12 @@ section{position:relative;z-index:2}
 /* Field entrance stagger in the drawer */
 .adm-drawer .adm-field{animation:fieldIn .32s var(--ease) both}
 @keyframes fieldIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* The entrance animation + sticky footer make each field its own stacking context,
+   so an open dropdown / date picker would otherwise render behind the fields below it.
+   Elevate whichever field currently has an open popover above its siblings. */
+.adm-field{position:relative}
+.adm-field:has(.cselect.open),
+.adm-field:has(.dp-pop){z-index:120}
 
 /* Kanban board */
 .kb-card{touch-action:none}
