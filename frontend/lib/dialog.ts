@@ -11,6 +11,7 @@ export type DialogOpts = {
   confirmText?: string;
   cancelText?: string;
   danger?: boolean;
+  multiline?: boolean;
 };
 
 type Kind = "prompt" | "confirm" | "alert";

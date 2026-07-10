@@ -14,6 +14,7 @@ import { toast } from "@/lib/toast";
    Outputs clean HTML through the same value/onChange interface. */
 
 const hasBlockTags = (s: string) => /<\/?(p|h[1-6]|ul|ol|li|blockquote)\b/i.test(s);
+const looksLikeHtmlSource = (s: string) => /<\/?(p|h[1-6]|ul|ol|li|blockquote|strong|em|b|i|a|br|img)\b[^>]*>/i.test(s);
 
 /* Content pasted as raw HTML source and stored escaped ("&lt;p&gt;…", often
    wrapped in <div>/<br>) shows tags as text. Its *visible text* is the real
@@ -72,6 +73,13 @@ export default function RichText({ value, onChange }: { value: string; onChange:
       handlePaste: (_view, event) => {
         const f = event.clipboardData?.files?.[0];
         if (f && f.type.startsWith("image/")) { uploadImage(f); return true; }
+        // Pasting raw HTML *source* (plain text that is actually markup) — parse it into real formatting.
+        const html = event.clipboardData?.getData("text/html") || "";
+        const text = event.clipboardData?.getData("text/plain") || "";
+        if (!html && looksLikeHtmlSource(text)) {
+          editorRef.current?.chain().focus().insertContent(text, { parseOptions: { preserveWhitespace: false } }).run();
+          return true;
+        }
         return false;
       },
       handleDrop: (_view, event) => {
@@ -98,6 +106,19 @@ export default function RichText({ value, onChange }: { value: string; onChange:
     if (url === null || url === undefined) return;
     if (url === "") { editor.chain().focus().extendMarkRange("link").unsetLink().run(); return; }
     editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+  };
+
+  const insertHtml = async () => {
+    if (!editor) return;
+    const html = await dialog.prompt({
+      title: "Insert HTML",
+      message: "Paste HTML markup — it will be converted into formatted content.",
+      placeholder: "<h2>Title</h2><p>Paragraph…</p>",
+      multiline: true,
+      confirmText: "Insert",
+    });
+    if (!html) return;
+    editor.chain().focus().insertContent(html, { parseOptions: { preserveWhitespace: false } }).run();
   };
 
   const c = () => editor?.chain().focus();
@@ -130,6 +151,7 @@ export default function RichText({ value, onChange }: { value: string; onChange:
         <span className="rte-sep" />
         <Btn editor={editor} title="Link" label="🔗" active={editor?.isActive("link")} onClick={link} />
         <Btn editor={editor} title="Insert image" label="🖼" onClick={() => fileRef.current?.click()} />
+        <Btn editor={editor} title="Insert / paste HTML" label="HTML" onClick={insertHtml} />
         <Btn editor={editor} title="Clear formatting" label="✕" onClick={() => c()?.clearNodes().unsetAllMarks().run()} />
       </div>
       <EditorContent editor={editor} />
