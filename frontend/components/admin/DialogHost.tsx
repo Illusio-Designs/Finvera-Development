@@ -1,13 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { DialogOpts } from "@/lib/dialog";
+type AnyInput = HTMLInputElement | HTMLTextAreaElement;
 
 type Active = { kind: "prompt" | "confirm" | "alert"; opts: DialogOpts; resolve: (v: unknown) => void };
 
 export default function DialogHost() {
   const [active, setActive] = useState<Active | null>(null);
   const [value, setValue] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<AnyInput>(null);
 
   useEffect(() => {
     const onDialog = (e: Event) => {
@@ -38,16 +39,27 @@ export default function DialogHost() {
         )}
         <h3>{opts.title}</h3>
         {opts.message && <p>{opts.message}</p>}
-        {kind === "prompt" && (
+        {kind === "prompt" && (opts.multiline ? (
+          <textarea
+            ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+            className="adm-dialog-input"
+            rows={8}
+            value={value}
+            placeholder={opts.placeholder}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}
+            style={{ resize: "vertical", fontFamily: "var(--mono)", fontSize: 12.5, lineHeight: 1.5 }}
+          />
+        ) : (
           <input
-            ref={inputRef}
+            ref={inputRef as React.RefObject<HTMLInputElement>}
             className="adm-dialog-input"
             value={value}
             placeholder={opts.placeholder}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onConfirm(); } if (e.key === "Escape") onCancel(); }}
           />
-        )}
+        ))}
         <div className="adm-confirm-actions">
           {kind !== "alert" && <button className="adm-btn ghost" onClick={onCancel}>{opts.cancelText || "Cancel"}</button>}
           <button className={"adm-btn " + (opts.danger ? "danger" : "primary")} onClick={onConfirm}>
