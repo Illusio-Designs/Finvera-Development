@@ -15,13 +15,15 @@ import { TableSkeleton } from "./Skeleton";
 export type Field = {
   name: string;
   label: string;
-  type?: "text" | "password" | "textarea" | "number" | "select" | "boolean" | "tags" | "image" | "avatar" | "date" | "richtext" | "calendly";
+  type?: "text" | "password" | "textarea" | "number" | "select" | "multiselect" | "boolean" | "tags" | "image" | "avatar" | "date" | "richtext" | "calendly";
   options?: (string | { value: string; label: string })[];
   placeholder?: string;
 };
-export type Column = { name: string; label: string; type?: "image" | "avatar" | "status" | "tags" | "text" | "money" | "progress" | "stageprogress" | "role" };
+export type Column = { name: string; label: string; type?: "image" | "avatar" | "status" | "tags" | "text" | "money" | "progress" | "stageprogress" | "role" | "roles" };
 
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+const optValue = (o: string | { value: string; label: string }) => (typeof o === "string" ? o : o.value);
+const optLabel = (o: string | { value: string; label: string }) => (typeof o === "string" ? o : o.label);
 
 /* Pipeline stage → completion score. Drives the stage-based progress bar so the
    bar always reflects where a lead sits in the funnel (no manual % to keep in sync). */
@@ -44,7 +46,7 @@ type Props = {
 
 const emptyFrom = (fields: Field[], defaults?: Record<string, any>) => {
   const o: Record<string, any> = { ...defaults };
-  fields.forEach((f) => { if (o[f.name] === undefined) o[f.name] = f.type === "boolean" ? false : f.type === "tags" ? [] : ""; });
+  fields.forEach((f) => { if (o[f.name] === undefined) o[f.name] = f.type === "boolean" ? false : (f.type === "tags" || f.type === "multiselect") ? [] : ""; });
   return o;
 };
 
@@ -245,6 +247,11 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                         <span className="adm-progress"><span className="adm-progress-track"><span className={"adm-progress-fill st-" + String(row.stage || "new").toLowerCase()} style={{ width: `${stageScore(row.stage)}%` }} /></span><b>{stageScore(row.stage)}%</b></span>
                       ) : c.type === "role" ? (
                         <span className="adm-badge role">{cap(String(row[c.name] || ""))}</span>
+                      ) : c.type === "roles" ? (
+                        <span className="adm-cell-tags">
+                          {(Array.isArray(row.roles) && row.roles.length ? row.roles : [row.role].filter(Boolean))
+                            .map((r: string) => <span className="adm-badge role" key={r}>{cap(r)}</span>)}
+                        </span>
                       ) : (
                         String(row[c.name] ?? "").slice(0, 60)
                       )}
@@ -298,6 +305,20 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                 ) : f.type === "select" ? (
                   <Select id={f.name} value={editing[f.name] ?? ""} onChange={(v) => setField(f.name, v)}
                     options={f.options || []} ariaLabel={f.label} />
+                ) : f.type === "multiselect" ? (
+                  <div className="adm-multi">
+                    {(f.options || []).map((o) => {
+                      const val = optValue(o);
+                      const arr: string[] = Array.isArray(editing[f.name]) ? editing[f.name] : [];
+                      const on = arr.includes(val);
+                      return (
+                        <button type="button" key={val} className={"adm-multi-opt" + (on ? " on" : "")}
+                          onClick={() => setField(f.name, on ? arr.filter((x) => x !== val) : [...arr, val])}>
+                          <span className="adm-multi-box" aria-hidden />{optLabel(o)}
+                        </button>
+                      );
+                    })}
+                  </div>
                 ) : f.type === "boolean" ? (
                   <Toggle checked={!!editing[f.name]} onChange={(v) => setField(f.name, v)} label={f.placeholder || "Enabled"} />
                 ) : f.type === "tags" ? (

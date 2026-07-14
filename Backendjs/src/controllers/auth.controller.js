@@ -3,6 +3,18 @@ const jwt = require("jsonwebtoken");
 const { User } = require("../models");
 const { asyncHandler } = require("../utils/crud");
 
+function rolesOf(user) {
+  return Array.isArray(user.roles) && user.roles.length ? user.roles : (user.role ? [user.role] : []);
+}
+
+function publicUser(u) {
+  return {
+    id: u.id, name: u.name, email: u.email,
+    role: u.role, roles: rolesOf(u),
+    avatar: u.avatar, title: u.title,
+  };
+}
+
 function sign(user) {
   return jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || "7d",
@@ -19,14 +31,13 @@ const login = asyncHandler(async (req, res) => {
   const ok = await bcrypt.compare(password, user.password);
   if (!ok) return res.status(401).json({ message: "Invalid email or password." });
 
-  res.json({
-    token: sign(user),
-    user: { id: user.id, name: user.name, email: user.email, role: user.role },
-  });
+  res.json({ token: sign(user), user: publicUser(user) });
 });
 
 const me = asyncHandler(async (req, res) => {
-  res.json({ user: req.user });
+  const u = await User.findByPk(req.user.id);
+  if (!u || !u.active) return res.status(401).json({ message: "Invalid or inactive account." });
+  res.json({ user: publicUser(u) });
 });
 
 const changePassword = asyncHandler(async (req, res) => {

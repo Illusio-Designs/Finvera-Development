@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 
-export type Me = { name?: string; email?: string; role?: string; avatar?: string; title?: string } | null;
+export type Me = { name?: string; email?: string; role?: string; roles?: string[]; avatar?: string; title?: string } | null;
 
 function initials(name?: string) {
   const p = (name || "").trim().split(/\s+/);
@@ -44,6 +44,8 @@ export default function UserMenu({ me, onLogout }: { me: Me; onLogout: () => voi
     );
   }
 
+  const roles = me?.roles?.length ? me.roles : (me?.role ? [me.role] : []);
+
   return (
     <div className="adm-usermenu" ref={ref}>
       <button className="adm-usermenu-btn" onClick={() => setOpen((o) => !o)} aria-label="Account menu" aria-expanded={open}>
@@ -60,10 +62,10 @@ export default function UserMenu({ me, onLogout }: { me: Me; onLogout: () => voi
               <small>{me?.email || ""}</small>
             </div>
           </div>
-          {(me?.title || me?.role) && (
+          {(me?.title || roles.length > 0) && (
             <div className="um-meta">
               {me?.title && <span>{me.title}</span>}
-              {me?.role && <span className="um-role">{me.role.charAt(0).toUpperCase() + me.role.slice(1)}</span>}
+              {roles.map((r) => <span className="um-role" key={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</span>)}
             </div>
           )}
           <button className="um-item danger" onClick={onLogout}>

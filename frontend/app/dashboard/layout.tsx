@@ -7,7 +7,7 @@ import { getToken, clearToken, api } from "@/lib/adminApi";
 import UserMenu, { type Me } from "@/components/admin/UserMenu";
 import Toaster from "@/components/admin/Toaster";
 import DialogHost from "@/components/admin/DialogHost";
-import { roleCan, type Area } from "@/lib/permissions";
+import { rolesCan, userRoles, type Area } from "@/lib/permissions";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   DashboardSquare01Icon, FolderLibraryIcon, GridViewIcon, QuoteDownIcon, UserGroupIcon,
@@ -67,22 +67,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const [today, setToday] = useState("");
   const [me, setMe] = useState<Me>(null);
-  const role = me?.role;
+  const roles = userRoles(me);
+  const rolesKey = roles.join(",");
 
   useEffect(() => { setCollapsed(localStorage.getItem("fv_admin_collapsed") === "1"); }, []);
   useEffect(() => { setToday(new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })); }, []);
-  useEffect(() => { if (getToken()) api.me().then(setMe).catch(() => {}); }, []);
+  useEffect(() => { if (getToken()) api.me().then((r) => setMe(r?.user ?? r)).catch(() => {}); }, []);
   const toggleCollapsed = () => setCollapsed((c) => { localStorage.setItem("fv_admin_collapsed", c ? "0" : "1"); return !c; });
 
   const active = matchItem(pathname);
   const pageTitle = active?.label || "Dashboard";
 
-  /* Nav groups filtered to what this role may access. */
+  /* Nav groups filtered to what these roles may access. */
   const groups = useMemo(() => {
     return NAV_GROUPS
-      .map((g) => ({ ...g, items: g.items.filter((it) => roleCan(role, it.area)) }))
+      .map((g) => ({ ...g, items: g.items.filter((it) => rolesCan(roles, it.area)) }))
       .filter((g) => g.items.length > 0);
-  }, [role]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rolesKey]);
 
   /* Open the group that contains the active route by default. */
   const activeHref = active?.href;
@@ -96,11 +98,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setReady(true);
   }, [pathname, router]);
 
-  /* Route guard — bounce to the dashboard if the role can't see this page. */
+  /* Route guard — bounce to the dashboard if the roles can't see this page. */
   useEffect(() => {
-    if (!role) return;
-    if (active && !roleCan(role, active.area)) router.replace("/dashboard");
-  }, [role, active, router]);
+    if (!roles.length) return;
+    if (active && !rolesCan(roles, active.area)) router.replace("/dashboard");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rolesKey, active, router]);
 
   useEffect(() => { setOpen(false); }, [pathname]);
 
