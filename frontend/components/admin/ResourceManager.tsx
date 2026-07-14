@@ -15,13 +15,23 @@ import { TableSkeleton } from "./Skeleton";
 export type Field = {
   name: string;
   label: string;
-  type?: "text" | "password" | "textarea" | "number" | "select" | "multiselect" | "boolean" | "tags" | "image" | "avatar" | "date" | "richtext" | "calendly";
+  type?: "text" | "password" | "textarea" | "number" | "select" | "multiselect" | "userselect" | "boolean" | "tags" | "image" | "avatar" | "date" | "richtext" | "calendly";
   options?: (string | { value: string; label: string })[];
   placeholder?: string;
 };
 export type Column = { name: string; label: string; type?: "image" | "avatar" | "status" | "tags" | "text" | "money" | "progress" | "stageprogress" | "role" | "roles" };
 
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+/* Picks an owner/assignee from the team directory (falls back to any existing
+   free-text value so old data still displays). Stores the member's name. */
+function UserSelect({ value, onChange, placeholder }: { value?: string; onChange: (v: string) => void; placeholder?: string }) {
+  const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
+  useEffect(() => { api.listUsers().then((u: unknown) => setUsers(Array.isArray(u) ? u : [])).catch(() => {}); }, []);
+  const opts = users.map((u) => ({ value: u.name, label: u.name }));
+  if (value && !opts.some((o) => o.value === value)) opts.unshift({ value, label: value });
+  return <Select value={value ?? ""} onChange={onChange} options={opts} placeholder={placeholder || "Select a team member"} />;
+}
 const optValue = (o: string | { value: string; label: string }) => (typeof o === "string" ? o : o.value);
 const optLabel = (o: string | { value: string; label: string }) => (typeof o === "string" ? o : o.label);
 
@@ -305,6 +315,8 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                 ) : f.type === "select" ? (
                   <Select id={f.name} value={editing[f.name] ?? ""} onChange={(v) => setField(f.name, v)}
                     options={f.options || []} ariaLabel={f.label} />
+                ) : f.type === "userselect" ? (
+                  <UserSelect value={editing[f.name] ?? ""} onChange={(v) => setField(f.name, v)} placeholder={f.placeholder} />
                 ) : f.type === "multiselect" ? (
                   <div className="adm-multi">
                     {(f.options || []).map((o) => {
