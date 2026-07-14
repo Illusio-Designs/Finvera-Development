@@ -16,7 +16,7 @@ export type Field = {
   name: string;
   label: string;
   type?: "text" | "password" | "textarea" | "number" | "select" | "boolean" | "tags" | "image" | "avatar" | "date" | "richtext" | "calendly";
-  options?: string[];
+  options?: (string | { value: string; label: string })[];
   placeholder?: string;
 };
 export type Column = { name: string; label: string; type?: "image" | "avatar" | "status" | "tags" | "text" | "money" | "progress" | "stageprogress" };

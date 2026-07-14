@@ -19,7 +19,13 @@ export default function AdminUsers() {
         { name: "name", label: "Full name" },
         { name: "email", label: "Email", type: "text", placeholder: "name@finvera.solutions" },
         { name: "title", label: "Job title", type: "text", placeholder: "e.g. Head of Design" },
-        { name: "role", label: "Role", type: "select", options: ["admin", "editor"] },
+        { name: "role", label: "Role (controls what they can access)", type: "select", options: [
+          { value: "admin", label: "Admin — full access" },
+          { value: "content", label: "Content — site content, blog, projects, team…" },
+          { value: "projects", label: "Project board — kanban only" },
+          { value: "leads", label: "Leads — pipeline + contact inbox" },
+          { value: "seo", label: "SEO — SEO + settings & pixels" },
+        ] },
         { name: "password", label: "Password", type: "password", placeholder: "Set / change password" },
         { name: "active", label: "Active", type: "boolean", placeholder: "Account can sign in" },
       ]}
