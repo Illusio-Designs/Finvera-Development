@@ -63,7 +63,7 @@ export default function UserMenu({ me, onLogout }: { me: Me; onLogout: () => voi
           {(me?.title || me?.role) && (
             <div className="um-meta">
               {me?.title && <span>{me.title}</span>}
-              {me?.role && <span className="um-role">{me.role}</span>}
+              {me?.role && <span className="um-role">{me.role.charAt(0).toUpperCase() + me.role.slice(1)}</span>}
             </div>
           )}
           <button className="um-item danger" onClick={onLogout}>
