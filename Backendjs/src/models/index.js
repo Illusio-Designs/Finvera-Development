@@ -1,16 +1,21 @@
 const sequelize = require("../config/db");
 const { DataTypes } = require("sequelize");
 
+/* ── User (admin auth) ────────────────────────────── */
 const User = sequelize.define("User", {
   name: { type: DataTypes.STRING, allowNull: false },
   email: { type: DataTypes.STRING, allowNull: false, unique: true, validate: { isEmail: true } },
   password: { type: DataTypes.STRING, allowNull: false },
-  role: { type: DataTypes.ENUM("admin", "editor"), defaultValue: "admin" },
+  // Primary/legacy role (kept for backward compatibility & display).
+  role: { type: DataTypes.ENUM("admin", "editor", "content", "projects", "leads", "seo"), defaultValue: "admin" },
+  // Multiple roles — a user can hold several (e.g. ["leads", "seo"]).
+  roles: { type: DataTypes.JSON, defaultValue: [] },
   active: { type: DataTypes.BOOLEAN, defaultValue: true },
-  avatar: { type: DataTypes.STRING },
-  title: { type: DataTypes.STRING },
+  avatar: { type: DataTypes.STRING },   // profile image URL
+  title: { type: DataTypes.STRING },    // job title / role label
 }, { tableName: "users" });
 
+/* ── Project / Work ─────────────────────────── */
 const Project = sequelize.define("Project", {
   title: { type: DataTypes.STRING, allowNull: false },
   slug: { type: DataTypes.STRING, allowNull: false, unique: true },
@@ -25,16 +30,17 @@ const Project = sequelize.define("Project", {
   featured: { type: DataTypes.BOOLEAN, defaultValue: false },
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
   status: { type: DataTypes.ENUM("draft", "published"), defaultValue: "published" },
-  client: { type: DataTypes.STRING },
+  // ── Case-study / trust fields ──
+  client: { type: DataTypes.STRING },      // client name (falls back to title)
   industry: { type: DataTypes.STRING },
   year: { type: DataTypes.STRING },
-  duration: { type: DataTypes.STRING },
-  role: { type: DataTypes.STRING },
+  duration: { type: DataTypes.STRING },    // e.g. "6 weeks"
+  role: { type: DataTypes.STRING },        // e.g. "Design & Development"
   challenge: { type: DataTypes.TEXT },
   approach: { type: DataTypes.TEXT },
-  results: { type: DataTypes.JSON, defaultValue: [] },
-  tech: { type: DataTypes.JSON, defaultValue: [] },
-  gallery: { type: DataTypes.JSON, defaultValue: [] },
+  results: { type: DataTypes.JSON, defaultValue: [] },   // [{ value, label }]
+  tech: { type: DataTypes.JSON, defaultValue: [] },      // ["Next.js", "Node", ...]
+  gallery: { type: DataTypes.JSON, defaultValue: [] },   // [imageUrl, ...]
   testimonialQuote: { type: DataTypes.TEXT },
   testimonialName: { type: DataTypes.STRING },
   testimonialRole: { type: DataTypes.STRING },
@@ -42,6 +48,7 @@ const Project = sequelize.define("Project", {
   seoDescription: { type: DataTypes.TEXT },
 }, { tableName: "projects" });
 
+/* ── Service ─────────────────────────────── */
 const Service = sequelize.define("Service", {
   title: { type: DataTypes.STRING, allowNull: false },
   slug: { type: DataTypes.STRING, allowNull: false, unique: true },
@@ -51,6 +58,7 @@ const Service = sequelize.define("Service", {
   status: { type: DataTypes.ENUM("draft", "published"), defaultValue: "published" },
 }, { tableName: "services" });
 
+/* ── Testimonial ───────────────────────── */
 const Testimonial = sequelize.define("Testimonial", {
   name: { type: DataTypes.STRING, allowNull: false },
   role: { type: DataTypes.STRING },
@@ -62,6 +70,7 @@ const Testimonial = sequelize.define("Testimonial", {
   status: { type: DataTypes.ENUM("draft", "published"), defaultValue: "published" },
 }, { tableName: "testimonials" });
 
+/* ── Team member ───────────────────────── */
 const TeamMember = sequelize.define("TeamMember", {
   name: { type: DataTypes.STRING, allowNull: false },
   role: { type: DataTypes.STRING },
@@ -73,6 +82,7 @@ const TeamMember = sequelize.define("TeamMember", {
   status: { type: DataTypes.ENUM("draft", "published"), defaultValue: "published" },
 }, { tableName: "team_members" });
 
+/* ── Blog post ────────────────────────── */
 const BlogPost = sequelize.define("BlogPost", {
   title: { type: DataTypes.STRING, allowNull: false },
   slug: { type: DataTypes.STRING, allowNull: false, unique: true },
@@ -89,6 +99,7 @@ const BlogPost = sequelize.define("BlogPost", {
   seoKeywords: { type: DataTypes.STRING },
 }, { tableName: "blog_posts" });
 
+/* ── Contact submission ─────────────────── */
 const ContactSubmission = sequelize.define("ContactSubmission", {
   name: { type: DataTypes.STRING, allowNull: false },
   email: { type: DataTypes.STRING, allowNull: false },
@@ -100,6 +111,7 @@ const ContactSubmission = sequelize.define("ContactSubmission", {
   isRead: { type: DataTypes.BOOLEAN, defaultValue: false },
 }, { tableName: "contact_submissions" });
 
+/* ── Kanban board (Trello-style) ───────────── */
 const Board = sequelize.define("Board", {
   name: { type: DataTypes.STRING, allowNull: false },
   description: { type: DataTypes.TEXT },
@@ -109,6 +121,7 @@ const Board = sequelize.define("Board", {
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
 }, { tableName: "boards" });
 
+/* ── Kanban task (card) ────────────────── */
 const Task = sequelize.define("Task", {
   title: { type: DataTypes.STRING, allowNull: false },
   description: { type: DataTypes.TEXT },
@@ -127,12 +140,14 @@ const Task = sequelize.define("Task", {
   label: { type: DataTypes.STRING },
 }, { tableName: "tasks" });
 
+/* ── Card comment ────────────────────── */
 const Comment = sequelize.define("Comment", {
   taskId: { type: DataTypes.INTEGER, allowNull: false },
   userId: { type: DataTypes.INTEGER },
   body: { type: DataTypes.TEXT, allowNull: false },
 }, { tableName: "task_comments" });
 
+/* ── Per-page SEO ────────────────────── */
 const Seo = sequelize.define("Seo", {
   page: { type: DataTypes.STRING, allowNull: false, unique: true },
   title: { type: DataTypes.STRING },
@@ -143,6 +158,7 @@ const Seo = sequelize.define("Seo", {
   noindex: { type: DataTypes.BOOLEAN, defaultValue: false },
 }, { tableName: "seo_meta" });
 
+/* ── CMS-managed content pages (privacy, terms…) ─────── */
 const Page = sequelize.define("Page", {
   slug: { type: DataTypes.STRING, allowNull: false, unique: true },
   title: { type: DataTypes.STRING, allowNull: false },
@@ -150,6 +166,7 @@ const Page = sequelize.define("Page", {
   status: { type: DataTypes.ENUM("draft", "published"), defaultValue: "published" },
 }, { tableName: "pages" });
 
+/* ── Business-development leads (private CRM pipeline) ── */
 const Lead = sequelize.define("Lead", {
   name: { type: DataTypes.STRING, allowNull: false },
   company: { type: DataTypes.STRING },
@@ -162,11 +179,10 @@ const Lead = sequelize.define("Lead", {
   priority: { type: DataTypes.ENUM("low", "medium", "high"), defaultValue: "medium" },
   nextFollowUp: { type: DataTypes.DATEONLY },
   notes: { type: DataTypes.TEXT },
-  purpose: { type: DataTypes.STRING },
-  progress: { type: DataTypes.INTEGER, defaultValue: 0 },
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
 }, { tableName: "leads" });
 
+/* ── Editable content collections (CMS) ───────────── */
 const contentDefaults = {
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
   status: { type: DataTypes.ENUM("draft", "published"), defaultValue: "published" },
@@ -219,6 +235,7 @@ const Feature = sequelize.define("Feature", {
   ...contentDefaults,
 }, { tableName: "features" });
 
+/* ── Site settings (key/value: analytics, pixels, brand) ─ */
 const Setting = sequelize.define("Setting", {
   key: { type: DataTypes.STRING, allowNull: false, unique: true },
   value: { type: DataTypes.TEXT },
@@ -226,9 +243,11 @@ const Setting = sequelize.define("Setting", {
   isPublic: { type: DataTypes.BOOLEAN, defaultValue: true },
 }, { tableName: "settings" });
 
+/* ── Author association (optional) ─────────────── */
 BlogPost.belongsTo(User, { as: "editor", foreignKey: { name: "userId", allowNull: true } });
 User.hasMany(BlogPost, { as: "posts", foreignKey: "userId" });
 
+/* ── Kanban associations ──────────────────── */
 Board.hasMany(Task, { as: "tasks", foreignKey: "boardId", onDelete: "CASCADE" });
 Task.belongsTo(Board, { foreignKey: "boardId" });
 Task.hasMany(Comment, { as: "comments", foreignKey: "taskId", onDelete: "CASCADE" });
