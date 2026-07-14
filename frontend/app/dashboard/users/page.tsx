@@ -11,15 +11,15 @@ export default function AdminUsers() {
         { name: "name", label: "Name" },
         { name: "email", label: "Email" },
         { name: "title", label: "Title" },
-        { name: "role", label: "Role", type: "role" },
+        { name: "roles", label: "Roles", type: "roles" },
       ]}
-      defaults={{ role: "admin", active: true }}
+      defaults={{ roles: ["admin"], active: true }}
       fields={[
         { name: "avatar", label: "Avatar", type: "avatar" },
         { name: "name", label: "Full name" },
         { name: "email", label: "Email", type: "text", placeholder: "name@finvera.solutions" },
         { name: "title", label: "Job title", type: "text", placeholder: "e.g. Head of Design" },
-        { name: "role", label: "Role (controls what they can access)", type: "select", options: [
+        { name: "roles", label: "Roles (assign one or more — controls what they can access)", type: "multiselect", options: [
           { value: "admin", label: "Admin — full access" },
           { value: "content", label: "Content — site content, blog, projects, team…" },
           { value: "projects", label: "Project board — kanban only" },

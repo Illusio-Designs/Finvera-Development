@@ -33,3 +33,19 @@ export function roleCan(role: string | undefined, area: Area | null): boolean {
   if (a === "*") return true;
   return a.includes(area);
 }
+
+/** True if ANY of the user's roles grants the area. */
+export function rolesCan(roles: string[] | undefined, area: Area | null): boolean {
+  if (!area) return true;
+  if (!Array.isArray(roles)) return false;
+  return roles.some((r) => roleCan(r, area));
+}
+
+/** Normalise a user's roles from the API (new `roles[]` or legacy single `role`). */
+export function userRoles(me: { roles?: string[]; role?: string } | null | undefined): string[] {
+  if (!me) return [];
+  if (Array.isArray(me.roles) && me.roles.length) return me.roles;
+  return me.role ? [me.role] : [];
+}
+
+export const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);

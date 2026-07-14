@@ -32,4 +32,10 @@ function roleCan(role, area) {
   return areas.includes(area);
 }
 
-module.exports = { ROLE_AREAS, ALL_ROLES, ACCEPTED_ROLES, roleCan };
+/* True if ANY of the user's roles grants the area. */
+function rolesCan(roles, area) {
+  if (!Array.isArray(roles)) return false;
+  return roles.some((r) => roleCan(r, area));
+}
+
+module.exports = { ROLE_AREAS, ALL_ROLES, ACCEPTED_ROLES, roleCan, rolesCan };

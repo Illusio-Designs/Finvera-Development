@@ -1,6 +1,12 @@
 const jwt = require("jsonwebtoken");
 const { User } = require("../models");
-const { roleCan } = require("../utils/permissions");
+const { rolesCan } = require("../utils/permissions");
+
+/* Normalise a user to a roles array (supports both the new `roles` JSON
+   column and the legacy single `role`). */
+function rolesOf(user) {
+  return Array.isArray(user.roles) && user.roles.length ? user.roles : (user.role ? [user.role] : []);
+}
 
 /* Verify JWT and attach req.user. Blocks if missing/invalid. */
 async function requireAuth(req, res, next) {
@@ -13,7 +19,7 @@ async function requireAuth(req, res, next) {
     const user = await User.findByPk(payload.id);
     if (!user || !user.active) return res.status(401).json({ message: "Invalid or inactive account." });
 
-    req.user = { id: user.id, email: user.email, role: user.role, name: user.name };
+    req.user = { id: user.id, email: user.email, role: user.role, roles: rolesOf(user), name: user.name };
     next();
   } catch (err) {
     return res.status(401).json({ message: "Invalid or expired token." });
@@ -23,7 +29,8 @@ async function requireAuth(req, res, next) {
 /* Restrict to specific roles, e.g. requireRole("admin") */
 function requireRole(...roles) {
   return (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
+    const has = req.user && (req.user.roles || []).some((r) => roles.includes(r));
+    if (!has) {
       return res.status(403).json({ message: "You do not have permission to do that." });
     }
     next();
@@ -34,7 +41,7 @@ function requireRole(...roles) {
 function requireArea(area) {
   return (req, res, next) => {
     if (!req.user) return res.status(401).json({ message: "Authentication required." });
-    if (!roleCan(req.user.role, area)) {
+    if (!rolesCan(req.user.roles || [], area)) {
       return res.status(403).json({ message: "You do not have permission to do that." });
     }
     next();
@@ -49,7 +56,7 @@ async function optionalAuth(req, _res, next) {
     if (token) {
       const payload = jwt.verify(token, process.env.JWT_SECRET);
       const user = await User.findByPk(payload.id);
-      if (user && user.active) req.user = { id: user.id, role: user.role };
+      if (user && user.active) req.user = { id: user.id, role: user.role, roles: rolesOf(user) };
     }
   } catch (_) { /* ignore */ }
   next();
