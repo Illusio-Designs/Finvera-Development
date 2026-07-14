@@ -96,8 +96,11 @@ leadRouter.patch("/:id", ...canLeads, leadCtrl.update);
 leadRouter.delete("/:id", ...canLeads, leadCtrl.remove);
 router.use("/leads", leadRouter);
 
-/* ── Users (admin only) ─────────────────── */
+/* ── Users ────────────────────────── */
 const usersRouter = express.Router();
+// Minimal member directory for assignment pickers — any signed-in user.
+usersRouter.get("/assignable", requireAuth, usersCtrl.assignable);
+// Full user management — admin only.
 usersRouter.get("/", requireAuth, requireRole("admin"), usersCtrl.list);
 usersRouter.post("/", requireAuth, requireRole("admin"), usersCtrl.create);
 usersRouter.put("/:id", requireAuth, requireRole("admin"), usersCtrl.update);
