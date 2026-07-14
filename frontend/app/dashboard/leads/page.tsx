@@ -27,7 +27,7 @@ export default function AdminLeads() {
         { name: "source", label: "Source", type: "select", options: ["Website", "Referral", "LinkedIn", "Cold outreach", "Event", "Other"] },
         { name: "stage", label: "Stage (drives the progress score)", type: "select", options: ["new", "contacted", "qualified", "proposal", "won", "lost"] },
         { name: "value", label: "Estimated value (₹)", type: "number", placeholder: "e.g. 25000" },
-        { name: "owner", label: "Owner (BD)", type: "text", placeholder: "Who owns this lead" },
+        { name: "owner", label: "Owner (BD)", type: "userselect", placeholder: "Assign a team member" },
         { name: "priority", label: "Priority", type: "select", options: ["low", "medium", "high"] },
         { name: "nextFollowUp", label: "Next follow-up", type: "date" },
         { name: "notes", label: "Notes", type: "textarea", placeholder: "Context, next steps, objections…" },
