@@ -68,6 +68,7 @@ export default function Kanban() {
   const [boards, setBoards] = useState<Board[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Partial<Task> | null>(null);
@@ -89,22 +90,33 @@ export default function Kanban() {
   async function loadBoards() {
     setLoading(true);
     try {
-      const [bRaw, u] = await Promise.all([api.listBoards(), api.listUsers().catch(() => [])]);
+      const [bRaw, u, tRaw] = await Promise.all([api.listBoards(), api.listUsers().catch(() => []), api.listTasks().catch(() => [])]);
       const b = (Array.isArray(bRaw) ? bRaw : []).map(normBoard);
       setBoards(b);
       setUsers(Array.isArray(u) ? u : []);
-      const first = activeId && b.some((x: Board) => x.id === activeId) ? activeId : b[0]?.id ?? null;
-      setActiveId(first);
-      if (first) setTasks((await api.listTasks(first) || []).map(normTask));
+      setAllTasks((Array.isArray(tRaw) ? tRaw : []).map(normTask));
+      // Start on the boards overview — user opens a board explicitly.
     } finally { setLoading(false); }
   }
   useEffect(() => { loadBoards(); /* eslint-disable-next-line */ }, []);
 
-  async function switchBoard(id: number) {
+  async function openBoard(id: number) {
     setActiveId(id);
     setTasks(((await api.listTasks(id)) || []).map(normTask));
   }
+  async function backToBoards() {
+    setActiveId(null); setTasks([]);
+    setAllTasks(((await api.listTasks().catch(() => [])) || []).map(normTask));
+  }
+  const switchBoard = openBoard;
   async function reloadTasks() { if (activeId) setTasks(((await api.listTasks(activeId)) || []).map(normTask)); }
+
+  /* Per-board stats for the overview cards. */
+  function boardStats(bid: number) {
+    const ts = allTasks.filter((t) => t.boardId === bid);
+    const memberIds = [...new Set(ts.flatMap((t) => toArr<number>(t.memberIds)))];
+    return { count: ts.length, members: memberIds.map(userById).filter(Boolean) as User[] };
+  }
 
   const inCol = (id: string) => tasks.filter((t) => t.column === id).sort((a, b) => a.position - b.position);
 
@@ -193,7 +205,7 @@ export default function Kanban() {
     await api.deleteBoard(board.id);
     const rest = boards.filter((b) => b.id !== board.id);
     setBoards(rest); toast("Board deleted");
-    if (rest[0]) switchBoard(rest[0].id); else { setActiveId(null); setTasks([]); }
+    backToBoards();
   }
   async function addColumn() {
     const title = await dialog.prompt({ title: "New column", placeholder: "Column name", confirmText: "Add" });
@@ -247,39 +259,64 @@ export default function Kanban() {
 
   return (
     <>
-      <div className="adm-top">
-        <div>
-          <h1>Project boards</h1>
-          <p>Trello-style boards — drag cards, assign members, add labels, checklists and comments.</p>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {board && <button className="adm-btn ghost" onClick={addColumn}>+ Column</button>}
-          <button className="adm-btn primary" onClick={addBoard}>+ Board</button>
-        </div>
-      </div>
-
-      {/* Board switcher */}
-      <div className="kb-boards">
-        {boards.map((b) => (
-          <button key={b.id} className={"kb-boardtab" + (b.id === activeId ? " active" : "")} onClick={() => switchBoard(b.id)}>
-            <span className="dot" style={{ background: b.color || "#3e60ab" }} />{b.name}
-          </button>
-        ))}
-        {board && (
-          <span className="kb-board-actions">
-            <button onClick={renameBoard} data-tip="Rename board" aria-label="Rename board">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
-            </button>
-            <button onClick={deleteBoard} data-tip="Delete board" aria-label="Delete board">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /></svg>
-            </button>
-          </span>
-        )}
-      </div>
-
       {!board ? (
-        <div className="adm-empty">No boards yet. Create your first board.</div>
+        <>
+          <div className="adm-top">
+            <div>
+              <h1>Project boards</h1>
+              <p>Open a board to manage its cards, members, labels and checklists.</p>
+            </div>
+            <button className="adm-btn primary" onClick={addBoard}>+ Board</button>
+          </div>
+
+          <div className="kb-boardgrid">
+            {boards.map((b) => {
+              const st = boardStats(b.id);
+              const accent = b.color || "#3e60ab";
+              return (
+                <button key={b.id} className="kb-boardcard" onClick={() => openBoard(b.id)}>
+                  <span className="kb-bc-bar" style={{ background: accent }} />
+                  <div className="kb-bc-head">
+                    <span className="kb-bc-icon" style={{ background: accent + "1f", color: accent }}>{(b.name || "B").slice(0, 1).toUpperCase()}</span>
+                    <span className="kb-bc-cols">{toArr(b.columns).length} lists</span>
+                  </div>
+                  <h3>{b.name}</h3>
+                  <p>{b.description || "Trello-style board"}</p>
+                  <div className="kb-bc-foot">
+                    <span className="kb-bc-count">{st.count} task{st.count === 1 ? "" : "s"}</span>
+                    <span className="kb-avstack">
+                      {st.members.slice(0, 4).map((m) => <Avatar key={m.id} user={m} size={26} />)}
+                      {st.members.length > 4 && <span className="kb-av kb-av-i" style={{ width: 26, height: 26, fontSize: 10 }}>+{st.members.length - 4}</span>}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+            <button className="kb-boardcard kb-boardcard-add" onClick={addBoard}>
+              <span className="plus">+</span><span>New board</span>
+            </button>
+          </div>
+        </>
       ) : (
+        <>
+          <div className="adm-top">
+            <div className="kb-openhead">
+              <button className="kb-back" onClick={backToBoards} aria-label="Back to boards">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 18l-6-6 6-6" /></svg>
+                Boards
+              </button>
+              <div>
+                <h1><span className="kb-bc-dot" style={{ background: board.color || "#3e60ab" }} />{board.name}</h1>
+                <p>{board.description || "Drag cards, assign members, add labels, checklists and comments."}</p>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="adm-btn ghost" onClick={addColumn}>+ Column</button>
+              <button className="adm-btn ghost" onClick={renameBoard}>Rename</button>
+              <button className="adm-btn ghost" onClick={deleteBoard}>Delete</button>
+            </div>
+          </div>
+
         <div className="kb">
           {cols.map((c) => (
             <div key={c.id} data-col={c.id}
@@ -374,6 +411,7 @@ export default function Kanban() {
           ))}
           <div className="kb-addcol"><button onClick={addColumn}>+ Add column</button></div>
         </div>
+        </>
       )}
 
       {editing && (
