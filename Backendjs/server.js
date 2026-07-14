@@ -10,14 +10,19 @@ async function start() {
     await sequelize.authenticate();
     console.log("\x1b[32m✔ MySQL connected\x1b[0m");
 
-    // Auto-provision schema (additive): creates any missing tables and columns
-    // on boot so new features (Kanban boards, case-study fields, etc.) work
-    // without a manual DB_SYNC step. Additive only — never drops data. Wrapped
-    // so a sync hiccup can't take the API down. Set SKIP_DB_SYNC=true to opt out.
+    // Schema provisioning.
+    //   Default boot  → sequelize.sync() : only CREATEs missing tables. Cheap,
+    //                   no ALTER scan, so Passenger workers boot fast and don't
+    //                   pile up (avoids nproc exhaustion on shared hosting).
+    //   DB_SYNC_ALTER=true → sequelize.sync({ alter: true }) : reconciles columns
+    //                   (run this for ONE restart after a schema change, e.g. the
+    //                   new user `roles` column, then remove the flag).
+    //   SKIP_DB_SYNC=true → skip entirely.
     if (String(process.env.SKIP_DB_SYNC).toLowerCase() !== "true") {
+      const alter = String(process.env.DB_SYNC_ALTER).toLowerCase() === "true";
       try {
-        await sequelize.sync({ alter: true });
-        console.log("\x1b[32m✔ Schema synced (tables + columns up to date)\x1b[0m");
+        await sequelize.sync(alter ? { alter: true } : undefined);
+        console.log(`\x1b[32m✔ Schema synced (${alter ? "ALTER — columns reconciled" : "create-missing only"})\x1b[0m`);
       } catch (e) {
         console.warn("\x1b[33m⚠ Schema sync warning (continuing):\x1b[0m", e.message);
       }
