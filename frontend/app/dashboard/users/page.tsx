@@ -11,7 +11,7 @@ export default function AdminUsers() {
         { name: "name", label: "Name" },
         { name: "email", label: "Email" },
         { name: "title", label: "Title" },
-        { name: "role", label: "Role" },
+        { name: "role", label: "Role", type: "role" },
       ]}
       defaults={{ role: "admin", active: true }}
       fields={[
