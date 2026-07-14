@@ -50,6 +50,17 @@ const NAV_GROUPS: NavGroup[] = [
 
 const FLAT: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);
 
+/** Decode the role baked into the JWT (authoritative — set at login), so the
+    nav works even if /auth/me is slow or returns an unexpected shape. */
+function roleFromToken(): string | undefined {
+  try {
+    const t = getToken();
+    if (!t) return undefined;
+    const payload = JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return payload?.role;
+  } catch { return undefined; }
+}
+
 /** Longest-prefix nav match for the current path. */
 function matchItem(pathname: string): NavItem | undefined {
   return [...FLAT]
@@ -67,7 +78,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const [today, setToday] = useState("");
   const [me, setMe] = useState<Me>(null);
-  const roles = userRoles(me);
+  // Roles come from /auth/me when available, unioned with the role in the JWT
+  // (a reliable fallback so admins/users are never locked out of their nav).
+  const roles = useMemo(() => {
+    const set = new Set(userRoles(me));
+    const tok = roleFromToken();
+    if (tok) set.add(tok);
+    return [...set];
+  }, [me]);
   const rolesKey = roles.join(",");
 
   useEffect(() => { setCollapsed(localStorage.getItem("fv_admin_collapsed") === "1"); }, []);
@@ -150,7 +168,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
         </div>
 
-        {!me ? (
+        {!me && roles.length === 0 ? (
           <div className="adm-nav-skel">
             {Array.from({ length: 6 }).map((_, i) => <span key={i} className="skel skel-line" style={{ height: 34, margin: "4px 0", borderRadius: 10, display: "block" }} />)}
           </div>
