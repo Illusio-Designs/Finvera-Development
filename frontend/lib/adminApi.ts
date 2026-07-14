@@ -54,8 +54,8 @@ export const api = {
     return req(`/uploads`, { method: "POST", body: fd });
   },
 
-  /* Users (for assigning members) */
-  listUsers: () => req(`/users`),
+  /* Minimal user directory for assigning members (kanban etc.) — any role. */
+  listUsers: () => req(`/users/assignable`),
 
   /* Kanban — boards (Trello-style) */
   listBoards: () => req(`/boards`),
