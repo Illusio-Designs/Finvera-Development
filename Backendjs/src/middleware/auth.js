@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const { User } = require("../models");
+const { roleCan } = require("../utils/permissions");
 
 /* Verify JWT and attach req.user. Blocks if missing/invalid. */
 async function requireAuth(req, res, next) {
@@ -29,6 +30,17 @@ function requireRole(...roles) {
   };
 }
 
+/* Restrict to a permission area, e.g. requireArea("leads"). Admin passes all. */
+function requireArea(area) {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ message: "Authentication required." });
+    if (!roleCan(req.user.role, area)) {
+      return res.status(403).json({ message: "You do not have permission to do that." });
+    }
+    next();
+  };
+}
+
 /* Soft auth — attaches req.user if a valid token is present, else continues. */
 async function optionalAuth(req, _res, next) {
   try {
@@ -43,4 +55,4 @@ async function optionalAuth(req, _res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireRole, optionalAuth };
+module.exports = { requireAuth, requireRole, requireArea, optionalAuth };

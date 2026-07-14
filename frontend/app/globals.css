@@ -890,6 +890,21 @@ section{position:relative;z-index:2}
 .adm-side a:hover{background:rgba(16,30,60,.04);color:var(--ink)}
 .adm-side a.active{background:var(--grad);color:#fff;box-shadow:0 10px 24px -12px rgba(62,96,171,.9)}
 .adm-side .spacer{flex:1}
+/* Collapsible nav groups (dropdown sections) */
+.adm-navgroup{margin-top:2px}
+.adm-navgroup-h{display:flex;align-items:center;gap:11px;width:100%;padding:10px 12px;border-radius:10px;
+  color:var(--muted-2);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;transition:.2s;cursor:pointer}
+.adm-navgroup-h:hover{color:var(--ink);background:rgba(16,30,60,.04)}
+.adm-navgroup-h .hgi{width:17px;height:17px;flex:none;opacity:.85}
+.adm-navgroup-h .adm-lbl{flex:1;text-align:left}
+.adm-navgroup-caret{width:15px;height:15px;flex:none;transition:transform .25s var(--ease)}
+.adm-navgroup.open .adm-navgroup-caret{transform:rotate(180deg)}
+.adm-navgroup.has-active .adm-navgroup-h{color:var(--blue-700)}
+.adm-navgroup-items{display:grid;grid-template-rows:0fr;transition:grid-template-rows .28s var(--ease)}
+.adm-navgroup.open .adm-navgroup-items{grid-template-rows:1fr}
+.adm-navgroup-items>div{overflow:hidden;min-height:0;display:flex;flex-direction:column;gap:2px}
+.adm-side .adm-navgroup-items a{margin-left:6px}
+.adm-nav-skel{display:flex;flex-direction:column;padding:6px 4px}
 .adm-logout{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;color:var(--muted);
   font-size:14px;border:1px solid var(--line);background:transparent;width:100%;justify-content:flex-start}
 .adm-logout:hover{color:var(--ink);border-color:var(--line-2)}

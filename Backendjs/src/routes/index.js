@@ -4,7 +4,7 @@ const rateLimit = require("express-rate-limit");
 const { Project, Service, Testimonial, TeamMember, BlogPost, Task, Board, Page, Lead,
   Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature } = require("../models");
 const { crudController } = require("../utils/crud");
-const { requireAuth, requireRole, optionalAuth } = require("../middleware/auth");
+const { requireAuth, requireRole, requireArea, optionalAuth } = require("../middleware/auth");
 const { upload } = require("../middleware/upload");
 
 const authCtrl = require("../controllers/auth.controller");
@@ -15,16 +15,19 @@ const usersCtrl = require("../controllers/users.controller");
 
 const router = express.Router();
 
-/* Build standard REST routes for a resource backed by the crud factory. */
-function resource(path, Model, opts) {
+/* Build standard REST routes for a resource backed by the crud factory.
+   Reads stay public (the marketing site needs them); writes require the
+   caller's role to include `area` (admin always passes). */
+function resource(path, Model, opts, area = "content") {
   const c = crudController(Model, opts);
   const r = express.Router();
+  const canWrite = [requireAuth, requireArea(area)];
   r.get("/", optionalAuth, c.list);
   r.get("/:id", optionalAuth, c.getOne);
-  r.post("/", requireAuth, c.create);
-  r.put("/:id", requireAuth, c.update);
-  r.patch("/:id", requireAuth, c.update);
-  r.delete("/:id", requireAuth, c.remove);
+  r.post("/", ...canWrite, c.create);
+  r.put("/:id", ...canWrite, c.update);
+  r.patch("/:id", ...canWrite, c.update);
+  r.delete("/:id", ...canWrite, c.remove);
   router.use(path, r);
 }
 
@@ -58,37 +61,39 @@ resource("/features", Feature, { hasStatus: true, order: CONTENT_ORDER, searchab
 /* ── Kanban boards (all endpoints require auth) ──────── */
 const boardCtrl = crudController(Board, { order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["name"] });
 const boardRouter = express.Router();
-boardRouter.get("/", requireAuth, boardCtrl.list);
-boardRouter.get("/:id", requireAuth, boardCtrl.getOne);
-boardRouter.post("/", requireAuth, boardCtrl.create);
-boardRouter.put("/:id", requireAuth, boardCtrl.update);
-boardRouter.patch("/:id", requireAuth, boardCtrl.update);
-boardRouter.delete("/:id", requireAuth, boardCtrl.remove);
+const canBoard = [requireAuth, requireArea("board")];
+boardRouter.get("/", ...canBoard, boardCtrl.list);
+boardRouter.get("/:id", ...canBoard, boardCtrl.getOne);
+boardRouter.post("/", ...canBoard, boardCtrl.create);
+boardRouter.put("/:id", ...canBoard, boardCtrl.update);
+boardRouter.patch("/:id", ...canBoard, boardCtrl.update);
+boardRouter.delete("/:id", ...canBoard, boardCtrl.remove);
 router.use("/boards", boardRouter);
 
 /* ── Kanban tasks + comments (all require auth) ──────── */
 const taskCtrl = crudController(Task, { order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["title", "assignee", "label"] });
 const tasksCustom = require("../controllers/tasks.controller");
 const taskRouter = express.Router();
-taskRouter.get("/", requireAuth, tasksCustom.list);          // supports ?boardId=
-taskRouter.post("/", requireAuth, taskCtrl.create);
-taskRouter.put("/:id", requireAuth, taskCtrl.update);
-taskRouter.patch("/:id", requireAuth, taskCtrl.update);
-taskRouter.delete("/:id", requireAuth, taskCtrl.remove);
-taskRouter.get("/:taskId/comments", requireAuth, tasksCustom.listComments);
-taskRouter.post("/:taskId/comments", requireAuth, tasksCustom.addComment);
+taskRouter.get("/", ...canBoard, tasksCustom.list);          // supports ?boardId=
+taskRouter.post("/", ...canBoard, taskCtrl.create);
+taskRouter.put("/:id", ...canBoard, taskCtrl.update);
+taskRouter.patch("/:id", ...canBoard, taskCtrl.update);
+taskRouter.delete("/:id", ...canBoard, taskCtrl.remove);
+taskRouter.get("/:taskId/comments", ...canBoard, tasksCustom.listComments);
+taskRouter.post("/:taskId/comments", ...canBoard, tasksCustom.addComment);
 router.use("/tasks", taskRouter);
-router.delete("/comments/:id", requireAuth, tasksCustom.deleteComment);
+router.delete("/comments/:id", ...canBoard, tasksCustom.deleteComment);
 
 /* ── Leads (private BD pipeline — auth on every endpoint) ─ */
 const leadCtrl = crudController(Lead, { order: [["position", "ASC"], ["createdAt", "DESC"]], searchable: ["name", "company", "email", "source", "owner"] });
 const leadRouter = express.Router();
-leadRouter.get("/", requireAuth, leadCtrl.list);
-leadRouter.get("/:id", requireAuth, leadCtrl.getOne);
-leadRouter.post("/", requireAuth, leadCtrl.create);
-leadRouter.put("/:id", requireAuth, leadCtrl.update);
-leadRouter.patch("/:id", requireAuth, leadCtrl.update);
-leadRouter.delete("/:id", requireAuth, leadCtrl.remove);
+const canLeads = [requireAuth, requireArea("leads")];
+leadRouter.get("/", ...canLeads, leadCtrl.list);
+leadRouter.get("/:id", ...canLeads, leadCtrl.getOne);
+leadRouter.post("/", ...canLeads, leadCtrl.create);
+leadRouter.put("/:id", ...canLeads, leadCtrl.update);
+leadRouter.patch("/:id", ...canLeads, leadCtrl.update);
+leadRouter.delete("/:id", ...canLeads, leadCtrl.remove);
 router.use("/leads", leadRouter);
 
 /* ── Users (admin only) ──────────────────────────────── */
@@ -102,24 +107,25 @@ router.use("/users", usersRouter);
 /* ── Contact ─────────────────────────────────────────── */
 const contactLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
 const contactRouter = express.Router();
-contactRouter.post("/", contactLimiter, contactCtrl.submit);
-contactRouter.get("/", requireAuth, contactCtrl.list);
-contactRouter.patch("/:id/read", requireAuth, contactCtrl.setRead);
-contactRouter.delete("/:id", requireAuth, contactCtrl.remove);
+const canContact = [requireAuth, requireArea("contact")];
+contactRouter.post("/", contactLimiter, contactCtrl.submit);   // public website form
+contactRouter.get("/", ...canContact, contactCtrl.list);
+contactRouter.patch("/:id/read", ...canContact, contactCtrl.setRead);
+contactRouter.delete("/:id", ...canContact, contactCtrl.remove);
 router.use("/contact", contactRouter);
 
 /* ── SEO ─────────────────────────────────────────────── */
 const seoRouter = express.Router();
 seoRouter.get("/", settingsCtrl.listSeo);
 seoRouter.get("/:page", settingsCtrl.getSeo);
-seoRouter.put("/:page", requireAuth, settingsCtrl.upsertSeo);
+seoRouter.put("/:page", requireAuth, requireArea("seo"), settingsCtrl.upsertSeo);
 router.use("/seo", seoRouter);
 
 /* ── Settings (analytics / pixels / brand) ───────────── */
 const settingsRouter = express.Router();
-settingsRouter.get("/", optionalAuth, settingsCtrl.getSettings);       // flat { key: value }
-settingsRouter.get("/all", requireAuth, settingsCtrl.getSettingsDetailed);
-settingsRouter.put("/", requireAuth, settingsCtrl.updateSettings);
+settingsRouter.get("/", optionalAuth, settingsCtrl.getSettings);       // flat { key: value } — public (pixels)
+settingsRouter.get("/all", requireAuth, requireArea("settings"), settingsCtrl.getSettingsDetailed);
+settingsRouter.put("/", requireAuth, requireArea("settings"), settingsCtrl.updateSettings);
 router.use("/settings", settingsRouter);
 
 /* ── Uploads ─────────────────────────────────────────── */
