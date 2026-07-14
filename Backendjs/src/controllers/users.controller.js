@@ -23,6 +23,13 @@ const list = asyncHandler(async (_req, res) => {
   res.json(users.map(safe));
 });
 
+/* Minimal directory for member pickers (kanban assignees, etc.). Any signed-in
+   user may read it; exposes only id/name/avatar/title — no emails or roles. */
+const assignable = asyncHandler(async (_req, res) => {
+  const users = await User.findAll({ where: { active: true }, order: [["name", "ASC"]] });
+  res.json(users.map((u) => ({ id: u.id, name: u.name, avatar: u.avatar, title: u.title })));
+});
+
 const create = asyncHandler(async (req, res) => {
   const { name, email, password, role, roles, active, avatar, title } = req.body;
   if (!name || !email || !password) return res.status(400).json({ message: "Name, email and password are required." });
@@ -61,4 +68,4 @@ const remove = asyncHandler(async (req, res) => {
   res.json({ message: "Deleted.", id: Number(req.params.id) });
 });
 
-module.exports = { list, create, update, remove };
+module.exports = { list, assignable, create, update, remove };
