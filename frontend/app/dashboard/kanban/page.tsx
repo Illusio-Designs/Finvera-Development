@@ -80,6 +80,35 @@ export default function Kanban() {
   const overColRef = useRef<string | null>(null);
   const hoverIdRef = useRef<number | null>(null);
   const didDrag = useRef(false);
+  const kbRef = useRef<HTMLDivElement | null>(null);
+  const ptr = useRef<{ x: number; y: number } | null>(null);
+  const scrollRAF = useRef<number | null>(null);
+
+  /* Auto-scroll the board (horizontally) and the hovered column (vertically)
+     while dragging a card near an edge — like Trello. */
+  function autoScrollTick() {
+    const p = ptr.current;
+    if (p && dragId.current != null) {
+      const EDGE = 90, MAX = 22;
+      const kb = kbRef.current;
+      if (kb) {
+        const r = kb.getBoundingClientRect();
+        if (p.x < r.left + EDGE) kb.scrollLeft -= MAX * Math.min(1, (r.left + EDGE - p.x) / EDGE);
+        else if (p.x > r.right - EDGE) kb.scrollLeft += MAX * Math.min(1, (p.x - (r.right - EDGE)) / EDGE);
+      }
+      const el = document.elementFromPoint(p.x, p.y) as HTMLElement | null;
+      const list = el?.closest(".kb-cards") as HTMLElement | null;
+      if (list) {
+        const r = list.getBoundingClientRect();
+        if (p.y < r.top + EDGE) list.scrollTop -= MAX * Math.min(1, (r.top + EDGE - p.y) / EDGE);
+        else if (p.y > r.bottom - EDGE) list.scrollTop += MAX * Math.min(1, (p.y - (r.bottom - EDGE)) / EDGE);
+      }
+    }
+    scrollRAF.current = requestAnimationFrame(autoScrollTick);
+  }
+  function startAutoScroll() { if (scrollRAF.current == null) scrollRAF.current = requestAnimationFrame(autoScrollTick); }
+  function stopAutoScroll() { if (scrollRAF.current != null) { cancelAnimationFrame(scrollRAF.current); scrollRAF.current = null; } ptr.current = null; }
+  useEffect(() => () => stopAutoScroll(), []);
 
   const board = boards.find((b) => b.id === activeId) || null;
   const cols: Col[] = toArr<Col>(board?.columns);
@@ -128,6 +157,7 @@ export default function Kanban() {
   function drop(toCol: string, beforeId: number | null) {
     const id = dragId.current;
     setOverCol(null);
+    stopAutoScroll();
     if (id == null) return;
     const destTitle = (cols.find((c) => c.id === toCol)?.title || "").toLowerCase();
     const isDone = /done|complete|shipped|✅/.test(destTitle);
@@ -317,7 +347,9 @@ export default function Kanban() {
             </div>
           </div>
 
-        <div className="kb">
+        <div className="kb" ref={kbRef}
+          onDragOver={(e) => { ptr.current = { x: e.clientX, y: e.clientY }; }}
+          onDrop={stopAutoScroll}>
           {cols.map((c) => (
             <div key={c.id} data-col={c.id}
               className={"kb-col" + (overCol === c.id ? " over" : "")}
@@ -350,15 +382,16 @@ export default function Kanban() {
                     <div key={t.id} data-id={t.id}
                       className={"kb-card" + (justDone === t.id ? " done-pop" : "") + (t.completed ? " is-done" : "")}
                       draggable
-                      onDragStart={(e) => { dragId.current = t.id; (e.currentTarget as HTMLElement).classList.add("dragging"); }}
-                      onDragEnd={(e) => (e.currentTarget as HTMLElement).classList.remove("dragging")}
-                      onDragOver={(e) => e.preventDefault()}
+                      onDragStart={(e) => { dragId.current = t.id; startAutoScroll(); (e.currentTarget as HTMLElement).classList.add("dragging"); }}
+                      onDragEnd={(e) => { stopAutoScroll(); (e.currentTarget as HTMLElement).classList.remove("dragging"); }}
+                      onDragOver={(e) => { e.preventDefault(); ptr.current = { x: e.clientX, y: e.clientY }; }}
                       onDrop={(e) => { e.stopPropagation(); drop(c.id, t.id); }}
-                      onTouchStart={(e) => { dragId.current = t.id; didDrag.current = false; overColRef.current = c.id; (e.currentTarget as HTMLElement).classList.add("dragging"); }}
+                      onTouchStart={(e) => { dragId.current = t.id; didDrag.current = false; overColRef.current = c.id; startAutoScroll(); (e.currentTarget as HTMLElement).classList.add("dragging"); }}
                       onTouchMove={(e) => {
                         if (dragId.current == null) return;
                         didDrag.current = true;
                         const p = e.touches[0];
+                        ptr.current = { x: p.clientX, y: p.clientY };
                         const el = document.elementFromPoint(p.clientX, p.clientY) as HTMLElement | null;
                         const col = el?.closest(".kb-col")?.getAttribute("data-col") || null;
                         overColRef.current = col; setOverCol(col);
@@ -367,6 +400,7 @@ export default function Kanban() {
                       }}
                       onTouchEnd={(e) => {
                         (e.currentTarget as HTMLElement).classList.remove("dragging");
+                        stopAutoScroll();
                         if (dragId.current != null && didDrag.current && overColRef.current) drop(overColRef.current, hoverIdRef.current);
                         else dragId.current = null;
                         overColRef.current = null; hoverIdRef.current = null; setOverCol(null);
