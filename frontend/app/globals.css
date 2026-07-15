@@ -1558,24 +1558,35 @@ section{position:relative;z-index:2}
 .kb-board-actions button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line-2);color:var(--muted-2);display:grid;place-items:center;background:transparent;transition:.2s}
 .kb-board-actions button:hover{color:var(--ink);border-color:var(--blue-500)}
 
-/* Boards overview — SaaS-style card grid */
-.kb-boardgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;margin-top:4px}
-.kb-boardcard{position:relative;display:flex;flex-direction:column;gap:8px;text-align:left;padding:20px 18px 16px;
-  border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:0 1px 2px rgba(16,30,60,.04);
-  overflow:hidden;transition:transform .22s var(--ease),box-shadow .22s var(--ease),border-color .22s var(--ease);cursor:pointer}
-.kb-boardcard:hover{transform:translateY(-3px);border-color:transparent;box-shadow:0 20px 40px -22px rgba(23,43,92,.4)}
-.kb-bc-bar{position:absolute;left:0;top:0;height:4px;width:100%}
-.kb-bc-head{display:flex;align-items:center;justify-content:space-between;margin-top:4px}
-.kb-bc-icon{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-weight:800;font-size:16px}
-.kb-bc-cols{font-size:11.5px;color:var(--muted-2);background:rgba(16,30,60,.05);padding:3px 9px;border-radius:999px;font-weight:600}
-.kb-boardcard h3{font-size:16px;font-weight:700;letter-spacing:-.01em;color:var(--ink);margin:6px 0 0}
-.kb-boardcard>p{font-size:13px;color:var(--muted);line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.kb-bc-foot{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:12px}
-.kb-bc-count{font-size:12px;font-weight:600;color:var(--muted-2)}
-.kb-boardcard-add{align-items:center;justify-content:center;gap:6px;flex-direction:row;color:var(--muted-2);font-weight:600;
-  border-style:dashed;background:transparent;box-shadow:none;min-height:150px}
-.kb-boardcard-add:hover{color:var(--blue-600);border-color:var(--blue-500);transform:none;box-shadow:none}
-.kb-boardcard-add .plus{font-size:20px;line-height:1}
+/* Boards overview — folder cards */
+.kb-boardgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:26px 18px;margin-top:16px}
+.kb-folder{--fc:#3e60ab;position:relative;text-align:left;padding:0;margin-top:13px;background:transparent;border:0;cursor:pointer;
+  transition:transform .22s var(--ease)}
+.kb-folder:hover{transform:translateY(-4px)}
+/* the folder tab */
+.kb-folder-tab{position:absolute;top:-11px;left:16px;width:78px;height:15px;border-radius:8px 8px 0 0;
+  background:var(--fc);box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
+.kb-folder-tab::after{content:"";position:absolute;right:-9px;bottom:0;width:12px;height:100%;
+  background:var(--fc);transform:skewX(24deg);transform-origin:bottom;border-radius:0 6px 0 0}
+/* the folder body */
+.kb-folder-in{position:relative;z-index:1;display:flex;flex-direction:column;gap:7px;min-height:152px;
+  padding:15px 16px 14px;border:1px solid var(--line);border-radius:3px 15px 15px 15px;background:#fff;
+  box-shadow:0 2px 4px rgba(16,30,60,.05);transition:box-shadow .22s var(--ease),border-color .22s var(--ease)}
+.kb-folder:hover .kb-folder-in{border-color:transparent;box-shadow:0 24px 46px -24px rgba(23,43,92,.45)}
+.kb-folder-row{display:flex;align-items:center;justify-content:space-between}
+.kb-folder-ic{width:38px;height:34px;border-radius:9px;display:grid;place-items:center;color:var(--fc);background:rgba(16,30,60,.05)}
+.kb-folder-ic svg{width:21px;height:21px}
+.kb-folder-cols{font-size:11px;color:var(--muted-2);font-weight:600;background:rgba(16,30,60,.05);padding:3px 9px;border-radius:999px}
+.kb-folder h3{font-size:15.5px;font-weight:700;letter-spacing:-.01em;color:var(--ink);margin:3px 0 0}
+.kb-folder-in>p{font-size:12.5px;color:var(--muted);line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.kb-folder-foot{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:10px}
+.kb-folder-count{font-size:12px;font-weight:600;color:var(--muted-2)}
+/* new-board folder */
+.kb-folder-add .kb-folder-tab{background:var(--line-2)}
+.kb-folder-add .kb-folder-in{flex-direction:row;align-items:center;justify-content:center;gap:8px;border-style:dashed;
+  background:transparent;box-shadow:none;color:var(--muted);font-weight:600}
+.kb-folder-add:hover .kb-folder-in{border-color:var(--blue-500);color:var(--blue-600)}
+.kb-folder-add .plus{font-size:19px;line-height:1}
 /* Opened-board header */
 .kb-openhead{display:flex;align-items:flex-start;gap:14px}
 .kb-back{display:inline-flex;align-items:center;gap:5px;padding:8px 13px;border-radius:10px;border:1px solid var(--line-2);
@@ -1828,35 +1839,37 @@ section{position:relative;z-index:2}
 /* =========================================================
    Kanban card — Layers/Trello-style (priority pill, progress, footer)
    ========================================================= */
-.kb-cards{gap:15px}
-.kb-card{padding:0;border-radius:18px;border:0;background:#fff;overflow:hidden;
-  box-shadow:0 10px 26px -14px rgba(23,43,92,.28),0 2px 6px -2px rgba(23,43,92,.08)}
-.kb-card:hover{transform:translateY(-3px);border-color:transparent;
-  box-shadow:0 18px 40px -16px rgba(23,43,92,.4),0 3px 8px -2px rgba(23,43,92,.1)}
-.kb-banner{text-align:center;padding:8px;font-size:10.5px;font-weight:800;letter-spacing:.09em;color:#fff;text-transform:uppercase}
-.kb-banner.high{background:linear-gradient(180deg,#ff6b6b,#ee4b4b)}
-.kb-banner.medium{background:linear-gradient(180deg,#ffa64d,#ff8a3d)}
-.kb-banner.low{background:linear-gradient(180deg,#42cf86,#25b06a)}
-.kb-inner{margin:13px;border:1.5px dashed var(--line-2);border-radius:14px;padding:15px}
-.kb-inner .kb-cover{height:8px;border-radius:5px;margin:-3px 0 10px}
-.kb-inner .kb-cover-img{height:66px;border-radius:9px;margin:-3px 0 10px;background-size:cover;background-position:center}
-.kb-inner h4{font-size:16px;font-weight:700;line-height:1.3;margin:0 0 7px;color:var(--ink)}
-.kb-inner h4.done{text-decoration:line-through;color:var(--muted-2)}
-.kb-desc{font-size:12.5px;color:var(--muted);line-height:1.5;margin:0 0 15px;
+.kb-cards{gap:10px}
+.kb-card{padding:0;border-radius:13px;border:1px solid var(--line);background:#fff;overflow:hidden;
+  box-shadow:0 1px 2px rgba(16,30,60,.05);transition:transform .18s var(--ease),box-shadow .18s var(--ease),border-color .18s var(--ease)}
+.kb-card:hover{transform:translateY(-2px);border-color:var(--blue-400);box-shadow:0 16px 32px -18px rgba(23,43,92,.42)}
+.kbc-cover{height:76px;background-size:cover;background-position:center}
+.kbc-coverbar{height:7px}
+/* card body */
+.kbc-body{display:flex;flex-direction:column;gap:8px;padding:12px 13px}
+.kbc-top{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.kbc-prio{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:3px 8px;border-radius:7px}
+.kbc-prio svg{width:12px;height:12px}
+.kbc-prio.high{background:rgba(239,68,68,.12);color:#dc2626}
+.kbc-prio.medium{background:rgba(245,158,11,.15);color:#b45309}
+.kbc-prio.low{background:rgba(34,197,94,.14);color:#15803d}
+.kbc-label{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:7px;background:var(--bg-2);color:var(--muted-2);white-space:nowrap}
+.kbc-label.st-progress{background:rgba(62,96,171,.12);color:var(--blue-700)}
+.kbc-label.st-review{background:rgba(124,92,255,.14);color:#6d3fd6}
+.kbc-label.st-correction{background:rgba(245,158,11,.16);color:#b45309}
+.kbc-label.st-done{background:rgba(34,197,94,.15);color:#15803d}
+.kb-card h4{font-size:14px;font-weight:700;line-height:1.35;margin:0;color:var(--ink)}
+.kb-card h4.done{text-decoration:line-through;color:var(--muted-2)}
+.kb-card h4 .kb-check{color:#22c55e;margin-right:5px;font-weight:800}
+.kb-desc{font-size:12px;color:var(--muted);line-height:1.5;margin:0;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.kb-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.kb-row .kb-avstack .kb-av{margin-left:-9px;box-shadow:0 0 0 2px #fff}
-/* Status pill — subtle colour by keyword (In Progress / Review / Correction / Pending) */
-.kb-status{font-size:11.5px;font-weight:600;padding:6px 13px;border-radius:9px;background:var(--bg-2);color:var(--muted-2);white-space:nowrap}
-.kb-status.st-progress{background:rgba(62,96,171,.12);color:var(--blue-700)}
-.kb-status.st-review{background:rgba(124,92,255,.14);color:#6d3fd6}
-.kb-status.st-correction{background:rgba(245,158,11,.16);color:#b45309}
-.kb-status.st-done{background:rgba(34,197,94,.15);color:#15803d}
-.kb-foot{display:flex;align-items:center;gap:16px;padding:2px 16px 14px;color:var(--muted-2);font-size:12.5px;font-weight:600}
-.kb-fs{display:inline-flex;align-items:center;gap:5px}
-.kb-fs svg{width:15px;height:15px}
-.kb-fdate{margin-left:auto;font-weight:500;font-size:12px;color:var(--muted-2)}
-.kb-fdate.over{color:#dc2626;font-weight:600}
+.kbc-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:2px;padding-top:9px;border-top:1px solid var(--line)}
+.kbc-meta{display:flex;align-items:center;gap:12px;color:var(--muted-2);font-size:11.5px;font-weight:600;flex-wrap:wrap}
+.kbc-meta svg{width:13px;height:13px}
+.kbc-date,.kbc-mini{display:inline-flex;align-items:center;gap:4px}
+.kbc-date.over{color:#dc2626}
+.kb-card .kb-avstack{display:inline-flex;flex:none}
+.kb-card .kb-avstack .kb-av{margin-left:-8px;box-shadow:0 0 0 2px #fff}
 /* Column header — colour bar + title + task count (reference) */
 .kb-col{background:#eef1f7}
 .kb-col-head{padding:4px 4px 0}
