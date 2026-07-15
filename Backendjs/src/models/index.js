@@ -129,6 +129,7 @@ const Task = sequelize.define("Task", {
   column: { type: DataTypes.STRING, defaultValue: "backlog" },
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
   priority: { type: DataTypes.ENUM("low", "medium", "high"), defaultValue: "medium" },
+  startDate: { type: DataTypes.DATEONLY },
   dueDate: { type: DataTypes.DATEONLY },
   completed: { type: DataTypes.BOOLEAN, defaultValue: false },
   cover: { type: DataTypes.STRING },
@@ -140,7 +141,7 @@ const Task = sequelize.define("Task", {
   label: { type: DataTypes.STRING },
 }, { tableName: "tasks" });
 
-/* ── Card comment ────────────────────── */
+/* ── Card comment ──────────────────── */
 const Comment = sequelize.define("Comment", {
   taskId: { type: DataTypes.INTEGER, allowNull: false },
   userId: { type: DataTypes.INTEGER },
