@@ -144,6 +144,17 @@ const Task = sequelize.define("Task", {
   label: { type: DataTypes.STRING },
 }, { tableName: "tasks" });
 
+/* ── In-app notification ─────────────────────────────── */
+const Notification = sequelize.define("Notification", {
+  userId: { type: DataTypes.INTEGER, allowNull: false },  // recipient
+  type: { type: DataTypes.STRING, defaultValue: "info" }, // enquiry | lead | assigned | comment | due | info
+  title: { type: DataTypes.STRING, allowNull: false },
+  body: { type: DataTypes.TEXT },
+  link: { type: DataTypes.STRING },                        // dashboard path to open
+  isRead: { type: DataTypes.BOOLEAN, defaultValue: false },
+  meta: { type: DataTypes.JSON },
+}, { tableName: "notifications" });
+
 /* ── Card comment ────────────────────────────────────── */
 const Comment = sequelize.define("Comment", {
   taskId: { type: DataTypes.INTEGER, allowNull: false },
@@ -257,10 +268,11 @@ Task.belongsTo(Board, { foreignKey: "boardId" });
 Task.hasMany(Comment, { as: "comments", foreignKey: "taskId", onDelete: "CASCADE" });
 Comment.belongsTo(Task, { foreignKey: "taskId" });
 Comment.belongsTo(User, { as: "author", foreignKey: "userId" });
+Notification.belongsTo(User, { foreignKey: "userId", onDelete: "CASCADE" });
 
 module.exports = {
   sequelize,
   User, Project, Service, Testimonial, TeamMember,
-  BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page, Lead,
+  BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page, Lead, Notification,
   Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature,
 };

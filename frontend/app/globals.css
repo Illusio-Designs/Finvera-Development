@@ -1182,6 +1182,31 @@ section{position:relative;z-index:2}
 @media (max-width:1040px){.adm-status-dot{padding:8px}}
 
 /* Account menu (avatar + dropdown) */
+/* Notification bell + dropdown */
+.adm-notif{position:relative}
+.adm-notif-btn{position:relative;width:38px;height:38px;border-radius:10px;border:1px solid var(--line-2);background:#fff;
+  display:grid;place-items:center;color:var(--muted);transition:.2s}
+.adm-notif-btn:hover{color:var(--ink);border-color:var(--blue-500)}
+.adm-notif-btn svg{width:19px;height:19px}
+.adm-notif-badge{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;
+  background:#ef4444;color:#fff;font-size:10.5px;font-weight:800;display:grid;place-items:center;box-shadow:0 0 0 2px #fff}
+.adm-notif-pop{position:absolute;top:calc(100% + 10px);right:0;width:min(340px,88vw);background:#fff;border:1px solid var(--line-2);
+  border-radius:14px;box-shadow:0 24px 50px -20px rgba(23,43,92,.4),0 0 0 1px rgba(16,30,60,.03);z-index:60;overflow:hidden;animation:dpIn .16s var(--ease)}
+.adm-notif-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line)}
+.adm-notif-head b{font-size:14px}
+.adm-notif-head button{font-size:12px;color:var(--muted-2);font-weight:600}
+.adm-notif-head button:hover{color:var(--blue-600)}
+.adm-notif-list{max-height:60vh;overflow-y:auto}
+.adm-notif-empty{padding:34px 16px;text-align:center;color:var(--muted-2);font-size:13px}
+.adm-notif-item{display:flex;gap:11px;width:100%;text-align:left;padding:12px 14px;border-bottom:1px solid var(--line);transition:.15s}
+.adm-notif-item:last-child{border-bottom:0}
+.adm-notif-item:hover{background:rgba(16,30,60,.03)}
+.adm-notif-item.unread{background:rgba(62,96,171,.06)}
+.adm-notif-ic{font-size:17px;flex:none;line-height:1.3}
+.adm-notif-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.adm-notif-txt b{font-size:13px;font-weight:600;color:var(--ink);line-height:1.35}
+.adm-notif-body{font-size:12px;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.adm-notif-txt small{font-size:11px;color:var(--muted-2);margin-top:1px}
 .adm-usermenu{position:relative}
 .adm-usermenu-btn{display:inline-flex;align-items:center;gap:9px;padding:5px 10px 5px 5px;border-radius:999px;
   border:1px solid var(--line-2);background:#fff;color:var(--ink);transition:.2s;cursor:pointer}
