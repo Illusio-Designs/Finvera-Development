@@ -2,6 +2,7 @@ require("dotenv").config();
 const app = require("./src/app");
 const { sequelize } = require("./src/models");
 const seed = require("./src/utils/seed");
+const ensureColumns = require("./src/utils/ensureColumns");
 
 const PORT = Number(process.env.PORT || 5000);
 
@@ -36,6 +37,10 @@ async function start() {
         console.warn("\x1b[33m⚠ Schema sync warning (continuing):\x1b[0m", e.message);
       }
     }
+
+    // Self-heal newly added columns (e.g. tasks.startDate, users.roles) without
+    // a full ALTER scan or manual SQL — adds only what's missing.
+    try { await ensureColumns(sequelize); } catch (e) { console.warn("\x1b[33m⚠ ensureColumns skipped:\x1b[0m", e.message); }
 
     // Seeding must never take the API down — a schema mismatch or seed bug
     // here previously threw to the outer catch → process.exit(1) → Passenger
