@@ -131,6 +131,7 @@ const Task = sequelize.define("Task", {
   column: { type: DataTypes.STRING, defaultValue: "backlog" }, // column id
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
   priority: { type: DataTypes.ENUM("low", "medium", "high"), defaultValue: "medium" },
+  startDate: { type: DataTypes.DATEONLY },
   dueDate: { type: DataTypes.DATEONLY },
   completed: { type: DataTypes.BOOLEAN, defaultValue: false },
   cover: { type: DataTypes.STRING },                          // hex color or image URL

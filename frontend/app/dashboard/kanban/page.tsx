@@ -14,7 +14,7 @@ type ChecklistItem = { id: string; text: string; done: boolean };
 type Attachment = { id: string; url: string; name: string };
 type Task = {
   id: number; title: string; description?: string; boardId: number; column: string; position: number;
-  priority?: string; dueDate?: string | null; completed?: boolean; cover?: string | null;
+  priority?: string; startDate?: string | null; dueDate?: string | null; completed?: boolean; cover?: string | null;
   memberIds?: number[]; labelIds?: string[]; checklist?: ChecklistItem[]; attachments?: Attachment[];
   label?: string;
 };
@@ -31,11 +31,16 @@ function toArr<T = unknown>(v: unknown): T[] {
   return [];
 }
 const normBoard = (b: Board): Board => ({ ...b, columns: toArr(b.columns), labels: toArr(b.labels) });
+/* MySQL/Sequelize can hand booleans back as 1/0 or even the strings "1"/"0" on
+   some setups — and "0" is TRUTHY in JS, which made every card look "completed".
+   Coerce to a real boolean. */
+const booly = (v: unknown): boolean => v === true || v === 1 || v === "1" || v === "true";
 const normTask = (t: Task): Task => ({
   ...t,
+  completed: booly(t.completed),
   memberIds: toArr<number>(t.memberIds),
   labelIds: toArr<string>(t.labelIds),
-  checklist: toArr<ChecklistItem>(t.checklist),
+  checklist: toArr<ChecklistItem>(t.checklist).map((c) => ({ ...c, done: booly(c.done) })),
   attachments: toArr<Attachment>(t.attachments),
 });
 const COVER_SWATCHES = ["", "#3e60ab", "#8b5cf6", "#22c55e", "#f59e0b", "#ef4444", "#0ea5e9", "#ec4899"];
@@ -265,6 +270,20 @@ export default function Kanban() {
   const removeChecklist = (id: string) =>
     setEditing((e) => ({ ...e, checklist: (e?.checklist || []).filter((c) => c.id !== id) }));
 
+  const addAttachment = (url: string, name: string) =>
+    url && setEditing((e) => ({ ...e, attachments: [...(e?.attachments || []), { id: uid("at"), url, name: name || url.split("/").pop() || "file" }] }));
+  const removeAttachment = (id: string) =>
+    setEditing((e) => ({ ...e, attachments: (e?.attachments || []).filter((a) => a.id !== id) }));
+  async function uploadAttachment(file?: File) {
+    if (!file) return;
+    try { const { url } = await api.upload(file); addAttachment(url, file.name); toast("Attachment added"); }
+    catch { toast("Attachment upload failed", "err"); }
+  }
+  const editProgress = () => {
+    const list = editing?.checklist || []; if (!list.length) return 0;
+    return Math.round((list.filter((c) => c.done).length / list.length) * 100);
+  };
+
   async function postComment() {
     if (!editing?.id || !newComment.trim()) return;
     const c = await api.addComment(editing.id, newComment.trim());
@@ -440,7 +459,7 @@ export default function Kanban() {
                 })}
               </div>
 
-              <button className="kb-addcard" onClick={() => openCard({ column: c.id, priority: "medium", memberIds: [], labelIds: [], checklist: [] })}>+ Add card</button>
+              <button className="kb-addcard" onClick={() => openCard({ column: c.id, priority: "medium", completed: false, memberIds: [], labelIds: [], checklist: [], attachments: [] })}>+ Add card</button>
             </div>
           ))}
           <div className="kb-addcol"><button onClick={addColumn}>+ Add column</button></div>
@@ -499,13 +518,15 @@ export default function Kanban() {
                   options={cols.map((c) => ({ value: String(c.id), label: c.title }))} /></div>
             </div>
 
-            <div className="field row" style={{ gap: 12, alignItems: "flex-end" }}>
+            <div className="field row" style={{ gap: 12 }}>
+              <div className="adm-field" style={{ flex: 1 }}><label>Start date</label>
+                <DatePicker value={String(editing.startDate || "").slice(0, 10)} onChange={(v) => setEditing({ ...editing, startDate: v })} placeholder="Start date" /></div>
               <div className="adm-field" style={{ flex: 1 }}><label>Due date</label>
-                <DatePicker value={String(editing.dueDate || "").slice(0, 10)} onChange={(v) => setEditing({ ...editing, dueDate: v })} placeholder="Pick a date" /></div>
-              <label className="kb-complete">
-                <input type="checkbox" checked={!!editing.completed} onChange={(e) => setEditing({ ...editing, completed: e.target.checked })} /> Complete
-              </label>
+                <DatePicker value={String(editing.dueDate || "").slice(0, 10)} onChange={(v) => setEditing({ ...editing, dueDate: v })} placeholder="Due date" /></div>
             </div>
+            <label className="kb-complete">
+              <input type="checkbox" checked={!!editing.completed} onChange={(e) => setEditing({ ...editing, completed: e.target.checked })} /> Mark complete
+            </label>
 
             {/* Cover */}
             <div className="adm-field"><label>Cover color</label>
@@ -519,8 +540,31 @@ export default function Kanban() {
               </div>
             </div>
 
+            {/* Attachments */}
+            <div className="adm-field"><label>Attachments</label>
+              <div className="kb-attachments">
+                {(editing.attachments || []).map((a) => (
+                  <div key={a.id} className="kb-attach">
+                    <a href={a.url} target="_blank" rel="noopener noreferrer" className="kb-attach-link">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg>
+                      <span>{a.name}</span>
+                    </a>
+                    <button type="button" onClick={() => removeAttachment(a.id)} aria-label="Remove">×</button>
+                  </div>
+                ))}
+                <label className="kb-attach-add">
+                  <input type="file" hidden onChange={(e) => { uploadAttachment(e.target.files?.[0]); e.currentTarget.value = ""; }} />
+                  + Add attachment
+                </label>
+              </div>
+            </div>
+
             {/* Checklist */}
-            <div className="adm-field"><label>Checklist</label>
+            <div className="adm-field">
+              <label>Checklist{(editing.checklist || []).length > 0 && <span className="kb-ck-pct">{editProgress()}%</span>}</label>
+              {(editing.checklist || []).length > 0 && (
+                <div className="kb-ck-progress"><span style={{ width: `${editProgress()}%` }} /></div>
+              )}
               <div className="kb-checklist">
                 {(editing.checklist || []).map((c) => (
                   <div key={c.id} className="kb-ck-item">
