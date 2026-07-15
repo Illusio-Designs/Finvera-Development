@@ -44,7 +44,7 @@ const normTask = (t: Task): Task => ({
   attachments: toArr<Attachment>(t.attachments),
 });
 const COVER_SWATCHES = ["", "#3e60ab", "#8b5cf6", "#22c55e", "#f59e0b", "#ef4444", "#0ea5e9", "#ec4899"];
-const PRIO_LABEL: Record<string, string> = { high: "Urgent", medium: "Moderate priority", low: "Low priority" };
+const PRIO_SHORT: Record<string, string> = { high: "High", medium: "Medium", low: "Low" };
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 function fmtDue(d: string) {
   const [, m, day] = String(d).split("-").map(Number);
@@ -323,26 +323,31 @@ export default function Kanban() {
               const st = boardStats(b.id);
               const accent = b.color || "#3e60ab";
               return (
-                <button key={b.id} className="kb-boardcard" onClick={() => openBoard(b.id)}>
-                  <span className="kb-bc-bar" style={{ background: accent }} />
-                  <div className="kb-bc-head">
-                    <span className="kb-bc-icon" style={{ background: accent + "1f", color: accent }}>{(b.name || "B").slice(0, 1).toUpperCase()}</span>
-                    <span className="kb-bc-cols">{toArr(b.columns).length} lists</span>
-                  </div>
-                  <h3>{b.name}</h3>
-                  <p>{b.description || "Trello-style board"}</p>
-                  <div className="kb-bc-foot">
-                    <span className="kb-bc-count">{st.count} task{st.count === 1 ? "" : "s"}</span>
-                    <span className="kb-avstack">
-                      {st.members.slice(0, 4).map((m) => <Avatar key={m.id} user={m} size={26} />)}
-                      {st.members.length > 4 && <span className="kb-av kb-av-i" style={{ width: 26, height: 26, fontSize: 10 }}>+{st.members.length - 4}</span>}
-                    </span>
+                <button key={b.id} className="kb-folder" style={{ ["--fc" as string]: accent } as React.CSSProperties} onClick={() => openBoard(b.id)}>
+                  <span className="kb-folder-tab" />
+                  <div className="kb-folder-in">
+                    <div className="kb-folder-row">
+                      <span className="kb-folder-ic">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" /></svg>
+                      </span>
+                      <span className="kb-folder-cols">{toArr(b.columns).length} lists</span>
+                    </div>
+                    <h3>{b.name}</h3>
+                    <p>{b.description || "Project board"}</p>
+                    <div className="kb-folder-foot">
+                      <span className="kb-folder-count">{st.count} task{st.count === 1 ? "" : "s"}</span>
+                      <span className="kb-avstack">
+                        {st.members.slice(0, 4).map((m) => <Avatar key={m.id} user={m} size={26} />)}
+                        {st.members.length > 4 && <span className="kb-av kb-av-i" style={{ width: 26, height: 26, fontSize: 10 }}>+{st.members.length - 4}</span>}
+                      </span>
+                    </div>
                   </div>
                 </button>
               );
             })}
-            <button className="kb-boardcard kb-boardcard-add" onClick={addBoard}>
-              <span className="plus">+</span><span>New board</span>
+            <button className="kb-folder kb-folder-add" onClick={addBoard}>
+              <span className="kb-folder-tab" />
+              <div className="kb-folder-in"><span className="plus">+</span><span>New board</span></div>
             </button>
           </div>
         </>
@@ -425,34 +430,46 @@ export default function Kanban() {
                         overColRef.current = null; hoverIdRef.current = null; setOverCol(null);
                       }}
                       onClick={() => { if (didDrag.current) { didDrag.current = false; return; } openCard(t); }}>
-                      <div className={"kb-banner " + (t.priority || "medium")}>{PRIO_LABEL[t.priority || "medium"]}</div>
-                      <div className="kb-inner">
-                        {coverImg && <div className="kb-cover-img" style={{ backgroundImage: `url(${coverImg})` }} />}
-                        {cover && <div className="kb-cover" style={{ background: cover }} />}
-                        <h4 className={t.completed ? "done" : ""}>{t.completed && <span className="kb-check">✓</span>}{t.title}</h4>
-                        {t.description && <p className="kb-desc">{t.description}</p>}
-                        <div className="kb-row">
-                          <span className="kb-avstack">
-                            {members.slice(0, 4).map((m) => <Avatar key={m.id} user={m} size={30} />)}
-                            {members.length > 4 && <span className="kb-av kb-av-i" style={{ width: 30, height: 30, fontSize: 11 }}>+{members.length - 4}</span>}
+                      {coverImg && <div className="kbc-cover" style={{ backgroundImage: `url(${coverImg})` }} />}
+                      {cover && <div className="kbc-coverbar" style={{ background: cover }} />}
+                      <div className="kbc-body">
+                        <div className="kbc-top">
+                          <span className={"kbc-prio " + (t.priority || "medium")}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round"><path d="M6 20v-7M12 20V4M18 20v-11" /></svg>
+                            {PRIO_SHORT[t.priority || "medium"]}
                           </span>
-                          {(cardLabels[0]?.name || t.label) && <span className={"kb-status " + statusClass(cardLabels[0]?.name || t.label)}>{cardLabels[0]?.name || t.label}</span>}
+                          {(cardLabels[0]?.name || t.label) && <span className={"kbc-label " + statusClass(cardLabels[0]?.name || t.label)}>{cardLabels[0]?.name || t.label}</span>}
                         </div>
-                      </div>
-                      <div className="kb-foot">
-                        <span className="kb-fs" title="Checklist">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" /></svg>
-                          {ck ? ck.total : 0}
-                        </span>
-                        <span className="kb-fs" title="Attachments">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg>
-                          {(t.attachments || []).length}
-                        </span>
-                        <span className="kb-fs" title="Members">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M4 5h16v14H4zM4 9h16" /></svg>
-                          {members.length}
-                        </span>
-                        {t.dueDate && <span className={"kb-fdate" + (overdue(t) ? " over" : "")}>{fmtDue(t.dueDate)}</span>}
+                        <h4 className={t.completed ? "done" : ""}>{t.completed && <span className="kb-check">✓</span>}{t.title || "Untitled task"}</h4>
+                        {t.description && <p className="kb-desc">{t.description}</p>}
+                        <div className="kbc-foot">
+                          <div className="kbc-meta">
+                            {t.dueDate && (
+                              <span className={"kbc-date" + (overdue(t) ? " over" : "")}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+                                {fmtDue(t.dueDate)}
+                              </span>
+                            )}
+                            {ck && (
+                              <span className="kbc-mini">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+                                {ck.done}/{ck.total}
+                              </span>
+                            )}
+                            {(t.attachments || []).length > 0 && (
+                              <span className="kbc-mini">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg>
+                                {(t.attachments || []).length}
+                              </span>
+                            )}
+                          </div>
+                          {members.length > 0 && (
+                            <span className="kb-avstack">
+                              {members.slice(0, 4).map((m) => <Avatar key={m.id} user={m} size={26} />)}
+                              {members.length > 4 && <span className="kb-av kb-av-i" style={{ width: 26, height: 26, fontSize: 10 }}>+{members.length - 4}</span>}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
