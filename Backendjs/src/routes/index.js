@@ -12,12 +12,14 @@ const contactCtrl = require("../controllers/contact.controller");
 const settingsCtrl = require("../controllers/settings.controller");
 const uploadCtrl = require("../controllers/upload.controller");
 const usersCtrl = require("../controllers/users.controller");
+const notifCtrl = require("../controllers/notifications.controller");
+const { notifyRoles, notifyUsers, notifyByName } = require("../utils/notify");
+
+/* JSON arrays can come back as strings on some MySQL setups — coerce. */
+const asArr = (v) => (Array.isArray(v) ? v : (typeof v === "string" && v.trim().startsWith("[") ? (() => { try { return JSON.parse(v); } catch { return []; } })() : []));
 
 const router = express.Router();
 
-/* Build standard REST routes for a resource backed by the crud factory.
-   Reads stay public (the marketing site needs them); writes require the
-   caller's role to include `area` (admin always passes). */
 function resource(path, Model, opts, area = "content") {
   const c = crudController(Model, opts);
   const r = express.Router();
@@ -31,7 +33,7 @@ function resource(path, Model, opts, area = "content") {
   router.use(path, r);
 }
 
-/* ── Auth ───────────────────────────── */
+/* ── Auth ── */
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
 const authRouter = express.Router();
 authRouter.post("/login", loginLimiter, authCtrl.login);
@@ -39,7 +41,7 @@ authRouter.get("/me", requireAuth, authCtrl.me);
 authRouter.post("/change-password", requireAuth, authCtrl.changePassword);
 router.use("/auth", authRouter);
 
-/* ── Content resources ──────────────────── */
+/* ── Content resources ── */
 resource("/projects", Project, { slugFrom: "title", hasStatus: true, searchable: ["title", "category", "blurb"] });
 resource("/services", Service, { slugFrom: "title", hasStatus: true, searchable: ["title", "description"] });
 resource("/testimonials", Testimonial, { hasStatus: true, searchable: ["name", "company", "quote"] });
@@ -47,7 +49,7 @@ resource("/team", TeamMember, { hasStatus: true, searchable: ["name", "role"] })
 resource("/blog", BlogPost, { slugFrom: "title", hasStatus: true, order: [["publishedAt", "DESC"], ["createdAt", "DESC"]], searchable: ["title", "excerpt", "category"] });
 resource("/pages", Page, { slugFrom: "title", hasStatus: true, order: [["title", "ASC"]], searchable: ["title", "slug"] });
 
-/* ── Editable content collections (public read, auth write) ─ */
+/* ── Editable content collections (public read, auth write) ── */
 const CONTENT_ORDER = [["position", "ASC"], ["createdAt", "ASC"]];
 resource("/faqs", Faq, { hasStatus: true, order: CONTENT_ORDER, searchable: ["question", "answer"] });
 resource("/values", Value, { hasStatus: true, order: CONTENT_ORDER, searchable: ["title", "description"] });
@@ -58,7 +60,7 @@ resource("/stats", Stat, { hasStatus: true, order: CONTENT_ORDER, searchable: ["
 resource("/logos", Logo, { hasStatus: true, order: CONTENT_ORDER, searchable: ["name"] });
 resource("/features", Feature, { hasStatus: true, order: CONTENT_ORDER, searchable: ["title"] });
 
-/* ── Kanban boards (board area) ──────── */
+/* ── Kanban boards (board area) ── */
 const boardCtrl = crudController(Board, { order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["name"] });
 const boardRouter = express.Router();
 const canBoard = [requireAuth, requireArea("board")];
@@ -70,8 +72,17 @@ boardRouter.patch("/:id", ...canBoard, boardCtrl.update);
 boardRouter.delete("/:id", ...canBoard, boardCtrl.remove);
 router.use("/boards", boardRouter);
 
-/* ── Kanban tasks + comments (board area) ──────── */
-const taskCtrl = crudController(Task, { order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["title", "assignee", "label"] });
+/* ── Kanban tasks + comments (board area) ── */
+const taskCtrl = crudController(Task, {
+  order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["title", "assignee", "label"],
+  onCreate: async (t, req) => {
+    await notifyUsers(asArr(t.memberIds), { type: "assigned", title: `You were assigned: ${t.title}`, link: "/dashboard/kanban", meta: { taskId: t.id } }, req.user && req.user.id);
+  },
+  onUpdate: async (t, req, before) => {
+    const added = asArr(t.memberIds).filter((id) => !asArr(before.memberIds).includes(id));
+    await notifyUsers(added, { type: "assigned", title: `You were assigned: ${t.title}`, link: "/dashboard/kanban", meta: { taskId: t.id } }, req.user && req.user.id);
+  },
+});
 const tasksCustom = require("../controllers/tasks.controller");
 const taskRouter = express.Router();
 taskRouter.get("/", ...canBoard, tasksCustom.list);
@@ -84,8 +95,17 @@ taskRouter.post("/:taskId/comments", ...canBoard, tasksCustom.addComment);
 router.use("/tasks", taskRouter);
 router.delete("/comments/:id", ...canBoard, tasksCustom.deleteComment);
 
-/* ── Leads (leads area) ────────────── */
-const leadCtrl = crudController(Lead, { order: [["position", "ASC"], ["createdAt", "DESC"]], searchable: ["name", "company", "email", "source", "owner"] });
+/* ── Leads (leads area) ── */
+const leadCtrl = crudController(Lead, {
+  order: [["position", "ASC"], ["createdAt", "DESC"]], searchable: ["name", "company", "email", "source", "owner"],
+  onCreate: async (lead, req) => {
+    await notifyRoles(["leads"], { type: "lead", title: `New lead: ${lead.name}`, body: lead.company || undefined, link: "/dashboard/leads", meta: { leadId: lead.id } }, req.user && req.user.id);
+    if (lead.owner) await notifyByName(lead.owner, { type: "assigned", title: `Lead assigned to you: ${lead.name}`, link: "/dashboard/leads", meta: { leadId: lead.id } }, req.user && req.user.id);
+  },
+  onUpdate: async (lead, req, before) => {
+    if (lead.owner && lead.owner !== before.owner) await notifyByName(lead.owner, { type: "assigned", title: `Lead assigned to you: ${lead.name}`, link: "/dashboard/leads", meta: { leadId: lead.id } }, req.user && req.user.id);
+  },
+});
 const leadRouter = express.Router();
 const canLeads = [requireAuth, requireArea("leads")];
 leadRouter.get("/", ...canLeads, leadCtrl.list);
@@ -96,48 +116,54 @@ leadRouter.patch("/:id", ...canLeads, leadCtrl.update);
 leadRouter.delete("/:id", ...canLeads, leadCtrl.remove);
 router.use("/leads", leadRouter);
 
-/* ── Users ────────────────────────── */
+/* ── Users ── */
 const usersRouter = express.Router();
-// Minimal member directory for assignment pickers — any signed-in user.
 usersRouter.get("/assignable", requireAuth, usersCtrl.assignable);
-// Full user management — admin only.
 usersRouter.get("/", requireAuth, requireRole("admin"), usersCtrl.list);
 usersRouter.post("/", requireAuth, requireRole("admin"), usersCtrl.create);
 usersRouter.put("/:id", requireAuth, requireRole("admin"), usersCtrl.update);
 usersRouter.delete("/:id", requireAuth, requireRole("admin"), usersCtrl.remove);
 router.use("/users", usersRouter);
 
-/* ── Contact (contact area) ────────────────── */
+/* ── Notifications (each user sees their own) ── */
+const notifRouter = express.Router();
+notifRouter.get("/", requireAuth, notifCtrl.list);
+notifRouter.post("/read-all", requireAuth, notifCtrl.readAll);
+notifRouter.post("/clear", requireAuth, notifCtrl.clear);
+notifRouter.patch("/:id/read", requireAuth, notifCtrl.read);
+router.use("/notifications", notifRouter);
+
+/* ── Contact ── */
 const contactLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
 const contactRouter = express.Router();
 const canContact = [requireAuth, requireArea("contact")];
-contactRouter.post("/", contactLimiter, contactCtrl.submit);   // public website form
+contactRouter.post("/", contactLimiter, contactCtrl.submit);
 contactRouter.get("/", ...canContact, contactCtrl.list);
 contactRouter.patch("/:id/read", ...canContact, contactCtrl.setRead);
 contactRouter.delete("/:id", ...canContact, contactCtrl.remove);
 router.use("/contact", contactRouter);
 
-/* ── SEO (seo area) ──────────────────────── */
+/* ── SEO ── */
 const seoRouter = express.Router();
 seoRouter.get("/", settingsCtrl.listSeo);
 seoRouter.get("/:page", settingsCtrl.getSeo);
 seoRouter.put("/:page", requireAuth, requireArea("seo"), settingsCtrl.upsertSeo);
 router.use("/seo", seoRouter);
 
-/* ── Settings (settings area) ─────────── */
+/* ── Settings ── */
 const settingsRouter = express.Router();
-settingsRouter.get("/", optionalAuth, settingsCtrl.getSettings);       // flat { key: value } — public (pixels)
+settingsRouter.get("/", optionalAuth, settingsCtrl.getSettings);
 settingsRouter.get("/all", requireAuth, requireArea("settings"), settingsCtrl.getSettingsDetailed);
 settingsRouter.put("/", requireAuth, requireArea("settings"), settingsCtrl.updateSettings);
 router.use("/settings", settingsRouter);
 
-/* ── Uploads ────────────────────────── */
+/* ── Uploads ── */
 const uploadRouter = express.Router();
 uploadRouter.post("/", requireAuth, upload.single("file"), uploadCtrl.uploadOne);
 uploadRouter.post("/many", requireAuth, upload.array("files", 12), uploadCtrl.uploadMany);
 router.use("/uploads", uploadRouter);
 
-/* ── Health ───────────────────────── */
+/* ── Health ── */
 const { health } = require("../controllers/health.controller");
 router.get("/health", health);
 

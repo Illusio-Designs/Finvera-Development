@@ -10,6 +10,8 @@ const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, ne
  *   hasStatus  – model has draft/published status (public list hides drafts)
  *   order      – default ordering
  *   searchable – fields for ?q= search (LIKE)
+ *   onCreate   – async (item, req) => {}  side effect after create (e.g. notify)
+ *   onUpdate   – async (item, req, before) => {}  side effect after update
  */
 function crudController(Model, options = {}) {
   const {
@@ -17,6 +19,8 @@ function crudController(Model, options = {}) {
     hasStatus = false,
     order = [["position", "ASC"], ["createdAt", "DESC"]],
     searchable = [],
+    onCreate = null,
+    onUpdate = null,
   } = options;
 
   const { Op } = require("sequelize");
@@ -37,7 +41,6 @@ function crudController(Model, options = {}) {
 
     list: asyncHandler(async (req, res) => {
       const where = {};
-      // public callers only see published items
       if (hasStatus && !req.user) where.status = "published";
       if (hasStatus && req.query.status) where.status = req.query.status;
       if (req.query.q && searchable.length) {
@@ -63,18 +66,21 @@ function crudController(Model, options = {}) {
       const data = { ...req.body };
       if (slugFrom) data.slug = req.body.slug ? await uniqueSlug(req.body.slug) : await uniqueSlug(data[slugFrom]);
       const item = await Model.create(data);
+      if (onCreate) { try { await onCreate(item, req); } catch (e) { console.warn("onCreate hook:", e.message); } }
       res.status(201).json(item);
     }),
 
     update: asyncHandler(async (req, res) => {
       const item = await Model.findByPk(req.params.id);
       if (!item) return res.status(404).json({ message: `${Model.name} not found.` });
+      const before = item.toJSON();
       const data = { ...req.body };
       if (slugFrom && req.body.slug && req.body.slug !== item.slug) {
         data.slug = await uniqueSlug(req.body.slug, item.id);
       }
       delete data.id;
       await item.update(data);
+      if (onUpdate) { try { await onUpdate(item, req, before); } catch (e) { console.warn("onUpdate hook:", e.message); } }
       res.json(item);
     }),
 

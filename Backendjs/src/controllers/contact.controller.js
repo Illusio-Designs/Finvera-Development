@@ -1,5 +1,6 @@
 const { ContactSubmission } = require("../models");
 const { asyncHandler } = require("../utils/crud");
+const { notifyRoles } = require("../utils/notify");
 
 /* Public: submit the contact form */
 const submit = asyncHandler(async (req, res) => {
@@ -18,6 +19,13 @@ const submit = asyncHandler(async (req, res) => {
     projectType: projectType ? String(projectType).slice(0, 120) : null,
     message: String(message).slice(0, 5000),
     ip: req.ip,
+  });
+  await notifyRoles(["leads", "contact"], {
+    type: "enquiry",
+    title: `New enquiry from ${row.name}`,
+    body: (row.projectType ? row.projectType + " — " : "") + String(message).slice(0, 120),
+    link: "/dashboard/contact",
+    meta: { contactId: row.id },
   });
   res.status(201).json({ message: "Thanks! Your message has been received.", id: row.id });
 });
