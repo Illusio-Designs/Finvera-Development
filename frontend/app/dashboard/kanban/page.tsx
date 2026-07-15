@@ -440,8 +440,9 @@ export default function Kanban() {
                           </span>
                           {(cardLabels[0]?.name || t.label) && <span className={"kbc-label " + statusClass(cardLabels[0]?.name || t.label)}>{cardLabels[0]?.name || t.label}</span>}
                         </div>
-                        <h4 className={t.completed ? "done" : ""}>{t.completed && <span className="kb-check">✓</span>}{t.title || "Untitled task"}</h4>
+                        <h4 className={(t.completed ? "done " : "") + (t.title ? "" : "untitled")}>{t.completed && <span className="kb-check">✓</span>}{t.title || "Untitled task"}</h4>
                         {t.description && <p className="kb-desc">{t.description}</p>}
+                        {(t.dueDate || ck || (t.attachments || []).length > 0 || members.length > 0) && (
                         <div className="kbc-foot">
                           <div className="kbc-meta">
                             {t.dueDate && (
@@ -470,6 +471,7 @@ export default function Kanban() {
                             </span>
                           )}
                         </div>
+                        )}
                       </div>
                     </div>
                   );
