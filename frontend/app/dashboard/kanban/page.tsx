@@ -402,6 +402,7 @@ export default function Kanban() {
                   const cardLabels = (t.labelIds || []).map(labelById).filter(Boolean) as Label[];
                   const cover = t.cover && t.cover.startsWith("#") ? t.cover : null;
                   const coverImg = t.cover && !t.cover.startsWith("#") ? t.cover : null;
+                  const titleText = (t.title == null ? "" : String(t.title)).trim();
                   return (
                     <div key={t.id} data-id={t.id}
                       className={"kb-card" + (justDone === t.id ? " done-pop" : "") + (t.completed ? " is-done" : "")}
@@ -440,7 +441,7 @@ export default function Kanban() {
                           </span>
                           {(cardLabels[0]?.name || t.label) && <span className={"kbc-label " + statusClass(cardLabels[0]?.name || t.label)}>{cardLabels[0]?.name || t.label}</span>}
                         </div>
-                        <h4 className={(t.completed ? "done " : "") + (t.title ? "" : "untitled")}>{t.completed && <span className="kb-check">✓</span>}{t.title || "Untitled task"}</h4>
+                        <h4 className={(t.completed ? "done " : "") + (titleText ? "" : "untitled")}>{t.completed && <span className="kb-check">✓</span>}{titleText || "Untitled task"}</h4>
                         {t.description && <p className="kb-desc">{t.description}</p>}
                         {(t.dueDate || ck || (t.attachments || []).length > 0 || members.length > 0) && (
                         <div className="kbc-foot">
