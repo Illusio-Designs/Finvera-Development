@@ -1594,6 +1594,20 @@ section{position:relative;z-index:2}
 .kb-covers{display:flex;gap:8px;flex-wrap:wrap}
 .kb-cover-sw{width:34px;height:26px;border-radius:8px;border:1px solid var(--line-2);color:var(--muted-2);display:grid;place-items:center;font-size:12px;transition:.15s}
 .kb-cover-sw.on{box-shadow:0 0 0 2px var(--blue-500);border-color:var(--blue-500)}
+/* Checklist progress + attachments (Trello-style card panel) */
+.kb-ck-pct{float:right;font-size:11.5px;color:var(--muted-2);font-weight:700}
+.kb-ck-progress{height:7px;border-radius:999px;background:rgba(16,30,60,.08);overflow:hidden;margin:2px 0 8px}
+.kb-ck-progress>span{display:block;height:100%;background:var(--grad);border-radius:999px;transition:width .3s var(--ease)}
+.kb-attachments{display:flex;flex-direction:column;gap:6px}
+.kb-attach{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line-2);border-radius:9px;background:rgba(16,30,60,.02)}
+.kb-attach-link{display:flex;align-items:center;gap:8px;flex:1;min-width:0;color:var(--blue-600);font-size:13px;font-weight:600}
+.kb-attach-link svg{width:15px;height:15px;flex:none}
+.kb-attach-link span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kb-attach>button{width:22px;height:22px;border-radius:6px;color:var(--muted-2);font-size:16px;line-height:1;background:transparent;flex:none}
+.kb-attach>button:hover{color:#ff8a80}
+.kb-attach-add{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 12px;border:1px dashed var(--line-2);
+  border-radius:9px;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;transition:.2s}
+.kb-attach-add:hover{color:var(--blue-600);border-color:var(--blue-500)}
 .kb-checklist{display:flex;flex-direction:column;gap:6px}
 .kb-ck-item{display:flex;align-items:center;gap:9px;font-size:13px}
 .kb-ck-item input{width:16px;height:16px;accent-color:var(--blue-500);flex:none}
