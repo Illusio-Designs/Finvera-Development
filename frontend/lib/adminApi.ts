@@ -57,6 +57,12 @@ export const api = {
   /* Minimal user directory for assigning members (kanban etc.) — any role. */
   listUsers: () => req(`/users/assignable`),
 
+  /* Notifications */
+  listNotifications: () => req(`/notifications`),
+  markNotifRead: (id: number) => req(`/notifications/${id}/read`, { method: "PATCH" }),
+  markAllNotifRead: () => req(`/notifications/read-all`, { method: "POST" }),
+  clearNotifs: () => req(`/notifications/clear`, { method: "POST" }),
+
   /* Kanban — boards (Trello-style) */
   listBoards: () => req(`/boards`),
   createBoard: (body: any) => req(`/boards`, { method: "POST", body: JSON.stringify(body) }),

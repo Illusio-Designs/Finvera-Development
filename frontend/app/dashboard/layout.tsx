@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Mark } from "@/components/icons";
 import { getToken, clearToken, api } from "@/lib/adminApi";
 import UserMenu, { type Me } from "@/components/admin/UserMenu";
+import NotificationBell from "@/components/admin/NotificationBell";
 import Toaster from "@/components/admin/Toaster";
 import DialogHost from "@/components/admin/DialogHost";
 import { rolesCan, userRoles, type Area } from "@/lib/permissions";
@@ -204,7 +205,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <svg viewBox="0 0 24 24" width={18} fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 12h18M3 6h18M3 18h18" /></svg>
           </button>
           <Link href="/dashboard" className="brand" style={{ fontSize: 16 }}><Mark /> Finvera</Link>
-          <div className="adm-mobbar-right"><UserMenu me={me} onLogout={logout} /></div>
+          <div className="adm-mobbar-right"><NotificationBell /><UserMenu me={me} onLogout={logout} /></div>
         </div>
 
         <header className="adm-header">
@@ -214,6 +215,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
           <div className="ah-right">
             {today && <span className="ah-date">{today}</span>}
+            <NotificationBell />
             <UserMenu me={me} onLogout={logout} />
           </div>
         </header>

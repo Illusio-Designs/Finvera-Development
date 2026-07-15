@@ -1,5 +1,8 @@
 const { Task, Comment, User } = require("../models");
 const { asyncHandler } = require("../utils/crud");
+const { notifyUsers } = require("../utils/notify");
+
+const asArr = (v) => (Array.isArray(v) ? v : (typeof v === "string" && v.trim().startsWith("[") ? (() => { try { return JSON.parse(v); } catch { return []; } })() : []));
 
 const authorSafe = (u) => (u ? { id: u.id, name: u.name, avatar: u.avatar } : null);
 
@@ -25,6 +28,16 @@ const addComment = asyncHandler(async (req, res) => {
   const body = String(req.body.body || "").trim();
   if (!body) return res.status(400).json({ message: "Comment can't be empty." });
   const c = await Comment.create({ taskId: req.params.taskId, userId: req.user.id, body });
+  const task = await Task.findByPk(req.params.taskId);
+  if (task) {
+    await notifyUsers(asArr(task.memberIds), {
+      type: "comment",
+      title: `New comment on "${task.title}"`,
+      body: body.slice(0, 120),
+      link: "/dashboard/kanban",
+      meta: { taskId: task.id },
+    }, req.user.id);
+  }
   res.status(201).json({ id: c.id, taskId: c.taskId, body: c.body, createdAt: c.createdAt, author: authorSafe(req.user) });
 });
 

@@ -12,6 +12,11 @@ const contactCtrl = require("../controllers/contact.controller");
 const settingsCtrl = require("../controllers/settings.controller");
 const uploadCtrl = require("../controllers/upload.controller");
 const usersCtrl = require("../controllers/users.controller");
+const notifCtrl = require("../controllers/notifications.controller");
+const { notifyRoles, notifyUsers, notifyByName } = require("../utils/notify");
+
+/* JSON arrays can come back as strings on some MySQL setups — coerce. */
+const asArr = (v) => (Array.isArray(v) ? v : (typeof v === "string" && v.trim().startsWith("[") ? (() => { try { return JSON.parse(v); } catch { return []; } })() : []));
 
 const router = express.Router();
 
@@ -71,7 +76,16 @@ boardRouter.delete("/:id", ...canBoard, boardCtrl.remove);
 router.use("/boards", boardRouter);
 
 /* ── Kanban tasks + comments (all require auth) ──────── */
-const taskCtrl = crudController(Task, { order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["title", "assignee", "label"] });
+const taskCtrl = crudController(Task, {
+  order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["title", "assignee", "label"],
+  onCreate: async (t, req) => {
+    await notifyUsers(asArr(t.memberIds), { type: "assigned", title: `You were assigned: ${t.title}`, link: "/dashboard/kanban", meta: { taskId: t.id } }, req.user?.id);
+  },
+  onUpdate: async (t, req, before) => {
+    const added = asArr(t.memberIds).filter((id) => !asArr(before.memberIds).includes(id));
+    await notifyUsers(added, { type: "assigned", title: `You were assigned: ${t.title}`, link: "/dashboard/kanban", meta: { taskId: t.id } }, req.user?.id);
+  },
+});
 const tasksCustom = require("../controllers/tasks.controller");
 const taskRouter = express.Router();
 taskRouter.get("/", ...canBoard, tasksCustom.list);          // supports ?boardId=
@@ -85,7 +99,16 @@ router.use("/tasks", taskRouter);
 router.delete("/comments/:id", ...canBoard, tasksCustom.deleteComment);
 
 /* ── Leads (private BD pipeline — auth on every endpoint) ─ */
-const leadCtrl = crudController(Lead, { order: [["position", "ASC"], ["createdAt", "DESC"]], searchable: ["name", "company", "email", "source", "owner"] });
+const leadCtrl = crudController(Lead, {
+  order: [["position", "ASC"], ["createdAt", "DESC"]], searchable: ["name", "company", "email", "source", "owner"],
+  onCreate: async (lead, req) => {
+    await notifyRoles(["leads"], { type: "lead", title: `New lead: ${lead.name}`, body: lead.company || undefined, link: "/dashboard/leads", meta: { leadId: lead.id } }, req.user?.id);
+    if (lead.owner) await notifyByName(lead.owner, { type: "assigned", title: `Lead assigned to you: ${lead.name}`, link: "/dashboard/leads", meta: { leadId: lead.id } }, req.user?.id);
+  },
+  onUpdate: async (lead, req, before) => {
+    if (lead.owner && lead.owner !== before.owner) await notifyByName(lead.owner, { type: "assigned", title: `Lead assigned to you: ${lead.name}`, link: "/dashboard/leads", meta: { leadId: lead.id } }, req.user?.id);
+  },
+});
 const leadRouter = express.Router();
 const canLeads = [requireAuth, requireArea("leads")];
 leadRouter.get("/", ...canLeads, leadCtrl.list);
@@ -106,6 +129,14 @@ usersRouter.post("/", requireAuth, requireRole("admin"), usersCtrl.create);
 usersRouter.put("/:id", requireAuth, requireRole("admin"), usersCtrl.update);
 usersRouter.delete("/:id", requireAuth, requireRole("admin"), usersCtrl.remove);
 router.use("/users", usersRouter);
+
+/* ── Notifications (each user sees their own) ─────────── */
+const notifRouter = express.Router();
+notifRouter.get("/", requireAuth, notifCtrl.list);
+notifRouter.post("/read-all", requireAuth, notifCtrl.readAll);
+notifRouter.post("/clear", requireAuth, notifCtrl.clear);
+notifRouter.patch("/:id/read", requireAuth, notifCtrl.read);
+router.use("/notifications", notifRouter);
 
 /* ── Contact ─────────────────────────────────────────── */
 const contactLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
