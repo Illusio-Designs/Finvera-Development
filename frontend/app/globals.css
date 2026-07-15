@@ -1151,6 +1151,29 @@ section{position:relative;z-index:2}
 @media (prefers-reduced-motion:reduce){.adm-content{animation:none}}
 .adm-footer{flex:none}
 
+/* ── Compact density (admin only) — tighter, more SaaS-tool feel ─────────
+   All selectors are admin-scoped, so the public marketing site is untouched. */
+.adm{--radius:13px;--radius-lg:16px}
+.adm-content{padding:20px clamp(16px,2.4vw,30px)}
+.adm-side{width:230px}
+.adm-side a{padding:9px 11px;font-size:13.5px}
+.adm-top h1{font-size:22px}
+.adm-top p{font-size:12.5px}
+.adm-header{padding-top:14px;padding-bottom:14px}
+.adm-panel{border-radius:13px}
+.adm-btn{padding:8px 15px;font-size:13px;border-radius:9px}
+.adm-table{font-size:13px}
+.adm-table th{padding:10px 14px}
+.adm-table td{padding:10px 14px}
+.adm-field{margin-bottom:14px;gap:6px}
+.adm-field label{font-size:12px}
+.adm-field input,.adm-field textarea,.adm-field select,.adm-dialog-input{padding:9px 12px;font-size:13.5px;border-radius:9px}
+.adm-field textarea{min-height:80px}
+.cselect-btn{padding:9px 12px}
+.adm-drawer{padding-top:20px}
+.kb-boardcard{padding:16px 16px 14px}
+.kb-boardcard h3{font-size:15px}
+
 /* Backend status — header dot variant */
 .adm-status-dot{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--muted);
   padding:7px 12px;border:1px solid var(--line-2);border-radius:999px;background:#fff}
