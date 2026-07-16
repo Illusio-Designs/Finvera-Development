@@ -1,8 +1,11 @@
 const { Notification } = require("../models");
 const { asyncHandler } = require("../utils/crud");
+const { runRenewalSweep } = require("../utils/renewalReminders");
 
 /* The current user's notifications (newest first) + unread count. */
 const list = asyncHandler(async (req, res) => {
+  // Generate any due renewal reminders before reading (throttled + deduped inside).
+  await runRenewalSweep();
   const items = await Notification.findAll({
     where: { userId: req.user.id },
     order: [["createdAt", "DESC"]],

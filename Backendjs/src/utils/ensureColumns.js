@@ -8,6 +8,7 @@
 
 const WANTED = [
   { table: "tasks", column: "startDate", def: "DATE NULL" },
+  { table: "tasks", column: "renewalDate", def: "DATE NULL" },
   { table: "users", column: "roles", def: "JSON NULL" },
 ];
 

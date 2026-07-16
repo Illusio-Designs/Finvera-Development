@@ -133,6 +133,7 @@ const Task = sequelize.define("Task", {
   priority: { type: DataTypes.ENUM("low", "medium", "high"), defaultValue: "medium" },
   startDate: { type: DataTypes.DATEONLY },
   dueDate: { type: DataTypes.DATEONLY },
+  renewalDate: { type: DataTypes.DATEONLY },                   // reminder fires as this approaches / on the day
   completed: { type: DataTypes.BOOLEAN, defaultValue: false },
   cover: { type: DataTypes.STRING },                          // hex color or image URL
   memberIds: { type: DataTypes.JSON, defaultValue: [] },      // assigned user ids
