@@ -133,6 +133,7 @@ const Task = sequelize.define("Task", {
   priority: { type: DataTypes.ENUM("low", "medium", "high"), defaultValue: "medium" },
   startDate: { type: DataTypes.DATEONLY },
   dueDate: { type: DataTypes.DATEONLY },
+  renewalDate: { type: DataTypes.DATEONLY },                   // reminder fires as this approaches / on the day
   completed: { type: DataTypes.BOOLEAN, defaultValue: false },
   cover: { type: DataTypes.STRING },                          // hex color or image URL
   memberIds: { type: DataTypes.JSON, defaultValue: [] },      // assigned user ids
@@ -196,6 +197,24 @@ const Lead = sequelize.define("Lead", {
   notes: { type: DataTypes.TEXT },
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
 }, { tableName: "leads" });
+
+/* ── Maintenance / renewal invoices (completed projects) ─
+   A renewal entry is a recurring maintenance/hosting/domain invoice for a
+   delivered project. `renewalDate` drives reminder notifications. */
+const Renewal = sequelize.define("Renewal", {
+  client: { type: DataTypes.STRING, allowNull: false },        // client / company
+  project: { type: DataTypes.STRING },                          // project or service being maintained
+  amount: { type: DataTypes.INTEGER, defaultValue: 0 },         // renewal invoice value (₹)
+  cycle: { type: DataTypes.ENUM("monthly", "quarterly", "half-yearly", "yearly"), defaultValue: "yearly" },
+  renewalDate: { type: DataTypes.DATEONLY },                    // next renewal date
+  lastInvoiced: { type: DataTypes.DATEONLY },                   // last time it was invoiced
+  status: { type: DataTypes.ENUM("active", "paused", "cancelled"), defaultValue: "active" },
+  owner: { type: DataTypes.STRING },                            // responsible team member (name)
+  email: { type: DataTypes.STRING },                            // billing contact
+  phone: { type: DataTypes.STRING },
+  notes: { type: DataTypes.TEXT },
+  position: { type: DataTypes.INTEGER, defaultValue: 0 },
+}, { tableName: "renewals" });
 
 /* ── Editable content collections (CMS) ──────────────── */
 const contentDefaults = {
@@ -274,5 +293,6 @@ module.exports = {
   sequelize,
   User, Project, Service, Testimonial, TeamMember,
   BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page, Lead, Notification,
+  Renewal,
   Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature,
 };

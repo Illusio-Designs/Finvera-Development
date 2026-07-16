@@ -19,9 +19,25 @@ export type Field = {
   options?: (string | { value: string; label: string })[];
   placeholder?: string;
 };
-export type Column = { name: string; label: string; type?: "image" | "avatar" | "status" | "tags" | "text" | "money" | "progress" | "stageprogress" | "role" | "roles" };
+export type Column = { name: string; label: string; type?: "image" | "avatar" | "status" | "tags" | "text" | "money" | "progress" | "stageprogress" | "role" | "roles" | "date" | "renewal" };
 
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/* Format an ISO date (YYYY-MM-DD) as "Jul 31, 2026". */
+function fmtDate(d: unknown): string {
+  const s = String(d ?? "").slice(0, 10);
+  const [y, m, day] = s.split("-").map(Number);
+  if (!y || !m || !day) return "";
+  return `${MONTHS_SHORT[m - 1]} ${day}, ${y}`;
+}
+/* Whole-day difference (date - today) for renewal countdown badges. */
+function daysUntil(d: unknown): number | null {
+  const s = String(d ?? "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const today = new Date(new Date().toDateString());
+  return Math.round((new Date(s + "T00:00:00").getTime() - today.getTime()) / 86400000);
+}
 
 /* Picks an owner/assignee from the team directory (falls back to any existing
    free-text value so old data still displays). Stores the member's name. */
@@ -262,6 +278,16 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                           {(Array.isArray(row.roles) && row.roles.length ? row.roles : [row.role].filter(Boolean))
                             .map((r: string) => <span className="adm-badge role" key={r}>{cap(r)}</span>)}
                         </span>
+                      ) : c.type === "date" ? (
+                        fmtDate(row[c.name]) || <span style={{ color: "var(--muted-2)" }}>—</span>
+                      ) : c.type === "renewal" ? (
+                        (() => {
+                          const d = daysUntil(row[c.name]);
+                          if (d === null) return <span style={{ color: "var(--muted-2)" }}>—</span>;
+                          const cls = d < 0 ? "over" : d <= 30 ? "soon" : "";
+                          const txt = d < 0 ? `${Math.abs(d)}d overdue` : d === 0 ? "Due today" : `in ${d}d`;
+                          return <span className={"adm-renew-badge " + cls} title={fmtDate(row[c.name])}>{fmtDate(row[c.name])} · {txt}</span>;
+                        })()
                       ) : (
                         String(row[c.name] ?? "").slice(0, 60)
                       )}
