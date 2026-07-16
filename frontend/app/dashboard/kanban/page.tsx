@@ -14,7 +14,7 @@ type ChecklistItem = { id: string; text: string; done: boolean };
 type Attachment = { id: string; url: string; name: string };
 type Task = {
   id: number; title: string; description?: string; boardId: number; column: string; position: number;
-  priority?: string; startDate?: string | null; dueDate?: string | null; completed?: boolean; cover?: string | null;
+  priority?: string; startDate?: string | null; dueDate?: string | null; renewalDate?: string | null; completed?: boolean; cover?: string | null;
   memberIds?: number[]; labelIds?: string[]; checklist?: ChecklistItem[]; attachments?: Attachment[];
   label?: string;
 };
@@ -298,6 +298,14 @@ export default function Kanban() {
     return { done: list.filter((c) => c.done).length, total: list.length };
   };
   const overdue = (t: Task) => t.dueDate && !t.completed && new Date(t.dueDate) < new Date(new Date().toDateString());
+  // Renewal countdown for the card chip: null (none), or { days, over, soon }
+  const renewInfo = (t: Task) => {
+    if (!t.renewalDate) return null;
+    const today = new Date(new Date().toDateString());
+    const day = new Date(String(t.renewalDate).slice(0, 10) + "T00:00:00");
+    const days = Math.round((day.getTime() - today.getTime()) / 86400000);
+    return { days, over: days < 0, soon: days >= 0 && days <= 7 };
+  };
 
   if (loading) return (
     <>
@@ -403,6 +411,7 @@ export default function Kanban() {
                   const cover = t.cover && t.cover.startsWith("#") ? t.cover : null;
                   const coverImg = t.cover && !t.cover.startsWith("#") ? t.cover : null;
                   const titleText = (t.title == null ? "" : String(t.title)).trim();
+                  const rn = renewInfo(t);
                   return (
                     <div key={t.id} data-id={t.id}
                       className={"kb-card" + (justDone === t.id ? " done-pop" : "") + (t.completed ? " is-done" : "")}
@@ -443,13 +452,20 @@ export default function Kanban() {
                         </div>
                         <h4 className={(t.completed ? "done " : "") + (titleText ? "" : "untitled")}>{t.completed && <span className="kb-check">✓</span>}{titleText || "Untitled task"}</h4>
                         {t.description && <p className="kb-desc">{t.description}</p>}
-                        {(t.dueDate || ck || (t.attachments || []).length > 0 || members.length > 0) && (
+                        {(t.dueDate || rn || ck || (t.attachments || []).length > 0 || members.length > 0) && (
                         <div className="kbc-foot">
                           <div className="kbc-meta">
                             {t.dueDate && (
                               <span className={"kbc-date" + (overdue(t) ? " over" : "")}>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
                                 {fmtDue(t.dueDate)}
+                              </span>
+                            )}
+                            {rn && (
+                              <span className={"kbc-renew" + (rn.over ? " over" : rn.soon ? " soon" : "")}
+                                title={"Renewal: " + fmtDue(t.renewalDate!)}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
+                                {rn.over ? "Renew due" : rn.days === 0 ? "Renews today" : `Renews in ${rn.days}d`}
                               </span>
                             )}
                             {ck && (
@@ -543,6 +559,10 @@ export default function Kanban() {
                 <DatePicker value={String(editing.startDate || "").slice(0, 10)} onChange={(v) => setEditing({ ...editing, startDate: v })} placeholder="Start date" /></div>
               <div className="adm-field" style={{ flex: 1 }}><label>Due date</label>
                 <DatePicker value={String(editing.dueDate || "").slice(0, 10)} onChange={(v) => setEditing({ ...editing, dueDate: v })} placeholder="Due date" /></div>
+            </div>
+            <div className="adm-field"><label>Renewal date</label>
+              <DatePicker value={String(editing.renewalDate || "").slice(0, 10)} onChange={(v) => setEditing({ ...editing, renewalDate: v })} placeholder="Renewal date" />
+              <span className="adm-hint">We'll remind you as the renewal date approaches and on the day.</span>
             </div>
             <label className="kb-complete">
               <input type="checkbox" checked={!!editing.completed} onChange={(e) => setEditing({ ...editing, completed: e.target.checked })} /> Mark complete
