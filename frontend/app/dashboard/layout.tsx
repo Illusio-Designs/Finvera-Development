@@ -13,7 +13,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   DashboardSquare01Icon, FolderLibraryIcon, GridViewIcon, QuoteDownIcon, UserGroupIcon,
   News01Icon, File01Icon, KanbanIcon, Mail01Icon, UserMultipleIcon, Search01Icon, Settings02Icon,
-  Target02Icon, LayoutTable01Icon,
+  Target02Icon, LayoutTable01Icon, Invoice01Icon,
 } from "@hugeicons/core-free-icons";
 
 type Icon = typeof DashboardSquare01Icon;
@@ -37,8 +37,9 @@ const NAV_GROUPS: NavGroup[] = [
     { href: "/dashboard/leads", label: "Leads", icon: Target02Icon, area: "leads" },
     { href: "/dashboard/contact", label: "Contact inbox", icon: Mail01Icon, area: "contact" },
   ] },
-  { key: "board", label: null, items: [
+  { key: "projects", label: "Projects", icon: KanbanIcon, items: [
     { href: "/dashboard/kanban", label: "Project board", icon: KanbanIcon, area: "board" },
+    { href: "/dashboard/renewals", label: "Renewals", icon: Invoice01Icon, area: "renewals" },
   ] },
   { key: "config", label: "Configuration", icon: Settings02Icon, items: [
     { href: "/dashboard/seo", label: "SEO", icon: Search01Icon, area: "seo" },
