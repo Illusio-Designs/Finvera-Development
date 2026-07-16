@@ -16,7 +16,7 @@ const ROLE_AREAS = {
   admin: "*",                       // full access
   content: ["content"],
   editor: ["content"],              // legacy alias → content editor
-  projects: ["board"],              // project board (kanban) only
+  projects: ["board", "renewals"],  // project board (kanban) + maintenance renewals
   leads: ["leads", "contact"],
   seo: ["seo", "settings"],
 };

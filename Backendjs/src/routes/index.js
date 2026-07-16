@@ -1,7 +1,7 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
 
-const { Project, Service, Testimonial, TeamMember, BlogPost, Task, Board, Page, Lead,
+const { Project, Service, Testimonial, TeamMember, BlogPost, Task, Board, Page, Lead, Renewal,
   Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature } = require("../models");
 const { crudController } = require("../utils/crud");
 const { requireAuth, requireRole, requireArea, optionalAuth } = require("../middleware/auth");
@@ -118,6 +118,27 @@ leadRouter.put("/:id", ...canLeads, leadCtrl.update);
 leadRouter.patch("/:id", ...canLeads, leadCtrl.update);
 leadRouter.delete("/:id", ...canLeads, leadCtrl.remove);
 router.use("/leads", leadRouter);
+
+/* ── Renewals (maintenance invoices — auth on every endpoint) ─ */
+const renewalCtrl = crudController(Renewal, {
+  order: [["renewalDate", "ASC"], ["position", "ASC"], ["createdAt", "DESC"]],
+  searchable: ["client", "project", "owner", "email"],
+  onCreate: async (rec, req) => {
+    if (rec.owner) await notifyByName(rec.owner, { type: "renewal", title: `Renewal assigned to you: ${rec.client}`, body: rec.project || undefined, link: "/dashboard/renewals", meta: { renewalId: rec.id } }, req.user?.id);
+  },
+  onUpdate: async (rec, req, before) => {
+    if (rec.owner && rec.owner !== before.owner) await notifyByName(rec.owner, { type: "renewal", title: `Renewal assigned to you: ${rec.client}`, body: rec.project || undefined, link: "/dashboard/renewals", meta: { renewalId: rec.id } }, req.user?.id);
+  },
+});
+const renewalRouter = express.Router();
+const canRenewals = [requireAuth, requireArea("renewals")];
+renewalRouter.get("/", ...canRenewals, renewalCtrl.list);
+renewalRouter.get("/:id", ...canRenewals, renewalCtrl.getOne);
+renewalRouter.post("/", ...canRenewals, renewalCtrl.create);
+renewalRouter.put("/:id", ...canRenewals, renewalCtrl.update);
+renewalRouter.patch("/:id", ...canRenewals, renewalCtrl.update);
+renewalRouter.delete("/:id", ...canRenewals, renewalCtrl.remove);
+router.use("/renewals", renewalRouter);
 
 /* ── Users ───────────────────────────────────────────── */
 const usersRouter = express.Router();
