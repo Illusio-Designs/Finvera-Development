@@ -11,6 +11,7 @@ export const ROLE_AREAS: Record<string, "*" | Area[]> = {
   projects: ["board", "renewals", "social"],
   leads: ["leads", "contact"],
   seo: ["seo", "settings"],
+  social: ["social"],
 };
 
 export const ROLE_LABELS: Record<string, string> = {
@@ -20,10 +21,11 @@ export const ROLE_LABELS: Record<string, string> = {
   projects: "Project board",
   leads: "Leads",
   seo: "SEO",
+  social: "Social media",
 };
 
 /** Roles offered when creating/editing a user. */
-export const ROLE_OPTIONS = ["admin", "content", "projects", "leads", "seo"];
+export const ROLE_OPTIONS = ["admin", "content", "projects", "leads", "seo", "social"];
 
 /** area === null means "open to any signed-in user" (e.g. the Dashboard home). */
 export function roleCan(role: string | undefined, area: Area | null): boolean {

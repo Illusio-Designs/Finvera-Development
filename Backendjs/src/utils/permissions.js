@@ -20,10 +20,11 @@ const ROLE_AREAS = {
   projects: ["board", "renewals", "social"],  // project board (kanban) + maintenance renewals + social calendar
   leads: ["leads", "contact"],
   seo: ["seo", "settings"],
+  social: ["social"],               // social media team — content calendar only
 };
 
 /* Roles offered in the UI (legacy "editor" still accepted for existing users). */
-const ALL_ROLES = ["admin", "content", "projects", "leads", "seo"];
+const ALL_ROLES = ["admin", "content", "projects", "leads", "seo", "social"];
 const ACCEPTED_ROLES = [...ALL_ROLES, "editor"];
 
 function roleCan(role, area) {

@@ -25,6 +25,7 @@ export default function AdminUsers() {
           { value: "projects", label: "Project board — kanban only" },
           { value: "leads", label: "Leads — pipeline + contact inbox" },
           { value: "seo", label: "SEO — SEO + settings & pixels" },
+          { value: "social", label: "Social media — content calendar for clients" },
         ] },
         { name: "password", label: "Password", type: "password", placeholder: "Set / change password" },
         { name: "active", label: "Active", type: "boolean", placeholder: "Account can sign in" },
