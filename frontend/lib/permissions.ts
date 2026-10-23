@@ -2,13 +2,13 @@
    Keep in sync with Backendjs/src/utils/permissions.js. The backend is the
    real gate (every write is checked there); this drives nav + route guards. */
 
-export type Area = "content" | "board" | "leads" | "contact" | "seo" | "settings" | "users" | "renewals";
+export type Area = "content" | "board" | "leads" | "contact" | "seo" | "settings" | "users" | "renewals" | "social";
 
 export const ROLE_AREAS: Record<string, "*" | Area[]> = {
   admin: "*",
-  content: ["content"],
-  editor: ["content"], // legacy alias
-  projects: ["board", "renewals"],
+  content: ["content", "social"],
+  editor: ["content", "social"], // legacy alias
+  projects: ["board", "renewals", "social"],
   leads: ["leads", "contact"],
   seo: ["seo", "settings"],
 };

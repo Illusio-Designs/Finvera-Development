@@ -1986,3 +1986,82 @@ section{position:relative;z-index:2}
 /* Image curtain reveal */
 .reveal-clip{clip-path:inset(0 0 100% 0);transition:clip-path .9s var(--ease)}
 .reveal-clip.in{clip-path:inset(0 0 0 0)}
+
+/* =========================================================
+   Social media calendar (dashboard/social) — sm- prefix
+   ========================================================= */
+.sm-clients{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;margin:-10px 0 14px}
+.sm-ctab{flex:none;display:inline-flex;align-items:center;gap:8px;padding:8px 13px;border-radius:10px;border:1px solid var(--line-2);
+  background:#fff;color:var(--muted);font-size:13.5px;font-weight:600;transition:.2s}
+.sm-ctab:hover{color:var(--ink);border-color:var(--blue-500)}
+.sm-ctab.active{color:var(--ink);background:rgba(91,127,212,.12);border-color:var(--blue-500)}
+.sm-ctab i{width:10px;height:10px;border-radius:3px;flex:none}
+.sm-ctab .n{font-size:11px;color:var(--muted-2);background:rgba(16,30,60,.06);border-radius:999px;padding:1px 8px;font-variant-numeric:tabular-nums}
+.sm-ctab .late{font-size:11px;font-weight:700;color:#dc2626}
+.sm-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
+.sm-tile{border:1px solid var(--line);border-radius:12px;background:#fff;padding:11px 14px}
+.sm-tile span{display:block;font-size:11.5px;font-weight:600;color:var(--muted-2);text-transform:uppercase;letter-spacing:.04em}
+.sm-tile b{display:block;font-family:var(--display);font-size:22px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.sm-tile.ok b{color:#16a34a}.sm-tile.over b{color:#dc2626}.sm-tile.soon b{color:#b45309}
+.sm-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px}
+.sm-bar .adm-search{flex:1 1 200px}.sm-bar .adm-search input{width:100%}
+.sm-filter{min-width:150px}
+.sm-seg{display:inline-flex;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:3px}
+.sm-seg button{padding:6px 13px;border-radius:7px;font-size:13px;font-weight:600;color:var(--muted)}
+.sm-seg button.on{background:#fff;color:var(--ink);box-shadow:var(--shadow-sm)}
+.sm-dot{width:9px;height:9px;border-radius:50%;flex:none}
+.sm-card{border-left:4px solid var(--cc,var(--line-2));display:flex;flex-direction:column;gap:6px;padding:11px 12px}
+.sm-card h4{margin:0}
+.sm-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.sm-date{font-size:11.5px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.sm-fmt{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;color:var(--fc);background:color-mix(in srgb,var(--fc) 12%,transparent)}
+.sm-cname{font-size:11.5px;font-weight:700}
+.sm-fest{font-size:11.5px;color:#6d3fd6;font-weight:600}
+.sm-time{font-size:11.5px;font-weight:600;color:var(--muted-2);font-variant-numeric:tabular-nums}
+.sm-time.run{color:#dc2626}
+.sm-flags{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--muted-2)}
+.sm-flags .on{color:#16a34a;font-weight:600}
+.sm-sched{display:flex;flex-direction:column;gap:20px}
+.sm-gh{font-size:15px;font-weight:700;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+.sm-gh span{font-size:11px;color:var(--muted-2);background:rgba(16,30,60,.06);border-radius:999px;padding:1px 8px}
+.sm-gh.over{color:#dc2626}.sm-gh.soon{color:#b45309}
+.sm-scroll{overflow-x:auto}
+.sm-scroll .adm-table{min-width:820px}
+.sm-nowrap,.sm-scroll .kbc-renew{white-space:nowrap}
+.sm-muted{color:var(--muted-2);font-size:12px}
+.sm-link{font-weight:600;color:var(--ink);text-align:left}
+.sm-link:hover{color:var(--blue-500);text-decoration:underline}
+.sm-cpill,.sm-stage{display:inline-block;white-space:nowrap;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px}
+.sm-cpill{color:var(--cc);background:color-mix(in srgb,var(--cc) 12%,transparent)}
+.sm-stage{color:var(--sc);background:color-mix(in srgb,var(--sc) 13%,transparent)}
+.sm-timerbtn{padding:5px 12px!important;font-size:12px!important}
+.sm-timerbtn.run{background:#dc2626;border-color:#dc2626;color:#fff}
+.sm-calhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.sm-calhead h3{font-size:18px;margin:0 6px;min-width:150px}
+.sm-legend{margin-left:auto;display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.sm-legend span{display:inline-flex;align-items:center;gap:5px}
+.sm-legend i{width:9px;height:9px;border-radius:50%}
+.sm-cal{display:grid;grid-template-columns:repeat(7,minmax(110px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:13px;overflow:hidden;min-width:780px}
+.sm-dow{background:var(--panel-2);padding:7px 9px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted-2)}
+.sm-day{background:#fff;min-height:110px;padding:6px;display:flex;flex-direction:column;gap:4px}
+.sm-day.out{background:var(--bg-2)}
+.sm-day.today{box-shadow:inset 0 0 0 2px var(--blue-500)}
+.sm-num{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted-2)}
+.sm-num button{width:20px;height:20px;border-radius:6px;color:var(--muted-2);line-height:1}
+.sm-num button:hover{background:var(--bg-2);color:var(--ink)}
+.sm-ev{text-align:left;font-size:11.5px;line-height:1.3;padding:3px 6px;border-radius:5px;border-left:3px solid var(--sc);
+  background:color-mix(in srgb,var(--sc) 10%,#fff);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sm-sec{display:flex;align-items:center;gap:10px;font-size:14px;margin:22px 0 12px;padding-top:14px;border-top:1px solid var(--line)}
+.sm-sec .adm-btn{margin-left:auto}
+.sm-links{display:flex;flex-direction:column;gap:4px;margin-bottom:8px}
+.sm-links a{font-size:12.5px;color:var(--blue-500);word-break:break-all}
+.sm-logadd{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.sm-logadd input{padding:9px 11px;border-radius:9px;border:1px solid var(--line-2);background:#fff;font-size:13px}
+.sm-logadd input[type=number]{width:96px}
+.sm-logadd input:not([type]){flex:1 1 180px}
+.sm-log{display:flex;flex-direction:column;gap:6px}
+.sm-logrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 10px;border-radius:9px;background:var(--bg-2);font-size:13px}
+.sm-logrow b{min-width:52px;font-variant-numeric:tabular-nums}
+.sm-logrow .note{flex:1;min-width:0}
+.sm-logrow button{color:var(--muted-2);font-size:16px;line-height:1}
+.sm-logrow button:hover{color:#dc2626}

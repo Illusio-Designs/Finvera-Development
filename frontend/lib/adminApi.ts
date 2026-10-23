@@ -79,4 +79,7 @@ export const api = {
   listComments: (taskId: number) => req(`/tasks/${taskId}/comments`),
   addComment: (taskId: number, body: string) => req(`/tasks/${taskId}/comments`, { method: "POST", body: JSON.stringify({ body }) }),
   deleteComment: (id: number) => req(`/comments/${id}`, { method: "DELETE" }),
+
+  /* Social media calendar — bulk import rows parsed from a client's sheet */
+  importSocialPosts: (posts: any[]) => req(`/social-posts/bulk`, { method: "POST", body: JSON.stringify({ posts }) }),
 };
