@@ -13,6 +13,8 @@ const User = sequelize.define("User", {
   active: { type: DataTypes.BOOLEAN, defaultValue: true },
   avatar: { type: DataTypes.STRING },   // profile image URL
   title: { type: DataTypes.STRING },    // job title / role label
+  // Social media brands (SocialClient ids) this user may work on; empty = all.
+  socialClients: { type: DataTypes.JSON, defaultValue: [] },
 }, { tableName: "users" });
 
 /* ── Project / Work ──────────────────────────────────── */

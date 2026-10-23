@@ -181,6 +181,8 @@ export default function SocialCalendar() {
   const [clientRows, setClientRows] = useState<Client[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [meId, setMeId] = useState<number | null>(null);
+  // Brand access set by an admin: false = every brand (admin), true = only assigned brands.
+  const [limited, setLimited] = useState(false);
   const [loading, setLoading] = useState(true);
   const [client, setClient] = useState("");
   const [view, setView] = useState<View>("board");
@@ -207,6 +209,7 @@ export default function SocialCalendar() {
       setClientRows(Array.isArray(c) ? c : []);
       setUsers(Array.isArray(u) ? u : []);
       setMeId((me?.user ?? me)?.id ?? null);
+      setLimited(Array.isArray((me?.user ?? me)?.socialClients));
     } catch (e: any) { toast(e.message || "Couldn't load the social calendar", "err"); }
     finally { setLoading(false); }
   }
@@ -254,7 +257,7 @@ export default function SocialCalendar() {
     try {
       if (editing.id) await api.update("social-posts", editing.id, body);
       else await api.create("social-posts", { ...body, timeLog: [] });
-      if (!clientRows.some((c) => c.name === editing.client)) await api.create("social-clients", { name: editing.client }).catch(() => {});
+      if (!limited && !clientRows.some((c) => c.name === editing.client)) await api.create("social-clients", { name: editing.client }).catch(() => {});
       setEditing(null); toast("Post saved"); load();
     } catch (err: any) { toast(err.message || "Couldn't save the post", "err"); }
   }
@@ -311,6 +314,7 @@ export default function SocialCalendar() {
     const guess = client || (rows[0]?.find((c) => c.trim()) || "").trim().replace(/\b\w+/g, (w) => w[0] + w.slice(1).toLowerCase());
     const name = (await dialog.prompt({ title: "Import posts for which client?", defaultValue: guess, confirmText: "Next" }))?.trim();
     if (!name) return;
+    if (limited && !clientNames.includes(name)) return dialog.alert({ title: "Not one of your brands", message: `You can import only into: ${clientNames.join(", ") || "no brands yet"}.` });
     const parsed = sheetToPosts(rows, name);
     if (!parsed.length) return dialog.alert({ title: "No posts found", message: "The CSV needs a header row with a “Post Theme” column and a “Date” column." });
     if (!(await dialog.confirm({ title: `Import ${parsed.length} posts for ${name}?`, message: "Stages are set from the Data Status, Caption, Drive link and Channel links columns.", confirmText: "Import" }))) return;
@@ -505,7 +509,7 @@ export default function SocialCalendar() {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input ref={fileRef} type="file" accept=".csv,text/csv" hidden onChange={(e) => { importCsv(e.target.files?.[0]); e.currentTarget.value = ""; }} />
           <button className="adm-btn ghost" onClick={() => fileRef.current?.click()}>Import sheet (CSV)</button>
-          <button className="adm-btn ghost" onClick={addClient}>+ Client</button>
+          {!limited && <button className="adm-btn ghost" onClick={addClient}>+ Client</button>}
           <button className="adm-btn primary" onClick={() => setEditing({ client, status: "planned", postDate: todayIso(), timeLog: [] })}>+ Post</button>
         </div>
       </div>
@@ -547,7 +551,9 @@ export default function SocialCalendar() {
       </div>
 
       {!posts.length ? (
-        <div className="adm-panel"><div className="adm-empty">No posts yet. Add a client and a post, or import a client’s media calendar (Excel → Save as CSV).</div></div>
+        <div className="adm-panel"><div className="adm-empty">{limited && !clientNames.length
+          ? "No brands assigned to you yet. Ask an admin to give you access under Users → Social media brands."
+          : "No posts yet. Add a client and a post, or import a client’s media calendar (Excel → Save as CSV)."}</div></div>
       ) : view === "schedule" ? renderSchedule() : view === "calendar" ? renderCalendar() : renderBoard()}
 
       {editing && (
@@ -558,8 +564,15 @@ export default function SocialCalendar() {
 
             <div className="field row" style={{ gap: 12 }}>
               <div className="adm-field" style={{ flex: 1 }}><label>Client</label>
-                <input list="sm-clients" value={txt("client")} onChange={(e) => set({ client: e.target.value })} required placeholder="Client name" />
-                <datalist id="sm-clients">{clientNames.map((n) => <option key={n} value={n} />)}</datalist></div>
+                {limited ? (
+                  <Select value={txt("client")} onChange={(v) => set({ client: v })} ariaLabel="Client" placeholder="Choose a brand"
+                    options={clientNames.map((n) => ({ value: n, label: n }))} />
+                ) : (
+                  <>
+                    <input list="sm-clients" value={txt("client")} onChange={(e) => set({ client: e.target.value })} required placeholder="Client name" />
+                    <datalist id="sm-clients">{clientNames.map((n) => <option key={n} value={n} />)}</datalist>
+                  </>
+                )}</div>
               <div className="adm-field" style={{ flex: 1 }}><label>Stage</label>
                 <Select value={editing.status || "planned"} onChange={(v) => set({ status: v as Stage })} ariaLabel="Stage"
                   options={STAGES.map((s) => ({ value: s.id, label: s.title }))} /></div>

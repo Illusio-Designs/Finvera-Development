@@ -3,12 +3,14 @@ const jwt = require("jsonwebtoken");
 const { User } = require("../models");
 const { asyncHandler } = require("../utils/crud");
 const { rolesOf } = require("../utils/permissions");
+const { brandIdsOf } = require("./social.controller");
 
 function publicUser(u) {
   return {
     id: u.id, name: u.name, email: u.email,
     role: u.role, roles: rolesOf(u),
     avatar: u.avatar, title: u.title,
+    socialClients: brandIdsOf(u),   // null = every brand (admin); [] = none yet
   };
 }
 

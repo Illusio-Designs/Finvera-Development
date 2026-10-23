@@ -11,11 +11,20 @@ function normRoles(roles, role) {
   return list.length ? list : ["admin"];
 }
 
+/* Social media brand ids (as strings, matching the multiselect); [] = all brands.
+   Accepts an array or a JSON string (MySQL can hand JSON back as text). */
+function normBrands(v) {
+  let a = v;
+  if (typeof a === "string") { try { a = JSON.parse(a); } catch { a = []; } }
+  return Array.isArray(a) ? [...new Set(a.map(String).filter((x) => /^\d+$/.test(x)))] : [];
+}
+
 const safe = (u) => ({
   id: u.id, name: u.name, email: u.email,
   role: rolesOf(u)[0] || u.role,
   roles: rolesOf(u),
   active: u.active, avatar: u.avatar, title: u.title, createdAt: u.createdAt,
+  socialClients: normBrands(u.socialClients),
 });
 
 const list = asyncHandler(async (_req, res) => {
@@ -31,7 +40,7 @@ const assignable = asyncHandler(async (_req, res) => {
 });
 
 const create = asyncHandler(async (req, res) => {
-  const { name, email, password, role, roles, active, avatar, title } = req.body;
+  const { name, email, password, role, roles, active, avatar, title, socialClients } = req.body;
   if (!name || !email || !password) return res.status(400).json({ message: "Name, email and password are required." });
   const list = normRoles(roles, role);
   const user = await User.create({
@@ -41,6 +50,7 @@ const create = asyncHandler(async (req, res) => {
     active: active !== false,
     avatar: avatar || null,
     title: title || null,
+    socialClients: normBrands(socialClients),
   });
   res.status(201).json(safe(user));
 });
@@ -48,13 +58,14 @@ const create = asyncHandler(async (req, res) => {
 const update = asyncHandler(async (req, res) => {
   const user = await User.findByPk(req.params.id);
   if (!user) return res.status(404).json({ message: "User not found." });
-  const { name, email, password, role, roles, active, avatar, title } = req.body;
+  const { name, email, password, role, roles, active, avatar, title, socialClients } = req.body;
   if (name != null) user.name = name;
   if (email != null) user.email = String(email).toLowerCase().trim();
   if (roles != null || role != null) { const l = normRoles(roles, role); user.roles = l; user.role = l[0]; }
   if (active != null) user.active = active;
   if (avatar !== undefined) user.avatar = avatar || null;
   if (title !== undefined) user.title = title || null;
+  if (socialClients !== undefined) user.socialClients = normBrands(socialClients);
   if (password) user.password = await bcrypt.hash(password, 10);
   await user.save();
   res.json(safe(user));

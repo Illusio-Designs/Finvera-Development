@@ -11,6 +11,7 @@ const WANTED = [
   { table: "tasks", column: "startDate", def: "DATE NULL" },
   { table: "tasks", column: "renewalDate", def: "DATE NULL" },
   { table: "users", column: "roles", def: "JSON NULL" },
+  { table: "users", column: "socialClients", def: "JSON NULL" },
 ];
 
 /* ENUM columns whose allowed values grew (sync() never ALTERs an existing

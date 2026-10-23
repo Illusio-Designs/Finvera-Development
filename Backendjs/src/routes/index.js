@@ -141,14 +141,16 @@ renewalRouter.delete("/:id", ...canRenewals, renewalCtrl.remove);
 router.use("/renewals", renewalRouter);
 
 /* ── Social media calendar (clients + posts — auth on every endpoint) ─ */
-const canSocial = [requireAuth, requireArea("social")];
+// Every social route also resolves the caller's brand scope (admin-set per user).
+const social = require("../controllers/social.controller");
+const canSocial = [requireAuth, requireArea("social"), social.withScope];
 const socialClientCtrl = crudController(SocialClient, { order: [["position", "ASC"], ["name", "ASC"]], searchable: ["name"] });
 const socialClientRouter = express.Router();
-socialClientRouter.get("/", ...canSocial, socialClientCtrl.list);
-socialClientRouter.post("/", ...canSocial, socialClientCtrl.create);
-socialClientRouter.put("/:id", ...canSocial, socialClientCtrl.update);
-socialClientRouter.patch("/:id", ...canSocial, socialClientCtrl.update);
-socialClientRouter.delete("/:id", ...canSocial, socialClientCtrl.remove);
+socialClientRouter.get("/", ...canSocial, social.listClients(socialClientCtrl.list));
+socialClientRouter.post("/", ...canSocial, social.requireAllBrands, socialClientCtrl.create);
+socialClientRouter.put("/:id", ...canSocial, social.requireAllBrands, socialClientCtrl.update);
+socialClientRouter.patch("/:id", ...canSocial, social.requireAllBrands, socialClientCtrl.update);
+socialClientRouter.delete("/:id", ...canSocial, social.requireAllBrands, socialClientCtrl.remove);
 router.use("/social-clients", socialClientRouter);
 
 const socialAssigned = (p) => ({ type: "assigned", title: `Social post assigned to you: ${p.theme}`, body: p.client, link: "/dashboard/social", meta: { socialPostId: p.id } });
@@ -163,11 +165,11 @@ const socialPostCtrl = crudController(SocialPost, {
 const SOCIAL_FIELDS = ["client", "status", "postDate", "postTime", "dueDate", "assigneeId", "estimateHours", "festive", "theme", "topic",
   "format", "requirements", "reference", "dataStatus", "poc", "caption", "driveLink", "tags", "keywords", "channels", "remarks", "position"];
 const socialPostRouter = express.Router();
-socialPostRouter.get("/", ...canSocial, socialPostCtrl.list);
-socialPostRouter.get("/:id", ...canSocial, socialPostCtrl.getOne);
-socialPostRouter.post("/", ...canSocial, socialPostCtrl.create);
+socialPostRouter.get("/", ...canSocial, social.listPosts(socialPostCtrl.list));
+socialPostRouter.get("/:id", ...canSocial, social.guardPost, socialPostCtrl.getOne);
+socialPostRouter.post("/", ...canSocial, social.guardBody, socialPostCtrl.create);
 // Bulk import (rows parsed from a client's media-calendar sheet).
-socialPostRouter.post("/bulk", ...canSocial, async (req, res, next) => {
+socialPostRouter.post("/bulk", ...canSocial, social.guardBody, async (req, res, next) => {
   try {
     const rows = Array.isArray(req.body?.posts) ? req.body.posts.slice(0, 1000) : [];
     const clean = rows
@@ -179,9 +181,9 @@ socialPostRouter.post("/bulk", ...canSocial, async (req, res, next) => {
     res.status(201).json({ created: created.length });
   } catch (e) { next(e); }
 });
-socialPostRouter.put("/:id", ...canSocial, socialPostCtrl.update);
-socialPostRouter.patch("/:id", ...canSocial, socialPostCtrl.update);
-socialPostRouter.delete("/:id", ...canSocial, socialPostCtrl.remove);
+socialPostRouter.put("/:id", ...canSocial, social.guardPost, socialPostCtrl.update);
+socialPostRouter.patch("/:id", ...canSocial, social.guardPost, socialPostCtrl.update);
+socialPostRouter.delete("/:id", ...canSocial, social.guardPost, socialPostCtrl.remove);
 router.use("/social-posts", socialPostRouter);
 
 /* ── Users ───────────────────────────────────────────── */
