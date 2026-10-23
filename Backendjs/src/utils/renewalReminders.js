@@ -24,7 +24,7 @@ const asArr = (v) => {
   return [];
 };
 const parseMeta = (m) => (typeof m === "string" ? (() => { try { return JSON.parse(m); } catch { return {}; } })() : (m || {}));
-const rolesOf = (u) => (Array.isArray(u.roles) && u.roles.length ? u.roles : (u.role ? [u.role] : []));
+const { rolesOf } = require("./permissions");
 
 // Whole-day difference (renewal - today), using date-only values.
 const daysUntil = (dateStr) => {

@@ -34,10 +34,19 @@ function roleCan(role, area) {
   return areas.includes(area);
 }
 
+/* A user's roles as an array. The `roles` JSON column can come back as a
+   string on some MySQL setups — parse it, else fall back to legacy `role`. */
+function rolesOf(user) {
+  let r = user && user.roles;
+  if (typeof r === "string") { try { r = JSON.parse(r); } catch { r = null; } }
+  if (Array.isArray(r) && r.length) return r;
+  return user && user.role ? [user.role] : [];
+}
+
 /* True if ANY of the user's roles grants the area. */
 function rolesCan(roles, area) {
   if (!Array.isArray(roles)) return false;
   return roles.some((r) => roleCan(r, area));
 }
 
-module.exports = { ROLE_AREAS, ALL_ROLES, ACCEPTED_ROLES, roleCan, rolesCan };
+module.exports = { ROLE_AREAS, ALL_ROLES, ACCEPTED_ROLES, roleCan, rolesCan, rolesOf };

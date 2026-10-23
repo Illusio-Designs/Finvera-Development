@@ -1,7 +1,7 @@
 const bcrypt = require("bcryptjs");
 const { User } = require("../models");
 const { asyncHandler } = require("../utils/crud");
-const { ACCEPTED_ROLES } = require("../utils/permissions");
+const { ACCEPTED_ROLES, rolesOf } = require("../utils/permissions");
 
 /* Accept either a single `role` or a `roles` array; return a clean, de-duped
    array of valid roles (defaults to ["admin"] if nothing valid was sent). */
@@ -13,8 +13,8 @@ function normRoles(roles, role) {
 
 const safe = (u) => ({
   id: u.id, name: u.name, email: u.email,
-  role: (Array.isArray(u.roles) && u.roles[0]) || u.role,
-  roles: Array.isArray(u.roles) && u.roles.length ? u.roles : (u.role ? [u.role] : []),
+  role: rolesOf(u)[0] || u.role,
+  roles: rolesOf(u),
   active: u.active, avatar: u.avatar, title: u.title, createdAt: u.createdAt,
 });
 

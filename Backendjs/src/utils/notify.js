@@ -4,7 +4,7 @@
 
 const { Notification, User } = require("../models");
 
-const rolesOf = (u) => (Array.isArray(u.roles) && u.roles.length ? u.roles : (u.role ? [u.role] : []));
+const { rolesOf } = require("./permissions");
 
 async function createFor(userIds, payload) {
   const ids = [...new Set((userIds || []).filter((id) => id != null))];
