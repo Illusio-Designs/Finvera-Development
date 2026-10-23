@@ -44,9 +44,11 @@ export function rolesCan(roles: string[] | undefined, area: Area | null): boolea
 }
 
 /** Normalise a user's roles from the API (new `roles[]` or legacy single `role`). */
-export function userRoles(me: { roles?: string[]; role?: string } | null | undefined): string[] {
+export function userRoles(me: { roles?: string[] | string; role?: string } | null | undefined): string[] {
   if (!me) return [];
-  if (Array.isArray(me.roles) && me.roles.length) return me.roles;
+  let r: unknown = me.roles;
+  if (typeof r === "string") { try { r = JSON.parse(r); } catch { r = null; } }
+  if (Array.isArray(r) && r.length) return r as string[];
   return me.role ? [me.role] : [];
 }
 

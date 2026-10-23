@@ -2,10 +2,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { User } = require("../models");
 const { asyncHandler } = require("../utils/crud");
-
-function rolesOf(user) {
-  return Array.isArray(user.roles) && user.roles.length ? user.roles : (user.role ? [user.role] : []);
-}
+const { rolesOf } = require("../utils/permissions");
 
 function publicUser(u) {
   return {

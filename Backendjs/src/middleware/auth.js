@@ -1,12 +1,7 @@
 const jwt = require("jsonwebtoken");
 const { User } = require("../models");
-const { rolesCan } = require("../utils/permissions");
+const { rolesCan, rolesOf } = require("../utils/permissions");
 
-/* Normalise a user to a roles array (supports both the new `roles` JSON
-   column and the legacy single `role`). */
-function rolesOf(user) {
-  return Array.isArray(user.roles) && user.roles.length ? user.roles : (user.role ? [user.role] : []);
-}
 
 /* Verify JWT and attach req.user. Blocks if missing/invalid. */
 async function requireAuth(req, res, next) {
