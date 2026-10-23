@@ -2,7 +2,7 @@ const express = require("express");
 const rateLimit = require("express-rate-limit");
 
 const { Project, Service, Testimonial, TeamMember, BlogPost, Task, Board, Page, Lead, Renewal,
-  Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature } = require("../models");
+  SocialClient, SocialPost, Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature } = require("../models");
 const { crudController } = require("../utils/crud");
 const { requireAuth, requireRole, requireArea, optionalAuth } = require("../middleware/auth");
 const { upload } = require("../middleware/upload");
@@ -139,6 +139,50 @@ renewalRouter.put("/:id", ...canRenewals, renewalCtrl.update);
 renewalRouter.patch("/:id", ...canRenewals, renewalCtrl.update);
 renewalRouter.delete("/:id", ...canRenewals, renewalCtrl.remove);
 router.use("/renewals", renewalRouter);
+
+/* ── Social media calendar (clients + posts — auth on every endpoint) ─ */
+const canSocial = [requireAuth, requireArea("social")];
+const socialClientCtrl = crudController(SocialClient, { order: [["position", "ASC"], ["name", "ASC"]], searchable: ["name"] });
+const socialClientRouter = express.Router();
+socialClientRouter.get("/", ...canSocial, socialClientCtrl.list);
+socialClientRouter.post("/", ...canSocial, socialClientCtrl.create);
+socialClientRouter.put("/:id", ...canSocial, socialClientCtrl.update);
+socialClientRouter.patch("/:id", ...canSocial, socialClientCtrl.update);
+socialClientRouter.delete("/:id", ...canSocial, socialClientCtrl.remove);
+router.use("/social-clients", socialClientRouter);
+
+const socialAssigned = (p) => ({ type: "assigned", title: `Social post assigned to you: ${p.theme}`, body: p.client, link: "/dashboard/social", meta: { socialPostId: p.id } });
+const socialPostCtrl = crudController(SocialPost, {
+  order: [["postDate", "ASC"], ["postTime", "ASC"], ["position", "ASC"]],
+  searchable: ["client", "theme", "topic", "caption", "festive"],
+  onCreate: async (p, req) => { if (p.assigneeId) await notifyUsers([p.assigneeId], socialAssigned(p), req.user?.id); },
+  onUpdate: async (p, req, before) => {
+    if (p.assigneeId && p.assigneeId !== before.assigneeId) await notifyUsers([p.assigneeId], socialAssigned(p), req.user?.id);
+  },
+});
+const SOCIAL_FIELDS = ["client", "status", "postDate", "postTime", "dueDate", "assigneeId", "estimateHours", "festive", "theme", "topic",
+  "format", "requirements", "reference", "dataStatus", "poc", "caption", "driveLink", "tags", "keywords", "channels", "remarks", "position"];
+const socialPostRouter = express.Router();
+socialPostRouter.get("/", ...canSocial, socialPostCtrl.list);
+socialPostRouter.get("/:id", ...canSocial, socialPostCtrl.getOne);
+socialPostRouter.post("/", ...canSocial, socialPostCtrl.create);
+// Bulk import (rows parsed from a client's media-calendar sheet).
+socialPostRouter.post("/bulk", ...canSocial, async (req, res, next) => {
+  try {
+    const rows = Array.isArray(req.body?.posts) ? req.body.posts.slice(0, 1000) : [];
+    const clean = rows
+      .map((r) => Object.fromEntries(SOCIAL_FIELDS.filter((f) => r[f] !== undefined && r[f] !== "").map((f) => [f, r[f]])))
+      .filter((r) => r.client && r.theme);
+    if (!clean.length) return res.status(400).json({ message: "No rows with a client and a post theme to import." });
+    for (const name of [...new Set(clean.map((r) => r.client))]) await SocialClient.findOrCreate({ where: { name } });
+    const created = await SocialPost.bulkCreate(clean);
+    res.status(201).json({ created: created.length });
+  } catch (e) { next(e); }
+});
+socialPostRouter.put("/:id", ...canSocial, socialPostCtrl.update);
+socialPostRouter.patch("/:id", ...canSocial, socialPostCtrl.update);
+socialPostRouter.delete("/:id", ...canSocial, socialPostCtrl.remove);
+router.use("/social-posts", socialPostRouter);
 
 /* ── Users ───────────────────────────────────────────── */
 const usersRouter = express.Router();

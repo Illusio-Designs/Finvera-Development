@@ -216,6 +216,45 @@ const Renewal = sequelize.define("Renewal", {
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
 }, { tableName: "renewals" });
 
+/* ── Social media calendar (per client) ──────────────────
+   Clients we run social media for; a client can exist before any posts. */
+const SocialClient = sequelize.define("SocialClient", {
+  name: { type: DataTypes.STRING, allowNull: false, unique: true },
+  color: { type: DataTypes.STRING, defaultValue: "#3e60ab" },
+  notes: { type: DataTypes.TEXT },
+  position: { type: DataTypes.INTEGER, defaultValue: 0 },
+}, { tableName: "social_clients" });
+
+/* One planned post. Mirrors the client media-calendar sheet columns, plus
+   time management: post time, work deadline, assignee, estimate, time log. */
+const SocialPost = sequelize.define("SocialPost", {
+  client: { type: DataTypes.STRING, allowNull: false },          // SocialClient.name
+  status: { type: DataTypes.ENUM("planned", "client", "production", "ready", "posted"), defaultValue: "planned" },
+  postDate: { type: DataTypes.DATEONLY },                        // goes live on
+  postTime: { type: DataTypes.STRING(5) },                       // "HH:MM"
+  dueDate: { type: DataTypes.DATEONLY },                         // creative/work deadline
+  assigneeId: { type: DataTypes.INTEGER },                       // User doing the work
+  estimateHours: { type: DataTypes.FLOAT },
+  timeLog: { type: DataTypes.JSON, defaultValue: [] },           // [{ id, userId, minutes, note, at }]
+  timerStart: { type: DataTypes.DATE },                          // running timer, if any
+  timerBy: { type: DataTypes.INTEGER },
+  festive: { type: DataTypes.STRING },                           // day / festival
+  theme: { type: DataTypes.STRING, allowNull: false },
+  topic: { type: DataTypes.TEXT },
+  format: { type: DataTypes.STRING },                            // Post / Reel / Carousel / Influencer
+  requirements: { type: DataTypes.TEXT },                        // client requirements
+  reference: { type: DataTypes.TEXT },                           // reference link(s)
+  dataStatus: { type: DataTypes.TEXT },                          // "we have" / "required from client"
+  poc: { type: DataTypes.STRING },                               // client point of contact
+  caption: { type: DataTypes.TEXT },                             // caption & hashtags
+  driveLink: { type: DataTypes.TEXT },
+  tags: { type: DataTypes.TEXT },                                // people to tag
+  keywords: { type: DataTypes.TEXT },
+  channels: { type: DataTypes.TEXT },                            // live post links
+  remarks: { type: DataTypes.TEXT },
+  position: { type: DataTypes.INTEGER, defaultValue: 0 },
+}, { tableName: "social_posts" });
+
 /* ── Editable content collections (CMS) ──────────────── */
 const contentDefaults = {
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
@@ -293,6 +332,6 @@ module.exports = {
   sequelize,
   User, Project, Service, Testimonial, TeamMember,
   BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page, Lead, Notification,
-  Renewal,
+  Renewal, SocialClient, SocialPost,
   Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature,
 };

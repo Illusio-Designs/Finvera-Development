@@ -6,6 +6,7 @@
                 and all site-content collections (faqs, values, brands, …)
      board    → kanban boards + tasks + comments
      leads    → BD lead pipeline
+     social   → social media calendar (clients + posts)
      contact  → website contact inbox
      seo      → SEO metadata
      settings → analytics / pixels / brand settings
@@ -14,9 +15,9 @@
 
 const ROLE_AREAS = {
   admin: "*",                       // full access
-  content: ["content"],
-  editor: ["content"],              // legacy alias → content editor
-  projects: ["board", "renewals"],  // project board (kanban) + maintenance renewals
+  content: ["content", "social"],
+  editor: ["content", "social"],    // legacy alias → content editor
+  projects: ["board", "renewals", "social"],  // project board (kanban) + maintenance renewals + social calendar
   leads: ["leads", "contact"],
   seo: ["seo", "settings"],
 };
