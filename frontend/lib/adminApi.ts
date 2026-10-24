@@ -82,4 +82,5 @@ export const api = {
 
   /* Social media calendar — bulk import rows parsed from a client's sheet */
   importSocialPosts: (posts: any[]) => req(`/social-posts/bulk`, { method: "POST", body: JSON.stringify({ posts }) }),
+  markPastPosted: (client?: string) => req(`/social-posts/mark-posted`, { method: "POST", body: JSON.stringify({ client }) }),
 };

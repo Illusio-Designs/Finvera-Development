@@ -322,6 +322,15 @@ export default function SocialCalendar() {
     catch (e: any) { toast(e.message || "Couldn't remove the entry", "err"); }
   }
 
+  /* Admin catch-up: open posts whose go-live date has passed → Posted. */
+  const pastOpen = scope.filter((p) => !isDone(p) && p.postDate && p.postDate < todayIso()).length;
+  async function markPastPosted() {
+    const where = client ? ` for ${client}` : " across all brands";
+    if (!(await dialog.confirm({ title: `Mark ${pastOpen} past posts as Posted?`, message: `Every open post${where} whose go-live date has passed moves to Posted and goes to that brand's Social media person.`, confirmText: "Mark as Posted" }))) return;
+    try { const r = await api.markPastPosted(client || undefined); toast(`${r.updated} posts marked as Posted`); load(); }
+    catch (e: any) { toast(e.message || "Couldn't update the posts", "err"); }
+  }
+
   /* ── import ── */
   async function importCsv(file?: File) {
     if (!file) return;
@@ -366,7 +375,9 @@ export default function SocialCalendar() {
             {dueChip(p)}
             {(logged > 0 || p.estimateHours || p.timerStart) && <span className={"sm-time" + (p.timerStart ? " run" : "")}>⏱ {timerText(p)}</span>}
           </div>
-          {assignee && <Avatar user={assignee} size={24} />}
+          {assignee
+            ? <span className="sm-apill" title={`Assigned to ${assignee.name}`}><Avatar user={assignee} size={18} />{assignee.name}</span>
+            : <span className="sm-apill none">Unassigned</span>}
         </div>
         <div className="sm-flags">
           <span className={p.caption ? "on" : ""}>{p.caption ? "✓" : "○"} Caption</span>
@@ -625,6 +636,9 @@ export default function SocialCalendar() {
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input ref={fileRef} type="file" accept=".csv,text/csv" hidden onChange={(e) => { importCsv(e.target.files?.[0]); e.currentTarget.value = ""; }} />
+          {!limited && pastOpen > 0 && (
+            <button className="adm-btn ghost" onClick={markPastPosted}>Mark {pastOpen} past post{pastOpen === 1 ? "" : "s"} as Posted</button>
+          )}
           <button className="adm-btn ghost" onClick={() => fileRef.current?.click()}>Import sheet (CSV)</button>
           {!limited && <button className="adm-btn ghost" onClick={addClient}>+ Client</button>}
           <button className="adm-btn primary" onClick={() => setEditing({ client, status: "planned", postDate: todayIso(), timeLog: [] })}>+ Post</button>

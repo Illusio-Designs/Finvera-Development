@@ -2,6 +2,7 @@ const { Op, fn, col } = require("sequelize");
 const { SocialClient, SocialPost, User } = require("../models");
 const { asyncHandler } = require("../utils/crud");
 const { rolesOf } = require("../utils/permissions");
+const { notifyUsers } = require("../utils/notify");
 
 /* JSON arrays can come back as strings on some MySQL setups — coerce. */
 const asArr = (v) => (Array.isArray(v) ? v : (typeof v === "string" && v.trim().startsWith("[") ? (() => { try { return JSON.parse(v); } catch { return []; } })() : []));
@@ -58,6 +59,7 @@ const listClients = (crudList) => asyncHandler(async (req, res, next) => {
   res.json(items);
 });
 const listPosts = (crudList) => asyncHandler(async (req, res, next) => {
+  try { await assignUnassigned(); } catch (e) { console.warn("assignUnassigned:", e.message); }
   if (!req.socialScope) return crudList(req, res, next);
   if (!req.socialScope.size) return res.json([]);
   const items = await SocialPost.findAll({ where: { client: [...req.socialScope], assigneeId: req.user.id }, order: [["postDate", "ASC"], ["postTime", "ASC"], ["position", "ASC"]] });
@@ -124,6 +126,48 @@ const assignOnStageChange = asyncHandler(async (req, _res, next) => {
   next();
 });
 
+/* Give every unassigned post to the person its stage + brand calls for —
+   posts created before auto-assignment existed, or ones nobody could take at
+   the time (role / brand not set up yet). Each new assignee gets a single
+   summary notification. Throttled to once a minute unless forced (after an
+   admin changes someone's roles or brands). */
+let lastSweep = 0;
+async function assignUnassigned({ force = false } = {}) {
+  if (!force && Date.now() - lastSweep < 60000) return;
+  lastSweep = Date.now();
+  const posts = await SocialPost.findAll({ where: { assigneeId: null }, order: [["postDate", "ASC"]] });
+  if (!posts.length) return;
+  const ctx = {}, gained = {};
+  for (const p of posts) {
+    const who = await pickAssignee(stageRole(p.status, p.format), p.client, ctx);
+    if (!who) continue;
+    await p.update({ assigneeId: who });
+    if (p.status !== "posted") { ctx.load[who] = (ctx.load[who] || 0) + 1; (gained[who] = gained[who] || []).push(p); }
+  }
+  for (const [uid, ps] of Object.entries(gained)) {
+    await notifyUsers([Number(uid)], {
+      type: "assigned",
+      title: ps.length === 1 ? `Social post assigned to you: ${ps[0].theme}` : `${ps.length} social posts assigned to you`,
+      link: "/dashboard/social",
+    });
+  }
+}
+
+/* Admin catch-up: every open post whose go-live date has passed (optionally
+   for one brand) → Posted, handed to that brand's Social media person. */
+const markPastPosted = asyncHandler(async (req, res) => {
+  const today = new Date().toISOString().slice(0, 10);
+  const where = { status: { [Op.ne]: "posted" }, postDate: { [Op.lt]: today } };
+  if (req.body?.client) where.client = req.body.client;
+  const posts = await SocialPost.findAll({ where });
+  const ctx = {};
+  for (const p of posts) {
+    const who = await pickAssignee("social", p.client, ctx);
+    await p.update({ status: "posted", ...(who ? { assigneeId: who } : {}) });
+  }
+  res.json({ updated: posts.length });
+});
+
 /* Bulk import: fill assignees row by row, keeping the load balance honest. */
 async function assignRows(rows) {
   const ctx = {};
@@ -135,4 +179,4 @@ async function assignRows(rows) {
 }
 
 module.exports = { brandIdsOf, withScope, requireAllBrands, guardBody, guardPost, listClients, listPosts,
-  stageRole, assignOnCreate, assignOnStageChange, assignRows };
+  stageRole, assignOnCreate, assignOnStageChange, assignRows, assignUnassigned, markPastPosted };
