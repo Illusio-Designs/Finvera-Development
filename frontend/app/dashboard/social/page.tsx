@@ -344,10 +344,11 @@ export default function SocialCalendar() {
   }
 
   /* ── admin: why posts are waiting ──
-     Same rule as the server: reels/videos → Marketer, posts → Graphic designer,
+     Same rule as the server: reels/videos → Marketer (Video editor at In production), posts → Graphic designer,
      Ready to post / Posted → Social media; the person must have the brand ticked. */
-  const ROLE_NAMES: Record<string, string> = { marketer: "Marketer", graphic: "Graphic designer", social: "Social media" };
-  const needRole = (p: Post) => (p.status === "ready" || p.status === "posted") ? "social" : /reel|video|influencer/i.test(p.format || "") ? "marketer" : "graphic";
+  const ROLE_NAMES: Record<string, string> = { marketer: "Marketer", video: "Video editor", graphic: "Graphic designer", social: "Social media" };
+  const needRole = (p: Post) => (p.status === "ready" || p.status === "posted") ? "social"
+    : !/reel|video|influencer/i.test(p.format || "") ? "graphic" : p.status === "production" ? "video" : "marketer";
   const waiting = limited ? [] : posts.filter((p) => !p.assigneeId);
   const gaps = (() => {
     const out: { brand: string; role: string; count: number }[] = [];
@@ -398,7 +399,7 @@ export default function SocialCalendar() {
     if (limited && !clientNames.includes(name)) return dialog.alert({ title: "Not one of your brands", message: `You can import only into: ${clientNames.join(", ") || "no brands yet"}.` });
     const parsed = sheetToPosts(rows, name);
     if (!parsed.length) return dialog.alert({ title: "No posts found", message: "The CSV needs a header row with a “Post Theme” column and a “Date” column." });
-    if (!(await dialog.confirm({ title: `Import ${parsed.length} posts for ${name}?`, message: "Rows already on the board (same date + post theme) are updated, keeping their stage and assignee. New rows go to Planned and to their maker — reels to a Marketer, posts and carousels to a Graphic designer.", confirmText: "Import" }))) return;
+    if (!(await dialog.confirm({ title: `Import ${parsed.length} posts for ${name}?`, message: "Rows already on the board (same date + post theme) are updated, keeping their stage and assignee. New rows go to Planned and to their maker — reels to a Marketer (then a Video editor at In production), posts and carousels to a Graphic designer.", confirmText: "Import" }))) return;
     try {
       const r = await api.importSocialPosts(parsed);
       const parts = [r.created ? `${r.created} added to Planned` : "", r.updated ? `${r.updated} updated` : ""].filter(Boolean).join(", ");
@@ -838,7 +839,7 @@ export default function SocialCalendar() {
               <div className="adm-field" style={{ flex: 1 }}><label>Assigned to</label>
                 <Select value={editing.assigneeId ? String(editing.assigneeId) : ""} onChange={(v) => set({ assigneeId: v ? Number(v) : null })} ariaLabel="Assigned to"
                   options={[{ value: "", label: "Unassigned" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]} />
-                <span className="adm-hint">Set automatically when the stage changes: reels → Marketer, posts & carousels → Graphic designer, Ready to post → Social media. Pick someone here to override.</span></div>
+                <span className="adm-hint">Set automatically when the stage changes: reels → Marketer, then Video editor at In production; posts & carousels → Graphic designer; Ready to post → Social media. Pick someone here to override.</span></div>
               <div className="adm-field" style={{ flex: 1 }}><label>Client contact</label>
                 <input value={txt("poc")} onChange={(e) => set({ poc: e.target.value })} placeholder="Point of contact" /></div>
             </div>

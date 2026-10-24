@@ -21,12 +21,13 @@ const ROLE_AREAS = {
   leads: ["leads", "contact"],
   seo: ["seo", "settings"],
   social: ["social"],               // social media team — posts content (Ready to post → Posted)
-  marketer: ["social"],             // makes reels (auto-assigned reel production)
+  marketer: ["social"],             // plans / shoots reels (Planned, Need from client)
+  video: ["social"],                // video editor — edits reels (In production)
   graphic: ["social"],              // graphic designer — posts & carousels (auto-assigned)
 };
 
 /* Roles offered in the UI (legacy "editor" still accepted for existing users). */
-const ALL_ROLES = ["admin", "content", "projects", "leads", "seo", "social", "marketer", "graphic"];
+const ALL_ROLES = ["admin", "content", "projects", "leads", "seo", "social", "marketer", "graphic", "video"];
 const ACCEPTED_ROLES = [...ALL_ROLES, "editor"];
 
 function roleCan(role, area) {
