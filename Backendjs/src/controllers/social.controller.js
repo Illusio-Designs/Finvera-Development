@@ -16,7 +16,8 @@ function brandIdsOf(user) {
 }
 
 /* Attach req.socialScope: a Set of allowed client names, or null (all).
-   Non-admins (any non-null scope) also see only posts assigned to them. */
+   Non-admins see every post of their allotted brands, but may change only
+   the posts assigned to them. */
 const withScope = asyncHandler(async (req, _res, next) => {
   const ids = brandIdsOf(await User.findByPk(req.user.id));
   req.socialScope = !ids ? null
@@ -27,6 +28,7 @@ const withScope = asyncHandler(async (req, _res, next) => {
 const allowed = (req, client) => !req.socialScope || req.socialScope.has(client);
 const isMine = (req, post) => !req.socialScope || Number(post.assigneeId) === Number(req.user.id);
 const DENIED = { message: "You can only work on the brands assigned to you." };
+const NOT_YOURS = { message: "This post is assigned to someone else — only they or an admin can change it." };
 
 /* Adding, renaming or removing brands is for admins only. */
 function requireAllBrands(req, res, next) {
@@ -41,12 +43,14 @@ function guardBody(req, res, next) {
   next();
 }
 
-/* An existing post must be in an allowed brand and (for non-admins) assigned
-   to the caller, and may not move out of the brand. */
+/* An existing post must be in an allowed brand; changing it (anything but
+   reading) also needs it to be assigned to the caller. It may not move out
+   of the brand. */
 const guardPost = asyncHandler(async (req, res, next) => {
   if (!req.socialScope) return next();
   const post = await SocialPost.findByPk(req.params.id);
-  if (!post || !allowed(req, post.client) || !isMine(req, post)) return res.status(404).json({ message: "SocialPost not found." });
+  if (!post || !allowed(req, post.client)) return res.status(404).json({ message: "SocialPost not found." });
+  if (req.method !== "GET" && !isMine(req, post)) return res.status(403).json(NOT_YOURS);
   if (req.body?.client !== undefined && !allowed(req, req.body.client)) return res.status(403).json(DENIED);
   next();
 });
@@ -63,7 +67,7 @@ const listPosts = (crudList) => asyncHandler(async (req, res, next) => {
   try { await assignUnassigned(); } catch (e) { console.warn("assignUnassigned:", e.message); }
   if (!req.socialScope) return crudList(req, res, next);
   if (!req.socialScope.size) return res.json([]);
-  const items = await SocialPost.findAll({ where: { client: [...req.socialScope], assigneeId: req.user.id }, order: [["postDate", "ASC"], ["postTime", "ASC"], ["position", "ASC"]] });
+  const items = await SocialPost.findAll({ where: { client: [...req.socialScope] }, order: [["postDate", "ASC"], ["postTime", "ASC"], ["position", "ASC"]] });
   res.json(items);
 });
 

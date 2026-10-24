@@ -2295,3 +2295,5 @@ section{position:relative;z-index:2}
 
 @media (max-width:900px){.cal-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:560px){.cal-vgrid{grid-template-columns:1fr}.cal-head h1{font-size:22px}.cal-check{margin-left:0}}
+.cal-card.ro{cursor:pointer}
+.cal-readonly{padding:12px 14px;border-radius:12px;background:#f6f8fc;border:1px solid #e3e7f0;font-size:13.5px;color:#55617c}

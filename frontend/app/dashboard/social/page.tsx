@@ -293,17 +293,21 @@ export default function SocialCalendar() {
     setPosts((ps) => ps.map((p) => (p.id === id ? { ...p, ...patch } : p)));
     setEditing((e) => (e?.id === id ? { ...e, ...patch } : e));
   }
+  /* Team members see every post of their allotted brands but change only their own. */
+  const canEdit = (p?: Partial<Post> | null) => !limited || (!!p && p.assigneeId === meId);
+  const notYours = (p: Post) => toast("This post isn't yours to change", "warn", {
+    description: `It's assigned to ${userById(p.assigneeId)?.name || "nobody yet"} — only they or an admin can change it.`,
+  });
   async function moveTo(id: number, status: Stage) {
     const p = posts.find((x) => x.id === id);
     if (!p || p.status === status) return;
+    if (!canEdit(p)) return notYours(p);
     patchLocal(id, { status });
     try {
       // The server hands the post to the next stage's role — show the new assignee straight away.
       const saved = await api.update("social-posts", id, { status });
       patchLocal(id, { assigneeId: saved?.assigneeId ?? null });
       const who = users.find((u) => u.id === saved?.assigneeId);
-      // Team members only see their own posts — one handed to someone else leaves their list.
-      if (limited && saved?.assigneeId !== meId) { setPosts((ps) => ps.filter((x) => x.id !== id)); setViewId((v) => (v === id ? null : v)); }
       const stageName = STAGES.find((s) => s.id === status)?.title || status;
       toast(status === "posted" ? "Marked as Posted" : `Moved to ${stageName}`, "ok", {
         description: who && who.id !== p.assigneeId ? `“${p.theme}” is now with ${who.name}.` : `“${p.theme}” · ${p.client}`,
@@ -351,6 +355,7 @@ export default function SocialCalendar() {
     patchLocal(p.id, { timeLog, ...extra });
   }
   async function toggleTimer(p: Post) {
+    if (!canEdit(p)) return notYours(p);
     try {
       if (p.timerStart) {
         await addLog(p, (Date.now() - new Date(p.timerStart).getTime()) / 60000, "Timer session", { timerStart: null, timerBy: null });
@@ -455,7 +460,7 @@ export default function SocialCalendar() {
   /* Render helpers are plain functions (not components) so a re-render mid-drag never remounts the board. */
   function renderCard(p: Post) {
     return (
-      <button type="button" key={p.id} className="cal-card" draggable
+      <button type="button" key={p.id} className={"cal-card" + (canEdit(p) ? "" : " ro")} draggable={canEdit(p)}
         onDragStart={(e) => { dragId.current = p.id; e.currentTarget.classList.add("dragging"); }}
         onDragEnd={(e) => e.currentTarget.classList.remove("dragging")}
         onClick={() => setViewId(p.id)} aria-label={`${p.theme}, ${p.client}, ${dueInfo(p)?.text || ""}`}>
@@ -538,8 +543,8 @@ export default function SocialCalendar() {
                       <td className="nw">
                         <span className="cal-timecell">
                           <b className={p.timerStart ? "run" : ""}>{hm(loggedMin(p))}</b>
-                          <button type="button" className={"cal-timer" + (p.timerStart ? " run" : "")} onClick={() => toggleTimer(p)}
-                            aria-label={`${p.timerStart ? "Stop" : "Start"} timer on ${p.theme}`}>{p.timerStart ? "■ Stop" : "▶ Start"}</button>
+                          {canEdit(p) && <button type="button" className={"cal-timer" + (p.timerStart ? " run" : "")} onClick={() => toggleTimer(p)}
+                            aria-label={`${p.timerStart ? "Stop" : "Start"} timer on ${p.theme}`}>{p.timerStart ? "■ Stop" : "▶ Start"}</button>}
                         </span>
                       </td>
                     </tr>
@@ -639,7 +644,7 @@ export default function SocialCalendar() {
 
   /* Team member's home: their own posts, by what to do now. */
   function renderMine() {
-    const groups = scheduleGroups(list);
+    const groups = scheduleGroups(list.filter((p) => p.assigneeId === meId));
     if (!groups.length) return <div className="cal-empty">{!clientNames.length
       ? "No brands assigned to you yet. Ask an admin to give you access under Users → Social media brands."
       : "You're clear for now. Posts appear here when they reach your stage."}</div>;
@@ -749,15 +754,23 @@ export default function SocialCalendar() {
           {section("Keywords", text(p.keywords))}
           {section("Remarks", text(p.remarks))}
 
-          {renderTime(p)}
+          {canEdit(p) ? renderTime(p) : (
+            <div className="cal-vsec"><h4>Time log</h4><span className="cal-muted">{hm(loggedMin(p))} logged in total.</span></div>
+          )}
 
-          <div className="adm-drawer-actions cal-actions">
-            {nx && <button type="button" className="cal-primary wide" onClick={() => moveTo(p.id, nx.id)}>{nextLabel}</button>}
-            <div className="cal-row">
-              <button type="button" className={"cal-timer lg grow" + (p.timerStart ? " run" : "")} onClick={() => toggleTimer(p)}>{p.timerStart ? "■ Stop timer" : "▶ Start timer"}</button>
-              <button type="button" className="cal-btn lg grow" onClick={() => { setEditing({ ...p }); setViewId(null); }}>Edit post</button>
+          {canEdit(p) ? (
+            <div className="adm-drawer-actions cal-actions">
+              {nx && <button type="button" className="cal-primary wide" onClick={() => moveTo(p.id, nx.id)}>{nextLabel}</button>}
+              <div className="cal-row">
+                <button type="button" className={"cal-timer lg grow" + (p.timerStart ? " run" : "")} onClick={() => toggleTimer(p)}>{p.timerStart ? "■ Stop timer" : "▶ Start timer"}</button>
+                <button type="button" className="cal-btn lg grow" onClick={() => { setEditing({ ...p }); setViewId(null); }}>Edit post</button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="cal-readonly">
+              View only — this post is with <b>{assignee?.name || "nobody yet"}</b>. Only they or an admin can change it.
+            </div>
+          )}
         </div>
       </div>
     );
@@ -872,7 +885,7 @@ export default function SocialCalendar() {
     ["Overdue", openList.filter(isOverdue).length, "Go-live date passed", "over"],
     ["Work on now", openList.filter((p) => !isOverdue(p) && startOn(p) && startOn(p) <= t).length, "Inside their 7-day window", "now"],
     ["Starting this week", openList.filter((p) => startOn(p) > t && startOn(p) <= wk).length, "Start date in the next 7 days", ""],
-    limited ? ["Time logged", hm(list.reduce((a, p) => a + loggedMin(p), 0)), "On your posts", ""] : ["Ready to post", list.filter((p) => p.status === "ready").length, "With Social media", "ready"],
+    limited ? ["Assigned to you", list.filter((p) => p.assigneeId === meId && !isDone(p)).length, "Open posts in My work", "now"] : ["Ready to post", list.filter((p) => p.status === "ready").length, "With Social media", "ready"],
     ["Posted", list.filter(isDone).length, "Live with links", "ok"],
   ];
   const live = editing?.id ? posts.find((p) => p.id === editing.id) : undefined;
@@ -895,7 +908,7 @@ export default function SocialCalendar() {
           <span className="cal-eyebrow">Social media</span>
           <h1>{limited ? "My work" : "Content calendar"}</h1>
           <p>{limited
-            ? "Your posts — when you finish one, it passes to the next person automatically."
+            ? "My work lists your posts. Board, Schedule and Calendar show everything for your brands — you can change only the posts assigned to you."
             : "Every brand's posts from plan to live link, with who has each one and when work starts."}</p>
         </div>
         <div className="cal-head-actions">
@@ -940,14 +953,14 @@ export default function SocialCalendar() {
       <div className="cal-toolbar">
         <div className="cal-seg" role="group" aria-label="View">
           {views.map(([v, label]) => (
-            <button type="button" key={v} aria-pressed={activeView === v} className={activeView === v ? "on" : ""} onClick={() => setView(v)}>{label}</button>
+            <button type="button" key={v} aria-pressed={activeView === v} className={activeView === v ? "on" : ""} onClick={() => { setView(v); if (v === "mine") setWho(""); }}>{label}</button>
           ))}
         </div>
         <div className="sm-filter"><Select value={month} onChange={(v) => { setMonth(v); setCalMonth(""); }} ariaLabel="Month"
           options={[{ value: "", label: "All months" }, ...months.map((m) => ({ value: m, label: `${MONTHS[+m.slice(5) - 1]} ${m.slice(0, 4)}` }))]} /></div>
         <div className="sm-filter"><Select value={format} onChange={setFormat} ariaLabel="Format"
           options={[{ value: "", label: "All formats" }, ...formats.map((f) => ({ value: f, label: f }))]} /></div>
-        {!limited && <div className="sm-filter"><Select value={who} onChange={setWho} ariaLabel="Assigned to"
+        {activeView !== "mine" && <div className="sm-filter"><Select value={who} onChange={setWho} ariaLabel="Assigned to"
           options={[{ value: "", label: "Everyone" }, { value: "none", label: "Unassigned" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]} /></div>}
         <label className="cal-search">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
