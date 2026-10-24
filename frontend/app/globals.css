@@ -2065,3 +2065,23 @@ section{position:relative;z-index:2}
 .sm-logrow .note{flex:1;min-width:0}
 .sm-logrow button{color:var(--muted-2);font-size:16px;line-height:1}
 .sm-logrow button:hover{color:#dc2626}
+/* Social planner — read-only post details card */
+.sm-view h2{font-size:21px;line-height:1.25;margin:10px 0 4px;text-wrap:balance}
+.sm-vtop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sm-x{margin-left:auto;width:32px;height:32px;border-radius:9px;font-size:20px;line-height:1;color:var(--muted-2);border:1px solid transparent}
+.sm-x:hover{color:var(--ink);border-color:var(--line-2)}
+.sm-vlead{color:var(--muted);font-size:14px;line-height:1.55;margin:8px 0 0;white-space:pre-line}
+.sm-vgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 18px;margin:18px 0 12px;padding:14px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.sm-vgrid>div{display:flex;flex-direction:column;gap:5px;min-width:0}
+.sm-vgrid>div>span{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted-2)}
+.sm-vgrid b{font-size:13.5px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.sm-vgrid .kbc-renew{align-self:flex-start}
+.sm-who{display:inline-flex;align-items:center;gap:7px}
+.sm-vflags{margin-bottom:6px}
+.sm-vsec{padding-top:14px;margin-top:14px;border-top:1px solid var(--line)}
+.sm-vsec h4{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted-2);margin:0 0 7px}
+.sm-pre{white-space:pre-wrap;word-break:break-word;font-size:13.5px;line-height:1.6;color:var(--ink);margin:0 0 8px}
+.sm-vlinks{display:flex;flex-wrap:wrap;gap:6px}
+.sm-vlink{display:inline-flex;align-items:center;gap:4px;padding:5px 11px;border-radius:999px;border:1px solid var(--line-2);font-size:12.5px;font-weight:600;color:var(--blue-500);background:#fff}
+.sm-vlink:hover{border-color:var(--blue-500);background:rgba(91,127,212,.06)}
+@media (max-width:560px){.sm-vgrid{grid-template-columns:1fr}}

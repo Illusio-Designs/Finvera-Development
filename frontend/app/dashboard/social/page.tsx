@@ -191,6 +191,7 @@ export default function SocialCalendar() {
   const [query, setQuery] = useState("");
   const [calMonth, setCalMonth] = useState("");
   const [editing, setEditing] = useState<Partial<Post> | null>(null);
+  const [viewId, setViewId] = useState<number | null>(null); // read-only details card
   const [logMin, setLogMin] = useState("");
   const [logNote, setLogNote] = useState("");
   const [overStage, setOverStage] = useState<Stage | null>(null);
@@ -217,6 +218,12 @@ export default function SocialCalendar() {
     try { setView((localStorage.getItem("fv_social_view") as View) || "board"); setClient(localStorage.getItem("fv_social_client") || ""); } catch { /* ignore */ }
   }, []);
   useEffect(() => { const t = setInterval(() => setTick((n) => n + 1), 30000); return () => clearInterval(t); }, []);
+  useEffect(() => {
+    if (viewId == null || editing) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setViewId(null); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [viewId, editing]);
   useEffect(() => { try { localStorage.setItem("fv_social_view", view); localStorage.setItem("fv_social_client", client); } catch { /* ignore */ } }, [view, client]);
 
   const clientNames = useMemo(
@@ -249,6 +256,8 @@ export default function SocialCalendar() {
       const saved = await api.update("social-posts", id, { status });
       patchLocal(id, { assigneeId: saved?.assigneeId ?? null });
       const who = users.find((u) => u.id === saved?.assigneeId);
+      // Team members only see their own posts — one handed to someone else leaves their board.
+      if (limited && saved?.assigneeId !== meId) { setPosts((ps) => ps.filter((x) => x.id !== id)); setViewId((v) => (v === id ? null : v)); }
       toast(status === "posted" ? "Marked as posted 🎉" : who && who.id !== p.assigneeId ? `Moved · now with ${who.name}` : "Moved");
     }
     catch (e: any) { patchLocal(id, { status: p.status }); toast(e.message || "Couldn't move the post", "err"); }
@@ -263,13 +272,14 @@ export default function SocialCalendar() {
       if (editing.id) await api.update("social-posts", editing.id, body);
       else await api.create("social-posts", { ...body, timeLog: [] });
       if (!limited && !clientRows.some((c) => c.name === editing.client)) await api.create("social-clients", { name: editing.client }).catch(() => {});
+      if (editing.id) setViewId(editing.id);
       setEditing(null); toast("Post saved"); load();
     } catch (err: any) { toast(err.message || "Couldn't save the post", "err"); }
   }
   async function deletePost() {
     if (!editing?.id) return;
     if (!(await dialog.confirm({ title: "Delete this post?", message: "Its time log is deleted too. This can't be undone.", danger: true, confirmText: "Delete" }))) return;
-    await api.remove("social-posts", editing.id); setEditing(null); toast("Post deleted"); load();
+    await api.remove("social-posts", editing.id); setViewId(null); setEditing(null); toast("Post deleted"); load();
   }
   async function addClient() {
     const name = (await dialog.prompt({ title: "New client", placeholder: "e.g. Maharani by Rungta's", confirmText: "Add client" }))?.trim();
@@ -299,14 +309,14 @@ export default function SocialCalendar() {
       }
     } catch (e: any) { toast(e.message || "Couldn't update the timer", "err"); }
   }
-  async function logManual() {
-    const p = posts.find((x) => x.id === editing?.id); const m = Number(logMin);
+  async function logManual(post: Post) {
+    const p = posts.find((x) => x.id === post.id); const m = Number(logMin);
     if (!p || !(m > 0)) return toast("Enter the minutes worked", "err");
     try { await addLog(p, m, logNote.trim()); setLogMin(""); setLogNote(""); toast("Time logged"); }
     catch (e: any) { toast(e.message || "Couldn't log time", "err"); }
   }
-  async function removeLog(entryId: string) {
-    const p = posts.find((x) => x.id === editing?.id); if (!p) return;
+  async function removeLog(post: Post, entryId: string) {
+    const p = posts.find((x) => x.id === post.id); if (!p) return;
     const timeLog = toArr<LogEntry>(p.timeLog).filter((e) => e.id !== entryId);
     try { await api.update("social-posts", p.id, { timeLog }); patchLocal(p.id, { timeLog }); }
     catch (e: any) { toast(e.message || "Couldn't remove the entry", "err"); }
@@ -325,6 +335,7 @@ export default function SocialCalendar() {
     if (!(await dialog.confirm({ title: `Import ${parsed.length} posts for ${name}?`, message: "Uploaded posts are added as Posted and assigned to your Social media team.", confirmText: "Import" }))) return;
     try {
       const r = await api.importSocialPosts(parsed);
+      if (limited) toast("Imported posts go to whoever they're assigned to — you'll see the ones assigned to you", "ok");
       toast(`Imported ${r.created} posts`); setClient(name); load();
     } catch (e: any) { toast(e.message || "Import failed", "err"); }
   }
@@ -341,7 +352,7 @@ export default function SocialCalendar() {
       <div key={p.id} className="kb-card sm-card" draggable style={{ ["--cc" as string]: clientColor(p.client) } as React.CSSProperties}
         onDragStart={(e) => { dragId.current = p.id; e.currentTarget.classList.add("dragging"); }}
         onDragEnd={(e) => e.currentTarget.classList.remove("dragging")}
-        onClick={() => setEditing({ ...p })}>
+        onClick={() => setViewId(p.id)}>
         <div className="sm-card-top">
           <span className="sm-date">{fmtDay(p.postDate)}{p.postTime && ` · ${fmtTime(p.postTime)}`}</span>
           {p.format && <span className="sm-fmt" style={{ ["--fc" as string]: formatColor(p.format) } as React.CSSProperties}>{p.format}</span>}
@@ -420,7 +431,7 @@ export default function SocialCalendar() {
                         <td className="sm-nowrap">{fmtDay(p.postDate)}<br /><span className="sm-muted">{fmtTime(p.postTime) || "—"}</span></td>
                         <td className="sm-nowrap">{p.dueDate ? fmtDay(p.dueDate) : <span className="sm-muted">—</span>}</td>
                         {!client && <td><span className="sm-cpill" style={{ ["--cc" as string]: clientColor(p.client) } as React.CSSProperties}>{p.client}</span></td>}
-                        <td><button className="sm-link" onClick={() => setEditing({ ...p })}>{p.theme}</button>{p.format && <div className="sm-muted">{p.format}</div>}</td>
+                        <td><button className="sm-link" onClick={() => setViewId(p.id)}>{p.theme}</button>{p.format && <div className="sm-muted">{p.format}</div>}</td>
                         <td><span className="sm-stage" style={{ ["--sc" as string]: st.color } as React.CSSProperties}>{st.title}</span></td>
                         <td>{userById(p.assigneeId)?.name || <span className="sm-muted">Unassigned</span>}</td>
                         <td>{dueChip(p)}</td>
@@ -470,7 +481,7 @@ export default function SocialCalendar() {
                   </div>
                   {(byDay[ds] || []).map((p) => (
                     <button key={p.id} className="sm-ev" style={{ ["--sc" as string]: STAGES.find((s) => s.id === p.status)!.color } as React.CSSProperties}
-                      title={`${p.client} · ${p.theme}`} onClick={() => setEditing({ ...p })}>
+                      title={`${p.client} · ${p.theme}`} onClick={() => setViewId(p.id)}>
                       {p.postTime && <b>{fmtTime(p.postTime)} </b>}{p.theme}
                     </button>
                   ))}
@@ -480,6 +491,104 @@ export default function SocialCalendar() {
           </div>
         </div>
       </>
+    );
+  }
+
+  /* Read-only details card — what a team member sees when they open a post. */
+  function renderDetails(p: Post) {
+    const st = STAGES.find((s) => s.id === p.status)!;
+    const assignee = userById(p.assigneeId);
+    const urls = (t?: string) => (t || "").match(/https?:\/\/[^\s]+/g) || [];
+    const linkChips = (t?: string) => urls(t).map((u) => (
+      <a key={u} className="sm-vlink" href={u} target="_blank" rel="noopener noreferrer">{u.replace(/^https?:\/\/(www\.)?/, "").split(/[/?#]/)[0]} ↗</a>
+    ));
+    const section = (label: string, body?: React.ReactNode) => (body ? <div className="sm-vsec"><h4>{label}</h4>{body}</div> : null);
+    const text = (v?: string | null) => (v && v.trim() ? <p className="sm-pre">{v.trim()}</p> : null);
+    const copyCaption = async () => {
+      try { await navigator.clipboard.writeText(p.caption || ""); toast("Caption copied"); }
+      catch { toast("Couldn't copy — select the text instead", "err"); }
+    };
+    return (
+      <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setViewId(null); }}>
+        <div className="adm-drawer kb-drawer sm-view" role="dialog" aria-modal="true" aria-label={p.theme}>
+          <div className="sm-vtop">
+            <span className="sm-cpill" style={{ ["--cc" as string]: clientColor(p.client) } as React.CSSProperties}>{p.client}</span>
+            <span className="sm-stage" style={{ ["--sc" as string]: st.color } as React.CSSProperties}>{st.title}</span>
+            {p.format && <span className="sm-fmt" style={{ ["--fc" as string]: formatColor(p.format) } as React.CSSProperties}>{p.format}</span>}
+            <button type="button" className="sm-x" onClick={() => setViewId(null)} aria-label="Close">×</button>
+          </div>
+          <h2>{p.theme}</h2>
+          {p.festive && <div className="sm-fest">🎉 {p.festive}</div>}
+          {p.topic && <p className="sm-vlead">{p.topic}</p>}
+
+          <div className="sm-vgrid">
+            <div><span>Goes live</span><b>{fmtDay(p.postDate)}{p.postTime && ` · ${fmtTime(p.postTime)}`}</b></div>
+            <div><span>Work due</span><b>{p.dueDate ? fmtDay(p.dueDate) : "—"}</b>{dueChip(p)}</div>
+            <div><span>Assigned to</span><b className="sm-who">{assignee ? <><Avatar user={assignee} size={22} />{assignee.name}</> : "Unassigned"}</b></div>
+            <div><span>Move to stage</span>
+              <Select value={p.status} onChange={(v) => moveTo(p.id, v as Stage)} ariaLabel="Move to stage" options={STAGES.map((s) => ({ value: s.id, label: s.title }))} /></div>
+            <div><span>Estimated time</span><b>{p.estimateHours ? `${p.estimateHours}h` : "—"}</b></div>
+            <div><span>Client contact</span><b>{p.poc || "—"}</b></div>
+          </div>
+
+          <div className="sm-flags sm-vflags">
+            <span className={p.caption ? "on" : ""}>{p.caption ? "✓" : "○"} Caption</span>
+            <span className={p.driveLink ? "on" : ""}>{p.driveLink ? "✓" : "○"} Creative</span>
+            <span className={p.channels ? "on" : ""}>{p.channels ? "✓" : "○"} Live</span>
+          </div>
+
+          {section("Caption & hashtags", p.caption && <>
+            {text(p.caption)}
+            <button type="button" className="adm-btn ghost sm-timerbtn" onClick={copyCaption}>Copy caption</button>
+          </>)}
+          {section("Creative (Drive)", urls(p.driveLink).length > 0 && <div className="sm-vlinks">{linkChips(p.driveLink)}</div>)}
+          {section("Live links", urls(p.channels).length > 0 && <div className="sm-vlinks">{linkChips(p.channels)}</div>)}
+          {section("Client requirements", text(p.requirements))}
+          {section("Data status", text(p.dataStatus))}
+          {section("Reference", urls(p.reference).length > 0 ? <div className="sm-vlinks">{linkChips(p.reference)}</div> : text(p.reference))}
+          {section("People to tag", text(p.tags))}
+          {section("Keywords", text(p.keywords))}
+          {section("Remarks", text(p.remarks))}
+
+          {renderTime(p)}
+
+          <div className="adm-drawer-actions">
+            <button type="button" className="adm-btn primary" onClick={() => { setEditing({ ...p }); setViewId(null); }}>Edit post</button>
+            <button type="button" className="adm-btn ghost" onClick={() => setViewId(null)}>Close</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* Time tracking — shown on the details card and in the editor. */
+  function renderTime(p: Post) {
+    return (
+      <>
+                <h3 className="sm-sec">Time spent <span className={"sm-time" + (p.timerStart ? " run" : "")}>{timerText(p)}</span>
+                  <button type="button" className={"adm-btn ghost sm-timerbtn" + (p.timerStart ? " run" : "")} onClick={() => toggleTimer(p)}>
+                    {p.timerStart ? "Stop timer" : "Start timer"}
+                  </button>
+                </h3>
+                {p.timerStart && <p className="adm-hint">Running since {new Date(p.timerStart).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}{userById(p.timerBy) ? ` · ${userById(p.timerBy)!.name}` : ""}</p>}
+                <div className="sm-logadd">
+                  <input type="number" min={1} step={5} value={logMin} onChange={(e) => setLogMin(e.target.value)} placeholder="Minutes" aria-label="Minutes worked" />
+                  <input value={logNote} onChange={(e) => setLogNote(e.target.value)} placeholder="What was done (reel edit, caption…)" aria-label="Work note"
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); logManual(p); } }} />
+                  <button type="button" className="adm-btn ghost" onClick={() => logManual(p)}>Log</button>
+                </div>
+                <div className="sm-log">
+                  {toArr<LogEntry>(p.timeLog).slice().reverse().map((e) => (
+                    <div key={e.id} className="sm-logrow">
+                      <b>{hm(e.minutes)}</b>
+                      <span className="note">{e.note || "Work session"}</span>
+                      <span className="sm-muted">{[userById(e.userId)?.name, new Date(e.at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })].filter(Boolean).join(" · ")}</span>
+                      <button type="button" onClick={() => removeLog(p, e.id)} aria-label="Remove entry">×</button>
+                    </div>
+                  ))}
+                  {!toArr(p.timeLog).length && <span className="adm-hint">No time logged yet. Start the timer while you work, or log minutes by hand.</span>}
+                </div>
+              </>
     );
   }
 
@@ -501,6 +610,7 @@ export default function SocialCalendar() {
     ["Time planned", `${list.reduce((a, p) => a + (Number(p.estimateHours) || 0), 0)}h`, ""],
   ];
   const live = editing?.id ? posts.find((p) => p.id === editing.id) : undefined;
+  const viewed = viewId != null ? posts.find((p) => p.id === viewId) : undefined;
   const set = (patch: Partial<Post>) => setEditing((e) => ({ ...e, ...patch }));
   const txt = (k: keyof Post) => String(editing?.[k] ?? "");
 
@@ -509,7 +619,9 @@ export default function SocialCalendar() {
       <div className="adm-top">
         <div>
           <h1>Social media calendar</h1>
-          <p>Every client’s posts from plan to live link, with post times, deadlines, owners and time spent.</p>
+          <p>{limited
+            ? "Your assigned posts — when you move one to the next stage it passes to the next person."
+            : "Every client’s posts from plan to live link, with post times, deadlines, owners and time spent."}</p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input ref={fileRef} type="file" accept=".csv,text/csv" hidden onChange={(e) => { importCsv(e.target.files?.[0]); e.currentTarget.value = ""; }} />
@@ -558,8 +670,11 @@ export default function SocialCalendar() {
       {!posts.length ? (
         <div className="adm-panel"><div className="adm-empty">{limited && !clientNames.length
           ? "No brands assigned to you yet. Ask an admin to give you access under Users → Social media brands."
+          : limited ? "Nothing is assigned to you right now. New posts appear here when they reach your stage."
           : "No posts yet. Add a client and a post, or import a client’s media calendar (Excel → Save as CSV)."}</div></div>
       ) : view === "schedule" ? renderSchedule() : view === "calendar" ? renderCalendar() : renderBoard()}
+
+      {viewed && !editing && renderDetails(viewed)}
 
       {editing && (
         <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditing(null); }}>
@@ -647,37 +762,11 @@ export default function SocialCalendar() {
               );
             })()}
 
-            {live && (
-              <>
-                <h3 className="sm-sec">Time spent <span className={"sm-time" + (live.timerStart ? " run" : "")}>{timerText(live)}</span>
-                  <button type="button" className={"adm-btn ghost sm-timerbtn" + (live.timerStart ? " run" : "")} onClick={() => toggleTimer(live)}>
-                    {live.timerStart ? "Stop timer" : "Start timer"}
-                  </button>
-                </h3>
-                {live.timerStart && <p className="adm-hint">Running since {new Date(live.timerStart).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}{userById(live.timerBy) ? ` · ${userById(live.timerBy)!.name}` : ""}</p>}
-                <div className="sm-logadd">
-                  <input type="number" min={1} step={5} value={logMin} onChange={(e) => setLogMin(e.target.value)} placeholder="Minutes" aria-label="Minutes worked" />
-                  <input value={logNote} onChange={(e) => setLogNote(e.target.value)} placeholder="What was done (reel edit, caption…)" aria-label="Work note"
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); logManual(); } }} />
-                  <button type="button" className="adm-btn ghost" onClick={logManual}>Log</button>
-                </div>
-                <div className="sm-log">
-                  {toArr<LogEntry>(live.timeLog).slice().reverse().map((e) => (
-                    <div key={e.id} className="sm-logrow">
-                      <b>{hm(e.minutes)}</b>
-                      <span className="note">{e.note || "Work session"}</span>
-                      <span className="sm-muted">{[userById(e.userId)?.name, new Date(e.at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })].filter(Boolean).join(" · ")}</span>
-                      <button type="button" onClick={() => removeLog(e.id)} aria-label="Remove entry">×</button>
-                    </div>
-                  ))}
-                  {!toArr(live.timeLog).length && <span className="adm-hint">No time logged yet. Start the timer while you work, or log minutes by hand.</span>}
-                </div>
-              </>
-            )}
+            {live && renderTime(live)}
 
             <div className="adm-drawer-actions">
               <button className="adm-btn primary" type="submit">Save</button>
-              <button className="adm-btn ghost" type="button" onClick={() => setEditing(null)}>Cancel</button>
+              <button className="adm-btn ghost" type="button" onClick={() => { if (editing.id) setViewId(editing.id); setEditing(null); }}>Cancel</button>
               {editing.id && <button className="adm-btn ghost" type="button" onClick={deletePost} style={{ marginLeft: "auto" }}>Delete</button>}
             </div>
           </form>
