@@ -14,7 +14,8 @@ function brandIdsOf(user) {
   return user ? asArr(user.socialClients).map(String).filter(Boolean) : [];
 }
 
-/* Attach req.socialScope: a Set of allowed client names, or null (all). */
+/* Attach req.socialScope: a Set of allowed client names, or null (all).
+   Non-admins (any non-null scope) also see only posts assigned to them. */
 const withScope = asyncHandler(async (req, _res, next) => {
   const ids = brandIdsOf(await User.findByPk(req.user.id));
   req.socialScope = !ids ? null
@@ -23,6 +24,7 @@ const withScope = asyncHandler(async (req, _res, next) => {
 });
 
 const allowed = (req, client) => !req.socialScope || req.socialScope.has(client);
+const isMine = (req, post) => !req.socialScope || Number(post.assigneeId) === Number(req.user.id);
 const DENIED = { message: "You can only work on the brands assigned to you." };
 
 /* Adding, renaming or removing brands is for admins only. */
@@ -38,11 +40,12 @@ function guardBody(req, res, next) {
   next();
 }
 
-/* An existing post must be in an allowed brand, and may not move out of it. */
+/* An existing post must be in an allowed brand and (for non-admins) assigned
+   to the caller, and may not move out of the brand. */
 const guardPost = asyncHandler(async (req, res, next) => {
   if (!req.socialScope) return next();
   const post = await SocialPost.findByPk(req.params.id);
-  if (!post || !allowed(req, post.client)) return res.status(404).json({ message: "SocialPost not found." });
+  if (!post || !allowed(req, post.client) || !isMine(req, post)) return res.status(404).json({ message: "SocialPost not found." });
   if (req.body?.client !== undefined && !allowed(req, req.body.client)) return res.status(403).json(DENIED);
   next();
 });
@@ -57,7 +60,7 @@ const listClients = (crudList) => asyncHandler(async (req, res, next) => {
 const listPosts = (crudList) => asyncHandler(async (req, res, next) => {
   if (!req.socialScope) return crudList(req, res, next);
   if (!req.socialScope.size) return res.json([]);
-  const items = await SocialPost.findAll({ where: { client: [...req.socialScope] }, order: [["postDate", "ASC"], ["postTime", "ASC"], ["position", "ASC"]] });
+  const items = await SocialPost.findAll({ where: { client: [...req.socialScope], assigneeId: req.user.id }, order: [["postDate", "ASC"], ["postTime", "ASC"], ["position", "ASC"]] });
   res.json(items);
 });
 
