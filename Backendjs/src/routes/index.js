@@ -167,7 +167,7 @@ const SOCIAL_FIELDS = ["client", "status", "postDate", "postTime", "dueDate", "a
 const socialPostRouter = express.Router();
 socialPostRouter.get("/", ...canSocial, social.listPosts(socialPostCtrl.list));
 socialPostRouter.get("/:id", ...canSocial, social.guardPost, socialPostCtrl.getOne);
-socialPostRouter.post("/", ...canSocial, social.guardBody, socialPostCtrl.create);
+socialPostRouter.post("/", ...canSocial, social.guardBody, social.assignOnCreate, socialPostCtrl.create);
 // Bulk import (rows parsed from a client's media-calendar sheet).
 socialPostRouter.post("/bulk", ...canSocial, social.guardBody, async (req, res, next) => {
   try {
@@ -177,12 +177,13 @@ socialPostRouter.post("/bulk", ...canSocial, social.guardBody, async (req, res, 
       .filter((r) => r.client && r.theme);
     if (!clean.length) return res.status(400).json({ message: "No rows with a client and a post theme to import." });
     for (const name of [...new Set(clean.map((r) => r.client))]) await SocialClient.findOrCreate({ where: { name } });
+    await social.assignRows(clean);
     const created = await SocialPost.bulkCreate(clean);
     res.status(201).json({ created: created.length });
   } catch (e) { next(e); }
 });
-socialPostRouter.put("/:id", ...canSocial, social.guardPost, socialPostCtrl.update);
-socialPostRouter.patch("/:id", ...canSocial, social.guardPost, socialPostCtrl.update);
+socialPostRouter.put("/:id", ...canSocial, social.guardPost, social.assignOnStageChange, socialPostCtrl.update);
+socialPostRouter.patch("/:id", ...canSocial, social.guardPost, social.assignOnStageChange, socialPostCtrl.update);
 socialPostRouter.delete("/:id", ...canSocial, social.guardPost, socialPostCtrl.remove);
 router.use("/social-posts", socialPostRouter);
 

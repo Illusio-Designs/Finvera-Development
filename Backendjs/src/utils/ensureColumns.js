@@ -17,7 +17,7 @@ const WANTED = [
 /* ENUM columns whose allowed values grew (sync() never ALTERs an existing
    table). Widened in place with MODIFY, keeping nullability and default. */
 const WANTED_ENUMS = [
-  { table: "users", column: "role", values: ["admin", "editor", "content", "projects", "leads", "seo", "social"], def: "admin" },
+  { table: "users", column: "role", values: ["admin", "editor", "content", "projects", "leads", "seo", "social", "marketer", "graphic"], def: "admin" },
 ];
 
 async function ensureEnums(sequelize) {

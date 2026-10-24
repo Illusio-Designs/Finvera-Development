@@ -1,3 +1,4 @@
+const { Op, fn, col } = require("sequelize");
 const { SocialClient, SocialPost, User } = require("../models");
 const { asyncHandler } = require("../utils/crud");
 const { rolesOf } = require("../utils/permissions");
@@ -60,4 +61,75 @@ const listPosts = (crudList) => asyncHandler(async (req, res, next) => {
   res.json(items);
 });
 
-module.exports = { brandIdsOf, withScope, requireAllBrands, guardBody, guardPost, listClients, listPosts };
+/* ── Stage-based assignment ─────────────────────────────
+   Who works on a post at each stage: reels / videos → Marketer, posts /
+   carousels / stories → Graphic designer; from Ready to post on, the
+   Social media role posts it. */
+function stageRole(status, format) {
+  if (status === "ready" || status === "posted") return "social";
+  return /reel|video|influencer/i.test(format || "") ? "marketer" : "graphic";
+}
+
+/* Least-loaded active user holding `role` who can see `client`, or null.
+   `ctx` caches users / brand ids / open-post counts across a bulk import. */
+async function pickAssignee(role, client, ctx) {
+  if (!ctx.users) ctx.users = await User.findAll({ where: { active: true } });
+  if (!ctx.brandId) ctx.brandId = {};
+  if (!(client in ctx.brandId)) {
+    const c = await SocialClient.findOne({ where: { name: client } });
+    ctx.brandId[client] = c ? String(c.id) : null;
+  }
+  if (!ctx.load) {
+    const rows = await SocialPost.findAll({
+      attributes: ["assigneeId", [fn("COUNT", col("id")), "n"]],
+      where: { status: { [Op.ne]: "posted" }, assigneeId: { [Op.ne]: null } },
+      group: ["assigneeId"], raw: true,
+    });
+    ctx.load = Object.fromEntries(rows.map((r) => [r.assigneeId, Number(r.n)]));
+  }
+  const bid = ctx.brandId[client];
+  const eligible = ctx.users.filter((u) => {
+    if (!rolesOf(u).includes(role)) return false;
+    const ids = brandIdsOf(u);
+    return ids === null || (bid !== null && ids.includes(bid));
+  });
+  eligible.sort((a, b) => (ctx.load[a.id] || 0) - (ctx.load[b.id] || 0) || a.id - b.id);
+  return eligible.length ? eligible[0].id : null;
+}
+
+/* New post with nobody picked → assign by its stage + format. */
+const assignOnCreate = asyncHandler(async (req, _res, next) => {
+  const b = req.body || {};
+  if (!b.assigneeId && b.client) b.assigneeId = await pickAssignee(stageRole(b.status || "planned", b.format), b.client, {});
+  next();
+});
+
+/* Stage changed → hand the post to the role for the new stage. Skipped when
+   the same save picks an assignee by hand, or the current assignee already
+   holds the new stage's role (e.g. Planned → In production stays put). */
+const assignOnStageChange = asyncHandler(async (req, _res, next) => {
+  const b = req.body || {};
+  if (b.status === undefined) return next();
+  const post = await SocialPost.findByPk(req.params.id);
+  if (!post || b.status === post.status) return next();
+  if (b.assigneeId !== undefined && Number(b.assigneeId || 0) !== Number(post.assigneeId || 0)) return next();
+  const role = stageRole(b.status, b.format !== undefined ? b.format : post.format);
+  const current = post.assigneeId ? await User.findByPk(post.assigneeId) : null;
+  if (current && current.active && rolesOf(current).includes(role)) return next();
+  const who = await pickAssignee(role, b.client !== undefined ? b.client : post.client, {});
+  if (who) b.assigneeId = who;
+  next();
+});
+
+/* Bulk import: fill assignees row by row, keeping the load balance honest. */
+async function assignRows(rows) {
+  const ctx = {};
+  for (const r of rows) {
+    if (r.assigneeId) continue;
+    r.assigneeId = await pickAssignee(stageRole(r.status || "planned", r.format), r.client, ctx);
+    if (r.assigneeId && r.status !== "posted") ctx.load[r.assigneeId] = (ctx.load[r.assigneeId] || 0) + 1;
+  }
+}
+
+module.exports = { brandIdsOf, withScope, requireAllBrands, guardBody, guardPost, listClients, listPosts,
+  stageRole, assignOnCreate, assignOnStageChange, assignRows };
