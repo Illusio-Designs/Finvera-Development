@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Mark } from "@/components/icons";
 import { getToken, clearToken, api } from "@/lib/adminApi";
-import UserMenu, { type Me } from "@/components/admin/UserMenu";
+import { type Me } from "@/components/admin/UserMenu";
+import JumpTo from "@/components/admin/JumpTo";
 import NotificationBell from "@/components/admin/NotificationBell";
 import GooeyNotifier from "@/components/admin/GooeyNotifier";
 import DialogHost from "@/components/admin/DialogHost";
@@ -92,7 +93,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const rolesKey = roles.join(",");
 
   useEffect(() => { setCollapsed(localStorage.getItem("fv_admin_collapsed") === "1"); }, []);
-  useEffect(() => { setToday(new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })); }, []);
+  useEffect(() => { setToday(new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })); }, []);
   useEffect(() => { if (getToken()) api.me().then((r) => setMe(r?.user ?? r)).catch(() => {}); }, []);
   const toggleCollapsed = () => setCollapsed((c) => { localStorage.setItem("fv_admin_collapsed", c ? "0" : "1"); return !c; });
 
@@ -111,6 +112,35 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .filter((g) => g.items.length > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rolesKey]);
+
+  /* Sidebar count badges: unread inbox messages, overdue calendar posts
+     (a team member counts only posts assigned to them). Refreshed on
+     navigation and every minute. */
+  const [badges, setBadges] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!roles.length) return;
+    let alive = true;
+    const today = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+    const refresh = async () => {
+      const next: Record<string, number> = {};
+      if (rolesCan(roles, "contact")) {
+        try { next["/dashboard/contact"] = (await api.listContact()).filter((m: { isRead?: boolean }) => !m.isRead).length; } catch { /* ignore */ }
+      }
+      if (rolesCan(roles, "social")) {
+        try {
+          const mine = Array.isArray((me as { socialClients?: unknown } | null)?.socialClients);
+          const myId = (me as { id?: number } | null)?.id;
+          next["/dashboard/social"] = (await api.list("social-posts")).filter((p: { status: string; postDate?: string | null; assigneeId?: number | null }) =>
+            p.status !== "posted" && !!p.postDate && String(p.postDate).slice(0, 10) < today && (!mine || p.assigneeId === myId)).length;
+        } catch { /* ignore */ }
+      }
+      if (alive) setBadges(next);
+    };
+    refresh();
+    const t = setInterval(refresh, 60000);
+    return () => { alive = false; clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rolesKey, me, pathname]);
 
   useEffect(() => {
     if (!getToken()) { router.replace("/login"); return; }
@@ -154,6 +184,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return (
       <Link href={it.href} className={isActive ? "active" : ""} aria-current={isActive ? "page" : undefined} data-tip={labelOf(it)} data-tip-pos="right">
         <HugeiconsIcon icon={it.icon} size={19} strokeWidth={1.8} className="hgi" /><span className="adm-lbl">{labelOf(it)}</span>
+        {!!badges[it.href] && <span className="adm-navbadge" aria-label={`${badges[it.href]} need attention`}>{badges[it.href] > 99 ? "99+" : badges[it.href]}</span>}
       </Link>
     );
   };
@@ -215,8 +246,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <button className="adm-burger" onClick={() => setOpen((o) => !o)} aria-label="Open menu" aria-expanded={open}>
             <svg viewBox="0 0 24 24" width={18} fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 12h18M3 6h18M3 18h18" /></svg>
           </button>
-          <Link href="/dashboard" className="brand" style={{ fontSize: 16 }}><Mark /> Finvera</Link>
-          <div className="adm-mobbar-right"><NotificationBell /><UserMenu me={me} onLogout={logout} /></div>
+          <span className="adm-mobtitle">{pageTitle}</span>
+          <div className="adm-mobbar-right"><NotificationBell /></div>
         </div>
 
         <header className="adm-header">
@@ -225,9 +256,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <span className="ah-title">{pageTitle}</span>
           </nav>
           <div className="ah-right">
+            <JumpTo items={groups.flatMap((g) => g.items.map((it) => ({ href: it.href, label: labelOf(it), group: g.label })))} />
             {today && <span className="ah-date">{today}</span>}
             <NotificationBell announce />
-            <UserMenu me={me} onLogout={logout} />
           </div>
         </header>
 
