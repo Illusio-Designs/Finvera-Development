@@ -155,8 +155,7 @@ function sheetToPosts(rows: string[][], client: string): Partial<Post>[] {
     if (!postDate || (!theme && !flat("topic") && !channels)) continue;
     const ds = flat("dataStatus").replace(/^\((.*)\)$/, "$1");
     const caption = get(r, "caption"), driveLink = get(r, "driveLink");
-    const status: Stage = channels ? "posted" : caption && driveLink ? "ready"
-      : /required from client|discussion/i.test(ds) ? "client" : /we have|influencer/i.test(ds) ? "production" : "planned";
+    const status: Stage = "posted"; // an uploaded sheet is past work — everything in it is already live
     const format = get(r, "format").replace(/caraousel/gi, "carousel").replace(/\s*[\\/]\s*/g, " / ")
       .toLowerCase().replace(/\b\w/g, (x) => x.toUpperCase()).trim();
     out.push({
@@ -245,7 +244,13 @@ export default function SocialCalendar() {
     const p = posts.find((x) => x.id === id);
     if (!p || p.status === status) return;
     patchLocal(id, { status });
-    try { await api.update("social-posts", id, { status }); if (status === "posted") toast("Marked as posted 🎉"); }
+    try {
+      // The server hands the post to the next stage's role — show the new assignee straight away.
+      const saved = await api.update("social-posts", id, { status });
+      patchLocal(id, { assigneeId: saved?.assigneeId ?? null });
+      const who = users.find((u) => u.id === saved?.assigneeId);
+      toast(status === "posted" ? "Marked as posted 🎉" : who && who.id !== p.assigneeId ? `Moved · now with ${who.name}` : "Moved");
+    }
     catch (e: any) { patchLocal(id, { status: p.status }); toast(e.message || "Couldn't move the post", "err"); }
   }
   async function savePost(e: React.FormEvent) {
@@ -317,7 +322,7 @@ export default function SocialCalendar() {
     if (limited && !clientNames.includes(name)) return dialog.alert({ title: "Not one of your brands", message: `You can import only into: ${clientNames.join(", ") || "no brands yet"}.` });
     const parsed = sheetToPosts(rows, name);
     if (!parsed.length) return dialog.alert({ title: "No posts found", message: "The CSV needs a header row with a “Post Theme” column and a “Date” column." });
-    if (!(await dialog.confirm({ title: `Import ${parsed.length} posts for ${name}?`, message: "Stages are set from the Data Status, Caption, Drive link and Channel links columns.", confirmText: "Import" }))) return;
+    if (!(await dialog.confirm({ title: `Import ${parsed.length} posts for ${name}?`, message: "Uploaded posts are added as Posted and assigned to your Social media team.", confirmText: "Import" }))) return;
     try {
       const r = await api.importSocialPosts(parsed);
       toast(`Imported ${r.created} posts`); setClient(name); load();
@@ -594,7 +599,8 @@ export default function SocialCalendar() {
             <div className="field row" style={{ gap: 12 }}>
               <div className="adm-field" style={{ flex: 1 }}><label>Assigned to</label>
                 <Select value={editing.assigneeId ? String(editing.assigneeId) : ""} onChange={(v) => set({ assigneeId: v ? Number(v) : null })} ariaLabel="Assigned to"
-                  options={[{ value: "", label: "Unassigned" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]} /></div>
+                  options={[{ value: "", label: "Unassigned" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]} />
+                <span className="adm-hint">Set automatically when the stage changes: reels → Marketer, posts & carousels → Graphic designer, Ready to post → Social media. Pick someone here to override.</span></div>
               <div className="adm-field" style={{ flex: 1 }}><label>Client contact</label>
                 <input value={txt("poc")} onChange={(e) => set({ poc: e.target.value })} placeholder="Point of contact" /></div>
             </div>
