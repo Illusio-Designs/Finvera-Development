@@ -7,7 +7,7 @@ const User = sequelize.define("User", {
   email: { type: DataTypes.STRING, allowNull: false, unique: true, validate: { isEmail: true } },
   password: { type: DataTypes.STRING, allowNull: false },
   // Primary/legacy role (kept for backward compatibility & display).
-  role: { type: DataTypes.ENUM("admin", "editor", "content", "projects", "leads", "seo", "social", "marketer", "graphic"), defaultValue: "admin" },
+  role: { type: DataTypes.ENUM("admin", "editor", "content", "projects", "leads", "seo", "social", "marketer", "graphic", "video"), defaultValue: "admin" },
   // Multiple roles — a user can hold several (e.g. ["leads", "seo"]).
   roles: { type: DataTypes.JSON, defaultValue: [] },
   active: { type: DataTypes.BOOLEAN, defaultValue: true },

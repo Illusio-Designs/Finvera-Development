@@ -68,12 +68,15 @@ const listPosts = (crudList) => asyncHandler(async (req, res, next) => {
 });
 
 /* ── Stage-based assignment ─────────────────────────────
-   Who works on a post at each stage: reels / videos → Marketer, posts /
-   carousels / stories → Graphic designer; from Ready to post on, the
-   Social media role posts it. */
+   Who works on a post at each stage:
+     reels / videos  — Planned, Need from client → Marketer (plans, shoots)
+                       In production → Video editor (edits)
+     posts / carousels / stories → Graphic designer
+     Ready to post, Posted → Social media (posts it). */
 function stageRole(status, format) {
   if (status === "ready" || status === "posted") return "social";
-  return /reel|video|influencer/i.test(format || "") ? "marketer" : "graphic";
+  if (!/reel|video|influencer/i.test(format || "")) return "graphic";
+  return status === "production" ? "video" : "marketer";
 }
 
 /* Least-loaded active user holding `role` who can see `client`, or null.
