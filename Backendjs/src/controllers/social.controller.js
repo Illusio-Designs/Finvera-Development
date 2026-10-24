@@ -195,26 +195,35 @@ async function assignUnassigned({ force = false } = {}) {
   }
 }
 
-/* One-time fix for sheets uploaded while uploads went to Posted: Posted
-   posts with no live links were never actually published, so they go back
-   to Planned and to their maker. Posts with live channel links stay Posted.
-   Recorded in settings so it runs once — later Posted posts are untouched. */
-const UPLOAD_FIX_KEY = "social.uploadedToPlanned.v1";
+/* A post is really live only with a real post link (http…) in its channel
+   links AND a go-live date that has arrived. Sheet text like "Instagram,
+   Facebook" or a future date means it was planned, not published. */
+const todayStr = () => new Date().toISOString().slice(0, 10);
+const isLive = (p) => /https?:\/\//i.test(p.channels || "") && !!p.postDate && day(p.postDate) <= todayStr();
+
+/* Move a wrongly-Posted post back to Planned, to its maker. */
+async function backToPlanned(p, ctx) {
+  const who = await pickAssignee(stageRole("planned", p.format), p.client, ctx);
+  await p.update({ status: "planned", assigneeId: who, dueDate: p.dueDate || weekBefore(p.postDate) });
+  if (who) ctx.load[who] = (ctx.load[who] || 0) + 1;
+}
+
+/* One-time fix for sheets uploaded while uploads went to Posted: every
+   Posted post that isn't really live goes back to Planned and to its maker.
+   (v2: v1 only caught posts with empty channel links.) Recorded in settings
+   so it runs once — posts the team marks Posted later are untouched. */
+const UPLOAD_FIX_KEY = "social.uploadedToPlanned.v2";
 let uploadFixDone = false;
 async function moveUploadedToPlannedOnce() {
   if (uploadFixDone) return;
   const [flag, created] = await Setting.findOrCreate({ where: { key: UPLOAD_FIX_KEY }, defaults: { value: "running", group: "system", isPublic: false } });
   if (!created) { uploadFixDone = true; return; }
-  const posts = await SocialPost.findAll({ where: { status: "posted", [Op.or]: [{ channels: null }, { channels: "" }] } });
+  const posts = (await SocialPost.findAll({ where: { status: "posted" } })).filter((p) => !isLive(p));
   const ctx = {};
-  for (const p of posts) {
-    const who = await pickAssignee(stageRole("planned", p.format), p.client, ctx);
-    await p.update({ status: "planned", assigneeId: who });
-    if (who) ctx.load[who] = (ctx.load[who] || 0) + 1;
-  }
+  for (const p of posts) await backToPlanned(p, ctx);
   await flag.update({ value: `done ${new Date().toISOString()} (${posts.length} posts)` });
   uploadFixDone = true;
-  if (posts.length) console.log(`✔ Moved ${posts.length} uploaded social posts back to Planned`);
+  if (posts.length) console.log(`✔ Moved ${posts.length} not-yet-live social posts back to Planned`);
 }
 
 /* ── Sheet uploads ──────────────────────────────────────
@@ -231,6 +240,7 @@ const matchKey = (r) => `${String(r.postDate || "").slice(0, 10)}|${String(r.the
 async function importRows(rows) {
   const batch = `up-${Date.now()}`;
   const toCreate = [];
+  const fixCtx = {};
   let updated = 0;
   for (const client of [...new Set(rows.map((r) => r.client))]) {
     const existing = await SocialPost.findAll({ where: { client } });
@@ -238,10 +248,12 @@ async function importRows(rows) {
     for (const p of existing) { const k = matchKey(p); if (!byKey.has(k)) byKey.set(k, []); byKey.get(k).push(p); }
     for (const r of rows.filter((x) => x.client === client)) {
       const hit = (byKey.get(matchKey(r)) || []).shift(); // each existing post matches at most one row
-      if (!hit) { toCreate.push({ ...r, dueDate: r.dueDate || weekBefore(r.postDate), importBatch: batch }); continue; }
+      // An uploaded sheet is a plan: new rows always start in Planned.
+      if (!hit) { toCreate.push({ ...r, status: "planned", assigneeId: null, dueDate: r.dueDate || weekBefore(r.postDate), importBatch: batch }); continue; }
       const patch = { importBatch: batch };
       for (const f of SHEET_FIELDS) if (r[f] !== undefined && r[f] !== null && r[f] !== "") patch[f] = r[f];
       await hit.update(patch);
+      if (hit.status === "posted" && !isLive(hit)) await backToPlanned(hit, fixCtx);
       updated++;
     }
   }

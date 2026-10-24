@@ -78,6 +78,9 @@ function formatColor(f?: string) {
   return "#8a93aa";
 }
 const isDone = (p: Post) => p.status === "posted";
+/* Live = a real post link (http…) is in the channel links — plain text like
+   "Instagram" from a sheet doesn't count. */
+const hasLiveLink = (p: Partial<Post>) => /https?:\/\//i.test(p.channels || "");
 /* Timeline: `dueDate` holds the day work starts (default a week before
    go-live); the go-live date is the real deadline. */
 const startOn = (p: Post) => p.dueDate || p.postDate || "";
@@ -283,7 +286,8 @@ export default function SocialCalendar() {
     if (!editing?.client?.trim() || !editing?.theme?.trim()) return toast("Add a client and a post theme", "warn", { description: "Both are needed before the post can be saved." });
     const body: Record<string, unknown> = {};
     for (const k of EDITABLE) body[k] = editing[k] === "" ? null : editing[k] ?? null;
-    if (editing.channels?.trim()) body.status = "posted";
+    // A real post link on a post whose date has come means it's published.
+    if (hasLiveLink(editing) && editing.postDate && String(editing.postDate).slice(0, 10) <= todayIso()) body.status = "posted";
     try {
       if (editing.id) await api.update("social-posts", editing.id, body);
       else await api.create("social-posts", { ...body, timeLog: [] });
@@ -436,7 +440,7 @@ export default function SocialCalendar() {
         <div className="sm-flags">
           <span className={p.caption ? "on" : ""}>{p.caption ? "✓" : "○"} Caption</span>
           <span className={p.driveLink ? "on" : ""}>{p.driveLink ? "✓" : "○"} Creative</span>
-          <span className={p.channels ? "on" : ""}>{p.channels ? "✓" : "○"} Live</span>
+          <span className={hasLiveLink(p) ? "on" : ""}>{hasLiveLink(p) ? "✓" : "○"} Live</span>
         </div>
       </div>
     );
@@ -599,7 +603,7 @@ export default function SocialCalendar() {
           <div className="sm-flags sm-vflags">
             <span className={p.caption ? "on" : ""}>{p.caption ? "✓" : "○"} Caption</span>
             <span className={p.driveLink ? "on" : ""}>{p.driveLink ? "✓" : "○"} Creative</span>
-            <span className={p.channels ? "on" : ""}>{p.channels ? "✓" : "○"} Live</span>
+            <span className={hasLiveLink(p) ? "on" : ""}>{hasLiveLink(p) ? "✓" : "○"} Live</span>
           </div>
 
           {section("Caption & hashtags", p.caption && <>
@@ -871,7 +875,7 @@ export default function SocialCalendar() {
             </div>
             <div className="adm-field"><label>Channel links</label>
               <textarea value={txt("channels")} onChange={(e) => set({ channels: e.target.value })} placeholder={"Instagram https://…\nFacebook https://…"} />
-              <span className="adm-hint">Adding links moves the post to Posted when you save.</span></div>
+              <span className="adm-hint">Paste the real post links (https://…) once it's published — saving then moves it to Posted. Text like “Instagram” alone doesn't count.</span></div>
             <div className="adm-field"><label>Remarks</label>
               <textarea value={txt("remarks")} onChange={(e) => set({ remarks: e.target.value })} /></div>
             {(() => {
