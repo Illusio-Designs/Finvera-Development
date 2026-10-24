@@ -19,6 +19,12 @@ function normBrands(v) {
   return Array.isArray(a) ? [...new Set(a.map(String).filter((x) => /^\d+$/.test(x)))] : [];
 }
 
+/* New roles / brands may make someone the right person for waiting posts. */
+async function sweepSocial() {
+  try { await require("./social.controller").assignUnassigned({ force: true }); }
+  catch (e) { console.warn("social sweep:", e.message); }
+}
+
 const safe = (u) => ({
   id: u.id, name: u.name, email: u.email,
   role: rolesOf(u)[0] || u.role,
@@ -52,6 +58,7 @@ const create = asyncHandler(async (req, res) => {
     title: title || null,
     socialClients: normBrands(socialClients),
   });
+  await sweepSocial();
   res.status(201).json(safe(user));
 });
 
@@ -68,6 +75,7 @@ const update = asyncHandler(async (req, res) => {
   if (socialClients !== undefined) user.socialClients = normBrands(socialClients);
   if (password) user.password = await bcrypt.hash(password, 10);
   await user.save();
+  await sweepSocial();
   res.json(safe(user));
 });
 

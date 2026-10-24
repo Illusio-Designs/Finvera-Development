@@ -182,6 +182,7 @@ socialPostRouter.post("/bulk", ...canSocial, social.guardBody, async (req, res, 
     res.status(201).json({ created: created.length });
   } catch (e) { next(e); }
 });
+socialPostRouter.post("/mark-posted", ...canSocial, social.requireAllBrands, social.markPastPosted);
 socialPostRouter.put("/:id", ...canSocial, social.guardPost, social.assignOnStageChange, socialPostCtrl.update);
 socialPostRouter.patch("/:id", ...canSocial, social.guardPost, social.assignOnStageChange, socialPostCtrl.update);
 socialPostRouter.delete("/:id", ...canSocial, social.guardPost, socialPostCtrl.remove);
