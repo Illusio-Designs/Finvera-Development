@@ -166,8 +166,12 @@ const SOCIAL_FIELDS = ["client", "status", "postDate", "postTime", "dueDate", "a
   "format", "requirements", "reference", "dataStatus", "poc", "caption", "driveLink", "tags", "keywords", "channels", "remarks", "position"];
 const socialPostRouter = express.Router();
 socialPostRouter.get("/", ...canSocial, social.listPosts(socialPostCtrl.list));
+// Sheet uploads (admin): list batches, delete one batch, or clear a brand.
+socialPostRouter.get("/uploads", ...canSocial, social.requireAllBrands, social.listUploads);
+socialPostRouter.delete("/uploads/:batch", ...canSocial, social.requireAllBrands, social.deleteUpload);
+socialPostRouter.post("/delete-brand", ...canSocial, social.requireAllBrands, social.deleteBrandPosts);
 socialPostRouter.get("/:id", ...canSocial, social.guardPost, socialPostCtrl.getOne);
-socialPostRouter.post("/", ...canSocial, social.guardBody, social.assignOnCreate, socialPostCtrl.create);
+socialPostRouter.post("/", ...canSocial, social.guardBody, social.deadlineDefaults, social.assignOnCreate, socialPostCtrl.create);
 // Bulk import (rows parsed from a client's media-calendar sheet).
 socialPostRouter.post("/bulk", ...canSocial, social.guardBody, async (req, res, next) => {
   try {
@@ -177,14 +181,11 @@ socialPostRouter.post("/bulk", ...canSocial, social.guardBody, async (req, res, 
       .filter((r) => r.client && r.theme);
     if (!clean.length) return res.status(400).json({ message: "No rows with a client and a post theme to import." });
     for (const name of [...new Set(clean.map((r) => r.client))]) await SocialClient.findOrCreate({ where: { name } });
-    await social.assignRows(clean);
-    const created = await SocialPost.bulkCreate(clean);
-    res.status(201).json({ created: created.length });
+    res.status(201).json(await social.importRows(clean)); // { created, updated, batch }
   } catch (e) { next(e); }
 });
-socialPostRouter.post("/mark-posted", ...canSocial, social.requireAllBrands, social.markPastPosted);
-socialPostRouter.put("/:id", ...canSocial, social.guardPost, social.assignOnStageChange, socialPostCtrl.update);
-socialPostRouter.patch("/:id", ...canSocial, social.guardPost, social.assignOnStageChange, socialPostCtrl.update);
+socialPostRouter.put("/:id", ...canSocial, social.guardPost, social.deadlineDefaults, social.assignOnStageChange, socialPostCtrl.update);
+socialPostRouter.patch("/:id", ...canSocial, social.guardPost, social.deadlineDefaults, social.assignOnStageChange, socialPostCtrl.update);
 socialPostRouter.delete("/:id", ...canSocial, social.guardPost, socialPostCtrl.remove);
 router.use("/social-posts", socialPostRouter);
 

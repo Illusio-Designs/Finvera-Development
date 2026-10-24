@@ -82,5 +82,7 @@ export const api = {
 
   /* Social media calendar — bulk import rows parsed from a client's sheet */
   importSocialPosts: (posts: any[]) => req(`/social-posts/bulk`, { method: "POST", body: JSON.stringify({ posts }) }),
-  markPastPosted: (client?: string) => req(`/social-posts/mark-posted`, { method: "POST", body: JSON.stringify({ client }) }),
+  listSocialUploads: () => req(`/social-posts/uploads`),
+  deleteSocialUpload: (batch: string) => req(`/social-posts/uploads/${encodeURIComponent(batch)}`, { method: "DELETE" }),
+  deleteBrandPosts: (client: string) => req(`/social-posts/delete-brand`, { method: "POST", body: JSON.stringify({ client }) }),
 };

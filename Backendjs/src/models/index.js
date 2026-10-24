@@ -234,7 +234,7 @@ const SocialPost = sequelize.define("SocialPost", {
   status: { type: DataTypes.ENUM("planned", "client", "production", "ready", "posted"), defaultValue: "planned" },
   postDate: { type: DataTypes.DATEONLY },                        // goes live on
   postTime: { type: DataTypes.STRING(5) },                       // "HH:MM"
-  dueDate: { type: DataTypes.DATEONLY },                         // creative/work deadline
+  dueDate: { type: DataTypes.DATEONLY },                         // start-work date (default: a week before postDate)
   assigneeId: { type: DataTypes.INTEGER },                       // User doing the work
   estimateHours: { type: DataTypes.FLOAT },
   timeLog: { type: DataTypes.JSON, defaultValue: [] },           // [{ id, userId, minutes, note, at }]
@@ -254,6 +254,7 @@ const SocialPost = sequelize.define("SocialPost", {
   keywords: { type: DataTypes.TEXT },
   channels: { type: DataTypes.TEXT },                            // live post links
   remarks: { type: DataTypes.TEXT },
+  importBatch: { type: DataTypes.STRING(40) },                   // which sheet upload created/last updated it
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
 }, { tableName: "social_posts" });
 

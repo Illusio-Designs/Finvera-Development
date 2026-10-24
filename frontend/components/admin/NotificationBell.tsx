@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, getToken } from "@/lib/adminApi";
+import { toast } from "@/lib/toast";
+import { playSound, isSoundOn, setSoundOn } from "@/lib/sound";
 
 type Notif = { id: number; type: string; title: string; body?: string | null; link?: string | null; isRead: boolean; createdAt: string };
 
@@ -17,12 +19,17 @@ function ago(iso: string) {
   } catch { return ""; }
 }
 
-export default function NotificationBell() {
+/* The layout mounts two bells (mobile bar + header); only the one with
+   `announce` pops new notifications up as toasts, so each rings once. */
+export default function NotificationBell({ announce: popUp = false }: { announce?: boolean }) {
   const router = useRouter();
   const [items, setItems] = useState<Notif[]>([]);
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
+  const [sound, setSound] = useState(true);
   const ref = useRef<HTMLDivElement>(null);
+  // Highest notification id already seen — anything newer pops up as a toast.
+  const seen = useRef<number | null>(null);
 
   async function load() {
     if (!getToken()) return;
@@ -31,10 +38,28 @@ export default function NotificationBell() {
       const list: Notif[] = Array.isArray(r) ? r : (r?.items || []);
       setItems(list);
       setUnread(typeof r?.unread === "number" ? r.unread : list.filter((n) => !n.isRead).length);
+      announce(list);
     } catch { /* ignore */ }
   }
 
-  useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, []);
+  /* Pop up notifications that arrived since the last check (not on first load). */
+  function announce(list: Notif[]) {
+    const maxId = list.reduce((m, n) => Math.max(m, n.id), 0);
+    if (popUp && seen.current !== null) {
+      const fresh = list.filter((n) => !n.isRead && n.id > (seen.current as number)).sort((a, b) => a.id - b.id);
+      fresh.slice(0, 3).forEach((n) => toast(`${ICONS[n.type] || ICONS.info} ${n.title}`, "info", {
+        description: n.body || "New in your notifications",
+        action: n.link ? { label: "Open", onClick: () => router.push(n.link as string) } : undefined,
+        sound: false, duration: 7000,
+      }));
+      if (fresh.length > 3) toast(`${fresh.length - 3} more notifications`, "info", { description: "Open the bell to see them all.", sound: false });
+      if (fresh.length) playSound("notify");
+    }
+    seen.current = Math.max(maxId, seen.current ?? 0);
+  }
+
+  useEffect(() => { setSound(isSoundOn()); load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, []);
+  const toggleSound = () => { const on = !sound; setSound(on); setSoundOn(on); if (on) playSound("notify"); };
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
@@ -63,6 +88,9 @@ export default function NotificationBell() {
         <div className="adm-notif-pop">
           <div className="adm-notif-head">
             <b>Notifications</b>
+            <button onClick={toggleSound} aria-pressed={sound} title={sound ? "Turn notification sounds off" : "Turn notification sounds on"}>
+              {sound ? "🔔 Sound on" : "🔕 Sound off"}
+            </button>
             {items.length > 0 && <button onClick={clearAll}>Clear all</button>}
           </div>
           <div className="adm-notif-list">

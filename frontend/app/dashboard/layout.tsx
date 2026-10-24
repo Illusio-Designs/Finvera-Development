@@ -6,7 +6,7 @@ import { Mark } from "@/components/icons";
 import { getToken, clearToken, api } from "@/lib/adminApi";
 import UserMenu, { type Me } from "@/components/admin/UserMenu";
 import NotificationBell from "@/components/admin/NotificationBell";
-import Toaster from "@/components/admin/Toaster";
+import GooeyNotifier from "@/components/admin/GooeyNotifier";
 import DialogHost from "@/components/admin/DialogHost";
 import { rolesCan, userRoles, type Area } from "@/lib/permissions";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -219,7 +219,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
           <div className="ah-right">
             {today && <span className="ah-date">{today}</span>}
-            <NotificationBell />
+            <NotificationBell announce />
             <UserMenu me={me} onLogout={logout} />
           </div>
         </header>
@@ -234,7 +234,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         </footer>
       </div>
-      <Toaster />
+      <GooeyNotifier />
       <DialogHost />
     </div>
   );

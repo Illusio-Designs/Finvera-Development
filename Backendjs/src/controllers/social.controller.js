@@ -1,5 +1,5 @@
-const { Op, fn, col } = require("sequelize");
-const { SocialClient, SocialPost, User } = require("../models");
+const { Op, fn, col, literal } = require("sequelize");
+const { SocialClient, SocialPost, User, Setting } = require("../models");
 const { asyncHandler } = require("../utils/crud");
 const { rolesOf } = require("../utils/permissions");
 const { notifyUsers } = require("../utils/notify");
@@ -59,6 +59,7 @@ const listClients = (crudList) => asyncHandler(async (req, res, next) => {
   res.json(items);
 });
 const listPosts = (crudList) => asyncHandler(async (req, res, next) => {
+  try { await moveUploadedToPlannedOnce(); } catch (e) { console.warn("uploaded→Planned fix:", e.message); }
   try { await assignUnassigned(); } catch (e) { console.warn("assignUnassigned:", e.message); }
   if (!req.socialScope) return crudList(req, res, next);
   if (!req.socialScope.size) return res.json([]);
@@ -102,6 +103,46 @@ async function pickAssignee(role, client, ctx) {
   return eligible.length ? eligible[0].id : null;
 }
 
+/* ── Start-work date (stored in dueDate) ────────────────
+   Work starts one week before the go-live date: post on 2 Nov → start 26 Oct. */
+const DEADLINE_DAYS = 7;
+function weekBefore(postDate) {
+  const m = String(postDate || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] - DEADLINE_DAYS));
+  return d.toISOString().slice(0, 10);
+}
+const day = (v) => (v ? String(v instanceof Date ? v.toISOString() : v).slice(0, 10) : null);
+
+/* Create: no start date given → a week before the post date. Update: same
+   when the post has none; and when the post date moves, an automatic start
+   date (exactly a week before the old date) moves with it. A start date
+   someone set by hand is never touched. */
+const deadlineDefaults = asyncHandler(async (req, _res, next) => {
+  const b = req.body || {};
+  if (!req.params.id) {
+    if (!b.dueDate && b.postDate) b.dueDate = weekBefore(b.postDate);
+    return next();
+  }
+  const post = await SocialPost.findByPk(req.params.id);
+  if (!post) return next();
+  const oldDate = day(post.postDate), oldDue = day(post.dueDate);
+  const newDate = b.postDate !== undefined ? day(b.postDate) : oldDate;
+  const dueTouched = b.dueDate !== undefined && day(b.dueDate) !== oldDue;
+  if (dueTouched) { if (!b.dueDate && newDate) b.dueDate = weekBefore(newDate); return next(); }
+  if (!oldDue && newDate) b.dueDate = weekBefore(newDate);
+  else if (newDate !== oldDate && oldDue && oldDue === weekBefore(oldDate)) b.dueDate = weekBefore(newDate);
+  next();
+});
+
+/* Posts with a go-live date but no start date (created before it defaulted). */
+async function fillDeadlines() {
+  await SocialPost.update(
+    { dueDate: literal(`DATE_SUB(postDate, INTERVAL ${DEADLINE_DAYS} DAY)`) },
+    { where: { dueDate: null, postDate: { [Op.ne]: null } } },
+  );
+}
+
 /* New post with nobody picked → assign by its stage + format. */
 const assignOnCreate = asyncHandler(async (req, _res, next) => {
   const b = req.body || {};
@@ -135,6 +176,7 @@ let lastSweep = 0;
 async function assignUnassigned({ force = false } = {}) {
   if (!force && Date.now() - lastSweep < 60000) return;
   lastSweep = Date.now();
+  try { await fillDeadlines(); } catch (e) { console.warn("fillDeadlines:", e.message); }
   const posts = await SocialPost.findAll({ where: { assigneeId: null }, order: [["postDate", "ASC"]] });
   if (!posts.length) return;
   const ctx = {}, gained = {};
@@ -153,19 +195,84 @@ async function assignUnassigned({ force = false } = {}) {
   }
 }
 
-/* Admin catch-up: every open post whose go-live date has passed (optionally
-   for one brand) → Posted, handed to that brand's Social media person. */
-const markPastPosted = asyncHandler(async (req, res) => {
-  const today = new Date().toISOString().slice(0, 10);
-  const where = { status: { [Op.ne]: "posted" }, postDate: { [Op.lt]: today } };
-  if (req.body?.client) where.client = req.body.client;
-  const posts = await SocialPost.findAll({ where });
+/* One-time fix for sheets uploaded while uploads went to Posted: Posted
+   posts with no live links were never actually published, so they go back
+   to Planned and to their maker. Posts with live channel links stay Posted.
+   Recorded in settings so it runs once — later Posted posts are untouched. */
+const UPLOAD_FIX_KEY = "social.uploadedToPlanned.v1";
+let uploadFixDone = false;
+async function moveUploadedToPlannedOnce() {
+  if (uploadFixDone) return;
+  const [flag, created] = await Setting.findOrCreate({ where: { key: UPLOAD_FIX_KEY }, defaults: { value: "running", group: "system", isPublic: false } });
+  if (!created) { uploadFixDone = true; return; }
+  const posts = await SocialPost.findAll({ where: { status: "posted", [Op.or]: [{ channels: null }, { channels: "" }] } });
   const ctx = {};
   for (const p of posts) {
-    const who = await pickAssignee("social", p.client, ctx);
-    await p.update({ status: "posted", ...(who ? { assigneeId: who } : {}) });
+    const who = await pickAssignee(stageRole("planned", p.format), p.client, ctx);
+    await p.update({ status: "planned", assigneeId: who });
+    if (who) ctx.load[who] = (ctx.load[who] || 0) + 1;
   }
-  res.json({ updated: posts.length });
+  await flag.update({ value: `done ${new Date().toISOString()} (${posts.length} posts)` });
+  uploadFixDone = true;
+  if (posts.length) console.log(`✔ Moved ${posts.length} uploaded social posts back to Planned`);
+}
+
+/* ── Sheet uploads ──────────────────────────────────────
+   Re-uploading a sheet updates matching posts instead of duplicating them.
+   A row matches an existing post of the same brand by go-live date + post
+   theme (case and spacing ignored). Matches get the sheet's content fields
+   refreshed and keep their stage, assignee and time log; other rows are
+   added (Planned, assigned to their maker). Every upload is a batch, so an
+   admin can review or delete it later. */
+const SHEET_FIELDS = ["festive", "topic", "format", "requirements", "reference", "dataStatus", "poc", "caption",
+  "driveLink", "tags", "keywords", "channels", "remarks"];
+const matchKey = (r) => `${String(r.postDate || "").slice(0, 10)}|${String(r.theme || "").trim().toLowerCase().replace(/\s+/g, " ")}`;
+
+async function importRows(rows) {
+  const batch = `up-${Date.now()}`;
+  const toCreate = [];
+  let updated = 0;
+  for (const client of [...new Set(rows.map((r) => r.client))]) {
+    const existing = await SocialPost.findAll({ where: { client } });
+    const byKey = new Map();
+    for (const p of existing) { const k = matchKey(p); if (!byKey.has(k)) byKey.set(k, []); byKey.get(k).push(p); }
+    for (const r of rows.filter((x) => x.client === client)) {
+      const hit = (byKey.get(matchKey(r)) || []).shift(); // each existing post matches at most one row
+      if (!hit) { toCreate.push({ ...r, dueDate: r.dueDate || weekBefore(r.postDate), importBatch: batch }); continue; }
+      const patch = { importBatch: batch };
+      for (const f of SHEET_FIELDS) if (r[f] !== undefined && r[f] !== null && r[f] !== "") patch[f] = r[f];
+      await hit.update(patch);
+      updated++;
+    }
+  }
+  await assignRows(toCreate);
+  await SocialPost.bulkCreate(toCreate);
+  return { created: toCreate.length, updated, batch };
+}
+
+/* Admin: uploads (batches) with their brand, size and date range. */
+const listUploads = asyncHandler(async (_req, res) => {
+  const rows = await SocialPost.findAll({
+    attributes: ["importBatch", "client", [fn("COUNT", col("id")), "posts"], [fn("MIN", col("postDate")), "from"], [fn("MAX", col("postDate")), "to"]],
+    where: { importBatch: { [Op.ne]: null } }, group: ["importBatch", "client"], raw: true,
+  });
+  res.json(rows
+    .map((r) => ({ ...r, posts: Number(r.posts), uploadedAt: new Date(Number(String(r.importBatch).replace("up-", "")) || 0).toISOString() }))
+    .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt)));
+});
+
+/* Admin: delete one upload's posts. */
+const deleteUpload = asyncHandler(async (req, res) => {
+  const n = await SocialPost.destroy({ where: { importBatch: req.params.batch } });
+  res.json({ deleted: n });
+});
+
+/* Admin: delete every post of one brand (older uploads have no batch). */
+const deleteBrandPosts = asyncHandler(async (req, res) => {
+  const client = String(req.body?.client || "");
+  if (!client) return res.status(400).json({ message: "Choose a brand." });
+  const n = await SocialPost.destroy({ where: { client } });
+  res.json({ deleted: n });
 });
 
 /* Bulk import: fill assignees row by row, keeping the load balance honest. */
@@ -179,4 +286,4 @@ async function assignRows(rows) {
 }
 
 module.exports = { brandIdsOf, withScope, requireAllBrands, guardBody, guardPost, listClients, listPosts,
-  stageRole, assignOnCreate, assignOnStageChange, assignRows, assignUnassigned, markPastPosted };
+  stageRole, assignOnCreate, assignOnStageChange, assignRows, assignUnassigned, importRows, listUploads, deleteUpload, deleteBrandPosts, deadlineDefaults };

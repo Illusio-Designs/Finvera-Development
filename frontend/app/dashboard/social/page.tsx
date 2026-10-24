@@ -53,6 +53,8 @@ const normPost = (p: Post): Post => ({
 const uid = () => "tl-" + Math.random().toString(36).slice(2, 9);
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const todayIso = () => iso(new Date());
+/* Default work deadline: one week before go-live (same rule as the server). */
+const weekBefore = (d?: string | null) => (d ? addDays(String(d).slice(0, 10), -7) : "");
 const addDays = (s: string, n: number) => { const d = new Date(s + "T00:00:00"); d.setDate(d.getDate() + n); return iso(d); };
 const daysFrom = (a: string, b: string) => Math.round((new Date(b + "T00:00:00").getTime() - new Date(a + "T00:00:00").getTime()) / 86400000);
 function fmtDay(d?: string | null) {
@@ -76,14 +78,19 @@ function formatColor(f?: string) {
   return "#8a93aa";
 }
 const isDone = (p: Post) => p.status === "posted";
-const deadline = (p: Post) => p.dueDate || p.postDate || "";
+/* Timeline: `dueDate` holds the day work starts (default a week before
+   go-live); the go-live date is the real deadline. */
+const startOn = (p: Post) => p.dueDate || p.postDate || "";
+const isOverdue = (p: Post) => !isDone(p) && !!p.postDate && p.postDate < todayIso();
 function dueInfo(p: Post) {
-  if (isDone(p) || !deadline(p)) return null;
-  const days = daysFrom(todayIso(), deadline(p));
-  const what = p.dueDate ? "Work due" : "Goes live";
-  if (days < 0) return { cls: "over", text: `Overdue ${-days}d`, days };
-  if (days === 0) return { cls: "soon", text: `${what} today`, days };
-  return { cls: days <= 3 ? "soon" : "", text: `${what} in ${days}d`, days };
+  if (isDone(p) || !(p.postDate || p.dueDate)) return null;
+  const t = todayIso();
+  if (isOverdue(p)) { const d = daysFrom(p.postDate as string, t); return { cls: "over", text: `Overdue ${d}d`, days: -d }; }
+  if (p.dueDate && p.dueDate > t) { const d = daysFrom(t, p.dueDate); return { cls: d <= 2 ? "soon" : "", text: `Starts in ${d}d`, days: d }; }
+  if (p.dueDate === t) return { cls: "soon", text: "Start today", days: 0 };
+  if (!p.postDate) return null;
+  const d = daysFrom(t, p.postDate);
+  return { cls: d <= 3 ? "soon" : "", text: d === 0 ? "Goes live today" : `Goes live in ${d}d`, days: d };
 }
 function loggedMin(p: Post) {
   let m = toArr<LogEntry>(p.timeLog).reduce((a, e) => a + (Number(e.minutes) || 0), 0);
@@ -155,7 +162,7 @@ function sheetToPosts(rows: string[][], client: string): Partial<Post>[] {
     if (!postDate || (!theme && !flat("topic") && !channels)) continue;
     const ds = flat("dataStatus").replace(/^\((.*)\)$/, "$1");
     const caption = get(r, "caption"), driveLink = get(r, "driveLink");
-    const status: Stage = "posted"; // an uploaded sheet is past work — everything in it is already live
+    const status: Stage = "planned"; // uploaded sheet rows start at the beginning of the pipeline
     const format = get(r, "format").replace(/caraousel/gi, "carousel").replace(/\s*[\\/]\s*/g, " / ")
       .toLowerCase().replace(/\b\w/g, (x) => x.toUpperCase()).trim();
     out.push({
@@ -192,6 +199,10 @@ export default function SocialCalendar() {
   const [calMonth, setCalMonth] = useState("");
   const [editing, setEditing] = useState<Partial<Post> | null>(null);
   const [viewId, setViewId] = useState<number | null>(null); // read-only details card
+  type TeamUser = { id: number; name: string; roles: string[]; socialClients: string[]; active: boolean };
+  const [team, setTeam] = useState<TeamUser[]>([]);           // admin only: who holds which role / brands
+  type Upload = { importBatch: string; client: string; posts: number; from: string; to: string; uploadedAt: string };
+  const [uploads, setUploads] = useState<Upload[] | null>(null); // admin uploads panel (null = closed)
   const [logMin, setLogMin] = useState("");
   const [logNote, setLogNote] = useState("");
   const [overStage, setOverStage] = useState<Stage | null>(null);
@@ -209,8 +220,10 @@ export default function SocialCalendar() {
       setClientRows(Array.isArray(c) ? c : []);
       setUsers(Array.isArray(u) ? u : []);
       setMeId((me?.user ?? me)?.id ?? null);
-      setLimited(Array.isArray((me?.user ?? me)?.socialClients));
-    } catch (e: any) { toast(e.message || "Couldn't load the social calendar", "err"); }
+      const isLimited = Array.isArray((me?.user ?? me)?.socialClients);
+      setLimited(isLimited);
+      if (!isLimited) api.list("users").then((t) => setTeam(Array.isArray(t) ? t : [])).catch(() => {});
+    } catch (e: any) { toast("Couldn't load the content calendar", "err", { description: e.message || "Check your connection and refresh the page." }); }
     finally { setLoading(false); }
   }
   useEffect(() => {
@@ -258,13 +271,16 @@ export default function SocialCalendar() {
       const who = users.find((u) => u.id === saved?.assigneeId);
       // Team members only see their own posts — one handed to someone else leaves their board.
       if (limited && saved?.assigneeId !== meId) { setPosts((ps) => ps.filter((x) => x.id !== id)); setViewId((v) => (v === id ? null : v)); }
-      toast(status === "posted" ? "Marked as posted 🎉" : who && who.id !== p.assigneeId ? `Moved · now with ${who.name}` : "Moved");
+      const stageName = STAGES.find((s) => s.id === status)?.title || status;
+      toast(status === "posted" ? "Marked as Posted 🎉" : `Moved to ${stageName}`, "ok", {
+        description: who && who.id !== p.assigneeId ? `“${p.theme}” is now with ${who.name}.` : `“${p.theme}” · ${p.client}`,
+      });
     }
-    catch (e: any) { patchLocal(id, { status: p.status }); toast(e.message || "Couldn't move the post", "err"); }
+    catch (e: any) { patchLocal(id, { status: p.status }); toast("Couldn't move the post", "err", { description: e.message || "It's back where it was — try again." }); }
   }
   async function savePost(e: React.FormEvent) {
     e.preventDefault();
-    if (!editing?.client?.trim() || !editing?.theme?.trim()) return toast("Client and post theme are required", "err");
+    if (!editing?.client?.trim() || !editing?.theme?.trim()) return toast("Add a client and a post theme", "warn", { description: "Both are needed before the post can be saved." });
     const body: Record<string, unknown> = {};
     for (const k of EDITABLE) body[k] = editing[k] === "" ? null : editing[k] ?? null;
     if (editing.channels?.trim()) body.status = "posted";
@@ -273,13 +289,13 @@ export default function SocialCalendar() {
       else await api.create("social-posts", { ...body, timeLog: [] });
       if (!limited && !clientRows.some((c) => c.name === editing.client)) await api.create("social-clients", { name: editing.client }).catch(() => {});
       if (editing.id) setViewId(editing.id);
-      setEditing(null); toast("Post saved"); load();
-    } catch (err: any) { toast(err.message || "Couldn't save the post", "err"); }
+      setEditing(null); toast(editing.id ? "Post updated" : "Post added", "ok", { description: `“${editing.theme}” · ${editing.client}` }); load();
+    } catch (err: any) { toast("Couldn't save the post", "err", { description: err.message || "Your changes are still in the form — try again." }); }
   }
   async function deletePost() {
     if (!editing?.id) return;
     if (!(await dialog.confirm({ title: "Delete this post?", message: "Its time log is deleted too. This can't be undone.", danger: true, confirmText: "Delete" }))) return;
-    await api.remove("social-posts", editing.id); setViewId(null); setEditing(null); toast("Post deleted"); load();
+    await api.remove("social-posts", editing.id); setViewId(null); setEditing(null); toast("Post deleted", "ok", { description: `“${editing.theme}” was removed from ${editing.client}.` }); load();
   }
   async function addClient() {
     const name = (await dialog.prompt({ title: "New client", placeholder: "e.g. Maharani by Rungta's", confirmText: "Add client" }))?.trim();
@@ -287,8 +303,8 @@ export default function SocialCalendar() {
     if (clientNames.includes(name)) { setClient(name); return; }
     try {
       const c = await api.create("social-clients", { name, color: CLIENT_COLORS[clientNames.length % CLIENT_COLORS.length], position: clientRows.length });
-      setClientRows((cs) => [...cs, c]); setClient(name); toast("Client added");
-    } catch (e: any) { toast(e.message || "Couldn't add the client", "err"); }
+      setClientRows((cs) => [...cs, c]); setClient(name); toast("Brand added", "ok", { description: `${name} is ready. Tick it for team members under Users.` });
+    } catch (e: any) { toast("Couldn't add the brand", "err", { description: e.message }); }
   }
 
   /* ── time tracking ── */
@@ -302,33 +318,70 @@ export default function SocialCalendar() {
     try {
       if (p.timerStart) {
         await addLog(p, (Date.now() - new Date(p.timerStart).getTime()) / 60000, "Timer session", { timerStart: null, timerBy: null });
-        toast("Time logged");
+        toast("Timer stopped", "ok", { description: `${hm((Date.now() - new Date(p.timerStart).getTime()) / 60000)} logged on “${p.theme}”.` });
       } else {
         const patch = { timerStart: new Date().toISOString(), timerBy: meId };
         await api.update("social-posts", p.id, patch); patchLocal(p.id, patch);
+        toast("Timer started", "info", { description: `Tracking time on “${p.theme}”. Press Stop when you're done.`, sound: false });
       }
-    } catch (e: any) { toast(e.message || "Couldn't update the timer", "err"); }
+    } catch (e: any) { toast("Couldn't update the timer", "err", { description: e.message }); }
   }
   async function logManual(post: Post) {
     const p = posts.find((x) => x.id === post.id); const m = Number(logMin);
-    if (!p || !(m > 0)) return toast("Enter the minutes worked", "err");
-    try { await addLog(p, m, logNote.trim()); setLogMin(""); setLogNote(""); toast("Time logged"); }
-    catch (e: any) { toast(e.message || "Couldn't log time", "err"); }
+    if (!p || !(m > 0)) return toast("Enter the minutes worked", "warn", { description: "Type how many minutes you spent, then press Log." });
+    try { await addLog(p, m, logNote.trim()); setLogMin(""); setLogNote(""); toast("Time logged", "ok", { description: `${hm(m)} on “${p.theme}”.` }); }
+    catch (e: any) { toast("Couldn't log time", "err", { description: e.message }); }
   }
   async function removeLog(post: Post, entryId: string) {
     const p = posts.find((x) => x.id === post.id); if (!p) return;
     const timeLog = toArr<LogEntry>(p.timeLog).filter((e) => e.id !== entryId);
     try { await api.update("social-posts", p.id, { timeLog }); patchLocal(p.id, { timeLog }); }
-    catch (e: any) { toast(e.message || "Couldn't remove the entry", "err"); }
+    catch (e: any) { toast("Couldn't remove the time entry", "err", { description: e.message }); }
   }
 
-  /* Admin catch-up: open posts whose go-live date has passed → Posted. */
-  const pastOpen = scope.filter((p) => !isDone(p) && p.postDate && p.postDate < todayIso()).length;
-  async function markPastPosted() {
-    const where = client ? ` for ${client}` : " across all brands";
-    if (!(await dialog.confirm({ title: `Mark ${pastOpen} past posts as Posted?`, message: `Every open post${where} whose go-live date has passed moves to Posted and goes to that brand's Social media person.`, confirmText: "Mark as Posted" }))) return;
-    try { const r = await api.markPastPosted(client || undefined); toast(`${r.updated} posts marked as Posted`); load(); }
-    catch (e: any) { toast(e.message || "Couldn't update the posts", "err"); }
+  /* ── admin: why posts are waiting ──
+     Same rule as the server: reels/videos → Marketer, posts → Graphic designer,
+     Ready to post / Posted → Social media; the person must have the brand ticked. */
+  const ROLE_NAMES: Record<string, string> = { marketer: "Marketer", graphic: "Graphic designer", social: "Social media" };
+  const needRole = (p: Post) => (p.status === "ready" || p.status === "posted") ? "social" : /reel|video|influencer/i.test(p.format || "") ? "marketer" : "graphic";
+  const waiting = limited ? [] : posts.filter((p) => !p.assigneeId);
+  const gaps = (() => {
+    const out: { brand: string; role: string; count: number }[] = [];
+    for (const p of waiting) {
+      const role = needRole(p);
+      const brandId = String(clientRows.find((c) => c.name === p.client)?.id ?? "");
+      const covered = team.some((u) => u.active !== false && (u.roles || []).includes(role)
+        && ((u.roles || []).includes("admin") || (u.socialClients || []).map(String).includes(brandId)));
+      if (covered) continue;
+      const g = out.find((x) => x.brand === p.client && x.role === role);
+      if (g) g.count++; else out.push({ brand: p.client, role, count: 1 });
+    }
+    return out;
+  })();
+
+  /* ── admin: uploads panel ── */
+  async function openUploads() {
+    try { setUploads(await api.listSocialUploads()); }
+    catch (e: any) { toast("Couldn't load uploads", "err", { description: e.message }); }
+  }
+  async function deleteUpload(u: Upload) {
+    if (!(await dialog.confirm({ title: `Delete this upload of ${u.posts} posts?`, message: `All ${u.posts} ${u.client} posts from the ${new Date(u.uploadedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} upload are deleted, with their time logs. This can't be undone.`, danger: true, confirmText: "Delete upload" }))) return;
+    try {
+      const r = await api.deleteSocialUpload(u.importBatch);
+      toast("Upload deleted", "ok", { description: `${r.deleted} posts removed from ${u.client}.` });
+      await openUploads(); load();
+    } catch (e: any) { toast("Couldn't delete the upload", "err", { description: e.message }); }
+  }
+  async function deleteBrand(name: string) {
+    const count = posts.filter((p) => p.client === name).length;
+    const typed = await dialog.prompt({ title: `Delete all ${count} posts of ${name}?`, message: `This removes every post of this brand (uploaded or added by hand), with time logs. Type the brand name to confirm.`, placeholder: name, confirmText: "Delete all posts", danger: true });
+    if (typed == null) return;
+    if (typed.trim() !== name) return toast("Nothing deleted", "warn", { description: "The brand name didn't match." });
+    try {
+      const r = await api.deleteBrandPosts(name);
+      toast("Posts deleted", "ok", { description: `${r.deleted} posts removed from ${name}.` });
+      await openUploads(); load();
+    } catch (e: any) { toast("Couldn't delete the posts", "err", { description: e.message }); }
   }
 
   /* ── import ── */
@@ -341,12 +394,13 @@ export default function SocialCalendar() {
     if (limited && !clientNames.includes(name)) return dialog.alert({ title: "Not one of your brands", message: `You can import only into: ${clientNames.join(", ") || "no brands yet"}.` });
     const parsed = sheetToPosts(rows, name);
     if (!parsed.length) return dialog.alert({ title: "No posts found", message: "The CSV needs a header row with a “Post Theme” column and a “Date” column." });
-    if (!(await dialog.confirm({ title: `Import ${parsed.length} posts for ${name}?`, message: "Uploaded posts are added as Posted and assigned to your Social media team.", confirmText: "Import" }))) return;
+    if (!(await dialog.confirm({ title: `Import ${parsed.length} posts for ${name}?`, message: "Rows already on the board (same date + post theme) are updated, keeping their stage and assignee. New rows go to Planned and to their maker — reels to a Marketer, posts and carousels to a Graphic designer.", confirmText: "Import" }))) return;
     try {
       const r = await api.importSocialPosts(parsed);
-      if (limited) toast("Imported posts go to whoever they're assigned to — you'll see the ones assigned to you", "ok");
-      toast(`Imported ${r.created} posts`); setClient(name); load();
-    } catch (e: any) { toast(e.message || "Import failed", "err"); }
+      const parts = [r.created ? `${r.created} added to Planned` : "", r.updated ? `${r.updated} updated` : ""].filter(Boolean).join(", ");
+      toast(`Sheet uploaded · ${name}`, "ok", { description: `${parts || "Nothing new"}.${limited ? " You'll see the ones assigned to you." : ""}` });
+      setClient(name); load();
+    } catch (e: any) { toast("Import failed", "err", { description: e.message || "Check the file is a CSV saved from the media calendar sheet." }); }
   }
 
   /* ── pieces ── */
@@ -417,11 +471,11 @@ export default function SocialCalendar() {
     const t = todayIso(), wk = addDays(t, 7);
     const open = list.filter((p) => !isDone(p));
     const groups: [string, string, Post[]][] = ([
-      ["Overdue", "over", open.filter((p) => deadline(p) && deadline(p) < t)],
-      ["Today", "soon", open.filter((p) => deadline(p) === t)],
-      ["Next 7 days", "", open.filter((p) => deadline(p) > t && deadline(p) <= wk)],
-      ["Later", "", open.filter((p) => deadline(p) > wk)],
-      ["No date", "", open.filter((p) => !deadline(p))],
+      ["Overdue", "over", open.filter(isOverdue)],
+      ["Work on now", "soon", open.filter((p) => !isOverdue(p) && startOn(p) && startOn(p) <= t)],
+      ["Starting in the next 7 days", "", open.filter((p) => startOn(p) > t && startOn(p) <= wk)],
+      ["Later", "", open.filter((p) => startOn(p) > wk)],
+      ["No date", "", open.filter((p) => !startOn(p))],
     ] as [string, string, Post[]][]).filter((g) => g[2].length);
     if (!groups.length) return <div className="adm-panel"><div className="adm-empty">Nothing open here. Every post in this view is posted.</div></div>;
     return (
@@ -432,7 +486,7 @@ export default function SocialCalendar() {
             <div className="adm-panel sm-scroll">
               <table className="adm-table">
                 <thead><tr>
-                  <th>Goes live</th><th>Work due</th>{!client && <th>Client</th>}<th>Post</th><th>Stage</th><th>Assigned</th><th>Deadline</th><th>Time</th><th />
+                  <th>Goes live</th><th>Start work</th>{!client && <th>Client</th>}<th>Post</th><th>Stage</th><th>Assigned</th><th>Timeline</th><th>Time</th><th />
                 </tr></thead>
                 <tbody>
                   {items.map((p) => {
@@ -516,8 +570,8 @@ export default function SocialCalendar() {
     const section = (label: string, body?: React.ReactNode) => (body ? <div className="sm-vsec"><h4>{label}</h4>{body}</div> : null);
     const text = (v?: string | null) => (v && v.trim() ? <p className="sm-pre">{v.trim()}</p> : null);
     const copyCaption = async () => {
-      try { await navigator.clipboard.writeText(p.caption || ""); toast("Caption copied"); }
-      catch { toast("Couldn't copy — select the text instead", "err"); }
+      try { await navigator.clipboard.writeText(p.caption || ""); toast("Caption copied", "ok", { description: "Paste it into Instagram or Facebook." }); }
+      catch { toast("Couldn't copy the caption", "err", { description: "Select the caption text and copy it by hand." }); }
     };
     return (
       <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setViewId(null); }}>
@@ -534,7 +588,7 @@ export default function SocialCalendar() {
 
           <div className="sm-vgrid">
             <div><span>Goes live</span><b>{fmtDay(p.postDate)}{p.postTime && ` · ${fmtTime(p.postTime)}`}</b></div>
-            <div><span>Work due</span><b>{p.dueDate ? fmtDay(p.dueDate) : "—"}</b>{dueChip(p)}</div>
+            <div><span>Start work on</span><b>{p.dueDate ? fmtDay(p.dueDate) : "—"}</b>{dueChip(p)}</div>
             <div><span>Assigned to</span><b className="sm-who">{assignee ? <><Avatar user={assignee} size={22} />{assignee.name}</> : "Unassigned"}</b></div>
             <div><span>Move to stage</span>
               <Select value={p.status} onChange={(v) => moveTo(p.id, v as Stage)} ariaLabel="Move to stage" options={STAGES.map((s) => ({ value: s.id, label: s.title }))} /></div>
@@ -615,8 +669,8 @@ export default function SocialCalendar() {
   const summary: [string, string | number, string][] = [
     ["Posts", list.length, ""],
     ["Posted", list.filter(isDone).length, "ok"],
-    ["Overdue", openList.filter((p) => deadline(p) && deadline(p) < t).length, "over"],
-    ["Due next 7 days", openList.filter((p) => deadline(p) >= t && deadline(p) <= wk).length, "soon"],
+    ["Overdue", openList.filter(isOverdue).length, "over"],
+    ["Work on now", openList.filter((p) => !isOverdue(p) && startOn(p) && startOn(p) <= t).length, "soon"],
     ["Time logged", hm(list.reduce((a, p) => a + loggedMin(p), 0)), ""],
     ["Time planned", `${list.reduce((a, p) => a + (Number(p.estimateHours) || 0), 0)}h`, ""],
   ];
@@ -636,14 +690,24 @@ export default function SocialCalendar() {
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input ref={fileRef} type="file" accept=".csv,text/csv" hidden onChange={(e) => { importCsv(e.target.files?.[0]); e.currentTarget.value = ""; }} />
-          {!limited && pastOpen > 0 && (
-            <button className="adm-btn ghost" onClick={markPastPosted}>Mark {pastOpen} past post{pastOpen === 1 ? "" : "s"} as Posted</button>
-          )}
           <button className="adm-btn ghost" onClick={() => fileRef.current?.click()}>Import sheet (CSV)</button>
+          {!limited && <button className="adm-btn ghost" onClick={openUploads}>Uploads</button>}
           {!limited && <button className="adm-btn ghost" onClick={addClient}>+ Client</button>}
           <button className="adm-btn primary" onClick={() => setEditing({ client, status: "planned", postDate: todayIso(), timeLog: [] })}>+ Post</button>
         </div>
       </div>
+
+      {gaps.length > 0 && (
+        <div className="sm-warn" role="status">
+          <b>{gaps.reduce((n, g) => n + g.count, 0)} posts are waiting for someone</b>
+          <ul>
+            {gaps.map((g) => (
+              <li key={g.brand + g.role}>{g.count} need a <strong>{ROLE_NAMES[g.role]}</strong> with <strong>{g.brand}</strong> ticked — nobody has that yet.</li>
+            ))}
+          </ul>
+          <span>Give someone that role and tick the brand in <a href="/dashboard/users">Users</a>. The posts are assigned to them as soon as you save.</span>
+        </div>
+      )}
 
       <div className="sm-clients" role="tablist" aria-label="Clients">
         {[{ name: "", label: "All clients" }, ...clientNames.map((n) => ({ name: n, label: n }))].map(({ name, label }) => {
@@ -690,6 +754,42 @@ export default function SocialCalendar() {
 
       {viewed && !editing && renderDetails(viewed)}
 
+      {uploads && (
+        <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setUploads(null); }}>
+          <div className="adm-drawer kb-drawer" role="dialog" aria-modal="true" aria-label="Uploads">
+            <div className="sm-vtop"><h2 style={{ margin: 0 }}>Sheet uploads</h2>
+              <button type="button" className="sm-x" onClick={() => setUploads(null)} aria-label="Close">×</button></div>
+            <p className="sub">Each upload of a media-calendar sheet. Uploading the same sheet again updates its posts instead of duplicating them.</p>
+            {uploads.length === 0 ? (
+              <div className="adm-empty">No uploads recorded yet. Sheets uploaded from now on appear here.</div>
+            ) : (
+              <div className="sm-uploads">
+                {uploads.map((u) => (
+                  <div key={u.importBatch + u.client} className="sm-upload">
+                    <div>
+                      <b>{u.client}</b>
+                      <span className="sm-muted">{new Date(u.uploadedAt).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                        {" · "}{u.posts} post{u.posts === 1 ? "" : "s"}{u.from && ` · ${fmtDay(String(u.from).slice(0, 10))} – ${fmtDay(String(u.to).slice(0, 10))}`}</span>
+                    </div>
+                    <button type="button" className="adm-btn ghost sm-danger" onClick={() => deleteUpload(u)}>Delete</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <h3 className="sm-sec">Delete all posts of a brand</h3>
+            <p className="adm-hint">For sheets uploaded before uploads were recorded, or to start a brand from scratch. You'll be asked to type the brand name.</p>
+            <div className="sm-vlinks" style={{ marginTop: 10 }}>
+              {clientNames.filter((n) => posts.some((p) => p.client === n)).length === 0 && <span className="adm-hint">No brand has posts right now.</span>}
+              {clientNames.filter((n) => posts.some((p) => p.client === n)).map((n) => (
+                <button key={n} type="button" className="adm-btn ghost sm-danger" onClick={() => deleteBrand(n)}>
+                  Delete {posts.filter((p) => p.client === n).length} posts · {n}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {editing && (
         <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditing(null); }}>
           <form className="adm-drawer kb-drawer" onSubmit={savePost}>
@@ -715,13 +815,18 @@ export default function SocialCalendar() {
             <h3 className="sm-sec">Schedule & time</h3>
             <div className="field row" style={{ gap: 12 }}>
               <div className="adm-field" style={{ flex: 1 }}><label>Post date</label>
-                <DatePicker value={txt("postDate").slice(0, 10)} onChange={(v) => set({ postDate: v })} placeholder="Goes live on" /></div>
+                <DatePicker value={txt("postDate").slice(0, 10)} onChange={(v) => setEditing((e) => {
+                  // An empty or automatic deadline follows the post date; a hand-set one stays.
+                  const auto = !e?.dueDate || String(e.dueDate).slice(0, 10) === weekBefore(e?.postDate);
+                  return { ...e, postDate: v, ...(auto && v ? { dueDate: weekBefore(v) } : {}) };
+                })} placeholder="Goes live on" /></div>
               <div className="adm-field" style={{ flex: 1 }}><label>Post time</label>
                 <input type="time" value={txt("postTime")} onChange={(e) => set({ postTime: e.target.value })} /></div>
             </div>
             <div className="field row" style={{ gap: 12 }}>
-              <div className="adm-field" style={{ flex: 1 }}><label>Work due by</label>
-                <DatePicker value={txt("dueDate").slice(0, 10)} onChange={(v) => set({ dueDate: v })} placeholder="Creative deadline" /></div>
+              <div className="adm-field" style={{ flex: 1 }}><label>Start work on</label>
+                <DatePicker value={txt("dueDate").slice(0, 10)} onChange={(v) => set({ dueDate: v })} placeholder="Start date" />
+                <span className="adm-hint">Set to 1 week before the post date (2 Nov → 26 Oct) — change it if needed.</span></div>
               <div className="adm-field" style={{ flex: 1 }}><label>Estimated hours</label>
                 <input type="number" min={0} step={0.25} value={editing.estimateHours ?? ""} onChange={(e) => set({ estimateHours: e.target.value === "" ? null : Number(e.target.value) })} placeholder="e.g. 2" /></div>
             </div>
