@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/adminApi";
 import { DashSkeleton } from "@/components/admin/Skeleton";
+import MyWork from "@/components/admin/MyWork";
+import { rolesCan, userRoles } from "@/lib/permissions";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Mail01Icon, FolderLibraryIcon, News01Icon } from "@hugeicons/core-free-icons";
 
@@ -19,6 +21,14 @@ type Lead = { id: number; stage: string; value?: number };
 const OPEN_STAGES = ["new", "contacted", "qualified", "proposal"];
 
 export default function Dashboard() {
+  const [roles, setRoles] = useState<string[] | null>(null);
+  useEffect(() => { api.me().then((r) => setRoles(userRoles(r?.user ?? r))).catch(() => setRoles([])); }, []);
+  if (roles === null) return <DashSkeleton />;
+  if (roles.length && !rolesCan(roles, "content") && rolesCan(roles, "social")) return <MyWork />;
+  return <Overview />;
+}
+
+function Overview() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);

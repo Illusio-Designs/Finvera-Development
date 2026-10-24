@@ -8,7 +8,7 @@ import UserMenu, { type Me } from "@/components/admin/UserMenu";
 import NotificationBell from "@/components/admin/NotificationBell";
 import GooeyNotifier from "@/components/admin/GooeyNotifier";
 import DialogHost from "@/components/admin/DialogHost";
-import { rolesCan, userRoles, type Area } from "@/lib/permissions";
+import { rolesCan, userRoles, ROLE_LABELS, type Area } from "@/lib/permissions";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   DashboardSquare01Icon, FolderLibraryIcon, GridViewIcon, QuoteDownIcon, UserGroupIcon,
@@ -44,11 +44,9 @@ const NAV_GROUPS: NavGroup[] = [
   { key: "social", label: "Social media", icon: InstagramIcon, items: [
     { href: "/dashboard/social", label: "Content calendar", icon: InstagramIcon, area: "social" },
   ] },
-  { key: "config", label: "Configuration", icon: Settings02Icon, items: [
+  { key: "config", label: "Admin", icon: Settings02Icon, items: [
     { href: "/dashboard/seo", label: "SEO", icon: Search01Icon, area: "seo" },
     { href: "/dashboard/settings", label: "Settings & pixels", icon: Settings02Icon, area: "settings" },
-  ] },
-  { key: "admin", label: null, items: [
     { href: "/dashboard/users", label: "Users", icon: UserMultipleIcon, area: "users" },
   ] },
 ];
@@ -79,9 +77,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [openGroups, setOpenGroups] = useState<string[]>([]);
 
   const [today, setToday] = useState("");
+  const [tip, setTip] = useState<{ text: string; y: number } | null>(null); // rail tooltip (collapsed)
   const [me, setMe] = useState<Me>(null);
   // Roles come from /auth/me when available, unioned with the role in the JWT
   // (a reliable fallback so admins/users are never locked out of their nav).
@@ -99,7 +97,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const toggleCollapsed = () => setCollapsed((c) => { localStorage.setItem("fv_admin_collapsed", c ? "0" : "1"); return !c; });
 
   const active = matchItem(pathname);
-  const pageTitle = active?.label || "Dashboard";
+  /* Team members without the content area get a personal "My work" home. */
+  const teamHome = roles.length > 0 && !rolesCan(roles, "content") && rolesCan(roles, "social");
+  const labelOf = (it: NavItem) => (it.href === "/dashboard" && teamHome ? "My work" : it.label);
+  const pageTitle = active ? labelOf(active) : "Dashboard";
+  const crumb = NAV_GROUPS.find((g) => g.label && active && g.items.includes(active))?.label;
+  const roleText = roles.map((r) => ROLE_LABELS[r] || r).join(" · ");
 
   /* Nav groups filtered to what these roles may access. */
   const groups = useMemo(() => {
@@ -108,13 +111,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .filter((g) => g.items.length > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rolesKey]);
-
-  /* Open the group that contains the active route by default. */
-  const activeHref = active?.href;
-  useEffect(() => {
-    const g = NAV_GROUPS.find((grp) => grp.label && grp.items.some((it) => it.href === activeHref));
-    if (g) setOpenGroups((prev) => (prev.includes(g.key) ? prev : [...prev, g.key]));
-  }, [activeHref]);
 
   useEffect(() => {
     if (!getToken()) { router.replace("/login"); return; }
@@ -152,60 +148,71 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!ready) return <div style={{ minHeight: "100vh", background: "#070910" }} />;
 
   const logout = () => { clearToken(); router.replace("/login"); };
-  const toggleGroup = (k: string) => setOpenGroups((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
 
   const NavLink = ({ it }: { it: NavItem }) => {
     const isActive = it.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(it.href);
     return (
-      <Link href={it.href} className={isActive ? "active" : ""} data-tip={it.label} data-tip-pos="right">
-        <HugeiconsIcon icon={it.icon} size={19} strokeWidth={1.8} className="hgi" /><span className="adm-lbl">{it.label}</span>
+      <Link href={it.href} className={isActive ? "active" : ""} aria-current={isActive ? "page" : undefined} data-tip={labelOf(it)} data-tip-pos="right">
+        <HugeiconsIcon icon={it.icon} size={19} strokeWidth={1.8} className="hgi" /><span className="adm-lbl">{labelOf(it)}</span>
       </Link>
     );
   };
 
   return (
     <div className={"adm" + (open ? " open" : "") + (collapsed ? " collapsed" : "")}>
-      <aside className="adm-side">
+      <aside className="adm-side" aria-label="Dashboard menu"
+        onMouseOver={(e) => {
+          const el = collapsed ? (e.target as HTMLElement).closest<HTMLElement>("[data-tip]") : null;
+          if (!el) { setTip(null); return; }
+          const r = el.getBoundingClientRect();
+          setTip({ text: el.dataset.tip || "", y: r.top + r.height / 2 });
+        }}
+        onMouseLeave={() => setTip(null)}>
         <div className="adm-brandrow">
           <Link href="/dashboard" className="brand" style={{ fontSize: 17 }}><Mark /> <span className="adm-lbl">Finvera</span></Link>
-          <button className="adm-collapse" onClick={toggleCollapsed} aria-label="Collapse sidebar" data-tip={collapsed ? "Expand" : "Collapse"}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d={collapsed ? "M9 18l6-6-6-6" : "M15 18l-6-6 6-6"} /></svg>
+          <button className="adm-collapse" onClick={toggleCollapsed} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} data-tip={collapsed ? "Expand" : "Collapse"} data-tip-pos="right">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M9 4v16" /><path d={collapsed ? "M13 10l2 2-2 2" : "M15 10l-2 2 2 2"} /></svg>
+          </button>
+          <button className="adm-close" onClick={() => setOpen(false)} aria-label="Close menu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
         </div>
 
-        {!me && roles.length === 0 ? (
-          <div className="adm-nav-skel">
-            {Array.from({ length: 6 }).map((_, i) => <span key={i} className="skel skel-line" style={{ height: 34, margin: "4px 0", borderRadius: 10, display: "block" }} />)}
-          </div>
-        ) : collapsed ? (
-          /* Icon-only mode — flatten groups */
-          <>{groups.flatMap((g) => g.items).map((it) => <NavLink key={it.href} it={it} />)}</>
-        ) : (
-          groups.map((g) => {
-            if (!g.label) return <div key={g.key}>{g.items.map((it) => <NavLink key={it.href} it={it} />)}</div>;
-            const isOpen = openGroups.includes(g.key);
-            const hasActive = g.items.some((it) => (it.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(it.href)));
-            return (
-              <div key={g.key} className={"adm-navgroup" + (isOpen ? " open" : "") + (hasActive ? " has-active" : "")}>
-                <button type="button" className="adm-navgroup-h" onClick={() => toggleGroup(g.key)} aria-expanded={isOpen}>
-                  {g.icon && <HugeiconsIcon icon={g.icon} size={18} strokeWidth={1.8} className="hgi" />}
-                  <span className="adm-lbl">{g.label}</span>
-                  <svg className="adm-navgroup-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
-                </button>
-                <div className="adm-navgroup-items">
-                  <div>{g.items.map((it) => <NavLink key={it.href} it={it} />)}</div>
-                </div>
+        <nav className="adm-nav">
+          {!me && roles.length === 0 ? (
+            <div className="adm-nav-skel">
+              {Array.from({ length: 6 }).map((_, i) => <span key={i} className="skel skel-line" style={{ height: 34, margin: "4px 0", borderRadius: 10, display: "block" }} />)}
+            </div>
+          ) : (
+            groups.map((g) => (
+              <div key={g.key} className="adm-navsec">
+                {g.label && <div className="adm-nav-label">{g.label}</div>}
+                {g.items.map((it) => <NavLink key={it.href} it={it} />)}
               </div>
-            );
-          })
-        )}
-        <div className="spacer" />
+            ))
+          )}
+        </nav>
+
+        <div className="adm-sidefoot">
+          {me?.avatar
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img className="adm-sideav" src={me.avatar} alt="" />
+            : <span className="adm-sideav">{(me?.name || "").split(/\s+/).map((w) => w[0] || "").slice(0, 2).join("").toUpperCase()}</span>}
+          <div className="adm-lbl adm-sidewho">
+            <b>{me?.name || "Signed in"}</b>
+            <span>{roleText}</span>
+          </div>
+          <button className="adm-signout" onClick={logout} aria-label="Sign out" data-tip="Sign out" data-tip-pos="right">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" /></svg>
+          </button>
+        </div>
       </aside>
 
+      {collapsed && tip && <div className="adm-railtip" style={{ top: tip.y }} role="tooltip">{tip.text}</div>}
       {open && <div className="adm-scrim" onClick={() => setOpen(false)} />}
       <div className="adm-main has-chrome">
         <div className="adm-mobbar">
-          <button className="adm-burger" onClick={() => setOpen((o) => !o)} aria-label="Menu">
+          <button className="adm-burger" onClick={() => setOpen((o) => !o)} aria-label="Open menu" aria-expanded={open}>
             <svg viewBox="0 0 24 24" width={18} fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 12h18M3 6h18M3 18h18" /></svg>
           </button>
           <Link href="/dashboard" className="brand" style={{ fontSize: 16 }}><Mark /> Finvera</Link>
@@ -213,10 +220,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
 
         <header className="adm-header">
-          <div>
-            <div className="ah-crumb">Manage</div>
-            <div className="ah-title">{pageTitle}</div>
-          </div>
+          <nav className="ah-path" aria-label="Breadcrumb">
+            {crumb && <><span className="ah-crumb">{crumb}</span><span className="ah-sep" aria-hidden="true">/</span></>}
+            <span className="ah-title">{pageTitle}</span>
+          </nav>
           <div className="ah-right">
             {today && <span className="ah-date">{today}</span>}
             <NotificationBell announce />
