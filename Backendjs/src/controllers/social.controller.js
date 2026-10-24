@@ -81,7 +81,7 @@ function stageRole(status, format) {
 
 /* Least-loaded active user holding `role` who can see `client`, or null.
    `ctx` caches users / brand ids / open-post counts across a bulk import. */
-async function pickAssignee(role, client, ctx) {
+async function pickAssignee(role, client, ctx, exceptId = null) {
   if (!ctx.users) ctx.users = await User.findAll({ where: { active: true } });
   if (!ctx.brandId) ctx.brandId = {};
   if (!(client in ctx.brandId)) {
@@ -98,7 +98,7 @@ async function pickAssignee(role, client, ctx) {
   }
   const bid = ctx.brandId[client];
   const eligible = ctx.users.filter((u) => {
-    if (!rolesOf(u).includes(role)) return false;
+    if (!rolesOf(u).includes(role) || u.id === exceptId) return false;
     const ids = brandIdsOf(u);
     return ids === null || (bid !== null && ids.includes(bid));
   });
@@ -155,7 +155,10 @@ const assignOnCreate = asyncHandler(async (req, _res, next) => {
 
 /* Stage changed → hand the post to the role for the new stage. Skipped when
    the same save picks an assignee by hand, or the current assignee already
-   holds the new stage's role (e.g. Planned → In production stays put). */
+   holds the new stage's role (e.g. Planned → In production stays put).
+   Ready to post is the exception: it always goes to a DIFFERENT person than
+   the one who made it (a second pair of eyes before posting) — the maker
+   keeps it only when no other Social media person has the brand. */
 const assignOnStageChange = asyncHandler(async (req, _res, next) => {
   const b = req.body || {};
   if (b.status === undefined) return next();
@@ -164,8 +167,18 @@ const assignOnStageChange = asyncHandler(async (req, _res, next) => {
   if (b.assigneeId !== undefined && Number(b.assigneeId || 0) !== Number(post.assigneeId || 0)) return next();
   const role = stageRole(b.status, b.format !== undefined ? b.format : post.format);
   const current = post.assigneeId ? await User.findByPk(post.assigneeId) : null;
+  const client = b.client !== undefined ? b.client : post.client;
+  if (b.status === "ready") {
+    const other = await pickAssignee("social", client, {}, post.assigneeId);
+    if (other) b.assigneeId = other;
+    else if (!(current && current.active && rolesOf(current).includes("social"))) {
+      const anyone = await pickAssignee("social", client, {});
+      if (anyone) b.assigneeId = anyone;
+    }
+    return next();
+  }
   if (current && current.active && rolesOf(current).includes(role)) return next();
-  const who = await pickAssignee(role, b.client !== undefined ? b.client : post.client, {});
+  const who = await pickAssignee(role, client, {});
   if (who) b.assigneeId = who;
   next();
 });
