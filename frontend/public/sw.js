@@ -24,7 +24,7 @@ self.addEventListener("push", (event) => {
     // on screen it stays quiet, because the app plays its own sound.
     await self.registration.showNotification(d.title || "Finvera", {
       body: d.body || "",
-      icon: "/icons/icon-192.png",
+      icon: "/icons/icon-192.png?v=2",
       badge: "/icons/badge-96.png",
       tag: d.tag || undefined,
       data: { url: d.url || "/dashboard" },
