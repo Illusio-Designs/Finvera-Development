@@ -35,18 +35,18 @@ export default function AdminContact() {
         {loading ? <div className="adm-empty">Loading…</div>
           : rows.length === 0 ? <div className="adm-empty">No messages yet.</div>
           : (
-            <table className="adm-table">
+            <table className="adm-table cardify">
               <thead><tr><th style={{ width: 44 }}>#</th><th>From</th><th>Email</th><th>Project</th><th>Received</th><th>Status</th><th style={{ textAlign: "right" }}>Actions</th></tr></thead>
               <tbody>
                 {rows.map((m, i) => (
                   <tr key={m.id} style={{ fontWeight: m.isRead ? 400 : 600 }}>
-                    <td style={{ color: "var(--muted-2)", fontVariantNumeric: "tabular-nums" }}>{i + 1}</td>
-                    <td>{m.name}</td>
-                    <td>{m.email}</td>
-                    <td>{m.projectType || "—"}</td>
-                    <td style={{ color: "var(--muted-2)" }}>{new Date(m.createdAt).toLocaleDateString()}</td>
-                    <td><span className={"adm-badge " + (m.isRead ? "published" : "draft")}>{m.isRead ? "read" : "new"}</span></td>
-                    <td>
+                    <td className="c-num" style={{ color: "var(--muted-2)", fontVariantNumeric: "tabular-nums" }}>{i + 1}</td>
+                    <td className="c-primary">{m.name}</td>
+                    <td data-label="Email">{m.email}</td>
+                    <td data-label="Project">{m.projectType || "—"}</td>
+                    <td data-label="Received" style={{ color: "var(--muted-2)" }}>{new Date(m.createdAt).toLocaleDateString()}</td>
+                    <td data-label="Status"><span className={"adm-badge " + (m.isRead ? "published" : "draft")}>{m.isRead ? "read" : "new"}</span></td>
+                    <td className="c-act">
                       <div className="adm-rowbtns">
                         <button className="adm-ibtn" title="View" onClick={() => setOpen(m)}>
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>

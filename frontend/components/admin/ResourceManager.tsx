@@ -196,6 +196,8 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
   const totalPages = Math.max(1, Math.ceil(sorted.length / PER_PAGE));
   const pageSafe = Math.min(page, totalPages);
   const paged = sorted.slice((pageSafe - 1) * PER_PAGE, pageSafe * PER_PAGE);
+  // On phones each row becomes a card headed by its first plain-text column.
+  const primaryCol = columns.find((c) => !c.type || c.type === "text")?.name ?? columns.find((c) => c.type !== "image" && c.type !== "avatar")?.name;
 
   const setField = (name: string, value: any) => setEditing((s) => ({ ...(s || {}), [name]: value }));
 
@@ -232,7 +234,7 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
           <div className="adm-empty">No matches for “{query}”.</div>
         ) : (
           <>
-          <table className="adm-table">
+          <table className="adm-table cardify">
             <thead>
               <tr>
                 <th style={{ width: 44 }}>#</th>
@@ -249,16 +251,17 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
             <tbody>
               {paged.map((row, i) => (
                 <tr key={row.id}>
-                  <td style={{ color: "var(--muted-2)", fontVariantNumeric: "tabular-nums" }}>{(pageSafe - 1) * PER_PAGE + i + 1}</td>
+                  <td className="c-num" style={{ color: "var(--muted-2)", fontVariantNumeric: "tabular-nums" }}>{(pageSafe - 1) * PER_PAGE + i + 1}</td>
                   {columns.map((c) => (
-                    <td key={c.name}>
+                    <td key={c.name} data-label={c.label}
+                      className={c.type === "image" || c.type === "avatar" ? "c-media" : c.name === primaryCol ? "c-primary" : undefined}>
                       {c.type === "image" || c.type === "avatar" ? (
                         row[c.name]
                           // eslint-disable-next-line @next/next/no-img-element
                           ? <img className={c.type === "avatar" ? "adm-avatar-cell" : "adm-thumb"} src={row[c.name]} alt="" />
                           : (c.type === "avatar"
                               ? <span className="adm-avatar-cell adm-avatar-fb">{String(row.name || row.title || "?").slice(0, 1).toUpperCase()}</span>
-                              : <span style={{ color: "var(--muted-2)" }}>—</span>)
+                              : <span className="adm-noimg" style={{ color: "var(--muted-2)" }}>—</span>)
                       ) : c.type === "status" ? (
                         <span className={"adm-badge " + (row[c.name] || "published")}>{row[c.name]}</span>
                       ) : c.type === "tags" ? (
@@ -289,11 +292,11 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                           return <span className={"adm-renew-badge " + cls} title={fmtDate(row[c.name])}>{fmtDate(row[c.name])} · {txt}</span>;
                         })()
                       ) : (
-                        String(row[c.name] ?? "").slice(0, 60)
+                        String(row[c.name] ?? "").slice(0, 60) || null
                       )}
                     </td>
                   ))}
-                  <td>
+                  <td className="c-act">
                     <div className="adm-rowbtns">
                       <Tooltip label="Edit">
                         <button className="adm-ibtn" aria-label="Edit" onClick={() => { setFormErr(""); setEditing({ ...row }); }}>

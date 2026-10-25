@@ -49,7 +49,7 @@ export default function AdminSeo() {
         {loading ? (
           <TableSkeleton rows={7} cols={3} />
         ) : (
-          <table className="adm-table">
+          <table className="adm-table cardify">
             <thead>
               <tr>
                 <th style={{ width: 44 }}>#</th>
@@ -65,12 +65,12 @@ export default function AdminSeo() {
                 const s = data[p] || { page: p };
                 return (
                   <tr key={p}>
-                    <td style={{ color: "var(--muted-2)" }}>{i + 1}</td>
-                    <td><b style={{ textTransform: "capitalize" }}>{p}</b><small style={{ display: "block", color: "var(--muted-2)", fontSize: 11.5, fontFamily: "var(--mono)" }}>/{p === "home" ? "" : p}</small></td>
-                    <td style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title || <span style={{ color: "var(--muted-2)" }}>—</span>}</td>
-                    <td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--muted)" }}>{s.description || "—"}</td>
-                    <td><span className={"adm-badge " + (s.noindex ? "draft" : "published")}>{s.noindex ? "No-index" : "Indexed"}</span></td>
-                    <td>
+                    <td className="c-num" style={{ color: "var(--muted-2)" }}>{i + 1}</td>
+                    <td className="c-primary"><b style={{ textTransform: "capitalize" }}>{p}</b><small style={{ display: "block", color: "var(--muted-2)", fontSize: 11.5, fontFamily: "var(--mono)" }}>/{p === "home" ? "" : p}</small></td>
+                    <td data-label="Title" style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title || <span style={{ color: "var(--muted-2)" }}>—</span>}</td>
+                    <td data-label="Description" style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--muted)" }}>{s.description || "—"}</td>
+                    <td data-label="Indexed"><span className={"adm-badge " + (s.noindex ? "draft" : "published")}>{s.noindex ? "No-index" : "Indexed"}</span></td>
+                    <td className="c-act">
                       <div className="adm-rowbtns">
                         <button className="adm-ibtn" onClick={() => setEditing({ ...s })} data-tip="Edit" aria-label="Edit">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>

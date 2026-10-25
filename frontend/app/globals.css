@@ -2480,3 +2480,32 @@ section{position:relative;z-index:2}
 .adm .gooey-actionError{background:#b42323;color:#fff}.adm .gooey-actionError:hover{background:#951b1b}
 .adm .gooey-actionWarning{background:#8a4b12;color:#fff}.adm .gooey-actionWarning:hover{background:#723d0e}
 .adm .gooey-progressInfo{background:#2f4f9e}
+
+/* Phones: list tables become stacked cards (title + actions on top,
+   the other columns as label/value rows). */
+@media (max-width:720px){
+  .adm-panel:has(> .adm-table.cardify){background:transparent;border:0;box-shadow:none;overflow:visible}
+  .adm-table.cardify{display:block;overflow:visible;white-space:normal}
+  .adm-table.cardify thead{display:none}
+  .adm-table.cardify tbody{display:flex;flex-direction:column;gap:10px}
+  .adm-table.cardify tr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;row-gap:0;
+    background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px 10px}
+  .adm-table.cardify tr:hover td{background:none}
+  .adm-table.cardify td{display:block;padding:0;border:0;min-width:0}
+  .adm-table.cardify td.c-num{display:none}
+  .adm-table.cardify td.c-media{grid-column:1;grid-row:1;margin-right:12px}
+  .adm-table.cardify td.c-primary{grid-column:2;grid-row:1;font-size:15px;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+  .adm-table.cardify td.c-act{grid-column:3;grid-row:1;margin-left:10px}
+  .adm-table.cardify td.c-act .adm-ibtn{width:38px;height:38px}
+  .adm-table.cardify td[data-label]:not(.c-media):not(.c-primary){grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;
+    gap:14px;padding:8px 0 0;margin-top:8px;border-top:1px solid #eef1f8;font-size:13.5px;text-align:right;
+    max-width:none!important;white-space:normal!important;overflow:visible!important}
+  .adm-table.cardify td[data-label]:not(.c-media):not(.c-primary)::before{content:attr(data-label);flex:none;text-align:left;
+    font-size:12.5px;font-weight:500;color:#5b6785}
+  .adm-table.cardify td[data-label]:not(.c-media):not(.c-primary) + td[data-label]:not(.c-media):not(.c-primary){margin-top:0}
+  .adm-table.cardify td.c-primary + td[data-label]:not(.c-media){margin-top:10px}
+  .adm-table.cardify .adm-cell-tags,.adm-table.cardify .adm-progress{justify-content:flex-end}
+  .adm-table.cardify .adm-progress{min-width:150px}
+  .adm-table.cardify td.c-media .adm-thumb{width:56px;height:40px}
+  .adm-table.cardify td[data-label]:not(.c-media):not(.c-primary):empty,.adm-table.cardify td.c-media:has(.adm-noimg){display:none}
+}
