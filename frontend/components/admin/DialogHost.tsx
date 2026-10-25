@@ -38,7 +38,7 @@ export default function DialogHost() {
           </div>
         )}
         <h3>{opts.title}</h3>
-        {opts.message && <p>{opts.message}</p>}
+        {opts.message && <p style={{ whiteSpace: "pre-line" }}>{opts.message}</p>}
         {kind === "prompt" && (opts.multiline ? (
           <textarea
             ref={inputRef as React.RefObject<HTMLTextAreaElement>}

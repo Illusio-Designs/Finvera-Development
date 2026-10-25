@@ -2588,3 +2588,15 @@ section{position:relative;z-index:2}
   .kb-col-head .m button{width:36px;height:36px}
   .kb-openhead{flex-wrap:wrap;gap:10px}
 }
+
+/* Sidebar "Install app" (shown only when the browser can install / on iPhone) */
+.adm-install{flex:none;display:flex;align-items:center;gap:11px;margin:0 12px 8px;height:38px;padding:0 10px;border-radius:9px;
+  border:1px dashed #c7cfdf;color:#1d3474;font-size:13.5px;font-weight:600;background:#f7f9fd;transition:.2s}
+.adm-install:hover{background:#e8eefb;border-color:#2f4f9e}
+.adm-install svg{width:18px;height:18px;flex:none}
+@media (min-width:861px){.adm.collapsed .adm-install{width:44px;margin:0 auto 8px;padding:0;justify-content:center}}
+/* Installed app: keep content clear of the iPhone notch / home bar */
+@media (display-mode: standalone){
+  .adm-mobbar{padding-top:max(8px, env(safe-area-inset-top))}
+  .adm-sidefoot{padding-bottom:max(12px, env(safe-area-inset-bottom))}
+}

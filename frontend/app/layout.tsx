@@ -19,7 +19,12 @@ export const metadata: Metadata = {
   },
   description:
     "Finvera is a SaaS & CRM development agency. We design, build and scale high-quality SaaS platforms and CRM systems that help businesses grow, scale and innovate.",
-  icons: { icon: "/favicon.svg" },
+  icons: {
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }, { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  // iPhone/iPad "Add to Home Screen": open full screen with this name.
+  appleWebApp: { capable: true, title: "Finvera", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {

@@ -6,6 +6,7 @@ import { Mark } from "@/components/icons";
 import { getToken, clearToken, api } from "@/lib/adminApi";
 import { type Me } from "@/components/admin/UserMenu";
 import JumpTo from "@/components/admin/JumpTo";
+import InstallApp from "@/components/admin/InstallApp";
 import NotificationBell from "@/components/admin/NotificationBell";
 import GooeyNotifier from "@/components/admin/GooeyNotifier";
 import DialogHost from "@/components/admin/DialogHost";
@@ -227,6 +228,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           )}
         </nav>
 
+        <InstallApp />
         <div className="adm-sidefoot">
           {me?.avatar
             // eslint-disable-next-line @next/next/no-img-element
