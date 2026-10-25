@@ -62,6 +62,11 @@ export const api = {
   markNotifRead: (id: number) => req(`/notifications/${id}/read`, { method: "PATCH" }),
   markAllNotifRead: () => req(`/notifications/read-all`, { method: "POST" }),
   clearNotifs: () => req(`/notifications/clear`, { method: "POST" }),
+  /* Web Push (phone / desktop notifications) */
+  pushKey: () => req(`/push/key`),
+  pushSubscribe: (subscription: any) => req(`/push/subscribe`, { method: "POST", body: JSON.stringify({ subscription }) }),
+  pushUnsubscribe: (endpoint: string) => req(`/push/unsubscribe`, { method: "POST", body: JSON.stringify({ endpoint }) }),
+  pushTest: () => req(`/push/test`, { method: "POST" }),
 
   /* Kanban — boards (Trello-style) */
   listBoards: () => req(`/boards`),

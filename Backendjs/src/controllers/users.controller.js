@@ -1,5 +1,6 @@
 const bcrypt = require("bcryptjs");
-const { User } = require("../models");
+const { User, SocialClient } = require("../models");
+const { notifyUsers } = require("../utils/notify");
 const { asyncHandler } = require("../utils/crud");
 const { ACCEPTED_ROLES, rolesOf } = require("../utils/permissions");
 
@@ -17,6 +18,22 @@ function normBrands(v) {
   let a = v;
   if (typeof a === "string") { try { a = JSON.parse(a); } catch { a = []; } }
   return Array.isArray(a) ? [...new Set(a.map(String).filter((x) => /^\d+$/.test(x)))] : [];
+}
+
+/* Tell someone which social brands they were just given. */
+async function announceBrands(user, before, actorId) {
+  try {
+    const added = normBrands(user.socialClients).filter((id) => !before.includes(id));
+    if (!added.length) return;
+    const names = (await SocialClient.findAll({ where: { id: added.map(Number) } })).map((b) => b.name);
+    if (!names.length) return;
+    await notifyUsers([user.id], {
+      type: "info",
+      title: names.length === 1 ? `You now have access to ${names[0]}` : `You now have access to ${names.length} brands`,
+      body: names.length === 1 ? "Its content calendar is in Social media → Content calendar." : names.join(", "),
+      link: "/dashboard/social",
+    }, actorId);
+  } catch (e) { console.warn("announceBrands:", e.message); }
 }
 
 /* New roles / brands may make someone the right person for waiting posts. */
@@ -58,6 +75,7 @@ const create = asyncHandler(async (req, res) => {
     title: title || null,
     socialClients: normBrands(socialClients),
   });
+  await announceBrands(user, [], req.user?.id);
   await sweepSocial();
   res.status(201).json(safe(user));
 });
@@ -66,6 +84,7 @@ const update = asyncHandler(async (req, res) => {
   const user = await User.findByPk(req.params.id);
   if (!user) return res.status(404).json({ message: "User not found." });
   const { name, email, password, role, roles, active, avatar, title, socialClients } = req.body;
+  const brandsBefore = normBrands(user.socialClients);
   if (name != null) user.name = name;
   if (email != null) user.email = String(email).toLowerCase().trim();
   if (roles != null || role != null) { const l = normRoles(roles, role); user.roles = l; user.role = l[0]; }
@@ -75,6 +94,7 @@ const update = asyncHandler(async (req, res) => {
   if (socialClients !== undefined) user.socialClients = normBrands(socialClients);
   if (password) user.password = await bcrypt.hash(password, 10);
   await user.save();
+  await announceBrands(user, brandsBefore, req.user?.id);
   await sweepSocial();
   res.json(safe(user));
 });

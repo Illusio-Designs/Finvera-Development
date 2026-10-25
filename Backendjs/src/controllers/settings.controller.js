@@ -1,4 +1,6 @@
+const { Op } = require("sequelize");
 const { Seo, Setting } = require("../models");
+const NOT_SYSTEM = { [Op.or]: [{ group: null }, { group: { [Op.ne]: "system" } }] };
 const { asyncHandler } = require("../utils/crud");
 
 /* ── SEO (per page) ──────────────────────────────────── */
@@ -23,7 +25,9 @@ const upsertSeo = asyncHandler(async (req, res) => {
 
 /* ── Settings (key/value: analytics, pixels, brand) ──── */
 const getSettings = asyncHandler(async (req, res) => {
-  const where = req.user ? {} : { isPublic: true };
+  // Signed-in users get every non-internal setting; the "system" group (seed
+  // version, push keys, migration markers) is never returned.
+  const where = req.user ? NOT_SYSTEM : { isPublic: true, ...NOT_SYSTEM };
   const rows = await Setting.findAll({ where });
   // return as a flat object { key: value } plus grouped meta
   const map = {};
@@ -32,7 +36,7 @@ const getSettings = asyncHandler(async (req, res) => {
 });
 
 const getSettingsDetailed = asyncHandler(async (_req, res) => {
-  res.json(await Setting.findAll({ order: [["group", "ASC"], ["key", "ASC"]] }));
+  res.json(await Setting.findAll({ where: NOT_SYSTEM, order: [["group", "ASC"], ["key", "ASC"]] }));
 });
 
 /* Bulk upsert settings (admin): body = { key: value, ... } or [{key,value,group,isPublic}] */

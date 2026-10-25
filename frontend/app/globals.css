@@ -2600,3 +2600,21 @@ section{position:relative;z-index:2}
   .adm-mobbar{padding-top:max(8px, env(safe-area-inset-top))}
   .adm-sidefoot{padding-bottom:max(12px, env(safe-area-inset-bottom))}
 }
+
+/* Notification panel: enable phone / desktop notifications */
+.adm-push{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:12px;margin:10px 12px 4px;padding:12px;
+  border-radius:12px;background:#f3f6fd;border:1px solid #dde5f6}
+.adm-push-ic{width:34px;height:34px;border-radius:10px;background:#2f4f9e;color:#fff;display:grid;place-items:center}
+.adm-push-ic svg{width:18px;height:18px}
+.adm-push-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.adm-push-txt b{font-size:13.5px;font-weight:700;color:var(--ink)}
+.adm-push-txt small{font-size:12px;color:#5b6785;line-height:1.4}
+.adm-push-btn{height:36px;padding:0 14px;border-radius:9px;background:#2f4f9e;color:#fff;font-size:13px;font-weight:700;white-space:nowrap}
+.adm-push-btn:hover{background:#243f84}
+.adm-push-btn:disabled{opacity:.6}
+.adm-push-btn.ghost{background:#fff;color:#1d3474;border:1px solid #c7d3ee}
+.adm-push.on{display:flex;gap:8px;padding:8px 12px;background:#eef8f2;border-color:#cdeadb;font-size:12.5px;color:#15703a;font-weight:600}
+.adm-push.on i{width:8px;height:8px;border-radius:50%;background:#16a34a;flex:none}
+.adm-push.on span{flex:1}
+.adm-push.on button{font-size:12.5px;font-weight:600;color:#5b6785;padding:4px 8px;border-radius:7px}
+.adm-push.on button:hover{background:#fff;color:#b42323}

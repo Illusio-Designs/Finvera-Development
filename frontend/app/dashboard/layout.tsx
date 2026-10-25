@@ -7,6 +7,7 @@ import { getToken, clearToken, api } from "@/lib/adminApi";
 import { type Me } from "@/components/admin/UserMenu";
 import JumpTo from "@/components/admin/JumpTo";
 import InstallApp from "@/components/admin/InstallApp";
+import { registerWorker, syncPush, disablePush } from "@/lib/push";
 import NotificationBell from "@/components/admin/NotificationBell";
 import GooeyNotifier from "@/components/admin/GooeyNotifier";
 import DialogHost from "@/components/admin/DialogHost";
@@ -96,6 +97,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => { setCollapsed(localStorage.getItem("fv_admin_collapsed") === "1"); }, []);
   useEffect(() => { setToday(new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })); }, []);
   useEffect(() => { if (getToken()) api.me().then((r) => setMe(r?.user ?? r)).catch(() => {}); }, []);
+  /* Push notifications: start the service worker, keep this device's
+     subscription linked to whoever is signed in, and refresh the bell and
+     sidebar badges the moment a push arrives while the app is open. */
+  useEffect(() => {
+    if (!getToken() || !("serviceWorker" in navigator)) return;
+    registerWorker().then(() => syncPush());
+    const onMsg = (e: MessageEvent) => {
+      if (e.data?.type !== "fv-push") return;
+      window.dispatchEvent(new Event("fv-push"));
+      window.dispatchEvent(new Event("fv-badges"));
+    };
+    navigator.serviceWorker.addEventListener("message", onMsg);
+    return () => navigator.serviceWorker.removeEventListener("message", onMsg);
+  }, []);
   const toggleCollapsed = () => setCollapsed((c) => { localStorage.setItem("fv_admin_collapsed", c ? "0" : "1"); return !c; });
 
   const active = matchItem(pathname);
@@ -181,7 +196,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (!ready) return <div style={{ minHeight: "100vh", background: "#070910" }} />;
 
-  const logout = () => { clearToken(); router.replace("/login"); };
+  // Signing out stops this device getting the previous person's notifications.
+  const logout = async () => { await disablePush(); clearToken(); router.replace("/login"); };
 
   const NavLink = ({ it }: { it: NavItem }) => {
     const isActive = it.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(it.href);

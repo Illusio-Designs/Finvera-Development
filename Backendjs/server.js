@@ -25,8 +25,8 @@ async function start() {
     //                   no ALTER scan, so Passenger workers boot fast and don't
     //                   pile up (avoids nproc exhaustion on shared hosting).
     //   DB_SYNC_ALTER=true → sequelize.sync({ alter: true }) : reconciles columns
-    //                   (run this for ONE restart after a schema change, e.g. the
-    //                   new user `roles` column, then remove the flag).
+    //                   (run this for ONE restart after a schema change, then
+    //                   remove the flag).
     //   SKIP_DB_SYNC=true → skip entirely.
     if (String(process.env.SKIP_DB_SYNC).toLowerCase() !== "true") {
       const alter = String(process.env.DB_SYNC_ALTER).toLowerCase() === "true";
@@ -54,6 +54,11 @@ async function start() {
     app.listen(PORT, () => {
       console.log(`\x1b[36m✔ Finvera API running on http://localhost:${PORT}\x1b[0m`);
     });
+
+    // Daily reminders (10:15 AM India time) — checked every 5 minutes while
+    // the app is awake; claimed once per day so restarts never resend.
+    const { maybeRunDaily } = require("./src/utils/dailyReminders");
+    setInterval(() => { maybeRunDaily().catch(() => {}); }, 5 * 60 * 1000).unref();
   } catch (err) {
     // Only genuine start failures (e.g. DB unreachable) reach here.
     console.error("\x1b[31m✘ Failed to start server:\x1b[0m", err.message);

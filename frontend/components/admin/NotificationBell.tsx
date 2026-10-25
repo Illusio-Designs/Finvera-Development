@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { api, getToken } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
 import { playSound, isSoundOn, setSoundOn } from "@/lib/sound";
+import { pushState, enablePush, disablePush, type PushState } from "@/lib/push";
+import { dialog } from "@/lib/dialog";
 
 type Notif = { id: number; type: string; title: string; body?: string | null; link?: string | null; isRead: boolean; createdAt: string };
 
@@ -49,6 +51,8 @@ export default function NotificationBell({ announce: _announce = false }: { anno
   const [sound, setSound] = useState(true);
   const ref = useRef<HTMLDivElement>(null);
   const openRef = useRef(false);
+  const [push, setPush] = useState<PushState | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
   // Highest notification id already seen — anything newer pops up as a toast.
   const seen = useRef<number | null>(null);
 
@@ -90,7 +94,8 @@ export default function NotificationBell({ announce: _announce = false }: { anno
     const wake = () => load();
     document.addEventListener("visibilitychange", wake);
     window.addEventListener("resize", wake);
-    return () => { clearInterval(t); document.removeEventListener("visibilitychange", wake); window.removeEventListener("resize", wake); };
+    window.addEventListener("fv-push", wake); // a push just arrived (from the service worker)
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", wake); window.removeEventListener("resize", wake); window.removeEventListener("fv-push", wake); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const toggleSound = () => { const on = !sound; setSound(on); setSoundOn(on); if (on) playSound("notify"); };
@@ -110,6 +115,7 @@ export default function NotificationBell({ announce: _announce = false }: { anno
   const toggle = async () => {
     if (open) { close(); return; }
     setOpen(true);
+    pushState().then(setPush).catch(() => setPush("unsupported"));
     if (unread > 0) {
       setUnread(0);
       try { await api.markAllNotifRead(); } catch { /* ignore */ }
@@ -117,6 +123,31 @@ export default function NotificationBell({ announce: _announce = false }: { anno
   };
 
   const openItem = (n: Notif) => { close(); if (n.link) router.push(n.link); };
+
+  /* Turn on phone / desktop notifications for this device, then send one
+     test notification so the person sees it working straight away. */
+  const turnOnPush = async () => {
+    setPushBusy(true);
+    const r = await enablePush();
+    setPushBusy(false);
+    if (r.ok) {
+      setPush("on");
+      toast("Notifications are on", "ok", { description: "A test notification is on its way to this device." });
+      api.pushTest().catch(() => {});
+    } else if (r.reason === "denied") {
+      setPush("denied");
+    } else if (r.reason === "dismissed") {
+      toast("Notifications not turned on", "info", { description: "Tap Enable again and choose Allow when your device asks." });
+    } else {
+      toast("Couldn't turn on notifications", "err", { description: r.message || "Please try again." });
+    }
+  };
+  const turnOffPush = async () => { setPushBusy(true); await disablePush(); setPushBusy(false); setPush("off"); toast("Notifications turned off for this device", "info"); };
+  const iosSteps = () => dialog.alert({
+    title: "Add Finvera to your Home Screen",
+    message: "iPhone and iPad only send notifications to the Home Screen app.\n\n1. In Safari, tap the Share button (the square with an arrow).\n2. Tap \u201cAdd to Home Screen\u201d, then \u201cAdd\u201d.\n3. Open Finvera from its new icon, tap the bell and tap Enable.",
+    confirmText: "Got it",
+  });
   const clearAll = async () => { setItems([]); setUnread(0); try { await api.clearNotifs(); } catch { /* ignore */ } };
 
   const fresh = items.filter((n) => !n.isRead).length;
@@ -143,6 +174,28 @@ export default function NotificationBell({ announce: _announce = false }: { anno
               </svg>
             </button>
           </div>
+          {push && push !== "unsupported" && (
+            push === "on" ? (
+              <div className="adm-push on">
+                <i aria-hidden="true" />
+                <span>Notifications are on for this device</span>
+                <button type="button" onClick={turnOffPush} disabled={pushBusy}>Turn off</button>
+              </div>
+            ) : (
+              <div className="adm-push">
+                <span className="adm-push-ic" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5" /><path d="M10 18h4M12 6.5a3 3 0 0 0-3 3c0 2.5-1 3.5-1 3.5h8s-1-1-1-3.5a3 3 0 0 0-3-3z" /></svg>
+                </span>
+                <span className="adm-push-txt">
+                  {push === "off" && <><b>Get notifications on this device</b><small>Assignments, updates and reminders, even when Finvera is closed.</small></>}
+                  {push === "ios-install" && <><b>Add Finvera to your Home Screen first</b><small>On iPhone and iPad, notifications only work in the Home Screen app.</small></>}
+                  {push === "denied" && <><b>Notifications are blocked</b><small>Allow them for Finvera in your device or browser settings, then reopen the app.</small></>}
+                </span>
+                {push === "off" && <button type="button" className="adm-push-btn" onClick={turnOnPush} disabled={pushBusy}>{pushBusy ? "Enabling…" : "Enable"}</button>}
+                {push === "ios-install" && <button type="button" className="adm-push-btn ghost" onClick={iosSteps}>How</button>}
+              </div>
+            )
+          )}
           <div className="adm-notif-list">
             {items.length === 0 ? (
               <div className="adm-notif-empty">

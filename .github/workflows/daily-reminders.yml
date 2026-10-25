@@ -1,0 +1,22 @@
+name: Daily reminders wake-up
+
+# The API runs on shared hosting with no cron, and the app can be asleep at
+# 10:15 AM. This pings it once a day so the daily reminders (content calendar
+# start/overdue, renewals, board due dates) go out on time. The endpoint is
+# safe to call: it only runs once per day, after 10:15 AM India time.
+on:
+  schedule:
+    - cron: "46 4 * * *"   # 04:46 UTC = 10:16 AM IST
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake the API and run today's reminders
+        run: |
+          for i in 1 2 3; do
+            curl -fsS --max-time 60 "https://api.finvera.solutions/api/cron/daily" && exit 0
+            sleep 20
+          done
+          echo "API did not answer"; exit 1
