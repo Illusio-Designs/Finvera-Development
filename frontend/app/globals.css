@@ -1733,10 +1733,10 @@ section{position:relative;z-index:2}
 .adm-collapse{width:32px;height:32px;border-color:var(--line);background:#fff}
 .adm-close{display:none;margin-left:auto;width:44px;height:44px;border-radius:10px;place-items:center;color:var(--muted)}
 .adm-close svg{width:20px;height:20px}
-.adm-nav{flex:1;min-height:0;overflow-y:auto;padding:12px 12px 10px;display:flex;flex-direction:column;gap:14px;scrollbar-width:thin}
-.adm-navsec{display:flex;flex-direction:column;gap:2px}
-.adm-nav-label{margin:0;padding:0 10px 6px;font-size:11px;font-weight:600;letter-spacing:.06em;color:#5b6785}
-.adm-side a{height:38px;padding:0 10px;border-radius:9px;color:#33405e;font-size:14px;font-weight:500;gap:11px}
+.adm-nav{flex:1;min-height:0;overflow-y:auto;padding:10px 12px 8px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin}
+.adm-navsec{display:flex;flex-direction:column;gap:1px}
+.adm-nav-label{margin:0;padding:0 10px 4px;font-size:11px;font-weight:600;letter-spacing:.06em;color:#5b6785}
+.adm-side a{height:35px;padding:0 10px;border-radius:9px;color:#33405e;font-size:14px;font-weight:500;gap:11px}
 .adm-side a .hgi{width:18px;height:18px}
 .adm-side a:hover{background:#f2f5fb;color:var(--ink)}
 .adm-side a.active{background:#e8eefb;color:#1d3474;font-weight:600;box-shadow:inset 3px 0 0 var(--blue-600, #2f4f9e)}

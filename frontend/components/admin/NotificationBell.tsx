@@ -45,6 +45,7 @@ export default function NotificationBell({ announce: popUp = false }: { announce
   const [open, setOpen] = useState(false);
   const [sound, setSound] = useState(true);
   const ref = useRef<HTMLDivElement>(null);
+  const openRef = useRef(false);
   // Highest notification id already seen — anything newer pops up as a toast.
   const seen = useRef<number | null>(null);
 
@@ -53,7 +54,9 @@ export default function NotificationBell({ announce: popUp = false }: { announce
     try {
       const r = await api.listNotifications();
       const list: Notif[] = Array.isArray(r) ? r : (r?.items || []);
-      setItems(list);
+      // While the panel is open, keep the "new" highlight on items the
+      // server has already marked read (opening the panel marks them).
+      setItems((prev) => (openRef.current ? list.map((n) => (prev.some((p) => p.id === n.id && !p.isRead) ? { ...n, isRead: false } : n)) : list));
       setUnread(typeof r?.unread === "number" ? r.unread : list.filter((n) => !n.isRead).length);
       announce(list);
     } catch { /* ignore */ }
@@ -88,6 +91,7 @@ export default function NotificationBell({ announce: popUp = false }: { announce
 
   /* Opening marks everything read on the server, but the new ones keep
      their highlight until the panel closes so you can see what's new. */
+  useEffect(() => { openRef.current = open; }, [open]);
   const close = () => { setOpen(false); setItems((xs) => xs.map((n) => ({ ...n, isRead: true }))); };
   const toggle = async () => {
     if (open) { close(); return; }

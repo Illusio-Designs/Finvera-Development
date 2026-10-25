@@ -35,7 +35,8 @@ function due(p: Post, t: string) {
 }
 
 export default function MyWork() {
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);   // assigned to me
+  const [all, setAll] = useState<Post[]>([]);       // every post I can see (for my logged time)
   const [me, setMe] = useState<{ id?: number; name?: string } | null>(null);
   const [ready, setReady] = useState(false);
 
@@ -45,7 +46,9 @@ export default function MyWork() {
         const [m, p] = await Promise.all([api.me().catch(() => null), api.list("social-posts").catch(() => [])]);
         const u = m?.user ?? m;
         setMe(u);
-        setPosts((Array.isArray(p) ? p : []).filter((x: Post) => x.assigneeId === u?.id));
+        const list: Post[] = Array.isArray(p) ? p : [];
+        setAll(list);
+        setPosts(list.filter((x) => x.assigneeId === u?.id));
       } finally { setReady(true); }
     })();
   }, []);
@@ -60,7 +63,8 @@ export default function MyWork() {
   const workNow = open.filter((p) => { const live = day(p.postDate), start = day(p.dueDate) || (live ? addDays(live, -7) : ""); return start && start <= t && (!live || live >= t); }).length;
   const startingSoon = open.filter((p) => { const s = day(p.dueDate); return s > t && s <= weekEnd; }).length;
   const monday = addDays(t, -((new Date().getDay() + 6) % 7));
-  const minutes = posts.flatMap(logs).filter((e) => e.userId === me?.id && day(e.at) >= monday).reduce((s, e) => s + (Number(e.minutes) || 0), 0);
+  // Time I logged counts even after the post moved on to someone else.
+  const minutes = all.flatMap(logs).filter((e) => e.userId === me?.id && day(e.at) >= monday).reduce((s, e) => s + (Number(e.minutes) || 0), 0);
   const hours = minutes ? `${Math.round((minutes / 60) * 10) / 10}h` : "0h";
   const brands = new Set(open.map((p) => p.client)).size;
 

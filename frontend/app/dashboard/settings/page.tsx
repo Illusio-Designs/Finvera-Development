@@ -25,6 +25,10 @@ const GROUP_SUB: Record<string, string> = {
   analytics: "Connect Google Analytics, GTM and the Facebook Pixel. Leave blank to disable.",
 };
 
+/* Only the settings above are edited here. Internal keys (seed version,
+   board columns, one-off migration markers) are never shown or sent back. */
+const EDITABLE = (key: string) => key in LABELS;
+
 export default function AdminSettings() {
   const [rows, setRows] = useState<any[]>([]);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -37,9 +41,10 @@ export default function AdminSettings() {
     (async () => {
       try {
         const data: any[] = await api.getSettings();
-        setRows(data);
+        const shown = data.filter((r) => EDITABLE(r.key));
+        setRows(shown);
         const v: Record<string, string> = {};
-        data.forEach((r) => { v[r.key] = r.value || ""; });
+        shown.forEach((r) => { v[r.key] = r.value || ""; });
         setValues(v);
       } catch (e) { setError(e instanceof Error ? e.message : "Failed to load"); }
       finally { setLoading(false); }

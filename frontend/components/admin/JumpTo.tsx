@@ -18,6 +18,9 @@ export default function JumpTo({ items }: { items: JumpItem[] }) {
   useEffect(() => { setMac(/Mac|iPhone|iPad/.test(navigator.platform)); }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Leave Ctrl/⌘ K to rich-text editors (add link) and anything that already handled it.
+      const t = e.target as HTMLElement | null;
+      if (e.defaultPrevented || t?.isContentEditable) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); input.current?.focus(); setOpen(true); }
     };
     const onDown = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
