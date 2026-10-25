@@ -18,11 +18,11 @@ export default function AdminContact() {
   useEffect(() => { load(); }, []);
 
   async function toggle(m: any) {
-    try { await api.markContact(m.id, !m.isRead); await load(); } catch { /* */ }
+    try { await api.markContact(m.id, !m.isRead); await load(); window.dispatchEvent(new Event("fv-badges")); } catch { /* */ }
   }
   async function del(id: number) {
     if (!(await dialog.confirm({ title: "Delete this message?", message: "This can't be undone.", danger: true, confirmText: "Delete" }))) return;
-    try { await api.removeContact(id); setOpen(null); await load(); } catch { /* */ }
+    try { await api.removeContact(id); setOpen(null); await load(); window.dispatchEvent(new Event("fv-badges")); } catch { /* */ }
   }
 
   return (

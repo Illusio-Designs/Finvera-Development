@@ -307,6 +307,7 @@ export default function SocialCalendar() {
       // The server hands the post to the next stage's role — show the new assignee straight away.
       const saved = await api.update("social-posts", id, { status });
       patchLocal(id, { assigneeId: saved?.assigneeId ?? null });
+      window.dispatchEvent(new Event("fv-badges")); // overdue count in the sidebar
       const who = users.find((u) => u.id === saved?.assigneeId);
       const stageName = STAGES.find((s) => s.id === status)?.title || status;
       toast(status === "posted" ? "Marked as Posted" : `Moved to ${stageName}`, "ok", {
@@ -328,13 +329,13 @@ export default function SocialCalendar() {
       else await api.create("social-posts", { ...body, timeLog: [] });
       if (!limited && !clientRows.some((c) => c.name === editing.client)) await api.create("social-clients", { name: editing.client }).catch(() => {});
       if (editing.id) setViewId(editing.id);
-      setEditing(null); toast(editing.id ? "Post updated" : "Post added", "ok", { description: `“${editing.theme}” · ${editing.client}` }); load();
+      setEditing(null); toast(editing.id ? "Post updated" : "Post added", "ok", { description: `“${editing.theme}” · ${editing.client}` }); load(); window.dispatchEvent(new Event("fv-badges"));
     } catch (err: any) { toast("Couldn't save the post", "err", { description: err.message || "Your changes are still in the form — try again." }); }
   }
   async function deletePost() {
     if (!editing?.id) return;
     if (!(await dialog.confirm({ title: "Delete this post?", message: "Its time log is deleted too. This can't be undone.", danger: true, confirmText: "Delete" }))) return;
-    await api.remove("social-posts", editing.id); setViewId(null); setEditing(null); toast("Post deleted", "ok", { description: `“${editing.theme}” was removed from ${editing.client}.` }); load();
+    await api.remove("social-posts", editing.id); setViewId(null); setEditing(null); toast("Post deleted", "ok", { description: `“${editing.theme}” was removed from ${editing.client}.` }); load(); window.dispatchEvent(new Event("fv-badges"));
   }
   async function addClient() {
     const name = (await dialog.prompt({ title: "New brand", placeholder: "e.g. Maharani by Rungta's", confirmText: "Add brand" }))?.trim();

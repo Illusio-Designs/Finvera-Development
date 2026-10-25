@@ -114,14 +114,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [rolesKey]);
 
   /* Sidebar count badges: unread inbox messages, overdue calendar posts
-     (a team member counts only posts assigned to them). Refreshed on
-     navigation and every minute. */
+     (a team member counts only posts assigned to them). Refreshed every
+     minute while the tab is visible, and when you come back to the tab. */
   const [badges, setBadges] = useState<Record<string, number>>({});
   useEffect(() => {
     if (!roles.length) return;
     let alive = true;
     const today = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
     const refresh = async () => {
+      if (document.hidden) return;
       const next: Record<string, number> = {};
       if (rolesCan(roles, "contact")) {
         try { next["/dashboard/contact"] = (await api.listContact()).filter((m: { isRead?: boolean }) => !m.isRead).length; } catch { /* ignore */ }
@@ -138,9 +139,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     };
     refresh();
     const t = setInterval(refresh, 60000);
-    return () => { alive = false; clearInterval(t); };
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("fv-badges", refresh);
+    return () => { alive = false; clearInterval(t); document.removeEventListener("visibilitychange", refresh); window.removeEventListener("fv-badges", refresh); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rolesKey, me, pathname]);
+  }, [rolesKey, me]);
 
   useEffect(() => {
     if (!getToken()) { router.replace("/login"); return; }

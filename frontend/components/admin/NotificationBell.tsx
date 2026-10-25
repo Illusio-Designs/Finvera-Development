@@ -36,9 +36,12 @@ function ago(iso: string) {
   } catch { return ""; }
 }
 
-/* The layout mounts two bells (mobile bar + header); only the one with
-   `announce` pops new notifications up as toasts, so each rings once. */
-export default function NotificationBell({ announce: popUp = false }: { announce?: boolean }) {
+/* The layout mounts two bells (phone bar + desktop header) and only one is
+   on screen at a time. Only the visible bell polls and pops up toasts, so
+   there is one request every 30s and each notification rings once. The
+   `announce` prop is kept for callers but no longer needed. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export default function NotificationBell({ announce: _announce = false }: { announce?: boolean }) {
   const router = useRouter();
   const [items, setItems] = useState<Notif[]>([]);
   const [unread, setUnread] = useState(0);
@@ -49,8 +52,10 @@ export default function NotificationBell({ announce: popUp = false }: { announce
   // Highest notification id already seen — anything newer pops up as a toast.
   const seen = useRef<number | null>(null);
 
+  const onScreen = () => !!ref.current && ref.current.offsetParent !== null;
+
   async function load() {
-    if (!getToken()) return;
+    if (!getToken() || document.hidden || !onScreen()) return;
     try {
       const r = await api.listNotifications();
       const list: Notif[] = Array.isArray(r) ? r : (r?.items || []);
@@ -65,7 +70,7 @@ export default function NotificationBell({ announce: popUp = false }: { announce
   /* Pop up notifications that arrived since the last check (not on first load). */
   function announce(list: Notif[]) {
     const maxId = list.reduce((m, n) => Math.max(m, n.id), 0);
-    if (popUp && seen.current !== null) {
+    if (seen.current !== null) {
       const fresh = list.filter((n) => !n.isRead && n.id > (seen.current as number)).sort((a, b) => a.id - b.id);
       fresh.slice(0, 3).forEach((n) => toast(split(n.title).label || n.title, "info", {
         description: [split(n.title).label ? split(n.title).subject : "", n.body].filter(Boolean).join(" · ") || "New in your notifications",
@@ -78,7 +83,16 @@ export default function NotificationBell({ announce: popUp = false }: { announce
     seen.current = Math.max(maxId, seen.current ?? 0);
   }
 
-  useEffect(() => { setSound(isSoundOn()); load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, []);
+  useEffect(() => {
+    setSound(isSoundOn()); load();
+    const t = setInterval(load, 30000);
+    // Catch up straight away when the tab comes back or the layout switches bells.
+    const wake = () => load();
+    document.addEventListener("visibilitychange", wake);
+    window.addEventListener("resize", wake);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", wake); window.removeEventListener("resize", wake); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const toggleSound = () => { const on = !sound; setSound(on); setSoundOn(on); if (on) playSound("notify"); };
   useEffect(() => {
     if (!open) return;
