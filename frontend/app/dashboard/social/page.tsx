@@ -531,16 +531,16 @@ export default function SocialCalendar() {
                 <tbody>
                   {items.map((p) => (
                     <tr key={p.id}>
-                      <td className="nw"><b>{fmtDay(p.postDate)}</b><br /><span className="cal-muted">{fmtTime(p.postTime) || "—"}</span></td>
-                      <td className="nw cal-muted">{p.postDate ? fmtShort(startOf(p)) : "—"}</td>
-                      <td>
+                      <td className="nw" data-label="Goes live"><b>{fmtDay(p.postDate)}</b><br /><span className="cal-muted">{fmtTime(p.postTime) || "—"}</span></td>
+                      <td className="nw cal-muted" data-label="Start work">{p.postDate ? fmtShort(startOf(p)) : "—"}</td>
+                      <td className="cal-tpost">
                         <button type="button" className="cal-link" onClick={() => setViewId(p.id)}>{p.theme}</button>
                         <span className="cal-sub"><i style={{ background: clientColor(p.client) }} />{p.client}{fmtChip(p.format)}</span>
                       </td>
-                      <td>{stageChip(p.status)}</td>
-                      <td>{whoPill(p)}</td>
-                      <td>{badge(p)}</td>
-                      <td className="nw">
+                      <td data-label="Stage">{stageChip(p.status)}</td>
+                      <td data-label="With">{whoPill(p)}</td>
+                      <td data-label="Timeline">{badge(p)}</td>
+                      <td className="nw" data-label="Time">
                         <span className="cal-timecell">
                           <b className={p.timerStart ? "run" : ""}>{hm(loggedMin(p))}</b>
                           {canEdit(p) && <button type="button" className={"cal-timer" + (p.timerStart ? " run" : "")} onClick={() => toggleTimer(p)}
@@ -608,6 +608,12 @@ export default function SocialCalendar() {
                     })}
                     {starts.slice(0, room).map((p) => <span key={"s" + p.id} className="cal-ev start">Start · {p.theme}</span>)}
                     {more > 0 && <span className="cal-more">+{more} more</span>}
+                    {(live.length > 0 || starts.length > 0) && (
+                      <span className="cal-dots" aria-hidden="true">
+                        {live.slice(0, 4).map((p) => <i key={p.id} style={{ background: STAGES.find((x) => x.id === p.status)!.color }} />)}
+                        {starts.length > 0 && <i className="s" />}
+                      </span>
+                    )}
                   </button>
                 );
               })}

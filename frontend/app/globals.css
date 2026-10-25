@@ -2509,3 +2509,61 @@ section{position:relative;z-index:2}
   .adm-table.cardify td.c-media .adm-thumb{width:56px;height:40px}
   .adm-table.cardify td[data-label]:not(.c-media):not(.c-primary):empty,.adm-table.cardify td.c-media:has(.adm-noimg){display:none}
 }
+
+/* Content calendar on phones */
+.cal-dots{display:none}
+@media (max-width:720px){
+  .cal-head{gap:12px}
+  .cal-head p{font-size:13px}
+  .cal-head-actions{width:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .cal-head-actions .cal-primary{grid-column:1/-1;order:-1;height:46px;font-size:15px}
+  .cal-head-actions .cal-btn{padding:0 6px;font-size:13px;min-height:44px;white-space:nowrap}
+  .cal-tabs{margin:0 -16px;padding:2px 16px;scrollbar-width:none}
+  .cal-tabs::-webkit-scrollbar{display:none}
+  .cal-tab{flex:none}
+  /* stats: one swipeable row instead of a tall stack */
+  .cal-tiles{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -16px;padding:0 16px 2px;scroll-padding:0 16px;scrollbar-width:none}
+  .cal-tiles::-webkit-scrollbar{display:none}
+  .cal-tile{flex:0 0 42%;scroll-snap-align:start;padding:12px 14px}
+  .cal-tile b{font-size:24px}
+  /* toolbar: full-width view switch, filters two per row, full-width search */
+  .cal-toolbar{gap:8px}
+  .cal-seg{width:100%;display:flex}
+  .cal-seg button{flex:1;min-height:40px}
+  .cal-toolbar .sm-filter{flex:1 1 calc(50% - 4px);min-width:0}
+  .cal-toolbar .cal-search{flex:1 1 100%;min-width:0}
+  .cal-today{display:none}
+  /* board: one stage per screen, swipe sideways for the next */
+  .cal-board-scroll{margin:0 -16px;padding:0 16px 6px;scroll-snap-type:x mandatory;scroll-padding:0 16px}
+  .cal-board{min-width:0;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:84vw;gap:12px}
+  .cal-col{scroll-snap-align:start}
+  /* schedule: each row becomes a card */
+  .cal-table-wrap:has(> .cal-table:not(.cal-cover)){background:transparent;border:0;overflow:visible}
+  .cal-table:not(.cal-cover){min-width:0;display:block}
+  .cal-table:not(.cal-cover) thead{display:none}
+  .cal-table:not(.cal-cover) tbody{display:flex;flex-direction:column;gap:10px}
+  .cal-table:not(.cal-cover) tr{display:flex;flex-direction:column;background:#fff;border:1px solid #e3e7f0;border-radius:14px;padding:12px 14px}
+  .cal-table:not(.cal-cover) td{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 0 0;margin-top:7px;
+    border:0;border-top:1px solid #eef1f8;white-space:normal;text-align:right}
+  .cal-table:not(.cal-cover) td[data-label]::before{content:attr(data-label);font-size:12.5px;color:#5b6785;text-align:left;flex:none}
+  .cal-table:not(.cal-cover) td br{display:none}
+  .cal-table:not(.cal-cover) td.nw .cal-muted{margin-left:6px}
+  .cal-table:not(.cal-cover) td.cal-tpost{order:-1;display:block;text-align:left;border:0;margin:0;padding:0 0 4px}
+  .cal-table:not(.cal-cover) td.cal-tpost .cal-link{font-size:15px;font-weight:700}
+  /* calendar: compact month grid with coloured dots; tap a day for its list */
+  .cal-calhead{flex-wrap:wrap;gap:8px}
+  .cal-calhead h2{font-size:18px}
+  .cal-legend{font-size:12px;gap:6px 12px}
+  .cal-cal-scroll{flex-basis:100%}
+  .cal-cal{min-width:0;border-radius:12px}
+  .cal-dow{font-size:11px;padding:6px 0;text-align:center}
+  .cal-day{min-height:54px;padding:5px 2px;align-items:center}
+  .cal-day .cal-num{display:flex;justify-content:center;width:100%}
+  .cal-day .cal-ev,.cal-day .cal-more{display:none}
+  .cal-dots{display:flex;justify-content:center;flex-wrap:wrap;gap:3px;margin-top:4px}
+  .cal-dots i{width:7px;height:7px;border-radius:50%}
+  .cal-dots i.s{background:transparent;border:1.5px dashed #46536f;box-sizing:border-box;width:8px;height:8px}
+  .cal-agenda{flex-basis:100%}
+  /* panels */
+  .cal-cover{min-width:600px}
+}
