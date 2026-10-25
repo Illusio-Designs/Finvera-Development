@@ -262,6 +262,7 @@ async function importRows(rows) {
   const toCreate = [];
   const fixCtx = {};
   let updated = 0;
+  const updatedBy = {};
   for (const client of [...new Set(rows.map((r) => r.client))]) {
     const existing = await SocialPost.findAll({ where: { client } });
     const byKey = new Map();
@@ -275,11 +276,14 @@ async function importRows(rows) {
       await hit.update(patch);
       if (hit.status === "posted" && !isLive(hit)) await backToPlanned(hit, fixCtx);
       updated++;
+      updatedBy[client] = (updatedBy[client] || 0) + 1;
     }
   }
   await assignRows(toCreate);
   await SocialPost.bulkCreate(toCreate);
-  return { created: toCreate.length, updated, batch };
+  const createdBy = {};
+  for (const r of toCreate) createdBy[r.client] = (createdBy[r.client] || 0) + 1;
+  return { created: toCreate.length, updated, batch, createdBy, updatedBy };
 }
 
 /* Admin: uploads (batches) with their brand, size and date range. */

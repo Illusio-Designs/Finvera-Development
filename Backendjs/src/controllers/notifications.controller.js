@@ -1,11 +1,12 @@
 const { Notification } = require("../models");
 const { asyncHandler } = require("../utils/crud");
-const { runRenewalSweep } = require("../utils/renewalReminders");
+const { maybeRunDaily } = require("../utils/dailyReminders");
 
 /* The current user's notifications (newest first) + unread count. */
 const list = asyncHandler(async (req, res) => {
-  // Generate any due renewal reminders before reading (throttled + deduped inside).
-  await runRenewalSweep();
+  // An open dashboard is one of the triggers for the 10:15 AM daily reminders
+  // (claimed once per day inside; returns immediately otherwise).
+  maybeRunDaily().catch(() => {});
   const items = await Notification.findAll({
     where: { userId: req.user.id },
     order: [["createdAt", "DESC"]],

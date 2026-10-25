@@ -54,6 +54,11 @@ async function start() {
     app.listen(PORT, () => {
       console.log(`\x1b[36m✔ Finvera API running on http://localhost:${PORT}\x1b[0m`);
     });
+
+    // Daily reminders (10:15 AM India time) — checked every 5 minutes while
+    // the app is awake; claimed once per day so restarts never resend.
+    const { maybeRunDaily } = require("./src/utils/dailyReminders");
+    setInterval(() => { maybeRunDaily().catch(() => {}); }, 5 * 60 * 1000).unref();
   } catch (err) {
     // Only genuine start failures (e.g. DB unreachable) reach here.
     console.error("\x1b[31m✘ Failed to start server:\x1b[0m", err.message);

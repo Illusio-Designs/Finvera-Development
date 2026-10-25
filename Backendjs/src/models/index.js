@@ -158,6 +158,17 @@ const Notification = sequelize.define("Notification", {
   meta: { type: DataTypes.JSON },
 }, { tableName: "notifications" });
 
+/* ── Web Push subscription (one per device/browser a user enabled) ── */
+const PushSubscription = sequelize.define("PushSubscription", {
+  userId: { type: DataTypes.INTEGER, allowNull: false },
+  endpoint: { type: DataTypes.TEXT, allowNull: false },
+  endpointHash: { type: DataTypes.STRING(64), allowNull: false, unique: true }, // sha256(endpoint) — TEXT can't be indexed
+  p256dh: { type: DataTypes.STRING(255), allowNull: false },
+  auth: { type: DataTypes.STRING(64), allowNull: false },
+  userAgent: { type: DataTypes.STRING(255) },
+  lastSuccessAt: { type: DataTypes.DATE },
+}, { tableName: "push_subscriptions" });
+
 /* ── Card comment ────────────────────────────────────── */
 const Comment = sequelize.define("Comment", {
   taskId: { type: DataTypes.INTEGER, allowNull: false },
@@ -330,11 +341,12 @@ Task.hasMany(Comment, { as: "comments", foreignKey: "taskId", onDelete: "CASCADE
 Comment.belongsTo(Task, { foreignKey: "taskId" });
 Comment.belongsTo(User, { as: "author", foreignKey: "userId" });
 Notification.belongsTo(User, { foreignKey: "userId", onDelete: "CASCADE" });
+PushSubscription.belongsTo(User, { foreignKey: "userId", onDelete: "CASCADE" });
 
 module.exports = {
   sequelize,
   User, Project, Service, Testimonial, TeamMember,
-  BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page, Lead, Notification,
+  BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page, Lead, Notification, PushSubscription,
   Renewal, SocialClient, SocialPost,
   Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature,
 };
