@@ -88,6 +88,34 @@ export default function Kanban() {
   const kbRef = useRef<HTMLDivElement | null>(null);
   const ptr = useRef<{ x: number; y: number } | null>(null);
   const scrollRAF = useRef<number | null>(null);
+  /* Touch: a card only starts dragging after a short press-and-hold, so a
+     normal swipe scrolls the board instead of moving the card. */
+  const pressTimer = useRef<number | null>(null);
+  const pressStart = useRef<{ x: number; y: number } | null>(null);
+  const touchDragging = useRef(false);
+  const [colIdx, setColIdx] = useState(0);
+  useEffect(() => {
+    // While a card is held, stop the page from scrolling under the finger.
+    const block = (e: TouchEvent) => { if (touchDragging.current) e.preventDefault(); };
+    document.addEventListener("touchmove", block, { passive: false });
+    return () => document.removeEventListener("touchmove", block);
+  }, []);
+  const endTouch = (el: HTMLElement) => {
+    if (pressTimer.current != null) { clearTimeout(pressTimer.current); pressTimer.current = null; }
+    el.classList.remove("dragging");
+    kbRef.current?.classList.remove("no-snap");
+    if (!touchDragging.current) return;
+    touchDragging.current = false;
+    stopAutoScroll();
+    if (dragId.current != null && didDrag.current && overColRef.current) drop(overColRef.current, hoverIdRef.current);
+    else dragId.current = null;
+    didDrag.current = true; // swallow the click that follows a hold
+    overColRef.current = null; hoverIdRef.current = null; setOverCol(null);
+  };
+  const jumpToCol = (id: string) => {
+    const el = kbRef.current?.querySelector(`[data-col="${id}"]`) as HTMLElement | null;
+    el?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+  };
 
   /* Auto-scroll the board (horizontally) and the hovered column (vertically)
      while dragging a card near an edge — like Trello. */
@@ -379,7 +407,18 @@ export default function Kanban() {
             </div>
           </div>
 
+        <div className="kb-jump" role="tablist" aria-label="Columns">
+          {cols.map((c, i) => (
+            <button key={c.id} type="button" role="tab" aria-selected={i === colIdx} className={i === colIdx ? "on" : ""} onClick={() => jumpToCol(c.id)}>
+              {c.title}<span>{inCol(c.id).length}</span>
+            </button>
+          ))}
+        </div>
         <div className="kb" ref={kbRef}
+          onScroll={(e) => {
+            const kb = e.currentTarget, first = kb.querySelector(".kb-col") as HTMLElement | null;
+            if (first) setColIdx(Math.min(cols.length - 1, Math.round(kb.scrollLeft / (first.offsetWidth + 12))));
+          }}
           onDragOver={(e) => { ptr.current = { x: e.clientX, y: e.clientY }; }}
           onDrop={stopAutoScroll}>
           {cols.map((c) => (
@@ -420,11 +459,26 @@ export default function Kanban() {
                       onDragEnd={(e) => { stopAutoScroll(); (e.currentTarget as HTMLElement).classList.remove("dragging"); }}
                       onDragOver={(e) => { e.preventDefault(); ptr.current = { x: e.clientX, y: e.clientY }; }}
                       onDrop={(e) => { e.stopPropagation(); drop(c.id, t.id); }}
-                      onTouchStart={(e) => { dragId.current = t.id; didDrag.current = false; overColRef.current = c.id; startAutoScroll(); (e.currentTarget as HTMLElement).classList.add("dragging"); }}
+                      onTouchStart={(e) => {
+                        const el = e.currentTarget as HTMLElement, p0 = e.touches[0];
+                        didDrag.current = false; touchDragging.current = false;
+                        pressStart.current = { x: p0.clientX, y: p0.clientY };
+                        pressTimer.current = window.setTimeout(() => {
+                          pressTimer.current = null;
+                          touchDragging.current = true; dragId.current = t.id; overColRef.current = c.id;
+                          el.classList.add("dragging"); kbRef.current?.classList.add("no-snap"); startAutoScroll();
+                          try { navigator.vibrate?.(15); } catch { /* ignore */ }
+                        }, 350);
+                      }}
                       onTouchMove={(e) => {
-                        if (dragId.current == null) return;
-                        didDrag.current = true;
                         const p = e.touches[0];
+                        if (!touchDragging.current) {
+                          // Moved before the hold finished: it's a scroll, not a drag.
+                          const s0 = pressStart.current;
+                          if (pressTimer.current != null && s0 && Math.hypot(p.clientX - s0.x, p.clientY - s0.y) > 10) { clearTimeout(pressTimer.current); pressTimer.current = null; }
+                          return;
+                        }
+                        didDrag.current = true;
                         ptr.current = { x: p.clientX, y: p.clientY };
                         const el = document.elementFromPoint(p.clientX, p.clientY) as HTMLElement | null;
                         const col = el?.closest(".kb-col")?.getAttribute("data-col") || null;
@@ -432,13 +486,9 @@ export default function Kanban() {
                         const card = el?.closest(".kb-card") as HTMLElement | null;
                         hoverIdRef.current = card && card !== e.currentTarget ? Number(card.getAttribute("data-id")) : null;
                       }}
-                      onTouchEnd={(e) => {
-                        (e.currentTarget as HTMLElement).classList.remove("dragging");
-                        stopAutoScroll();
-                        if (dragId.current != null && didDrag.current && overColRef.current) drop(overColRef.current, hoverIdRef.current);
-                        else dragId.current = null;
-                        overColRef.current = null; hoverIdRef.current = null; setOverCol(null);
-                      }}
+                      onTouchEnd={(e) => endTouch(e.currentTarget as HTMLElement)}
+                      onTouchCancel={(e) => endTouch(e.currentTarget as HTMLElement)}
+                      onContextMenu={(e) => { if (touchDragging.current) e.preventDefault(); }}
                       onClick={() => { if (didDrag.current) { didDrag.current = false; return; } openCard(t); }}>
                       {coverImg && <div className="kbc-cover" style={{ backgroundImage: `url(${coverImg})` }} />}
                       {cover && <div className="kbc-coverbar" style={{ background: cover }} />}
