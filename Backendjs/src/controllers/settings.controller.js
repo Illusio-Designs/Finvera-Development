@@ -41,9 +41,15 @@ const updateSettings = asyncHandler(async (req, res) => {
     ? req.body
     : Object.entries(req.body).map(([key, value]) => ({ key, value }));
   const results = [];
+  const skipped = [];
   for (const e of entries) {
     if (!e.key) continue;
-    const [row] = await Setting.findOrCreate({ where: { key: e.key }, defaults: { key: e.key } });
+    // Internal keys (seed version, one-off migration markers) are the
+    // server's own bookkeeping: never writable from the API, and new keys
+    // can't be created in that group either.
+    const existing = await Setting.findOne({ where: { key: e.key } });
+    if ((existing && existing.group === "system") || e.group === "system") { skipped.push(e.key); continue; }
+    const [row] = existing ? [existing] : await Setting.findOrCreate({ where: { key: e.key }, defaults: { key: e.key } });
     await row.update({
       value: e.value != null ? String(e.value) : row.value,
       group: e.group || row.group,
@@ -51,6 +57,7 @@ const updateSettings = asyncHandler(async (req, res) => {
     });
     results.push(row);
   }
+  if (skipped.length) res.set("X-Settings-Skipped", skipped.join(","));
   res.json(results);
 });
 
