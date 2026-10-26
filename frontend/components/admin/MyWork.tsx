@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/adminApi";
 import { DashSkeleton } from "@/components/admin/Skeleton";
+import SocialKpis from "@/components/admin/SocialKpis";
 
 /* Personal home for team members (marketer / video / graphic / social):
    only their own content-calendar work, not the site-wide admin stats. */
@@ -121,6 +122,7 @@ export default function MyWork() {
           ))}
         </section>
       </div>
+      <SocialKpis mode="me" />
     </div>
   );
 }

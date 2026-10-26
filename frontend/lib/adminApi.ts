@@ -67,6 +67,7 @@ export const api = {
   pushSubscribe: (subscription: any) => req(`/push/subscribe`, { method: "POST", body: JSON.stringify({ subscription }) }),
   pushUnsubscribe: (endpoint: string) => req(`/push/unsubscribe`, { method: "POST", body: JSON.stringify({ endpoint }) }),
   pushTest: () => req(`/push/test`, { method: "POST" }),
+  socialKpis: (period: string, brand = "") => req(`/social-kpis?period=${encodeURIComponent(period)}${brand ? `&brand=${encodeURIComponent(brand)}` : ""}`),
 
   /* Kanban — boards (Trello-style) */
   listBoards: () => req(`/boards`),

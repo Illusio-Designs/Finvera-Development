@@ -4,6 +4,7 @@ import Link from "next/link";
 import { api } from "@/lib/adminApi";
 import { DashSkeleton } from "@/components/admin/Skeleton";
 import MyWork from "@/components/admin/MyWork";
+import SocialKpis from "@/components/admin/SocialKpis";
 import { rolesCan, userRoles } from "@/lib/permissions";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Mail01Icon, FolderLibraryIcon, News01Icon } from "@hugeicons/core-free-icons";
@@ -25,10 +26,10 @@ export default function Dashboard() {
   useEffect(() => { api.me().then((r) => setRoles(userRoles(r?.user ?? r))).catch(() => setRoles([])); }, []);
   if (roles === null) return <DashSkeleton />;
   if (roles.length && !rolesCan(roles, "content") && rolesCan(roles, "social")) return <MyWork />;
-  return <Overview />;
+  return <Overview admin={roles.includes("admin")} />;
 }
 
-function Overview() {
+function Overview({ admin }: { admin: boolean }) {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -154,6 +155,8 @@ function Overview() {
           </div>
         </div>
       )}
+
+      {admin && <SocialKpis mode="team" />}
 
       <div className="adm-panel" style={{ padding: 22 }}>
         <h3 style={{ marginBottom: 12 }}>Quick actions</h3>
