@@ -4,17 +4,18 @@
 
 export type Area = "content" | "board" | "leads" | "contact" | "seo" | "settings" | "users" | "renewals" | "social";
 
+// The project board ("board") is open to every team member.
 export const ROLE_AREAS: Record<string, "*" | Area[]> = {
   admin: "*",
-  content: ["content", "social"],
-  editor: ["content", "social"], // legacy alias
+  content: ["content", "social", "board"],
+  editor: ["content", "social", "board"], // legacy alias
   projects: ["board", "renewals", "social"],
-  leads: ["leads", "contact"],
-  seo: ["seo", "settings"],
-  social: ["social"],
-  marketer: ["social"],
-  video: ["social"],
-  graphic: ["social"],
+  leads: ["leads", "contact", "board"],
+  seo: ["seo", "settings", "board"],
+  social: ["social", "board"],
+  marketer: ["social", "board"],
+  video: ["social", "board"],
+  graphic: ["social", "board"],
 };
 
 export const ROLE_LABELS: Record<string, string> = {

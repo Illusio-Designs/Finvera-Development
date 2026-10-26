@@ -293,10 +293,12 @@ export default function SocialCalendar() {
     setPosts((ps) => ps.map((p) => (p.id === id ? { ...p, ...patch } : p)));
     setEditing((e) => (e?.id === id ? { ...e, ...patch } : e));
   }
-  /* Team members see every post of their allotted brands but change only their own. */
-  const canEdit = (p?: Partial<Post> | null) => !limited || (!!p && p.assigneeId === meId);
-  const notYours = (p: Post) => toast("This post isn't yours to change", "warn", {
-    description: `It's assigned to ${userById(p.assigneeId)?.name || "nobody yet"} — only they or an admin can change it.`,
+  /* Team members can edit every post of their allotted brands (the list is
+     already limited to those brands); deleting stays with the assignee. */
+  const canEdit = (p?: Partial<Post> | null) => !!p;
+  const canDelete = (p?: Partial<Post> | null) => !limited || (!!p && p.assigneeId === meId);
+  const notYours = (p: Partial<Post>) => toast("This post isn't yours to delete", "warn", {
+    description: `It's assigned to ${userById(p.assigneeId ?? null)?.name || "nobody yet"} — only they or an admin can delete it.`,
   });
   async function moveTo(id: number, status: Stage) {
     const p = posts.find((x) => x.id === id);
@@ -334,6 +336,7 @@ export default function SocialCalendar() {
   }
   async function deletePost() {
     if (!editing?.id) return;
+    if (!canDelete(editing)) return notYours(editing);
     if (!(await dialog.confirm({ title: "Delete this post?", message: "Its time log is deleted too. This can't be undone.", danger: true, confirmText: "Delete" }))) return;
     await api.remove("social-posts", editing.id); setViewId(null); setEditing(null); toast("Post deleted", "ok", { description: `“${editing.theme}” was removed from ${editing.client}.` }); load(); window.dispatchEvent(new Event("fv-badges"));
   }
@@ -915,7 +918,7 @@ export default function SocialCalendar() {
           <span className="cal-eyebrow">Social media</span>
           <h1>{limited ? "My work" : "Content calendar"}</h1>
           <p>{limited
-            ? "My work lists your posts. Board, Schedule and Calendar show everything for your brands — you can change only the posts assigned to you."
+            ? "My work lists your posts. Board, Schedule and Calendar show everything for your brands, and you can edit any of them."
             : "Every brand's posts from plan to live link, with who has each one and when work starts."}</p>
         </div>
         <div className="cal-head-actions">
@@ -1102,7 +1105,7 @@ export default function SocialCalendar() {
             <div className="adm-drawer-actions">
               <button className="cal-primary" type="submit">Save post</button>
               <button className="cal-btn" type="button" onClick={() => { if (editing.id) setViewId(editing.id); setEditing(null); }}>Cancel</button>
-              {editing.id && <button className="cal-btn danger" type="button" onClick={deletePost} style={{ marginLeft: "auto" }}>Delete</button>}
+              {editing.id && canDelete(editing) && <button className="cal-btn danger" type="button" onClick={deletePost} style={{ marginLeft: "auto" }}>Delete</button>}
             </div>
           </form>
         </div>
