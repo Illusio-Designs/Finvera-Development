@@ -17,7 +17,7 @@
                      estimates of the posts they logged time on. */
 
 const { Op } = require("sequelize");
-const { SocialPost, SocialPostEvent, User } = require("../models");
+const { SocialPost, SocialPostEvent, User, Setting, Notification } = require("../models");
 const { asyncHandler } = require("../utils/crud");
 const { rolesOf } = require("../utils/permissions");
 
@@ -65,7 +65,102 @@ function weekBuckets(today, n) {
   });
 }
 
+/* One-time catch-up for work finished before the stage history existed.
+   Each finished stage is credited to the person who did it, not to whoever
+   holds the post now — e.g. a graphic designer who designed a post and sent
+   it to Ready to post gets that delivery, the Social media person gets the
+   posting. Who and when come from what was recorded at the time:
+     • who  — someone with that stage's role who logged time on the post (most
+              minutes wins), else the last one of them it was assigned to
+              (assignment notifications); for Posted, the current assignee
+     • when — when the next stage's person was given the post, else the
+              maker's last time-log entry, else when the post was last saved;
+              Posted counts on its go-live date
+   Stages nobody can be matched to still count in the team totals.
+   Claimed atomically so it runs exactly once. */
+const BACKFILL_KEY = "social.kpiBackfill.v2";
+let backfillChecked = false;
+const parseMeta = (m) => (typeof m === "string" ? (() => { try { return JSON.parse(m); } catch { return {}; } })() : (m || {}));
+
+async function backfillOnce() {
+  if (backfillChecked) return;
+  try {
+    await Setting.findOrCreate({ where: { key: BACKFILL_KEY }, defaults: { key: BACKFILL_KEY, value: "", group: "system", isPublic: false } });
+    const [claimed] = await Setting.update({ value: `running ${new Date().toISOString()}` }, { where: { key: BACKFILL_KEY, [Op.or]: [{ value: null }, { value: "" }] } });
+    backfillChecked = true;
+    if (!claimed) return;
+    const { stageRole } = require("./social.controller");
+    const today = todayIst();
+    const [posts, events, users, notes] = await Promise.all([
+      SocialPost.findAll({ where: { status: { [Op.ne]: "planned" } } }),
+      SocialPostEvent.findAll({ attributes: ["postId", "toStatus"] }),
+      User.findAll(),
+      Notification.findAll({ where: { type: "assigned", title: { [Op.like]: "%social post%" } }, order: [["createdAt", "ASC"]] }),
+    ]);
+    const have = new Set(events.map((e) => `${e.postId}|${e.toStatus}`));
+    const roleOf = new Map(users.map((u) => [u.id, rolesOf(u)]));
+    const hasRole = (uid, r) => (roleOf.get(Number(uid)) || []).includes(r);
+    // assignment notifications per post: [{ userId, at }]
+    const assignedTo = new Map();
+    for (const n of notes) {
+      const m = parseMeta(n.meta);
+      let pid = m.socialPostId ? Number(m.socialPostId) : null;
+      if (!pid) {
+        const theme = String(n.title).split(": ").slice(1).join(": ");
+        const hit = theme && posts.find((p) => p.theme === theme);
+        pid = hit ? hit.id : null;
+      }
+      if (!pid) continue;
+      if (!assignedTo.has(pid)) assignedTo.set(pid, []);
+      assignedTo.get(pid).push({ userId: n.userId, at: new Date(n.createdAt) });
+    }
+
+    const rows = [];
+    const noonOf = (iso) => new Date(startUtc(iso).getTime() + 12 * 3600000);
+    for (const p of posts) {
+      const reached = ORDER.indexOf(p.status);
+      const isReel = /reel|video|influencer/i.test(p.format || "");
+      const logs = asArr(p.timeLog).filter((l) => l && l.userId);
+      const given = assignedTo.get(p.id) || [];
+      // hand-offs this post has completed: [from, to]
+      const steps = [];
+      if (isReel && reached >= 2) steps.push(["client", "production"]);   // Marketer → Video editor
+      if (reached >= 3) steps.push(["production", "ready"]);              // maker → Social media
+      if (reached >= 4) steps.push(["ready", "posted"]);                  // Social media posts it
+      for (const [from, to] of steps) {
+        if (have.has(`${p.id}|${to}`)) continue;
+        const role = stageRole(from, p.format);
+        let who = null, at = null;
+        if (to === "posted") {
+          who = p.assigneeId && hasRole(p.assigneeId, "social") ? p.assigneeId : (given.filter((g) => hasRole(g.userId, "social")).pop()?.userId ?? p.assigneeId ?? null);
+          const goLive = day(p.postDate);
+          at = goLive && goLive <= today ? noonOf(goLive) : new Date(p.updatedAt || Date.now());
+        } else {
+          const minutes = new Map();
+          for (const l of logs) if (hasRole(l.userId, role)) minutes.set(Number(l.userId), (minutes.get(Number(l.userId)) || 0) + (Number(l.minutes) || 0));
+          const top = [...minutes.entries()].sort((a, b) => b[1] - a[1])[0];
+          who = top ? top[0] : (given.filter((g) => hasRole(g.userId, role)).pop()?.userId ?? null);
+          const nextRole = stageRole(to, p.format);
+          const handed = given.find((g) => hasRole(g.userId, nextRole));
+          const lastLog = logs.filter((l) => Number(l.userId) === who).map((l) => new Date(l.at)).sort((a, b) => b - a)[0];
+          at = handed ? handed.at : lastLog || (ORDER.indexOf(to) === reached ? new Date(p.updatedAt || Date.now()) : (day(p.postDate) ? noonOf(day(p.postDate)) : new Date(p.updatedAt || Date.now())));
+        }
+        if (at > new Date()) at = new Date();
+        rows.push({ postId: p.id, client: p.client, format: p.format || null, fromStatus: from, toStatus: to,
+          fromAssigneeId: who, toAssigneeId: null, byUserId: null, postDate: p.postDate || null, at });
+      }
+    }
+    if (rows.length) await SocialPostEvent.bulkCreate(rows);
+    await Setting.update({ value: `done ${today} (${rows.length} stages)` }, { where: { key: BACKFILL_KEY } });
+    console.log(`\x1b[36mℹ KPI catch-up: ${rows.length} finished stages credited\x1b[0m`);
+  } catch (e) {
+    backfillChecked = false;
+    console.warn("KPI catch-up:", e.message);
+  }
+}
+
 const kpis = asyncHandler(async (req, res) => {
+  await backfillOnce();
   const today = todayIst();
   const P = periodOf(String(req.query.period || "month"), today);
   const scope = req.socialScope; // null = admin (all brands)
@@ -81,7 +176,7 @@ const kpis = asyncHandler(async (req, res) => {
     SocialPost.findAll({ where: brandWhere }),
     SocialPostEvent.findAll({ where: { ...brandWhere, at: { [Op.gte]: startUtc(addDays(historyFrom, -120)) } }, order: [["at", "ASC"]] }),
     User.findAll({ where: { active: true } }),
-    SocialPostEvent.min("at"),
+    SocialPostEvent.min("at", { where: { byUserId: { [Op.ne]: null } } }), // first real (not caught-up) move
   ]);
   const postById = new Map(posts.map((p) => [p.id, p]));
 
@@ -102,7 +197,7 @@ const kpis = asyncHandler(async (req, res) => {
     });
   }
   const inRange = (d, a, b) => d >= a && d <= b;
-  const delivered = moves.filter((m) => m.forward && m.who);
+  const delivered = moves.filter((m) => m.forward); // people only get the ones they had; team totals get all
 
   // Time log entries (minutes) in a date range, by user.
   const logs = [];

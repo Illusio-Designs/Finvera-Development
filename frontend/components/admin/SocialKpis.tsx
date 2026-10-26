@@ -101,8 +101,8 @@ export default function SocialKpis({ mode }: { mode: "team" | "me" }) {
 
   const t = data.team;
   const historyNote = data.historySince
-    ? `Delivered, on-time and days-in-stage count stage moves from ${fmtDay(data.historySince)} onwards.`
-    : "Delivered, on-time and days-in-stage start counting from the next stage move.";
+    ? `Each stage counts for the person who did it. Work finished before ${fmtDay(data.historySince)} is included from what was recorded then; days in stage count from ${fmtDay(data.historySince)}.`
+    : "Each stage counts for the person who did it. Days in stage start counting from the next stage move.";
 
   /* ── A team member's own view ── */
   if (mode === "me") {
