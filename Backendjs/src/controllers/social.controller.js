@@ -28,7 +28,7 @@ const withScope = asyncHandler(async (req, _res, next) => {
 const allowed = (req, client) => !req.socialScope || req.socialScope.has(client);
 const isMine = (req, post) => !req.socialScope || Number(post.assigneeId) === Number(req.user.id);
 const DENIED = { message: "You can only work on the brands assigned to you." };
-const NOT_YOURS = { message: "This post is assigned to someone else — only they or an admin can change it." };
+const NOT_YOURS = { message: "This post is assigned to someone else — only they or an admin can delete it." };
 
 /* Adding, renaming or removing brands is for admins only. */
 function requireAllBrands(req, res, next) {
@@ -50,7 +50,9 @@ const guardPost = asyncHandler(async (req, res, next) => {
   if (!req.socialScope) return next();
   const post = await SocialPost.findByPk(req.params.id);
   if (!post || !allowed(req, post.client)) return res.status(404).json({ message: "SocialPost not found." });
-  if (req.method !== "GET" && !isMine(req, post)) return res.status(403).json(NOT_YOURS);
+  // Anyone with the brand may edit any of its posts; deleting stays with the
+  // person the post is assigned to (or an admin).
+  if (req.method === "DELETE" && !isMine(req, post)) return res.status(403).json(NOT_YOURS);
   if (req.body?.client !== undefined && !allowed(req, req.body.client)) return res.status(403).json(DENIED);
   next();
 });
