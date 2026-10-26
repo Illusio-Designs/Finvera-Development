@@ -316,6 +316,43 @@ export default function SocialCalendar() {
     finally { setCoverBusy(null); }
   }
 
+  /* Admin: take a role away from someone (all brands). Their open posts at
+     that stage are unassigned first, so the server hands them to someone else
+     with the role (or they wait). A user's last role can't be removed here —
+     a user with no roles would be treated as an admin. */
+  async function removeRole(u: TeamUser, role: Role) {
+    const label = ROLE_META[role].label;
+    const roles = (u.roles || []).filter((r) => r !== role);
+    if (!roles.length) {
+      return dialog.alert({
+        title: `${label} is ${u.name}'s only role`,
+        message: `Give ${u.name} another role first (tick them for a brand under another role), or deactivate them on the Users page.`,
+        confirmText: "OK",
+      });
+    }
+    const theirs = posts.filter((p) => p.assigneeId === u.id && p.status !== "posted" && roleFor(p.status, p.format) === role);
+    const ok = await dialog.confirm({
+      title: `Remove the ${label} role from ${u.name}?`,
+      message: `They'll stop covering every brand as ${label}.${theirs.length ? ` Their ${theirs.length} open ${label} post${theirs.length === 1 ? "" : "s"} will go to someone else with the role, or wait if nobody has it.` : ""}`,
+      confirmText: "Remove role", danger: true,
+    });
+    if (!ok) return;
+    setCoverBusy(u.id);
+    try {
+      for (const p of theirs) await api.update("social-posts", p.id, { assigneeId: null });
+      await api.update("users", u.id, { roles });
+      setTeam((t) => t.map((x) => (x.id === u.id ? { ...x, roles } : x)));
+      toast(`${u.name} is no longer ${/^[aeiou]/i.test(label) ? "an" : "a"} ${label}`, "ok", {
+        description: !theirs.length ? "Nothing of theirs needed handing on."
+          : team.some((x) => x.id !== u.id && x.active !== false && (x.roles || []).includes(role))
+            ? `${theirs.length} open post${theirs.length === 1 ? "" : "s"} handed on to others with the role.`
+            : `${theirs.length} open post${theirs.length === 1 ? "" : "s"} now waiting — nobody else has the ${label} role yet.`,
+      });
+      load();
+    } catch (e: any) { toast("Couldn't remove the role", "err", { description: e.message || "Try again." }); }
+    finally { setCoverBusy(null); }
+  }
+
   /* ── writes ── */
   function patchLocal(id: number, patch: Partial<Post>) {
     setPosts((ps) => ps.map((p) => (p.id === id ? { ...p, ...patch } : p)));
@@ -891,10 +928,16 @@ export default function SocialCalendar() {
               const row = (u: TeamUser, addsRole: boolean) => {
                 const checked = !addsRole && (u.socialClients || []).map(String).includes(brandId);
                 return (
-                  <label key={u.id} className={"cal-cover-opt" + (checked ? " on" : "")}>
-                    <input type="checkbox" checked={checked} disabled={coverBusy === u.id} onChange={() => toggleCover(u, coverEdit.brand, coverEdit.role)} />
-                    <span><b>{u.name}</b><small>{(u.roles || []).map((r) => ROLE_META[r as Role]?.label || r).join(", ") || "No role yet"}{addsRole ? ` · gets the ${ROLE_META[coverEdit.role].label} role` : ""}</small></span>
-                  </label>
+                  <div key={u.id} className={"cal-cover-opt" + (checked ? " on" : "")}>
+                    <label>
+                      <input type="checkbox" checked={checked} disabled={coverBusy === u.id} onChange={() => toggleCover(u, coverEdit.brand, coverEdit.role)} />
+                      <span><b>{u.name}</b><small>{(u.roles || []).map((r) => ROLE_META[r as Role]?.label || r).join(", ") || "No role yet"}{addsRole ? ` · gets the ${ROLE_META[coverEdit.role].label} role` : ""}</small></span>
+                    </label>
+                    {!addsRole && (
+                      <button type="button" className="cal-cover-remove" disabled={coverBusy === u.id} onClick={() => removeRole(u, coverEdit.role)}
+                        aria-label={`Remove the ${ROLE_META[coverEdit.role].label} role from ${u.name}`}>Remove role</button>
+                    )}
+                  </div>
                 );
               };
               return (
