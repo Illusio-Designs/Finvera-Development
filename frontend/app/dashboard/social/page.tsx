@@ -233,6 +233,7 @@ export default function SocialCalendar() {
   const [overStage, setOverStage] = useState<Stage | null>(null);
   const [, setTick] = useState(0);
   const dragId = useRef<number | null>(null);
+  const firstLoadDone = useRef(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   async function load() {
@@ -247,7 +248,10 @@ export default function SocialCalendar() {
       setMeId((me?.user ?? me)?.id ?? null);
       const isLimited = Array.isArray((me?.user ?? me)?.socialClients);
       setLimited(isLimited);
-      if (isLimited) setView((v) => (v === "board" ? "mine" : v));
+      // Team members start on My work — only when the page first opens, not
+      // on the reload after every save (that would yank them off Board).
+      if (isLimited && !firstLoadDone.current) setView((v) => (v === "board" ? "mine" : v));
+      firstLoadDone.current = true;
       if (!isLimited) api.list("users").then((t) => setTeam(Array.isArray(t) ? t : [])).catch(() => {});
     } catch (e: any) { toast("Couldn't load the content calendar", "err", { description: e.message || "Check your connection and refresh the page." }); }
     finally { setLoading(false); }
@@ -349,7 +353,11 @@ export default function SocialCalendar() {
       setClientRows((cs) => [...cs, c]); setClient(name); toast("Brand added", "ok", { description: `${name} is ready. Tick it for team members under Users.` });
     } catch (e: any) { toast("Couldn't add the brand", "err", { description: e.message }); }
   }
-  const newPost = (patch: Partial<Post> = {}) => setEditing({ client, status: "planned", postDate: todayIso(), dueDate: weekBefore(todayIso()), timeLog: [], ...patch });
+  // Team members add posts to their own brands: pre-fill the open brand tab, or their only brand.
+  const newPost = (patch: Partial<Post> = {}) => setEditing({
+    client: client || (limited && clientNames.length === 1 ? clientNames[0] : ""),
+    status: "planned", postDate: todayIso(), dueDate: weekBefore(todayIso()), timeLog: [], ...patch,
+  });
 
   /* ── time tracking ── */
   async function addLog(p: Post, minutes: number, note: string, extra: Partial<Post> = {}) {
@@ -500,7 +508,7 @@ export default function SocialCalendar() {
                 </div>
                 {items.map(renderCard)}
                 {!items.length && <div className="cal-col-empty">Nothing here</div>}
-                {!limited && <button type="button" className="cal-add" onClick={() => newPost({ status: s.id })}>+ Add post</button>}
+                <button type="button" className="cal-add" onClick={() => newPost({ status: s.id })}>+ Add post</button>
               </section>
             );
           })}
@@ -645,7 +653,7 @@ export default function SocialCalendar() {
               </button>
             ))}
             {!selLive.length && !selStarts.length && <div className="cal-empty sm">Nothing planned this day.</div>}
-            {!limited && <button type="button" className="cal-link" onClick={() => newPost({ postDate: calDay, dueDate: weekBefore(calDay) })}>+ Add a post on this day</button>}
+            <button type="button" className="cal-link" onClick={() => newPost({ postDate: calDay, dueDate: weekBefore(calDay) })}>+ Add a post on this day</button>
           </aside>
         </div>
       </>
@@ -926,7 +934,7 @@ export default function SocialCalendar() {
           <button type="button" className="cal-btn" onClick={() => fileRef.current?.click()}>Import sheet</button>
           {!limited && <button type="button" className="cal-btn" onClick={openUploads}>Team &amp; uploads</button>}
           {!limited && <button type="button" className="cal-btn" onClick={addClient}>+ Brand</button>}
-          {!limited && <button type="button" className="cal-primary" onClick={() => newPost()}>+ New post</button>}
+          {(!limited || clientNames.length > 0) && <button type="button" className="cal-primary" onClick={() => newPost()}>+ New post</button>}
         </div>
       </div>
 
