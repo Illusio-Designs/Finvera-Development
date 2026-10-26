@@ -5,12 +5,13 @@ const { asyncHandler } = require("../utils/crud");
 const { ACCEPTED_ROLES, rolesOf } = require("../utils/permissions");
 
 /* Accept either a single `role` or a `roles` array; return a clean, de-duped
-   array of valid roles (defaults to ["admin"] if nothing valid was sent). */
+   array of valid roles. Empty means none were chosen — callers refuse that
+   rather than quietly making the user an admin. */
 function normRoles(roles, role) {
   let list = Array.isArray(roles) ? roles : (role != null ? [role] : []);
-  list = [...new Set(list.filter((r) => ACCEPTED_ROLES.includes(r)))];
-  return list.length ? list : ["admin"];
+  return [...new Set(list.filter((r) => ACCEPTED_ROLES.includes(r)))];
 }
+const NO_ROLE = { message: "Choose at least one role for this user." };
 
 /* Social media brand ids (as strings, matching the multiselect); [] = all brands.
    Accepts an array or a JSON string (MySQL can hand JSON back as text). */
@@ -66,6 +67,7 @@ const create = asyncHandler(async (req, res) => {
   const { name, email, password, role, roles, active, avatar, title, socialClients } = req.body;
   if (!name || !email || !password) return res.status(400).json({ message: "Name, email and password are required." });
   const list = normRoles(roles, role);
+  if (!list.length) return res.status(400).json(NO_ROLE);
   const user = await User.create({
     name, email: String(email).toLowerCase().trim(),
     password: await bcrypt.hash(password, 10),
@@ -87,7 +89,11 @@ const update = asyncHandler(async (req, res) => {
   const brandsBefore = normBrands(user.socialClients);
   if (name != null) user.name = name;
   if (email != null) user.email = String(email).toLowerCase().trim();
-  if (roles != null || role != null) { const l = normRoles(roles, role); user.roles = l; user.role = l[0]; }
+  if (roles != null || role != null) {
+    const l = normRoles(roles, role);
+    if (!l.length) return res.status(400).json(NO_ROLE);
+    user.roles = l; user.role = l[0];
+  }
   if (active != null) user.active = active;
   if (avatar !== undefined) user.avatar = avatar || null;
   if (title !== undefined) user.title = title || null;
