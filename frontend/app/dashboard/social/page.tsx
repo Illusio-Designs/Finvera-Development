@@ -228,6 +228,8 @@ export default function SocialCalendar() {
   const [team, setTeam] = useState<TeamUser[]>([]);           // admin only: who holds which role / brands
   type Upload = { importBatch: string; client: string; posts: number; from: string; to: string; uploadedAt: string };
   const [uploads, setUploads] = useState<Upload[] | null>(null); // admin Team & uploads panel (null = closed)
+  const [coverEdit, setCoverEdit] = useState<{ brand: string; role: Role } | null>(null); // "who covers" cell being edited
+  const [coverBusy, setCoverBusy] = useState<number | null>(null);
   const [logMin, setLogMin] = useState("");
   const [logNote, setLogNote] = useState("");
   const [overStage, setOverStage] = useState<Stage | null>(null);
@@ -291,6 +293,28 @@ export default function SocialCalendar() {
     return team.filter((u) => u.active !== false && u.id !== exceptId && (u.roles || []).includes(role)
       && ((u.roles || []).includes("admin") || (u.socialClients || []).map(String).includes(brandId)));
   };
+
+  /* Admin: tick / untick a person for a brand at a role, from the "Who covers
+     each brand" table. Someone without the role gets it added at the same time.
+     The server then hands waiting posts to them. */
+  async function toggleCover(u: TeamUser, brand: string, role: Role) {
+    const brandId = String(clientRows.find((c) => c.name === brand)?.id ?? "");
+    if (!brandId) return toast("Save the brand first", "warn", { description: `${brand} isn't a saved brand yet.` });
+    const brands = (u.socialClients || []).map(String);
+    const covers = brands.includes(brandId) && (u.roles || []).includes(role);
+    const nextBrands = covers ? brands.filter((b) => b !== brandId) : [...new Set([...brands, brandId])];
+    const nextRoles = covers || (u.roles || []).includes(role) ? u.roles : [...(u.roles || []), role];
+    setCoverBusy(u.id);
+    try {
+      await api.update("users", u.id, { socialClients: nextBrands, roles: nextRoles });
+      setTeam((t) => t.map((x) => (x.id === u.id ? { ...x, socialClients: nextBrands, roles: nextRoles } : x)));
+      toast(covers ? `${u.name} no longer covers ${brand}` : `${u.name} now covers ${brand}`, "ok", {
+        description: covers ? `As ${ROLE_META[role].label}.` : `As ${ROLE_META[role].label}${(u.roles || []).includes(role) ? "" : " (role added)"} — waiting posts go to them now.`,
+      });
+      load();
+    } catch (e: any) { toast("Couldn't update", "err", { description: e.message || "Try again." }); }
+    finally { setCoverBusy(null); }
+  }
 
   /* ── writes ── */
   function patchLocal(id: number, patch: Partial<Post>) {
@@ -843,15 +867,51 @@ export default function SocialCalendar() {
                       {roles.map((r) => {
                         const c = candidates(r, b);
                         const waitingHere = gaps.find((g) => g.brand === b && g.role === r)?.count || 0;
-                        return c.length
-                          ? <td key={r}>{c.map((u) => u.name).join(", ")}</td>
-                          : <td key={r} className="gap"><b>Nobody</b>{waitingHere > 0 && <small>{waitingHere} waiting</small>}<a href="/dashboard/users">Assign</a></td>;
+                        const on = coverEdit?.brand === b && coverEdit?.role === r;
+                        return (
+                          <td key={r} className={(c.length ? "" : "gap") + (on ? " editing" : "")}>
+                            <button type="button" className="cal-cover-cell" aria-expanded={on} onClick={() => setCoverEdit(on ? null : { brand: b, role: r })}
+                              aria-label={`Change who covers ${b} as ${ROLE_META[r].label}`}>
+                              {c.length ? <span>{c.map((u) => u.name).join(", ")}</span> : <><b>Nobody</b>{waitingHere > 0 && <small>{waitingHere} waiting</small>}</>}
+                              <em>{c.length ? "Change" : "Assign"}</em>
+                            </button>
+                          </td>
+                        );
                       })}
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            {coverEdit && (() => {
+              const brandId = String(clientRows.find((c) => c.name === coverEdit.brand)?.id ?? "");
+              const active = team.filter((u) => u.active !== false && !(u.roles || []).includes("admin"));
+              const withRole = active.filter((u) => (u.roles || []).includes(coverEdit.role));
+              const others = active.filter((u) => !(u.roles || []).includes(coverEdit.role));
+              const row = (u: TeamUser, addsRole: boolean) => {
+                const checked = !addsRole && (u.socialClients || []).map(String).includes(brandId);
+                return (
+                  <label key={u.id} className={"cal-cover-opt" + (checked ? " on" : "")}>
+                    <input type="checkbox" checked={checked} disabled={coverBusy === u.id} onChange={() => toggleCover(u, coverEdit.brand, coverEdit.role)} />
+                    <span><b>{u.name}</b><small>{(u.roles || []).map((r) => ROLE_META[r as Role]?.label || r).join(", ") || "No role yet"}{addsRole ? ` · gets the ${ROLE_META[coverEdit.role].label} role` : ""}</small></span>
+                  </label>
+                );
+              };
+              return (
+                <div className="cal-cover-edit" role="group" aria-label={`Who covers ${coverEdit.brand} as ${ROLE_META[coverEdit.role].label}`}>
+                  <div className="cal-cover-edit-head">
+                    <b>{coverEdit.brand} · <span style={{ color: ROLE_META[coverEdit.role].fg }}>{ROLE_META[coverEdit.role].label}</span></b>
+                    <button type="button" className="cal-link" onClick={() => setCoverEdit(null)}>Done</button>
+                  </div>
+                  <p className="adm-hint" style={{ margin: 0 }}>Tick who covers this brand. Posts at this stage go to the least busy ticked person.</p>
+                  {withRole.length ? withRole.map((u) => row(u, false)) : <p className="adm-hint" style={{ margin: 0 }}>Nobody has the {ROLE_META[coverEdit.role].label} role yet. Pick someone below to give it to them.</p>}
+                  {others.length > 0 && <>
+                    <span className="cal-cover-sub">Give the role to someone else</span>
+                    {others.map((u) => row(u, true))}
+                  </>}
+                </div>
+              );
+            })()}
           </div>
 
           <div className="cal-vsec">
