@@ -181,12 +181,15 @@ const socialPostCtrl = crudController(SocialPost, {
   order: [["postDate", "ASC"], ["postTime", "ASC"], ["position", "ASC"]],
   searchable: ["client", "theme", "topic", "caption", "festive"],
   onCreate: async (p, req) => {
+    await social.recordEvents([social.eventOf(p, { byUserId: req.user?.id })]);
     if (p.assigneeId) await notifyUsers([p.assigneeId], socialAssigned(p), req.user?.id);
     // Everyone who works on this brand hears about the new post.
     const team = (await brandUserIds(p.client)).filter((id) => id !== p.assigneeId);
     await notifyUsers(team, { type: "info", title: `New post for ${p.client}: ${p.theme}`, body: p.postDate ? `Goes live ${when(p.postDate, p.postTime)}` : undefined, link: "/dashboard/social", meta: { socialPostId: p.id } }, req.user?.id);
   },
   onUpdate: async (p, req, before) => {
+    // Stage history: who had it before the move delivered that stage.
+    if (before.status !== p.status) await social.recordEvents([social.eventOf(p, { from: before.status, fromAssigneeId: before.assigneeId, byUserId: req.user?.id })]);
     const reassigned = p.assigneeId && p.assigneeId !== before.assigneeId;
     if (reassigned) await notifyUsers([p.assigneeId], socialAssigned(p), req.user?.id);
     // Changes by someone else → the person who has it (unless they just got it, above).
@@ -244,6 +247,9 @@ socialPostRouter.put("/:id", ...canSocial, social.guardPost, social.deadlineDefa
 socialPostRouter.patch("/:id", ...canSocial, social.guardPost, social.deadlineDefaults, social.assignOnStageChange, socialPostCtrl.update);
 socialPostRouter.delete("/:id", ...canSocial, social.guardPost, socialPostCtrl.remove);
 router.use("/social-posts", socialPostRouter);
+
+/* Content calendar performance KPIs (admins: whole team; others: themselves). */
+router.get("/social-kpis", ...canSocial, require("../controllers/kpi.controller").kpis);
 
 /* ── Users ───────────────────────────────────────────── */
 const usersRouter = express.Router();

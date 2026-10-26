@@ -269,6 +269,23 @@ const SocialPost = sequelize.define("SocialPost", {
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
 }, { tableName: "social_posts" });
 
+/* ── Content calendar stage history (feeds the performance KPIs) ──
+   One row when a post is created and one each time its stage changes:
+   who had it before the move (`fromAssigneeId`, the person who delivered
+   that stage), who moved it, and when. */
+const SocialPostEvent = sequelize.define("SocialPostEvent", {
+  postId: { type: DataTypes.INTEGER, allowNull: false },
+  client: { type: DataTypes.STRING },
+  format: { type: DataTypes.STRING },
+  fromStatus: { type: DataTypes.STRING(20) },          // null = just created
+  toStatus: { type: DataTypes.STRING(20), allowNull: false },
+  fromAssigneeId: { type: DataTypes.INTEGER },
+  toAssigneeId: { type: DataTypes.INTEGER },
+  byUserId: { type: DataTypes.INTEGER },
+  postDate: { type: DataTypes.DATEONLY },              // go-live at the time of the move
+  at: { type: DataTypes.DATE, allowNull: false },
+}, { tableName: "social_post_events", indexes: [{ fields: ["postId"] }, { fields: ["at"] }] });
+
 /* ── Editable content collections (CMS) ──────────────── */
 const contentDefaults = {
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
@@ -347,6 +364,6 @@ module.exports = {
   sequelize,
   User, Project, Service, Testimonial, TeamMember,
   BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page, Lead, Notification, PushSubscription,
-  Renewal, SocialClient, SocialPost,
+  Renewal, SocialClient, SocialPost, SocialPostEvent,
   Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature,
 };

@@ -1,5 +1,15 @@
 const { Op, fn, col, literal } = require("sequelize");
-const { SocialClient, SocialPost, User, Setting } = require("../models");
+const { SocialClient, SocialPost, SocialPostEvent, User, Setting } = require("../models");
+
+/* Stage history for the performance KPIs. Never throws: a history write
+   must not break saving the post itself. */
+async function recordEvents(rows) {
+  try { if (rows.length) await SocialPostEvent.bulkCreate(rows); } catch (e) { console.warn("post history:", e.message); }
+}
+const eventOf = (p, { from = null, fromAssigneeId = null, byUserId = null } = {}) => ({
+  postId: p.id, client: p.client, format: p.format || null, fromStatus: from, toStatus: p.status,
+  fromAssigneeId, toAssigneeId: p.assigneeId || null, byUserId, postDate: p.postDate || null, at: new Date(),
+});
 const { asyncHandler } = require("../utils/crud");
 const { rolesOf } = require("../utils/permissions");
 const { notifyUsers } = require("../utils/notify");
@@ -226,7 +236,9 @@ const isLive = (p) => /https?:\/\//i.test(p.channels || "") && !!p.postDate && d
 /* Move a wrongly-Posted post back to Planned, to its maker. */
 async function backToPlanned(p, ctx) {
   const who = await pickAssignee(stageRole("planned", p.format), p.client, ctx);
+  const before = { status: p.status, assigneeId: p.assigneeId };
   await p.update({ status: "planned", assigneeId: who, dueDate: p.dueDate || weekBefore(p.postDate) });
+  if (before.status !== "planned") await recordEvents([eventOf(p, { from: before.status, fromAssigneeId: before.assigneeId })]);
   if (who) ctx.load[who] = (ctx.load[who] || 0) + 1;
 }
 
@@ -282,7 +294,8 @@ async function importRows(rows) {
     }
   }
   await assignRows(toCreate);
-  await SocialPost.bulkCreate(toCreate);
+  const made = await SocialPost.bulkCreate(toCreate);
+  await recordEvents(made.filter((p) => p.id).map((p) => eventOf(p)));
   const createdBy = {};
   for (const r of toCreate) createdBy[r.client] = (createdBy[r.client] || 0) + 1;
   return { created: toCreate.length, updated, batch, createdBy, updatedBy };
@@ -323,5 +336,5 @@ async function assignRows(rows) {
   }
 }
 
-module.exports = { brandIdsOf, withScope, requireAllBrands, guardBody, guardPost, listClients, listPosts,
+module.exports = { recordEvents, eventOf, brandIdsOf, withScope, requireAllBrands, guardBody, guardPost, listClients, listPosts,
   stageRole, assignOnCreate, assignOnStageChange, assignRows, assignUnassigned, importRows, listUploads, deleteUpload, deleteBrandPosts, deadlineDefaults };
