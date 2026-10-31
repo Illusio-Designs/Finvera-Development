@@ -192,7 +192,9 @@ const socialPostCtrl = crudController(SocialPost, {
   onUpdate: async (p, req, before) => {
     await autoPublish.syncJobs(p); // Ready → scheduled at go-live; date moves follow; leaving Ready cancels
     // Stage history: who had it before the move delivered that stage.
-    if (before.status !== p.status) await social.recordEvents([social.eventOf(p, { from: before.status, fromAssigneeId: before.assigneeId, byUserId: req.user?.id })]);
+    // A step hand-off inside In production (designer → video editor) counts too.
+    if (before.status !== p.status || (before.step || null) !== (p.step || null) && p.status === "production" && before.status === "production")
+      await social.recordEvents([social.eventOf(p, { from: before.status, fromAssigneeId: before.assigneeId, byUserId: req.user?.id })]);
     const reassigned = p.assigneeId && p.assigneeId !== before.assigneeId;
     if (reassigned) await notifyUsers([p.assigneeId], socialAssigned(p), req.user?.id);
     // Changes by someone else → the person who has it (unless they just got it, above).
@@ -209,7 +211,7 @@ const socialPostCtrl = crudController(SocialPost, {
   },
 });
 const SOCIAL_FIELDS = ["client", "status", "postDate", "postTime", "dueDate", "assigneeId", "estimateHours", "festive", "theme", "topic",
-  "format", "requirements", "reference", "dataStatus", "poc", "caption", "driveLink", "tags", "keywords", "channels", "remarks", "position"];
+  "format", "requirements", "reference", "dataStatus", "poc", "caption", "driveLink", "tags", "keywords", "channels", "remarks", "position", "step"];
 const socialPostRouter = express.Router();
 socialPostRouter.get("/", ...canSocial, social.listPosts(socialPostCtrl.list));
 // Sheet uploads (admin): list batches, delete one batch, or clear a brand.

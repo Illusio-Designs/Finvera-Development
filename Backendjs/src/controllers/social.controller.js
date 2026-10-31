@@ -84,16 +84,20 @@ const listPosts = (crudList) => asyncHandler(async (req, res, next) => {
 });
 
 /* ── Stage-based assignment ─────────────────────────────
-   Who works on a post at each stage:
-     reels / videos  — Planned, Need from client → Marketer (plans, shoots)
-                       In production → Video editor (edits)
-     posts / carousels / stories → Graphic designer
-     Ready to post, Posted → Social media (posts it). */
-function stageRole(status, format) {
+   Every post (post, carousel, reel) passes through the same four people:
+     Planned                     → Marketer (plans it)
+     In production, step graphic → Graphic designer (designs)
+     In production, step video   → Video editor (edits)
+     Ready to post, Posted       → Social media (posts it)
+   Each person clicks Done and it goes to the next one automatically. */
+const STEPS = ["marketer", "graphic", "video", "social"];
+function stageRole(status, format, step) {
   if (status === "ready" || status === "posted") return "social";
-  if (!/reel|video|influencer/i.test(format || "")) return "graphic";
-  return status === "production" ? "video" : "marketer";
+  if (status === "production") return step === "video" ? "video" : "graphic";
+  return "marketer";
 }
+/* The step a post is on inside In production. */
+const stepFor = (status, step) => (status === "production" ? (step === "video" ? "video" : "graphic") : null);
 
 /* Least-loaded active user holding `role` who can see `client`, or null.
    `ctx` caches users / brand ids / open-post counts across a bulk import. */
@@ -165,7 +169,8 @@ async function fillDeadlines() {
 /* New post with nobody picked → assign by its stage + format. */
 const assignOnCreate = asyncHandler(async (req, _res, next) => {
   const b = req.body || {};
-  if (!b.assigneeId && b.client) b.assigneeId = await pickAssignee(stageRole(b.status || "planned", b.format), b.client, {});
+  b.step = stepFor(b.status || "planned", b.step);
+  if (!b.assigneeId && b.client) b.assigneeId = await pickAssignee(stageRole(b.status || "planned", b.format, b.step), b.client, {});
   next();
 });
 
@@ -177,14 +182,18 @@ const assignOnCreate = asyncHandler(async (req, _res, next) => {
    keeps it only when no other Social media person has the brand. */
 const assignOnStageChange = asyncHandler(async (req, _res, next) => {
   const b = req.body || {};
-  if (b.status === undefined) return next();
+  if (b.status === undefined && b.step === undefined) return next();
   const post = await SocialPost.findByPk(req.params.id);
-  if (!post || b.status === post.status) return next();
+  if (!post) return next();
+  const status = b.status !== undefined ? b.status : post.status;
+  // Entering In production starts at the design step; any other stage has no step.
+  b.step = stepFor(status, b.step !== undefined ? b.step : (status === post.status ? post.step : null));
+  if (status === post.status && (b.step || null) === (post.step || null)) return next();
   if (b.assigneeId !== undefined && Number(b.assigneeId || 0) !== Number(post.assigneeId || 0)) return next();
-  const role = stageRole(b.status, b.format !== undefined ? b.format : post.format);
+  const role = stageRole(status, b.format !== undefined ? b.format : post.format, b.step);
   const current = post.assigneeId ? await User.findByPk(post.assigneeId) : null;
   const client = b.client !== undefined ? b.client : post.client;
-  if (b.status === "ready") {
+  if (status === "ready") {
     const other = await pickAssignee("social", client, {}, post.assigneeId);
     if (other) b.assigneeId = other;
     else if (!(current && current.active && rolesOf(current).includes("social"))) {
@@ -193,9 +202,11 @@ const assignOnStageChange = asyncHandler(async (req, _res, next) => {
     }
     return next();
   }
-  if (current && current.active && rolesOf(current).includes(role)) return next();
-  const who = await pickAssignee(role, client, {});
+  // A hand-off goes to the next person; the current one keeps it only if
+  // nobody else covers that role for the brand.
+  const who = await pickAssignee(role, client, {}, post.assigneeId) || (current && current.active && rolesOf(current).includes(role) ? null : await pickAssignee(role, client, {}));
   if (who) b.assigneeId = who;
+  else if (!(current && current.active && rolesOf(current).includes(role))) b.assigneeId = null; // waits for someone with the role
   next();
 });
 
@@ -213,7 +224,7 @@ async function assignUnassigned({ force = false } = {}) {
   if (!posts.length) return;
   const ctx = {}, gained = {};
   for (const p of posts) {
-    const who = await pickAssignee(stageRole(p.status, p.format), p.client, ctx);
+    const who = await pickAssignee(stageRole(p.status, p.format, p.step), p.client, ctx);
     if (!who) continue;
     await p.update({ assigneeId: who });
     if (p.status !== "posted") { ctx.load[who] = (ctx.load[who] || 0) + 1; (gained[who] = gained[who] || []).push(p); }
@@ -337,4 +348,4 @@ async function assignRows(rows) {
 }
 
 module.exports = { recordEvents, eventOf, brandIdsOf, withScope, requireAllBrands, guardBody, guardPost, listClients, listPosts,
-  stageRole, assignOnCreate, assignOnStageChange, assignRows, assignUnassigned, importRows, listUploads, deleteUpload, deleteBrandPosts, deadlineDefaults };
+  stageRole, STEPS, assignOnCreate, assignOnStageChange, assignRows, assignUnassigned, importRows, listUploads, deleteUpload, deleteBrandPosts, deadlineDefaults };
