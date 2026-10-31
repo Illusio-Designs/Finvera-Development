@@ -187,7 +187,8 @@ const kpis = asyncHandler(async (req, res) => {
     const prev = lastByPost.get(e.postId);
     lastByPost.set(e.postId, e);
     if (!e.fromStatus) continue;
-    const forward = ORDER.indexOf(e.toStatus) > ORDER.indexOf(e.fromStatus);
+    // Forward = a later stage, or the design → video hand-off inside In production.
+    const forward = ORDER.indexOf(e.toStatus) > ORDER.indexOf(e.fromStatus) || e.toStatus === e.fromStatus;
     const d = istDay(e.at);
     const goLive = day(e.postDate) || day(postById.get(e.postId)?.postDate);
     moves.push({

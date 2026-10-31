@@ -18,6 +18,7 @@ type Post = {
   dataStatus?: string; poc?: string; caption?: string; driveLink?: string; tags?: string; keywords?: string;
   channels?: string; remarks?: string; position?: number;
   media?: Media[]; publishTo?: string[] | null; keywordHashtags?: boolean;
+  step?: string | null; // In production: "graphic" (design) then "video" (edit)
 };
 /* Auto-publishing */
 type Media = { url: string; type: "image" | "video"; name?: string };
@@ -52,9 +53,9 @@ type User = { id: number; name: string; avatar?: string | null };
 type View = "board" | "schedule" | "calendar" | "mine";
 
 const STAGES: { id: Stage; title: string; owner: string; color: string; bg: string; fg: string }[] = [
-  { id: "planned", title: "Planned", owner: "Marketer · Graphic designer", color: "#6b7590", bg: "#eef0f4", fg: "#4b5466" },
-  { id: "client", title: "Need from client", owner: "Marketer · Graphic designer", color: "#d97706", bg: "#fdf0dc", fg: "#9a4b06" },
-  { id: "production", title: "In production", owner: "Video editor · Graphic designer", color: "#3e60ab", bg: "#e6ecf8", fg: "#2f55a4" },
+  { id: "planned", title: "Planned", owner: "Marketer", color: "#6b7590", bg: "#eef0f4", fg: "#4b5466" },
+  { id: "client", title: "Need from client", owner: "Marketer", color: "#d97706", bg: "#fdf0dc", fg: "#9a4b06" },
+  { id: "production", title: "In production", owner: "Graphic designer → Video editor", color: "#3e60ab", bg: "#e6ecf8", fg: "#2f55a4" },
   { id: "ready", title: "Ready to post", owner: "Social media", color: "#7c5cff", bg: "#efeaff", fg: "#5b35c9" },
   { id: "posted", title: "Posted", owner: "Social media", color: "#16a34a", bg: "#e4f5ea", fg: "#15703a" },
 ];
@@ -62,19 +63,30 @@ const STAGES: { id: Stage; title: string; owner: string; color: string; bg: stri
 type Role = "marketer" | "video" | "graphic" | "social";
 const ROLE_META: Record<Role, { label: string; fg: string; bg: string; does: string }> = {
   marketer: { label: "Marketer", fg: "#9a4b06", bg: "#fdf0dc", does: "Plans & shoots" },
-  video: { label: "Video editor", fg: "#b0185a", bg: "#fbe6ef", does: "Edits the reel" },
+  video: { label: "Video editor", fg: "#b0185a", bg: "#fbe6ef", does: "Edits the video" },
   graphic: { label: "Graphic designer", fg: "#0f6b62", bg: "#dff3f0", does: "Designs it" },
   social: { label: "Social media", fg: "#2f55a4", bg: "#e6ecf8", does: "Posts it" },
 };
-const isReelish = (f?: string) => /reel|video|influencer/i.test(f || "");
-const roleFor = (status: Stage, format?: string): Role =>
-  (status === "ready" || status === "posted") ? "social" : !isReelish(format) ? "graphic" : status === "production" ? "video" : "marketer";
+/* Every post passes the same four people, in this order. Each clicks Done
+   and it goes to the next one (the server picks who). */
+const CHAIN: Role[] = ["marketer", "graphic", "video", "social"];
+const roleFor = (status: Stage, _format?: string, step?: string | null): Role =>
+  (status === "ready" || status === "posted") ? "social" : status === "production" ? (step === "video" ? "video" : "graphic") : "marketer";
+/* What "Done" does from here: the next person in the chain. */
+function nextHop(p: Pick<Post, "status" | "step">): { role: Role; patch: { status?: Stage; step?: string } } | null {
+  const r = roleFor(p.status, undefined, p.step);
+  if (p.status === "posted") return null;
+  if (r === "marketer") return { role: "graphic", patch: { status: "production", step: "graphic" } };
+  if (r === "graphic") return { role: "video", patch: { step: "video" } };
+  if (r === "video") return { role: "social", patch: { status: "ready" } };
+  return null; // Ready to post → posts itself (or Mark as posted)
+}
 const CLIENT_COLORS = ["#3e60ab", "#0f766e", "#be185d", "#a16207", "#7c5cff", "#0369a1", "#c2410c", "#15803d"];
 const FORMATS = ["Post", "Reel", "Carousel", "Video", "Story", "Influencer Reel"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 /* Fields the drawer edits — time log + timer are written separately so a save never clobbers them. */
-const EDITABLE: (keyof Post)[] = ["client", "status", "postDate", "postTime", "dueDate", "assigneeId", "estimateHours", "festive", "theme", "topic",
+const EDITABLE: (keyof Post)[] = ["step", "client", "status", "postDate", "postTime", "dueDate", "assigneeId", "estimateHours", "festive", "theme", "topic",
   "format", "requirements", "reference", "dataStatus", "poc", "caption", "driveLink", "tags", "keywords", "channels", "remarks",
   "media", "publishTo", "keywordHashtags"];
 
@@ -115,7 +127,6 @@ function fmtTime(t?: string | null) {
   const [h, m] = t.split(":").map(Number);
   return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
 }
-function hm(min: number) { const t = Math.round(min || 0); const h = Math.floor(t / 60), m = t % 60; return h ? `${h}h${m ? ` ${m}m` : ""}` : `${m}m`; }
 /* Format chip colours: [background, text]. */
 function formatColors(f?: string): [string, string] {
   const s = (f || "").toLowerCase();
@@ -153,11 +164,6 @@ function progressPct(p: Post) {
   const start = p.dueDate || weekBefore(p.postDate);
   const span = Math.max(1, daysFrom(start, p.postDate));
   return Math.max(0, Math.min(100, Math.round((daysFrom(start, todayIso()) / span) * 100)));
-}
-function loggedMin(p: Post) {
-  let m = toArr<LogEntry>(p.timeLog).reduce((a, e) => a + (Number(e.minutes) || 0), 0);
-  if (p.timerStart) m += (Date.now() - new Date(p.timerStart).getTime()) / 60000;
-  return m;
 }
 
 /* ── CSV import (a client's media-calendar sheet, saved from Excel as CSV) ── */
@@ -264,8 +270,6 @@ export default function SocialCalendar() {
   const coverScrolled = useRef("");
   const [coverEdit, setCoverEdit] = useState<{ brand: string; role: Role } | null>(null); // "who covers" cell being edited
   const [coverBusy, setCoverBusy] = useState<number | null>(null);
-  const [logMin, setLogMin] = useState("");
-  const [logNote, setLogNote] = useState("");
   const [overStage, setOverStage] = useState<Stage | null>(null);
   const [, setTick] = useState(0);
   const dragId = useRef<number | null>(null);
@@ -388,7 +392,7 @@ export default function SocialCalendar() {
         confirmText: "OK",
       });
     }
-    const theirs = posts.filter((p) => p.assigneeId === u.id && p.status !== "posted" && roleFor(p.status, p.format) === role);
+    const theirs = posts.filter((p) => p.assigneeId === u.id && p.status !== "posted" && roleFor(p.status, p.format, p.step) === role);
     const ok = await dialog.confirm({
       title: `Remove the ${label} role from ${u.name}?`,
       message: `They'll stop covering every brand as ${label}.${theirs.length ? ` Their ${theirs.length} open ${label} post${theirs.length === 1 ? "" : "s"} will go to someone else with the role, or wait if nobody has it.` : ""}`,
@@ -492,7 +496,7 @@ export default function SocialCalendar() {
     try {
       // The server hands the post to the next stage's role — show the new assignee straight away.
       const saved = await api.update("social-posts", id, { status });
-      patchLocal(id, { assigneeId: saved?.assigneeId ?? null });
+      patchLocal(id, { assigneeId: saved?.assigneeId ?? null, step: saved?.step ?? null });
       window.dispatchEvent(new Event("fv-badges")); // overdue count in the sidebar
       loadPublishing(); // Ready → scheduled, or a schedule cancelled
       const who = users.find((u) => u.id === saved?.assigneeId);
@@ -503,7 +507,29 @@ export default function SocialCalendar() {
     }
     catch (e: any) { patchLocal(id, { status: p.status }); toast("Couldn't move the post", "err", { description: e.message || "It's back where it was — try again." }); }
   }
-  const nextStage = (s: Stage) => STAGES[STAGES.findIndex((x) => x.id === s) + 1];
+  /* Done → the next person in the chain gets it (picked by the server). */
+  async function advance(p: Post) {
+    const hop = nextHop(p);
+    if (!hop) return moveTo(p.id, "posted");
+    const before = { status: p.status, step: p.step, assigneeId: p.assigneeId };
+    patchLocal(p.id, hop.patch);
+    try {
+      const saved = await api.update("social-posts", p.id, hop.patch);
+      patchLocal(p.id, { status: saved?.status ?? hop.patch.status ?? p.status, step: saved?.step ?? null, assigneeId: saved?.assigneeId ?? null });
+      window.dispatchEvent(new Event("fv-badges"));
+      loadPublishing();
+      const who = users.find((u) => u.id === saved?.assigneeId);
+      toast(`Sent to ${ROLE_META[hop.role].label}`, "ok", {
+        description: who ? `“${p.theme}” is now with ${who.name}.` : `Nobody covers ${p.client} as ${ROLE_META[hop.role].label} yet — it waits until someone is assigned.`,
+      });
+    } catch (e: any) { patchLocal(p.id, before); toast("Couldn't send it on", "err", { description: e.message || "Try again." }); }
+  }
+  const doneLabel = (p: Post) => {
+    const hop = nextHop(p);
+    if (!hop) return p.status === "ready" ? "Mark as posted" : "";
+    const c = !limited ? candidates(hop.role, p.client) : [];
+    return `Done → ${c.length === 1 ? c[0].name.split(" ")[0] : ROLE_META[hop.role].label}`;
+  };
   async function savePost(e: React.FormEvent) {
     e.preventDefault();
     if (!editing?.client?.trim() || !editing?.theme?.trim()) return toast("Add a brand and a post theme", "warn", { description: "Both are needed before the post can be saved." });
@@ -522,7 +548,7 @@ export default function SocialCalendar() {
   async function deletePost() {
     if (!editing?.id) return;
     if (!canDelete(editing)) return notYours(editing);
-    if (!(await dialog.confirm({ title: "Delete this post?", message: "Its time log is deleted too. This can't be undone.", danger: true, confirmText: "Delete" }))) return;
+    if (!(await dialog.confirm({ title: "Delete this post?", message: "This can't be undone.", danger: true, confirmText: "Delete" }))) return;
     await api.remove("social-posts", editing.id); setViewId(null); setEditing(null); toast("Post deleted", "ok", { description: `“${editing.theme}” was removed from ${editing.client}.` }); load(); window.dispatchEvent(new Event("fv-badges"));
   }
   async function addClient() {
@@ -541,44 +567,13 @@ export default function SocialCalendar() {
   });
 
   /* ── time tracking ── */
-  async function addLog(p: Post, minutes: number, note: string, extra: Partial<Post> = {}) {
-    const entry: LogEntry = { id: uid(), userId: extra.timerStart === null ? p.timerBy ?? meId : meId, minutes: Math.max(1, Math.round(minutes)), note, at: new Date().toISOString() };
-    const timeLog = [...toArr<LogEntry>(p.timeLog), entry];
-    await api.update("social-posts", p.id, { timeLog, ...extra });
-    patchLocal(p.id, { timeLog, ...extra });
-  }
-  async function toggleTimer(p: Post) {
-    if (!canEdit(p)) return notYours(p);
-    try {
-      if (p.timerStart) {
-        await addLog(p, (Date.now() - new Date(p.timerStart).getTime()) / 60000, "Timer session", { timerStart: null, timerBy: null });
-        toast("Timer stopped", "ok", { description: `${hm((Date.now() - new Date(p.timerStart).getTime()) / 60000)} logged on “${p.theme}”.` });
-      } else {
-        const patch = { timerStart: new Date().toISOString(), timerBy: meId };
-        await api.update("social-posts", p.id, patch); patchLocal(p.id, patch);
-        toast("Timer started", "info", { description: `Tracking time on “${p.theme}”. Press Stop when you're done.`, sound: false });
-      }
-    } catch (e: any) { toast("Couldn't update the timer", "err", { description: e.message }); }
-  }
-  async function logManual(post: Post) {
-    const p = posts.find((x) => x.id === post.id); const m = Number(logMin);
-    if (!p || !(m > 0)) return toast("Enter the minutes worked", "warn", { description: "Type how many minutes you spent, then press Log." });
-    try { await addLog(p, m, logNote.trim()); setLogMin(""); setLogNote(""); toast("Time logged", "ok", { description: `${hm(m)} on “${p.theme}”.` }); }
-    catch (e: any) { toast("Couldn't log time", "err", { description: e.message }); }
-  }
-  async function removeLog(post: Post, entryId: string) {
-    const p = posts.find((x) => x.id === post.id); if (!p) return;
-    const timeLog = toArr<LogEntry>(p.timeLog).filter((e) => e.id !== entryId);
-    try { await api.update("social-posts", p.id, { timeLog }); patchLocal(p.id, { timeLog }); }
-    catch (e: any) { toast("Couldn't remove the time entry", "err", { description: e.message }); }
-  }
 
   /* ── admin: why posts are waiting ── */
   const waiting = limited ? [] : posts.filter((p) => !p.assigneeId);
   const gaps = (() => {
     const out: { brand: string; role: Role; count: number }[] = [];
     for (const p of waiting) {
-      const role = roleFor(p.status, p.format);
+      const role = roleFor(p.status, p.format, p.step);
       if (candidates(role, p.client).length) continue;
       const g = out.find((x) => x.brand === p.client && x.role === role);
       if (g) g.count++; else out.push({ brand: p.client, role, count: 1 });
@@ -621,7 +616,7 @@ export default function SocialCalendar() {
     if (limited && !clientNames.includes(name)) return dialog.alert({ title: "Not one of your brands", message: `You can import only into: ${clientNames.join(", ") || "no brands yet"}.` });
     const parsed = sheetToPosts(rows, name);
     if (!parsed.length) return dialog.alert({ title: "No posts found", message: "The CSV needs a header row with a “Post Theme” column and a “Date” column." });
-    if (!(await dialog.confirm({ title: `Import ${parsed.length} posts for ${name}?`, message: "Rows already on the board (same date + post theme) are updated, keeping their stage and assignee. New rows go to Planned and to their maker — reels to a Marketer (then a Video editor at In production), posts and carousels to a Graphic designer.", confirmText: "Import" }))) return;
+    if (!(await dialog.confirm({ title: `Import ${parsed.length} posts for ${name}?`, message: "Rows already on the board (same date + post theme) are updated, keeping their stage and assignee. New rows go to Planned, with a Marketer. Each person clicks Done and it moves on: Marketer → Graphic designer → Video editor → Social media.", confirmText: "Import" }))) return;
     try {
       const r = await api.importSocialPosts(parsed);
       const parts = [r.created ? `${r.created} added to Planned` : "", r.updated ? `${r.updated} updated` : ""].filter(Boolean).join(", ");
@@ -631,7 +626,6 @@ export default function SocialCalendar() {
   }
 
   /* ── small pieces ── */
-  const timerText = (p: Post) => `${p.timerStart ? "● " : ""}${hm(loggedMin(p))}${p.estimateHours ? ` / ${p.estimateHours}h` : ""}`;
   const css = (v: Record<string, string>) => v as unknown as React.CSSProperties;
   const badge = (p: Post) => { const d = dueInfo(p); return d ? <span className="cal-badge" style={css({ "--bg": d.bg, "--fg": d.fg })}>{d.text}</span> : null; };
   const fmtChip = (f?: string) => { if (!f) return null; const [bg, fg] = formatColors(f); return <span className="cal-chip" style={css({ "--bg": bg, "--fg": fg })}>{f}</span>; };
@@ -640,7 +634,7 @@ export default function SocialCalendar() {
   const whoPill = (p: Post, size: "sm" | "md" = "sm") => {
     const u = userById(p.assigneeId);
     if (!u) return <span className={"cal-who none " + size}>Unassigned</span>;
-    const r = ROLE_META[roleFor(p.status, p.format)];
+    const r = ROLE_META[roleFor(p.status, p.format, p.step)];
     return <span className={"cal-who " + size} style={css({ "--bg": r.bg, "--fg": r.fg })} title={`${u.name} · ${r.label}`}><i>{initials(u.name)}</i>{u.name}</span>;
   };
   const progress = (p: Post) => {
@@ -667,7 +661,6 @@ export default function SocialCalendar() {
         )}
         {p.postDate && progress(p)}
         <span className="cal-card-foot">{whoPill(p)}{badge(p)}{pubChip(p)}</span>
-        {(loggedMin(p) > 0 || p.timerStart) && <span className={"cal-time" + (p.timerStart ? " run" : "")}>{timerText(p)} logged</span>}
       </button>
     );
   }
@@ -720,7 +713,7 @@ export default function SocialCalendar() {
             <div className="cal-group-head"><h2 className={cls}>{name}</h2><b>{items.length}</b><span>{hint}</span></div>
             <div className="cal-table-wrap">
               <table className="cal-table">
-                <thead><tr><th>Goes live</th><th>Start work</th><th>Post</th><th>Stage</th><th>With</th><th>Timeline</th><th>Time</th></tr></thead>
+                <thead><tr><th>Goes live</th><th>Start work</th><th>Post</th><th>Stage</th><th>With</th><th>Timeline</th></tr></thead>
                 <tbody>
                   {items.map((p) => (
                     <tr key={p.id}>
@@ -733,13 +726,6 @@ export default function SocialCalendar() {
                       <td data-label="Stage">{stageChip(p.status)}</td>
                       <td data-label="With">{whoPill(p)}</td>
                       <td data-label="Timeline">{badge(p)}</td>
-                      <td className="nw" data-label="Time">
-                        <span className="cal-timecell">
-                          <b className={p.timerStart ? "run" : ""}>{hm(loggedMin(p))}</b>
-                          {canEdit(p) && <button type="button" className={"cal-timer" + (p.timerStart ? " run" : "")} onClick={() => toggleTimer(p)}
-                            aria-label={`${p.timerStart ? "Stop" : "Start"} timer on ${p.theme}`}>{p.timerStart ? "■ Stop" : "▶ Start"}</button>}
-                        </span>
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -854,7 +840,6 @@ export default function SocialCalendar() {
             <div className="cal-group-head"><h2 className={cls}>{name}</h2><b>{items.length}</b><span>{hint}</span></div>
             <div className="cal-mine">
               {items.map((p) => {
-                const nx = nextStage(p.status);
                 return (
                   <article key={p.id} className="cal-task">
                     <div className="cal-task-main">
@@ -864,9 +849,7 @@ export default function SocialCalendar() {
                       {p.postDate && progress(p)}
                     </div>
                     <div className="cal-task-actions">
-                      <span className="cal-task-time"><span>Time spent</span><b className={p.timerStart ? "run" : ""}>{hm(loggedMin(p))}</b></span>
-                      <button type="button" className={"cal-timer lg" + (p.timerStart ? " run" : "")} onClick={() => toggleTimer(p)}>{p.timerStart ? "■ Stop timer" : "▶ Start timer"}</button>
-                      {nx && <button type="button" className="cal-primary" onClick={() => moveTo(p.id, nx.id)}>Done → {nx.title}</button>}
+                      {doneLabel(p) && <button type="button" className="cal-primary" onClick={() => advance(p)}>{doneLabel(p)}</button>}
                     </div>
                   </article>
                 );
@@ -891,17 +874,10 @@ export default function SocialCalendar() {
       catch { toast("Couldn't copy the caption", "err", { description: "Select the caption text and copy it by hand." }); }
     };
     // Hand-off track: the roles this format passes through, and where it is now.
-    const chain: Role[] = isReelish(p.format) ? ["marketer", "video", "social"] : ["graphic", "social"];
-    const cur = chain.indexOf(roleFor(p.status, p.format));
+    const chain: Role[] = CHAIN;
+    const cur = chain.indexOf(roleFor(p.status, p.format, p.step));
     const assignee = userById(p.assigneeId);
-    const nx = nextStage(p.status);
-    let nextLabel = "";
-    if (nx) {
-      const nr = roleFor(nx.id, p.format);
-      const changes = nr !== roleFor(p.status, p.format) || nx.id === "ready";
-      const c = !limited && changes ? candidates(nr, p.client, nx.id === "ready" ? p.assigneeId : null) : [];
-      nextLabel = `Move to ${nx.title}` + (changes ? ` → ${c.length === 1 ? c[0].name.split(" ")[0] : ROLE_META[nr].label}` : "");
-    }
+    const nextLabel = doneLabel(p);
     return (
       <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setViewId(null); }}>
         <div className="adm-drawer kb-drawer cal-view" role="dialog" aria-modal="true" aria-label={p.theme}>
@@ -936,7 +912,6 @@ export default function SocialCalendar() {
             <div><span>Start work on</span><b>{p.postDate ? fmtDay(startOf(p)) : "—"}</b></div>
             <div><span>Goes live</span><b>{fmtDay(p.postDate)}{p.postTime && ` · ${fmtTime(p.postTime)}`}</b></div>
             <div><span>Timeline</span>{badge(p) || <b>—</b>}</div>
-            <div><span>Time spent</span><b>{timerText(p)}</b></div>
             {p.poc && <div><span>Client contact</span><b>{p.poc}</b></div>}
             {p.dataStatus && <div><span>Data status</span><b>{p.dataStatus}</b></div>}
           </div>
@@ -955,15 +930,11 @@ export default function SocialCalendar() {
           {section("Keywords", text(p.keywords))}
           {section("Remarks", text(p.remarks))}
 
-          {canEdit(p) ? renderTime(p) : (
-            <div className="cal-vsec"><h4>Time log</h4><span className="cal-muted">{hm(loggedMin(p))} logged in total.</span></div>
-          )}
 
           {canEdit(p) ? (
             <div className="adm-drawer-actions cal-actions">
-              {nx && <button type="button" className="cal-primary wide" onClick={() => moveTo(p.id, nx.id)}>{nextLabel}</button>}
+              {nextLabel && <button type="button" className="cal-primary wide" onClick={() => advance(p)}>{nextLabel}</button>}
               <div className="cal-row">
-                <button type="button" className={"cal-timer lg grow" + (p.timerStart ? " run" : "")} onClick={() => toggleTimer(p)}>{p.timerStart ? "■ Stop timer" : "▶ Start timer"}</button>
                 <button type="button" className="cal-btn lg grow" onClick={() => { setEditing({ ...p }); setViewId(null); }}>Edit post</button>
               </div>
             </div>
@@ -1025,32 +996,6 @@ export default function SocialCalendar() {
     );
   }
 
-  /* Time log — shown on the details card and in the editor. */
-  function renderTime(p: Post) {
-    return (
-      <div className="cal-vsec">
-        <h4>Time log</h4>
-        {p.timerStart && <p className="adm-hint">Timer running since {new Date(p.timerStart).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}{userById(p.timerBy) ? ` · ${userById(p.timerBy)!.name}` : ""}</p>}
-        <div className="sm-logadd">
-          <input type="number" min={1} step={5} value={logMin} onChange={(e) => setLogMin(e.target.value)} placeholder="Minutes" aria-label="Minutes worked" />
-          <input value={logNote} onChange={(e) => setLogNote(e.target.value)} placeholder="What was done (reel edit, caption…)" aria-label="Work note"
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); logManual(p); } }} />
-          <button type="button" className="cal-btn" onClick={() => logManual(p)}>Log</button>
-        </div>
-        <div className="sm-log">
-          {toArr<LogEntry>(p.timeLog).slice().reverse().map((e) => (
-            <div key={e.id} className="sm-logrow">
-              <b>{hm(e.minutes)}</b>
-              <span className="note">{e.note || "Work session"}</span>
-              <span className="cal-muted">{[userById(e.userId)?.name, new Date(e.at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })].filter(Boolean).join(" · ")}</span>
-              <button type="button" onClick={() => removeLog(p, e.id)} aria-label="Remove entry">×</button>
-            </div>
-          ))}
-          {!toArr(p.timeLog).length && <span className="adm-hint">No time logged yet. Start the timer while you work, or log minutes by hand.</span>}
-        </div>
-      </div>
-    );
-  }
 
   /* Admin: Team & uploads — who covers each brand, and the sheet uploads. */
   /* The "who covers" editor, shown right under the brand row that was clicked. */
@@ -1215,7 +1160,6 @@ export default function SocialCalendar() {
     limited ? ["Assigned to you", list.filter((p) => p.assigneeId === meId && !isDone(p)).length, "Open posts in My work", "now"] : ["Ready to post", list.filter((p) => p.status === "ready").length, "With Social media", "ready"],
     ["Posted", list.filter(isDone).length, "Live with links", "ok"],
   ];
-  const live = editing?.id ? posts.find((p) => p.id === editing.id) : undefined;
   const viewed = viewId != null ? posts.find((p) => p.id === viewId) : undefined;
   const set = (patch: Partial<Post>) => setEditing((e) => ({ ...e, ...patch }));
   const txt = (k: keyof Post) => String(editing?.[k] ?? "");
@@ -1223,7 +1167,7 @@ export default function SocialCalendar() {
   const activeView: View = !limited && view === "mine" ? "board" : view;
 
   // Editor: who the post goes to at its stage, and whether the start date is automatic.
-  const edRole = editing ? roleFor((editing.status || "planned") as Stage, editing.format) : "graphic";
+  const edRole = editing ? roleFor((editing.status || "planned") as Stage, editing.format, editing.step) : "graphic";
   const edAssignee = editing ? userById(editing.assigneeId) : undefined;
   const edAutoStart = editing ? !editing.dueDate || String(editing.dueDate).slice(0, 10) === weekBefore(editing.postDate) : true;
   const edCands = editing && !limited && editing.client ? candidates(edRole, editing.client) : [];
@@ -1379,8 +1323,6 @@ export default function SocialCalendar() {
               <div className="field row" style={{ gap: 12 }}>
                 <div className="adm-field" style={{ flex: 1 }}><label>Start work on</label>
                   <DatePicker value={txt("dueDate").slice(0, 10)} onChange={(v) => set({ dueDate: v })} placeholder="Start date" /></div>
-                <div className="adm-field" style={{ flex: 1 }}><label>Estimated hours</label>
-                  <input type="number" min={0} step={0.25} value={editing.estimateHours ?? ""} onChange={(e) => set({ estimateHours: e.target.value === "" ? null : Number(e.target.value) })} placeholder="e.g. 2" /></div>
               </div>
               <div className="cal-note">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
@@ -1498,7 +1440,6 @@ export default function SocialCalendar() {
               );
             })()}
 
-            {live && renderTime(live)}
 
             <div className="adm-drawer-actions">
               <button className="cal-primary" type="submit">Save post</button>

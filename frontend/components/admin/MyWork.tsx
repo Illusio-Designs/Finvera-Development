@@ -63,10 +63,7 @@ export default function MyWork() {
   const overdue = withDue.filter((x) => x.d.cls === "over").length;
   const workNow = open.filter((p) => { const live = day(p.postDate), start = day(p.dueDate) || (live ? addDays(live, -7) : ""); return start && start <= t && (!live || live >= t); }).length;
   const startingSoon = open.filter((p) => { const s = day(p.dueDate); return s > t && s <= weekEnd; }).length;
-  const monday = addDays(t, -((new Date().getDay() + 6) % 7));
-  // Time I logged counts even after the post moved on to someone else.
-  const minutes = all.flatMap(logs).filter((e) => e.userId === me?.id && day(e.at) >= monday).reduce((s, e) => s + (Number(e.minutes) || 0), 0);
-  const hours = minutes ? `${Math.round((minutes / 60) * 10) / 10}h` : "0h";
+  const goingLive = open.filter((p) => { const l = day(p.postDate); return l >= t && l <= weekEnd; }).length;
   const brands = new Set(open.map((p) => p.client)).size;
 
   const week = open.flatMap((p) => {
@@ -95,7 +92,7 @@ export default function MyWork() {
         <div className="mw-kpi"><span>Overdue</span><b className={overdue ? "over" : ""}>{overdue}</b><small>Go-live date passed</small></div>
         <div className="mw-kpi"><span>Work on now</span><b className="now">{workNow}</b><small>Inside the 7-day window</small></div>
         <div className="mw-kpi"><span>Starting this week</span><b>{startingSoon}</b><small>Start date in the next 7 days</small></div>
-        <div className="mw-kpi"><span>Hours logged</span><b>{hours}</b><small>This week</small></div>
+        <div className="mw-kpi"><span>Going live this week</span><b>{goingLive}</b><small>Go-live in the next 7 days</small></div>
       </div>
 
       <div className="mw-grid">

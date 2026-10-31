@@ -269,6 +269,7 @@ const SocialPost = sequelize.define("SocialPost", {
   media: { type: DataTypes.JSON, defaultValue: [] },             // [{ url, type: "image"|"video", name }] to publish
   publishTo: { type: DataTypes.JSON },                           // ["instagram","facebook"]; null = every connected account
   keywordHashtags: { type: DataTypes.BOOLEAN, defaultValue: true }, // add keywords as hashtags when publishing
+  step: { type: DataTypes.STRING(20), allowNull: true }, // In production: "graphic" (design) then "video" (edit)
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
 }, { tableName: "social_posts" });
 
