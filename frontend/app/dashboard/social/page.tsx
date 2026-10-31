@@ -17,7 +17,36 @@ type Post = {
   festive?: string; theme: string; topic?: string; format?: string; requirements?: string; reference?: string;
   dataStatus?: string; poc?: string; caption?: string; driveLink?: string; tags?: string; keywords?: string;
   channels?: string; remarks?: string; position?: number;
+  media?: Media[]; publishTo?: string[] | null; keywordHashtags?: boolean;
 };
+/* Auto-publishing */
+type Media = { url: string; type: "image" | "video"; name?: string };
+type PubJob = { id: number; postId: number; client: string; platform: "instagram" | "facebook"; status: string; runAt: string | null; attempts: number;
+  error: string | null; url: string | null; publishedAt: string | null; account: string | null; theme: string; format: string | null; postStatus: string | null };
+type SocialAcc = { client: string; pageName: string; igUsername: string | null; igAvatar: string | null; status: string; lastError: string | null };
+const PLATFORM_NAME: Record<string, string> = { instagram: "Instagram", facebook: "Facebook" };
+const JOB_LABEL: Record<string, [string, string, string]> = { // label, bg, fg
+  scheduled: ["Scheduled", "#e8eefb", "#1d3474"], publishing: ["Publishing…", "#fdf0dc", "#8a4b12"], published: ["Published", "#e4f5ea", "#15703a"],
+  failed: ["Failed", "#fdeaea", "#b42323"], check: ["Check post", "#efe9fd", "#6033c4"], missed: ["Missed", "#eef0f4", "#4b5466"],
+};
+/* What goes out: caption, then keywords as hashtags (no repeats, ≤30 hashtags,
+   ≤2,200 characters) — the same rules the server publishes with. */
+const HASH_RE = /#[\p{L}\p{N}_]+/gu;
+function composeCaption(p: Partial<Post>) {
+  const caption = String(p.caption || "").trim();
+  const have = new Set((caption.match(HASH_RE) || []).map((h) => h.toLowerCase()));
+  const extra: string[] = [];
+  if (p.keywordHashtags !== false) {
+    for (const raw of String(p.keywords || "").split(/[,\n;|]+/)) {
+      const tag = "#" + raw.trim().replace(/^#+/, "").replace(/[^\p{L}\p{N}_]+/gu, "");
+      if (tag.length < 2 || have.has(tag.toLowerCase())) continue;
+      have.add(tag.toLowerCase()); extra.push(tag);
+    }
+  }
+  const room = Math.max(0, 30 - (caption.match(HASH_RE) || []).length);
+  return { caption, tags: extra.slice(0, room), text: [caption, extra.slice(0, room).join(" ")].filter(Boolean).join("\n\n").slice(0, 2200) };
+}
+const isVideoMedia = (m: Media) => m.type === "video" || /\.(mp4|mov|m4v)(\?|$)/i.test(m.url);
 type Client = { id: number; name: string; color?: string };
 type User = { id: number; name: string; avatar?: string | null };
 type View = "board" | "schedule" | "calendar" | "mine";
@@ -46,7 +75,8 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 /* Fields the drawer edits — time log + timer are written separately so a save never clobbers them. */
 const EDITABLE: (keyof Post)[] = ["client", "status", "postDate", "postTime", "dueDate", "assigneeId", "estimateHours", "festive", "theme", "topic",
-  "format", "requirements", "reference", "dataStatus", "poc", "caption", "driveLink", "tags", "keywords", "channels", "remarks"];
+  "format", "requirements", "reference", "dataStatus", "poc", "caption", "driveLink", "tags", "keywords", "channels", "remarks",
+  "media", "publishTo", "keywordHashtags"];
 
 /* JSON columns can come back as strings on some MySQL setups — coerce. */
 function toArr<T = unknown>(v: unknown): T[] {
@@ -60,6 +90,9 @@ const normPost = (p: Post): Post => ({
   dueDate: p.dueDate ? String(p.dueDate).slice(0, 10) : null,
   timeLog: toArr<LogEntry>(p.timeLog),
   estimateHours: p.estimateHours != null ? Number(p.estimateHours) : null,
+  media: toArr<Media>(p.media),
+  publishTo: p.publishTo == null ? null : toArr<string>(p.publishTo),
+  keywordHashtags: p.keywordHashtags === undefined ? true : !!p.keywordHashtags,
 });
 const uid = () => "tl-" + Math.random().toString(36).slice(2, 9);
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -236,7 +269,30 @@ export default function SocialCalendar() {
   const [, setTick] = useState(0);
   const dragId = useRef<number | null>(null);
   const firstLoadDone = useRef(false);
+  // Auto-publishing
+  const [accounts, setAccounts] = useState<SocialAcc[]>([]);
+  const [metaOk, setMetaOk] = useState<boolean | null>(null);
+  const [jobs, setJobs] = useState<PubJob[]>([]);
+  const [metaPick, setMetaPick] = useState<{ sel: string; brand: string; pages: { pageId: string; pageName: string; igUsername: string | null }[]; chosen: string } | null>(null);
+  const [mediaBusy, setMediaBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
+
+  async function loadPublishing() {
+    const [a, j, st] = await Promise.all([api.socialAccounts().catch(() => []), api.publishJobs().catch(() => []), api.metaStatus().catch(() => null)]);
+    setAccounts(Array.isArray(a) ? a : []); setJobs(Array.isArray(j) ? j : []); setMetaOk(st ? !!st.configured : null);
+  }
+  /* Back from Facebook's login: pick which Page (and its Instagram) is this brand's. */
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const sel = q.get("metaConnect"), err = q.get("metaError");
+    if (!sel && !err) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    if (err) { toast("Couldn't connect", "err", { description: err }); return; }
+    api.metaPages(sel as string).then((r) => {
+      const best = r.pages.find((x: { igUsername: string | null }) => x.igUsername) || r.pages[0];
+      setMetaPick({ sel: sel as string, brand: r.brand, pages: r.pages, chosen: best?.pageId || "" });
+    }).catch((e) => toast("Couldn't finish connecting", "err", { description: e.message }));
+  }, []);
 
   async function load() {
     try {
@@ -255,6 +311,7 @@ export default function SocialCalendar() {
       if (isLimited && !firstLoadDone.current) setView((v) => (v === "board" ? "mine" : v));
       firstLoadDone.current = true;
       if (!isLimited) api.list("users").then((t) => setTeam(Array.isArray(t) ? t : [])).catch(() => {});
+      loadPublishing();
     } catch (e: any) { toast("Couldn't load the content calendar", "err", { description: e.message || "Check your connection and refresh the page." }); }
     finally { setLoading(false); }
   }
@@ -353,6 +410,67 @@ export default function SocialCalendar() {
     finally { setCoverBusy(null); }
   }
 
+  /* ── auto-publishing ── */
+  const accFor = (brand?: string) => accounts.find((a) => a.client === brand && a.status === "connected");
+  const jobsFor = (id?: number) => jobs.filter((j) => j.postId === id);
+  const platformsFor = (p: Partial<Post>) => {
+    const a = accFor(p.client); if (!a) return [] as string[];
+    const connected = [...(a.igUsername ? ["instagram"] : []), "facebook"];
+    return p.publishTo == null ? connected : connected.filter((x) => (p.publishTo || []).includes(x));
+  };
+  async function connectBrand(brand: string) {
+    try { const r = await api.metaStart(brand); window.location.href = r.authUrl; }
+    catch (e: any) { toast("Couldn't start connecting", "err", { description: e.message }); }
+  }
+  async function finishConnect() {
+    if (!metaPick?.chosen) return;
+    try {
+      const a = await api.metaChoose(metaPick.sel, metaPick.chosen);
+      setMetaPick(null);
+      toast(`${a.client} connected`, "ok", { description: [a.igUsername && `Instagram @${a.igUsername}`, a.pageName && `Facebook ${a.pageName}`].filter(Boolean).join(" · ") + ". Ready posts will publish at their go-live time." });
+      loadPublishing();
+    } catch (e: any) { toast("Couldn't connect", "err", { description: e.message }); }
+  }
+  async function disconnectBrand(brand: string) {
+    if (!(await dialog.confirm({ title: `Disconnect ${brand}?`, message: "Its scheduled posts stop publishing automatically. You can connect it again any time.", danger: true, confirmText: "Disconnect" }))) return;
+    try { await api.disconnectSocial(brand); toast(`${brand} disconnected`, "ok"); loadPublishing(); }
+    catch (e: any) { toast("Couldn't disconnect", "err", { description: e.message }); }
+  }
+  async function retryJob(j: PubJob) {
+    try { await api.retryJob(j.id); toast(`Retrying ${PLATFORM_NAME[j.platform]}`, "info", { description: j.theme }); setTimeout(() => { loadPublishing(); load(); }, 4000); }
+    catch (e: any) { toast("Couldn't retry", "err", { description: e.message }); }
+  }
+  async function markJobPosted(j: PubJob) {
+    const url = await dialog.prompt({ title: `Posted on ${PLATFORM_NAME[j.platform]}?`, message: "Paste the post's link (optional). It then counts as published.", placeholder: "https://…", confirmText: "Mark as posted" });
+    if (url === null) return;
+    try { await api.markJobPosted(j.id, url.trim()); toast("Marked as posted", "ok", { description: j.theme }); loadPublishing(); load(); }
+    catch (e: any) { toast("Couldn't update", "err", { description: e.message }); }
+  }
+  async function publishNow(p: Post) {
+    const where = platformsFor(p).map((x) => PLATFORM_NAME[x]).join(" and ");
+    if (!(await dialog.confirm({ title: `Publish “${p.theme}” now?`, message: `It goes live on ${where} straight away, whatever its go-live time.`, confirmText: "Publish now" }))) return;
+    try { await api.publishNow(p.id); toast("Publishing…", "info", { description: `${p.theme} · ${where}` }); setTimeout(() => { loadPublishing(); load(); }, 5000); }
+    catch (e: any) { toast("Couldn't publish", "err", { description: e.message }); }
+  }
+  async function addMedia(files: FileList | null) {
+    if (!files?.length || !editing) return;
+    setMediaBusy(true);
+    try {
+      const r = await api.uploadSocialMedia(Array.from(files).slice(0, 10));
+      setEditing((e) => (e ? { ...e, media: [...(e.media || []), ...r.items].slice(0, 10) } : e));
+    } catch (e: any) { toast("Upload failed", "err", { description: e.message || "Use JPG/PNG images or MP4/MOV videos." }); }
+    finally { setMediaBusy(false); }
+  }
+  /* Small status for cards and the details card. */
+  function pubChip(p: Post) {
+    const js = jobsFor(p.id);
+    const pick = ["failed", "check", "publishing", "missed", "scheduled"].find((st) => js.some((j) => j.status === st));
+    if (!pick) return null;
+    const [label, bg, fg] = JOB_LABEL[pick];
+    const text = pick === "scheduled" ? `Auto · ${p.postTime ? fmtTime(p.postTime) : "10:00 AM"}` : pick === "failed" ? "Auto-post failed" : label;
+    return <span className="cal-chip" style={css({ "--bg": bg, "--fg": fg })}>{text}</span>;
+  }
+
   /* ── writes ── */
   function patchLocal(id: number, patch: Partial<Post>) {
     setPosts((ps) => ps.map((p) => (p.id === id ? { ...p, ...patch } : p)));
@@ -375,6 +493,7 @@ export default function SocialCalendar() {
       const saved = await api.update("social-posts", id, { status });
       patchLocal(id, { assigneeId: saved?.assigneeId ?? null });
       window.dispatchEvent(new Event("fv-badges")); // overdue count in the sidebar
+      loadPublishing(); // Ready → scheduled, or a schedule cancelled
       const who = users.find((u) => u.id === saved?.assigneeId);
       const stageName = STAGES.find((s) => s.id === status)?.title || status;
       toast(status === "posted" ? "Marked as Posted" : `Moved to ${stageName}`, "ok", {
@@ -396,7 +515,7 @@ export default function SocialCalendar() {
       else await api.create("social-posts", { ...body, timeLog: [] });
       if (!limited && !clientRows.some((c) => c.name === editing.client)) await api.create("social-clients", { name: editing.client }).catch(() => {});
       if (editing.id) setViewId(editing.id);
-      setEditing(null); toast(editing.id ? "Post updated" : "Post added", "ok", { description: `“${editing.theme}” · ${editing.client}` }); load(); window.dispatchEvent(new Event("fv-badges"));
+      setEditing(null); toast(editing.id ? "Post updated" : "Post added", "ok", { description: `“${editing.theme}” · ${editing.client}` }); load(); loadPublishing(); window.dispatchEvent(new Event("fv-badges"));
     } catch (err: any) { toast("Couldn't save the post", "err", { description: err.message || "Your changes are still in the form — try again." }); }
   }
   async function deletePost() {
@@ -546,7 +665,7 @@ export default function SocialCalendar() {
           <span className="cal-dates"><span>Start {fmtShort(startOf(p))}</span><span>Live {fmtShort(p.postDate)}{p.postTime ? ` · ${fmtTime(p.postTime)}` : ""}</span></span>
         )}
         {p.postDate && progress(p)}
-        <span className="cal-card-foot">{whoPill(p)}{badge(p)}</span>
+        <span className="cal-card-foot">{whoPill(p)}{badge(p)}{pubChip(p)}</span>
         {(loggedMin(p) > 0 || p.timerStart) && <span className={"cal-time" + (p.timerStart ? " run" : "")}>{timerText(p)} logged</span>}
       </button>
     );
@@ -821,6 +940,8 @@ export default function SocialCalendar() {
             {p.dataStatus && <div><span>Data status</span><b>{p.dataStatus}</b></div>}
           </div>
 
+          {renderPublishing(p)}
+
           {section("Caption & hashtags", p.caption && <>
             {text(p.caption)}
             <button type="button" className="cal-btn sm" onClick={copyCaption}>Copy caption</button>
@@ -851,6 +972,54 @@ export default function SocialCalendar() {
             </div>
           )}
         </div>
+      </div>
+    );
+  }
+
+  /* Auto-publishing on the details card: per platform status and actions. */
+  function renderPublishing(p: Post) {
+    const js = jobsFor(p.id);
+    const acc = accFor(p.client);
+    const media = p.media || [];
+    if (!js.length && !acc) {
+      if (p.status !== "ready" && p.status !== "production") return null;
+      return (
+        <div className="cal-vsec"><h4>Auto-publishing</h4>
+          <p className="adm-hint" style={{ margin: 0 }}>{p.client} isn't connected to Instagram / Facebook yet{limited ? " — ask an admin to connect it." : <> — connect it in <button type="button" className="cal-link" onClick={() => { setViewId(null); openUploads(); }}>Team &amp; uploads</button> and Ready posts publish themselves.</>}</p>
+        </div>
+      );
+    }
+    const when = p.postDate ? `${fmtDay(p.postDate)} · ${p.postTime ? fmtTime(p.postTime) : "10:00 AM"}` : "its go-live date";
+    const allOut = js.length > 0 && js.every((j) => j.status === "published");
+    return (
+      <div className="cal-vsec cal-pub">
+        <h4>Auto-publishing</h4>
+        {!js.length && <p className="adm-hint" style={{ margin: 0 }}>
+          {p.status === "posted" ? "Already posted." : `Goes out on ${platformsFor(p).map((x) => PLATFORM_NAME[x]).join(" and ") || "—"} by itself at ${when} once it's in Ready to post.`}
+          {!media.length && p.status !== "posted" && platformsFor(p).includes("instagram") && " Add the image or video in Edit post — Instagram needs it."}
+        </p>}
+        {js.map((j) => {
+          const [label, bg, fg] = JOB_LABEL[j.status] || [j.status, "#eef1f6", "#475069"];
+          return (
+            <div key={j.id} className="cal-pubrow">
+              <div className="cal-pubrow-main">
+                <b>{PLATFORM_NAME[j.platform]}</b>
+                <span className="cal-chip" style={css({ "--bg": bg, "--fg": fg })}>{label}</span>
+                <span className="cal-muted">{j.account}{j.status === "scheduled" && j.runAt ? ` · ${new Date(j.runAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" })}` : ""}
+                  {j.status === "published" && j.publishedAt ? ` · ${new Date(j.publishedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" })}` : ""}</span>
+              </div>
+              {j.error && j.status !== "published" && <p className={"cal-puberr" + (j.status === "scheduled" ? " soft" : "")}>{j.status === "scheduled" ? `Will try again: ${j.error}` : j.error}</p>}
+              <div className="cal-row">
+                {j.url && <a className="cal-btn sm" href={j.url} target="_blank" rel="noopener noreferrer">View post ↗</a>}
+                {["failed", "check", "missed"].includes(j.status) && <button type="button" className="cal-btn sm" onClick={() => retryJob(j)}>{j.status === "missed" ? "Post now" : "Retry"}</button>}
+                {["failed", "check", "missed"].includes(j.status) && <button type="button" className="cal-btn sm" onClick={() => markJobPosted(j)}>I posted it myself</button>}
+              </div>
+            </div>
+          );
+        })}
+        {!allOut && p.status !== "posted" && acc && canEdit(p) && platformsFor(p).length > 0 && !js.some((j) => j.status === "publishing") && (
+          <button type="button" className="cal-btn sm" onClick={() => publishNow(p)}>Publish now</button>
+        )}
       </div>
     );
   }
@@ -955,6 +1124,34 @@ export default function SocialCalendar() {
                 </div>
               );
             })()}
+          </div>
+
+          <div className="cal-vsec">
+            <h4>Social accounts</h4>
+            <p className="adm-hint" style={{ marginTop: 0 }}>Connect each brand's Facebook Page (with its Instagram business account). Posts in Ready to post then publish by themselves at their go-live time, with the caption and keywords as hashtags.</p>
+            {metaOk === false ? (
+              <div className="cal-empty sm">Auto-publishing isn't switched on yet: the server needs <b>META_APP_ID</b> and <b>META_APP_SECRET</b>.</div>
+            ) : (
+              <div className="sm-uploads">
+                {clientNames.map((b) => {
+                  const a = accounts.find((x) => x.client === b);
+                  return (
+                    <div key={b} className="sm-upload">
+                      <div>
+                        <b>{b}</b>
+                        <span className="cal-muted">{!a ? "Not connected" : a.status === "connected"
+                          ? [a.igUsername ? `Instagram @${a.igUsername}` : "No Instagram linked", `Facebook ${a.pageName}`].join(" · ")
+                          : `Needs reconnecting${a.lastError ? ` — ${a.lastError}` : ""}`}</span>
+                      </div>
+                      <div className="cal-row">
+                        {(!a || a.status !== "connected") && <button type="button" className="cal-primary sm" onClick={() => connectBrand(b)}>{a ? "Reconnect" : "Connect"}</button>}
+                        {a && <button type="button" className="cal-btn danger" onClick={() => disconnectBrand(b)}>Disconnect</button>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="cal-vsec">
@@ -1099,6 +1296,27 @@ export default function SocialCalendar() {
 
       {viewed && !editing && renderDetails(viewed)}
       {uploads && renderTeamPanel(uploads)}
+      {metaPick && (
+        <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setMetaPick(null); }}>
+          <div className="adm-drawer kb-drawer cal-view" role="dialog" aria-modal="true" aria-label={`Connect ${metaPick.brand}`}>
+            <div className="cal-vtop"><h2 style={{ margin: 0 }}>Connect {metaPick.brand}</h2>
+              <button type="button" className="cal-x" onClick={() => setMetaPick(null)} aria-label="Close">×</button></div>
+            <p className="cal-lead">Which Facebook Page is {metaPick.brand}'s? Its linked Instagram account is connected with it.</p>
+            <div className="cal-pagepick">
+              {metaPick.pages.map((pg) => (
+                <label key={pg.pageId} className={"cal-pageopt" + (metaPick.chosen === pg.pageId ? " on" : "")}>
+                  <input type="radio" name="metapage" checked={metaPick.chosen === pg.pageId} onChange={() => setMetaPick({ ...metaPick, chosen: pg.pageId })} />
+                  <span><b>{pg.pageName}</b><small>{pg.igUsername ? `Instagram @${pg.igUsername}` : "No Instagram business account linked — Facebook only"}</small></span>
+                </label>
+              ))}
+            </div>
+            <div className="adm-drawer-actions">
+              <button type="button" className="cal-primary" disabled={!metaPick.chosen} onClick={finishConnect}>Connect</button>
+              <button type="button" className="cal-btn" onClick={() => setMetaPick(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editing && (
         <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditing(null); }}>
@@ -1210,6 +1428,66 @@ export default function SocialCalendar() {
               <div className="adm-field"><label>Remarks</label>
                 <textarea value={txt("remarks")} onChange={(e) => set({ remarks: e.target.value })} /></div>
             </fieldset>
+
+            {(() => {
+              const acc = accFor(editing.client);
+              const media = editing.media || [];
+              const cap = composeCaption(editing);
+              const avail = acc ? [...(acc.igUsername ? ["instagram"] : []), "facebook"] : [];
+              const chosen = editing.publishTo == null ? avail : avail.filter((x) => (editing.publishTo || []).includes(x));
+              const toggle = (x: string) => {
+                const next = chosen.includes(x) ? chosen.filter((y) => y !== x) : [...chosen, x];
+                set({ publishTo: next.length === avail.length ? null : next });
+              };
+              const nonJpg = media.filter((m) => !isVideoMedia(m) && !/\.jpe?g(\?|$)/i.test(m.url));
+              const when = editing.postDate ? `${fmtDay(editing.postDate)} at ${editing.postTime ? fmtTime(editing.postTime) : "10:00 AM"}` : "its go-live date";
+              return (
+                <fieldset className="cal-fs">
+                  <legend>Publishing</legend>
+                  {acc ? (
+                    <p className="cal-pubnote">Publishes automatically on <b>{when}</b> once it's in Ready to post{!editing.postTime && " (set a time above to change it)"}.</p>
+                  ) : (
+                    <p className="adm-hint" style={{ marginTop: 0 }}>{editing.client || "This brand"} isn't connected to Instagram / Facebook yet, so it won't publish by itself. You can still add the media here.</p>
+                  )}
+                  {acc && <div className="adm-field"><label>Post to</label>
+                    <div className="cal-row">
+                      {avail.map((x) => (
+                        <label key={x} className="cal-check"><input type="checkbox" checked={chosen.includes(x)} onChange={() => toggle(x)} />
+                          {PLATFORM_NAME[x]} <span className="cal-muted">{x === "instagram" ? `@${acc.igUsername}` : acc.pageName}</span></label>
+                      ))}
+                    </div>
+                    {!chosen.length && <span className="adm-hint">Nothing ticked — this post won't publish by itself.</span>}
+                  </div>}
+                  <div className="adm-field"><label>Image or video to post</label>
+                    <div className="cal-media">
+                      {media.map((m, i) => (
+                        <div key={m.url + i} className="cal-media-item">
+                          {isVideoMedia(m) ? <video src={m.url} muted playsInline preload="metadata" /> : <img src={m.url} alt={m.name || `Image ${i + 1}`} />}
+                          {media.length > 1 && <span className="cal-media-n">{i + 1}</span>}
+                          <button type="button" aria-label="Remove" onClick={() => set({ media: media.filter((_, k) => k !== i) })}>×</button>
+                        </div>
+                      ))}
+                      {media.length < 10 && (
+                        <label className={"cal-media-add" + (mediaBusy ? " busy" : "")}>
+                          <input type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" disabled={mediaBusy}
+                            onChange={(e) => { addMedia(e.target.files); e.target.value = ""; }} />
+                          {mediaBusy ? "Uploading…" : "+ Add"}
+                        </label>
+                      )}
+                    </div>
+                    <span className="adm-hint">One image or video, or up to 10 for a carousel. JPG images and MP4 videos work everywhere.</span>
+                    {nonJpg.length > 0 && chosen.includes("instagram") && <span className="cal-warn">Instagram only accepts JPG images — {nonJpg.length === 1 ? "one image isn't" : `${nonJpg.length} images aren't`} JPG. Export as JPG, or untick Instagram.</span>}
+                    {/reel/i.test(editing.format || "") && media.length > 0 && !media.some(isVideoMedia) && <span className="cal-warn">This is a Reel — add the video.</span>}
+                  </div>
+                  <label className="cal-check"><input type="checkbox" checked={editing.keywordHashtags !== false} onChange={(e) => set({ keywordHashtags: e.target.checked })} />
+                    Add the keywords as hashtags</label>
+                  {cap.text && <div className="adm-field"><label>What gets posted</label>
+                    <p className="cal-pre cal-preview">{cap.text}</p>
+                    <span className={"adm-hint" + (cap.text.length > 2200 ? " cal-warn" : "")}>{cap.text.length}/2,200 characters · {(cap.text.match(/#[\p{L}\p{N}_]+/gu) || []).length}/30 hashtags</span>
+                  </div>}
+                </fieldset>
+              );
+            })()}
 
             {live && renderTime(live)}
 

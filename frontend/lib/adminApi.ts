@@ -88,6 +88,18 @@ export const api = {
 
   /* Social media calendar — bulk import rows parsed from a client's sheet */
   importSocialPosts: (posts: any[]) => req(`/social-posts/bulk`, { method: "POST", body: JSON.stringify({ posts }) }),
+  /* Auto-publishing (Instagram / Facebook) */
+  metaStatus: () => req(`/social-connect/meta/status`),
+  metaStart: (brand: string) => req(`/social-connect/meta/start?brand=${encodeURIComponent(brand)}`),
+  metaPages: (sel: string) => req(`/social-connect/meta/pages?sel=${encodeURIComponent(sel)}`),
+  metaChoose: (sel: string, pageId: string) => req(`/social-connect/meta/choose`, { method: "POST", body: JSON.stringify({ sel, pageId }) }),
+  socialAccounts: () => req(`/social-accounts`),
+  disconnectSocial: (client: string) => req(`/social-accounts/${encodeURIComponent(client)}`, { method: "DELETE" }),
+  publishJobs: (postId?: number) => req(`/social-publish-jobs${postId ? `?postId=${postId}` : ""}`),
+  retryJob: (id: number) => req(`/social-publish-jobs/${id}/retry`, { method: "POST" }),
+  markJobPosted: (id: number, url: string) => req(`/social-publish-jobs/${id}/mark-posted`, { method: "POST", body: JSON.stringify({ url }) }),
+  publishNow: (postId: number) => req(`/social-posts/${postId}/publish-now`, { method: "POST" }),
+  uploadSocialMedia: (files: File[]) => { const fd = new FormData(); files.forEach((f) => fd.append("files", f)); return req(`/social-media/upload`, { method: "POST", body: fd }); },
   listSocialUploads: () => req(`/social-posts/uploads`),
   deleteSocialUpload: (batch: string) => req(`/social-posts/uploads/${encodeURIComponent(batch)}`, { method: "DELETE" }),
   deleteBrandPosts: (client: string) => req(`/social-posts/delete-brand`, { method: "POST", body: JSON.stringify({ client }) }),

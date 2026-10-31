@@ -266,8 +266,45 @@ const SocialPost = sequelize.define("SocialPost", {
   channels: { type: DataTypes.TEXT },                            // live post links
   remarks: { type: DataTypes.TEXT },
   importBatch: { type: DataTypes.STRING(40) },                   // which sheet upload created/last updated it
+  media: { type: DataTypes.JSON, defaultValue: [] },             // [{ url, type: "image"|"video", name }] to publish
+  publishTo: { type: DataTypes.JSON },                           // ["instagram","facebook"]; null = every connected account
+  keywordHashtags: { type: DataTypes.BOOLEAN, defaultValue: true }, // add keywords as hashtags when publishing
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
 }, { tableName: "social_posts" });
+
+/* ── Social accounts connected per brand (Facebook Page + its Instagram) ── */
+const SocialAccount = sequelize.define("SocialAccount", {
+  client: { type: DataTypes.STRING, allowNull: false, unique: true }, // brand name
+  pageId: { type: DataTypes.STRING(40), allowNull: false },
+  pageName: { type: DataTypes.STRING },
+  pageToken: { type: DataTypes.TEXT, allowNull: false },               // encrypted, never sent to the browser
+  igUserId: { type: DataTypes.STRING(40) },
+  igUsername: { type: DataTypes.STRING },
+  igAvatar: { type: DataTypes.TEXT },
+  connectedBy: { type: DataTypes.INTEGER },
+  status: { type: DataTypes.STRING(20), defaultValue: "connected" },   // connected | reconnect
+  lastError: { type: DataTypes.TEXT },
+}, { tableName: "social_accounts" });
+
+/* ── Auto-publishing: one job per post per platform ──
+   scheduled → publishing → published | failed | check (outcome unclear:
+   look on the platform before retrying) | missed (go-live long past) |
+   cancelled. A lease stops two processes publishing the same job. */
+const SocialPublishJob = sequelize.define("SocialPublishJob", {
+  postId: { type: DataTypes.INTEGER, allowNull: false },
+  client: { type: DataTypes.STRING },
+  platform: { type: DataTypes.STRING(20), allowNull: false },          // instagram | facebook
+  status: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "scheduled" },
+  runAt: { type: DataTypes.DATE },
+  attempts: { type: DataTypes.INTEGER, defaultValue: 0 },
+  error: { type: DataTypes.TEXT },
+  remoteId: { type: DataTypes.STRING(80) },
+  url: { type: DataTypes.TEXT },
+  checkpoint: { type: DataTypes.JSON },                                // e.g. Instagram container id, to resume
+  leaseToken: { type: DataTypes.STRING(40) },
+  leaseUntil: { type: DataTypes.DATE },
+  publishedAt: { type: DataTypes.DATE },
+}, { tableName: "social_publish_jobs", indexes: [{ unique: true, fields: ["postId", "platform"] }, { fields: ["status", "runAt"] }] });
 
 /* ── Content calendar stage history (feeds the performance KPIs) ──
    One row when a post is created and one each time its stage changes:
@@ -364,6 +401,6 @@ module.exports = {
   sequelize,
   User, Project, Service, Testimonial, TeamMember,
   BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page, Lead, Notification, PushSubscription,
-  Renewal, SocialClient, SocialPost, SocialPostEvent,
+  Renewal, SocialClient, SocialPost, SocialPostEvent, SocialAccount, SocialPublishJob,
   Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature,
 };
