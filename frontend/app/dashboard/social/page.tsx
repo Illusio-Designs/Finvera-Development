@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
 import { dialog } from "@/lib/dialog";
@@ -261,6 +261,7 @@ export default function SocialCalendar() {
   const [team, setTeam] = useState<TeamUser[]>([]);           // admin only: who holds which role / brands
   type Upload = { importBatch: string; client: string; posts: number; from: string; to: string; uploadedAt: string };
   const [uploads, setUploads] = useState<Upload[] | null>(null); // admin Team & uploads panel (null = closed)
+  const coverScrolled = useRef("");
   const [coverEdit, setCoverEdit] = useState<{ brand: string; role: Role } | null>(null); // "who covers" cell being edited
   const [coverBusy, setCoverBusy] = useState<number | null>(null);
   const [logMin, setLogMin] = useState("");
@@ -1052,44 +1053,9 @@ export default function SocialCalendar() {
   }
 
   /* Admin: Team & uploads — who covers each brand, and the sheet uploads. */
-  function renderTeamPanel(ups: Upload[]) {
-    const roles: Role[] = ["marketer", "video", "graphic", "social"];
-    return (
-      <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setUploads(null); }}>
-        <div className="adm-drawer kb-drawer cal-view cal-wide" role="dialog" aria-modal="true" aria-label="Team & uploads">
-          <div className="cal-vtop"><h2 style={{ margin: 0 }}>Team &amp; uploads</h2>
-            <button type="button" className="cal-x" onClick={() => setUploads(null)} aria-label="Close">×</button></div>
-          <p className="cal-lead">Posts go to someone automatically — but only to a person who has the role <b>and</b> the brand ticked. A gap means posts wait.</p>
-
-          <div className="cal-vsec">
-            <h4>Who covers each brand</h4>
-            <div className="cal-table-wrap">
-              <table className="cal-table cal-cover">
-                <thead><tr><th>Brand</th>{roles.map((r) => <th key={r} style={{ color: ROLE_META[r].fg }}>{ROLE_META[r].label}</th>)}</tr></thead>
-                <tbody>
-                  {clientNames.map((b) => (
-                    <tr key={b}>
-                      <td><span className="cal-sub strong"><i style={{ background: clientColor(b) }} />{b}</span></td>
-                      {roles.map((r) => {
-                        const c = candidates(r, b);
-                        const waitingHere = gaps.find((g) => g.brand === b && g.role === r)?.count || 0;
-                        const on = coverEdit?.brand === b && coverEdit?.role === r;
-                        return (
-                          <td key={r} className={(c.length ? "" : "gap") + (on ? " editing" : "")}>
-                            <button type="button" className="cal-cover-cell" aria-expanded={on} onClick={() => setCoverEdit(on ? null : { brand: b, role: r })}
-                              aria-label={`Change who covers ${b} as ${ROLE_META[r].label}`}>
-                              {c.length ? <span>{c.map((u) => u.name).join(", ")}</span> : <><b>Nobody</b>{waitingHere > 0 && <small>{waitingHere} waiting</small>}</>}
-                              <em>{c.length ? "Change" : "Assign"}</em>
-                            </button>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {coverEdit && (() => {
+  /* The "who covers" editor, shown right under the brand row that was clicked. */
+  function renderCoverEdit() {
+    if (!coverEdit) return null;
               const brandId = String(clientRows.find((c) => c.name === coverEdit.brand)?.id ?? "");
               const active = team.filter((u) => u.active !== false && !(u.roles || []).includes("admin"));
               const withRole = active.filter((u) => (u.roles || []).includes(coverEdit.role));
@@ -1110,7 +1076,7 @@ export default function SocialCalendar() {
                 );
               };
               return (
-                <div className="cal-cover-edit" role="group" aria-label={`Who covers ${coverEdit.brand} as ${ROLE_META[coverEdit.role].label}`}>
+                <div className="cal-cover-edit" ref={(el) => { if (el && coverScrolled.current !== `${coverEdit.brand}|${coverEdit.role}`) { coverScrolled.current = `${coverEdit.brand}|${coverEdit.role}`; el.scrollIntoView({ block: "nearest", behavior: "smooth" }); } }} role="group" aria-label={`Who covers ${coverEdit.brand} as ${ROLE_META[coverEdit.role].label}`}>
                   <div className="cal-cover-edit-head">
                     <b>{coverEdit.brand} · <span style={{ color: ROLE_META[coverEdit.role].fg }}>{ROLE_META[coverEdit.role].label}</span></b>
                     <button type="button" className="cal-link" onClick={() => setCoverEdit(null)}>Done</button>
@@ -1123,7 +1089,50 @@ export default function SocialCalendar() {
                   </>}
                 </div>
               );
-            })()}
+  }
+
+  function renderTeamPanel(ups: Upload[]) {
+    const roles: Role[] = ["marketer", "video", "graphic", "social"];
+    return (
+      <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setUploads(null); }}>
+        <div className="adm-drawer kb-drawer cal-view cal-wide" role="dialog" aria-modal="true" aria-label="Team & uploads">
+          <div className="cal-vtop"><h2 style={{ margin: 0 }}>Team &amp; uploads</h2>
+            <button type="button" className="cal-x" onClick={() => setUploads(null)} aria-label="Close">×</button></div>
+          <p className="cal-lead">Posts go to someone automatically — but only to a person who has the role <b>and</b> the brand ticked. A gap means posts wait.</p>
+
+          <div className="cal-vsec">
+            <h4>Who covers each brand</h4>
+            <div className="cal-table-wrap">
+              <table className="cal-table cal-cover">
+                <thead><tr><th>Brand</th>{roles.map((r) => <th key={r} style={{ color: ROLE_META[r].fg }}>{ROLE_META[r].label}</th>)}</tr></thead>
+                <tbody>
+                  {clientNames.map((b) => (
+                    <Fragment key={b}>
+                    <tr>
+                      <td><span className="cal-sub strong"><i style={{ background: clientColor(b) }} />{b}</span></td>
+                      {roles.map((r) => {
+                        const c = candidates(r, b);
+                        const waitingHere = gaps.find((g) => g.brand === b && g.role === r)?.count || 0;
+                        const on = coverEdit?.brand === b && coverEdit?.role === r;
+                        return (
+                          <td key={r} className={(c.length ? "" : "gap") + (on ? " editing" : "")}>
+                            <button type="button" className="cal-cover-cell" aria-expanded={on} onClick={() => setCoverEdit(on ? null : { brand: b, role: r })}
+                              aria-label={`Change who covers ${b} as ${ROLE_META[r].label}`}>
+                              {c.length ? <span>{c.map((u) => u.name).join(", ")}</span> : <><b>Nobody</b>{waitingHere > 0 && <small>{waitingHere} waiting</small>}</>}
+                              <em>{c.length ? "Change" : "Assign"}</em>
+                            </button>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    {coverEdit?.brand === b && (
+                      <tr className="cal-cover-editrow"><td colSpan={roles.length + 1}>{renderCoverEdit()}</td></tr>
+                    )}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div className="cal-vsec">

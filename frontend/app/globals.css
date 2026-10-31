@@ -2778,3 +2778,6 @@ em.over,.kp-legend i.over{background:#e2603d}
 .sm-upload .cal-row{display:flex;flex-wrap:wrap;gap:8px}
 .cal-primary.sm{padding:7px 14px;font-size:13px}
 @media (max-width:560px){.cal-media-item,.cal-media-add{width:76px;height:76px}.sm-upload .cal-row{width:100%}}
+/* "Who covers" editor opens right under the clicked brand row */
+.cal-cover tr.cal-cover-editrow > td{padding:0 12px 14px;background:#fff}
+.cal-cover-editrow .cal-cover-edit{margin-top:2px;position:sticky;left:12px;max-width:min(620px,calc(100vw - 64px))}
