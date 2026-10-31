@@ -160,6 +160,7 @@ router.use("/renewals", renewalRouter);
 /* ── Social media calendar (clients + posts — auth on every endpoint) ─ */
 // Every social route also resolves the caller's brand scope (admin-set per user).
 const social = require("../controllers/social.controller");
+const autoPublish = require("../utils/autoPublish");
 const { postChanges, taskChanges, when, fmtDate, day, STAGES } = require("../utils/changeNotes");
 const canSocial = [requireAuth, requireArea("social"), social.withScope];
 const socialClientCtrl = crudController(SocialClient, {
@@ -182,12 +183,14 @@ const socialPostCtrl = crudController(SocialPost, {
   searchable: ["client", "theme", "topic", "caption", "festive"],
   onCreate: async (p, req) => {
     await social.recordEvents([social.eventOf(p, { byUserId: req.user?.id })]);
+    await autoPublish.syncJobs(p);
     if (p.assigneeId) await notifyUsers([p.assigneeId], socialAssigned(p), req.user?.id);
     // Everyone who works on this brand hears about the new post.
     const team = (await brandUserIds(p.client)).filter((id) => id !== p.assigneeId);
     await notifyUsers(team, { type: "info", title: `New post for ${p.client}: ${p.theme}`, body: p.postDate ? `Goes live ${when(p.postDate, p.postTime)}` : undefined, link: "/dashboard/social", meta: { socialPostId: p.id } }, req.user?.id);
   },
   onUpdate: async (p, req, before) => {
+    await autoPublish.syncJobs(p); // Ready → scheduled at go-live; date moves follow; leaving Ready cancels
     // Stage history: who had it before the move delivered that stage.
     if (before.status !== p.status) await social.recordEvents([social.eventOf(p, { from: before.status, fromAssigneeId: before.assigneeId, byUserId: req.user?.id })]);
     const reassigned = p.assigneeId && p.assigneeId !== before.assigneeId;
@@ -247,6 +250,22 @@ socialPostRouter.put("/:id", ...canSocial, social.guardPost, social.deadlineDefa
 socialPostRouter.patch("/:id", ...canSocial, social.guardPost, social.deadlineDefaults, social.assignOnStageChange, socialPostCtrl.update);
 socialPostRouter.delete("/:id", ...canSocial, social.guardPost, socialPostCtrl.remove);
 router.use("/social-posts", socialPostRouter);
+
+/* Auto-publishing: connect a brand's Facebook Page + Instagram, upload post
+   media, and the publishing queue. */
+const pub = require("../controllers/publish.controller");
+router.get("/social-connect/meta/status", ...canSocial, pub.status);
+router.get("/social-connect/meta/start", ...canSocial, social.requireAllBrands, pub.start);
+router.get("/social-connect/meta/callback", pub.callback);               // Facebook redirects here
+router.get("/social-connect/meta/pages", ...canSocial, social.requireAllBrands, pub.pages);
+router.post("/social-connect/meta/choose", ...canSocial, social.requireAllBrands, pub.choose);
+router.get("/social-accounts", ...canSocial, pub.accounts);
+router.delete("/social-accounts/:client", ...canSocial, social.requireAllBrands, pub.disconnect);
+router.get("/social-publish-jobs", ...canSocial, pub.jobs);
+router.post("/social-publish-jobs/:id/retry", ...canSocial, pub.retry);
+router.post("/social-publish-jobs/:id/mark-posted", ...canSocial, pub.markPosted);
+router.post("/social-posts/:id/publish-now", ...canSocial, social.guardPost, pub.publishNow);
+router.post("/social-media/upload", ...canSocial, pub.mediaUpload.array("files", 10), pub.uploadMedia);
 
 /* Content calendar performance KPIs (admins: whole team; others: themselves). */
 router.get("/social-kpis", ...canSocial, require("../controllers/kpi.controller").kpis);
@@ -312,11 +331,14 @@ router.use("/uploads", uploadRouter);
 /* ── Daily reminders wake-up (pinged by a scheduled GitHub workflow at
    10:16 AM IST; safe to call any time — it only runs once per day, after
    10:15, and never reveals anything) ─────────────────── */
-router.get("/cron/daily", async (_req, res) => {
+const cronTick = async (_req, res) => {
   const { maybeRunDaily } = require("../utils/dailyReminders");
   const r = await maybeRunDaily();
+  await autoPublish.runDue({ force: true }); // posts due to go live
   res.json({ ok: true, ran: !!r.ran });
-});
+};
+router.get("/cron/daily", cronTick);
+router.get("/cron/tick", cronTick); // point a cPanel cron here every 5 minutes
 
 /* ── Health ──────────────────────────────────────────── */
 const { health } = require("../controllers/health.controller");

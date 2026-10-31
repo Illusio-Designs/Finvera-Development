@@ -59,6 +59,10 @@ async function start() {
     // the app is awake; claimed once per day so restarts never resend.
     const { maybeRunDaily } = require("./src/utils/dailyReminders");
     setInterval(() => { maybeRunDaily().catch(() => {}); }, 5 * 60 * 1000).unref();
+
+    // Auto-publishing: check every minute for posts due to go live.
+    const autoPublish = require("./src/utils/autoPublish");
+    setInterval(() => { autoPublish.runDue().catch(() => {}); }, 60 * 1000).unref();
   } catch (err) {
     // Only genuine start failures (e.g. DB unreachable) reach here.
     console.error("\x1b[31m✘ Failed to start server:\x1b[0m", err.message);

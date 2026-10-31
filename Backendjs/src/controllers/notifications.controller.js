@@ -7,6 +7,7 @@ const list = asyncHandler(async (req, res) => {
   // An open dashboard is one of the triggers for the 10:15 AM daily reminders
   // (claimed once per day inside; returns immediately otherwise).
   maybeRunDaily().catch(() => {});
+  require("../utils/autoPublish").runDue().catch(() => {}); // posts due to go live (throttled inside)
   const items = await Notification.findAll({
     where: { userId: req.user.id },
     order: [["createdAt", "DESC"]],
