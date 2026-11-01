@@ -155,6 +155,41 @@ renewalRouter.post("/", ...canRenewals, renewalCtrl.create);
 renewalRouter.put("/:id", ...canRenewals, renewalCtrl.update);
 renewalRouter.patch("/:id", ...canRenewals, renewalCtrl.update);
 renewalRouter.delete("/:id", ...canRenewals, renewalCtrl.remove);
+/* Renewed → the next date moves on by one billing cycle (from the date it was
+   due, so paying late doesn't shift the cycle); Terminate → cancelled, no more
+   reminders. Either way the remark goes on top of the remarks log. */
+const CYCLE_MONTHS = { monthly: 1, quarterly: 3, "half-yearly": 6, yearly: 12 };
+const ymd = (d) => d.toISOString().slice(0, 10);
+const addMonthsIso = (iso, n) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m - 1 + n + 1, 0)).getUTCDate(); // 31 Jan + 1 month → 28/29 Feb
+  return ymd(new Date(Date.UTC(y, m - 1 + n, Math.min(d, last))));
+};
+const fmtIn = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const todayIstIso = () => ymd(new Date(Date.now() + 5.5 * 3600000));
+function logRemark(rec, line, remark) {
+  const entry = `${fmtIn(todayIstIso())} · ${line}${remark ? ` — ${remark}` : ""}`;
+  return [entry, rec.notes].filter((x) => x && String(x).trim()).join("\n");
+}
+renewalRouter.post("/:id/renew", ...canRenewals, async (req, res) => {
+  const rec = await Renewal.findByPk(req.params.id);
+  if (!rec) return res.status(404).json({ message: "Renewal not found." });
+  const remark = String(req.body?.remark || "").trim().slice(0, 1000);
+  const from = rec.renewalDate ? String(rec.renewalDate).slice(0, 10) : todayIstIso();
+  const next = addMonthsIso(from, CYCLE_MONTHS[rec.cycle] || 12);
+  await rec.update({
+    renewalDate: next, lastInvoiced: todayIstIso(), status: "active",
+    notes: logRemark(rec, `Renewed till ${fmtIn(next)} · ${req.user?.name || "someone"}`, remark),
+  });
+  res.json(rec);
+});
+renewalRouter.post("/:id/terminate", ...canRenewals, async (req, res) => {
+  const rec = await Renewal.findByPk(req.params.id);
+  if (!rec) return res.status(404).json({ message: "Renewal not found." });
+  const remark = String(req.body?.remark || "").trim().slice(0, 1000);
+  await rec.update({ status: "cancelled", notes: logRemark(rec, `Terminated · ${req.user?.name || "someone"}`, remark) });
+  res.json(rec);
+});
 router.use("/renewals", renewalRouter);
 
 /* ── Social media calendar (clients + posts — auth on every endpoint) ─ */
