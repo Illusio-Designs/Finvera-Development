@@ -97,6 +97,8 @@ export const api = {
   disconnectSocial: (client: string) => req(`/social-accounts/${encodeURIComponent(client)}`, { method: "DELETE" }),
   publishJobs: (postId?: number) => req(`/social-publish-jobs${postId ? `?postId=${postId}` : ""}`),
   retryJob: (id: number) => req(`/social-publish-jobs/${id}/retry`, { method: "POST" }),
+  renewRenewal: (id: number, remark: string) => req(`/renewals/${id}/renew`, { method: "POST", body: JSON.stringify({ remark }) }),
+  terminateRenewal: (id: number, remark: string) => req(`/renewals/${id}/terminate`, { method: "POST", body: JSON.stringify({ remark }) }),
   markJobPosted: (id: number, url: string) => req(`/social-publish-jobs/${id}/mark-posted`, { method: "POST", body: JSON.stringify({ url }) }),
   publishNow: (postId: number) => req(`/social-posts/${postId}/publish-now`, { method: "POST" }),
   uploadSocialMedia: (files: File[]) => { const fd = new FormData(); files.forEach((f) => fd.append("files", f)); return req(`/social-media/upload`, { method: "POST", body: fd }); },

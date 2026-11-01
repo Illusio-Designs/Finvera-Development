@@ -19,7 +19,7 @@ export type Field = {
   options?: (string | { value: string; label: string })[];
   placeholder?: string;
 };
-export type Column = { name: string; label: string; type?: "image" | "avatar" | "status" | "tags" | "text" | "money" | "progress" | "stageprogress" | "role" | "roles" | "date" | "renewal" };
+export type Column = { name: string; label: string; type?: "image" | "avatar" | "status" | "tags" | "text" | "money" | "progress" | "stageprogress" | "role" | "roles" | "date" | "renewal" | "note" };
 
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -68,6 +68,8 @@ type Props = {
   calendlyUrl?: string;
   backHref?: string;
   backLabel?: string;
+  /* Extra buttons for each row; call reload() after changing the row. */
+  rowActions?: (row: any, reload: () => Promise<void>) => React.ReactNode;
 };
 
 const emptyFrom = (fields: Field[], defaults?: Record<string, any>) => {
@@ -125,7 +127,7 @@ function PasswordInput({ id, value, placeholder, onChange }: { id: string; value
   );
 }
 
-export default function ResourceManager({ resource, title, subtitle, columns, fields, defaults, calendlyUrl, backHref, backLabel }: Props) {
+export default function ResourceManager({ resource, title, subtitle, columns, fields, defaults, calendlyUrl, backHref, backLabel, rowActions }: Props) {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -283,6 +285,15 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                         </span>
                       ) : c.type === "date" ? (
                         fmtDate(row[c.name]) || <span style={{ color: "var(--muted-2)" }}>—</span>
+                      ) : c.type === "note" ? (
+                        (() => {
+                          // Latest line of a dated log ("1 Nov 2026 · Renewed … — remark"): remark first, what/when below.
+                          const first = String(row[c.name] ?? "").split("\n").find((l) => l.trim());
+                          if (!first) return <span style={{ color: "var(--muted-2)" }}>—</span>;
+                          const i = first.indexOf(" — ");
+                          const main = i >= 0 ? first.slice(i + 3) : first, meta = i >= 0 ? first.slice(0, i) : "";
+                          return <span className="adm-note" title={String(row[c.name])}><span>{main}</span>{meta && <small>{meta}</small>}</span>;
+                        })()
                       ) : c.type === "renewal" ? (
                         (() => {
                           const d = daysUntil(row[c.name]);
@@ -298,6 +309,7 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                   ))}
                   <td className="c-act">
                     <div className="adm-rowbtns">
+                      {rowActions?.(row, load)}
                       <Tooltip label="Edit">
                         <button className="adm-ibtn" aria-label="Edit" onClick={() => { setFormErr(""); setEditing({ ...row }); }}>
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
