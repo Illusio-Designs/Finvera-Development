@@ -24,7 +24,7 @@ const overview = asyncHandler(async (req, res) => {
     rolesCan(roles, "contact")
       ? Promise.all([
         ContactSubmission.findOne({ attributes: [[fn("COUNT", col("id")), "total"], [literal("SUM(CASE WHEN `isRead` IS NULL OR `isRead` = 0 THEN 1 ELSE 0 END)"), "unread"]], raw: true }),
-        ContactSubmission.findAll({ attributes: ["id", "name", "email", "projectType", "createdAt", "isRead"], order: [["createdAt", "DESC"]], limit: 6, raw: true }),
+        ContactSubmission.findAll({ where: { isSpam: false }, attributes: ["id", "name", "email", "projectType", "createdAt", "isRead"], order: [["createdAt", "DESC"]], limit: 6, raw: true }),
       ]).then(([agg, recent]) => ({ total: Number(agg?.total) || 0, unread: Number(agg?.unread) || 0, recent: recent.map((m) => ({ ...m, isRead: !!m.isRead })) }))
       : null,
     rolesCan(roles, "leads")

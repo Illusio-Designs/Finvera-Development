@@ -6,12 +6,14 @@ const morgan = require("morgan");
 const compression = require("compression");
 
 const routes = require("./routes");
-const { notFound, errorHandler } = require("./middleware/error");
+const { notFound, errorHandler, trackErrors } = require("./middleware/error");
+const { cacheHeaders } = require("./middleware/cacheHeaders");
 
 const app = express();
 app.set("trust proxy", 1);
 
 /* Security + parsing */
+app.use(trackErrors); // counts 5xx responses → throttled admin alerts + /api/system/status
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(compression());
 app.use(express.json({ limit: "2mb" }));
@@ -38,7 +40,7 @@ app.get(["/health", "/healthz"], health);
 
 /* API */
 app.get("/", (_req, res) => res.json({ name: "Finvera API", version: "1.0.0", health: "/health", docs: "/api/health" }));
-app.use("/api", routes);
+app.use("/api", cacheHeaders, routes);
 
 /* Errors */
 app.use(notFound);

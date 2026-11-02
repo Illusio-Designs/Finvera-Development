@@ -479,6 +479,28 @@ router.get("/activity/:entity/:id", requireAuth, activityCtrl.forItem);
 const exportCtrl = require("../controllers/export.controller");
 router.get("/export/kpi-report", ...canSocial, exportCtrl.kpiReport);
 router.get("/export/:entity", requireAuth, exportCtrl.scopeIfSocial, exportCtrl.exportEntity);
+/* ═══ Ops block: backups, system status, email settings / preferences,
+   Meta connection check, contact spam flag, cron hook. Kept separate from
+   the routes above; everything here is admin-only unless noted. ═══════ */
+const opsCtrl = require("../controllers/ops.controller");
+const adminOnly = [requireAuth, requireRole("admin")];
+// Off-server copy (token, no login) — must come before /backups/:name.
+router.get("/backups/latest", rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false }), opsCtrl.latestBackup);
+router.get("/backups", ...adminOnly, opsCtrl.listBackups);
+router.post("/backups", ...adminOnly, rateLimit({ windowMs: 10 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false }), opsCtrl.createBackup);
+router.get("/backups/:name/download", ...adminOnly, opsCtrl.downloadBackup);
+router.post("/backups/:name/verify", ...adminOnly, opsCtrl.verifyBackup);
+router.delete("/backups/:name", ...adminOnly, opsCtrl.deleteBackup);
+router.get("/system/status", ...adminOnly, opsCtrl.systemStatus);
+router.get("/settings/email-status", ...adminOnly, opsCtrl.emailStatus);
+router.post("/settings/test-email", ...adminOnly, rateLimit({ windowMs: 10 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false }), opsCtrl.testEmail);
+router.get("/auth/me/email-prefs", requireAuth, opsCtrl.getEmailPrefs);   // any signed-in user, own prefs
+router.put("/auth/me/email-prefs", requireAuth, opsCtrl.putEmailPrefs);
+router.post("/social-accounts/check", ...adminOnly, opsCtrl.checkSocialAccounts);
+router.patch("/contact/:id/spam", requireAuth, requireArea("contact"), contactCtrl.setSpam);
+// Every cron ping also records the tick and starts the daily backup / Meta check (once a day each).
+router.get(["/cron/daily", "/cron/tick"], (_req, _res, next) => { opsCtrl.onCronTick().catch(() => {}); next(); });
+/* ═══ end of Ops block ═══ */
 
 /* ── Daily reminders wake-up (pinged by a scheduled GitHub workflow at
    10:16 AM IST; safe to call any time — it only runs once per day, after

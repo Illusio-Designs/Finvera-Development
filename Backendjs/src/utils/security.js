@@ -177,6 +177,8 @@ function mailInvite(user, link, inviter) {
 /* In-app notification + email (if configured) about the user's own account. */
 function tellUser(user, { title, body, link = "/dashboard/account" }) {
   notifyUsers([user.id], { type: "security", title, body, link }).catch(() => {});
+  // Respect the user's email choice for security notices (in-app always goes out).
+  if (!require("./emails").wants(user, "security")) return;
   mailer.sendMail({
     to: user.email,
     subject: title,

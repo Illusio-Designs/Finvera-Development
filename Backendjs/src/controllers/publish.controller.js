@@ -22,6 +22,7 @@ const inScope = (req, client) => !req.socialScope || req.socialScope.has(client)
 const publicAccount = (a) => ({
   client: a.client, pageId: a.pageId, pageName: a.pageName, igUserId: a.igUserId, igUsername: a.igUsername,
   igAvatar: a.igAvatar, status: a.status, lastError: a.status === "connected" ? null : a.lastError, connectedAt: a.updatedAt,
+  tokenExpiresAt: a.tokenExpiresAt || null, lastCheckedAt: a.lastCheckedAt || null,
 });
 
 /* ── Connect ── */

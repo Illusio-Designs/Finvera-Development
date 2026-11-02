@@ -93,12 +93,14 @@ async function syncJobs(post) {
     const late = runAt.getTime() < Date.now() - LATE_LIMIT_MS;
     for (const pl of targets) {
       const j = jobs.find((x) => x.platform === pl);
+      const prev = j ? j.status : null;
       if (!j) {
         await SocialPublishJob.create({ postId: p.id, client: p.client, platform: pl, status: late ? "missed" : "scheduled", runAt, checkpoint: {} });
       } else if (["cancelled", "missed", "scheduled"].includes(j.status)) {
         const status = late ? "missed" : "scheduled";
         if (j.status !== status || +new Date(j.runAt) !== +runAt) await j.update({ status, runAt, error: null });
       }
+      if (late && (!j || ["cancelled", "scheduled"].includes(prev))) emailPublishProblem(p, { title: `Missed go-live: ${p.theme}`, detail: `${NAMES[pl]}: the post became Ready more than 6 hours after its go-live time, so it was not posted automatically. Use Publish now if it should still go out.` });
     }
   } catch (e) { console.warn("autoPublish sync:", e.message); }
 }
@@ -117,6 +119,24 @@ function precheck(p, platform) {
     if (media.length > 10) return "Instagram carousels take at most 10 items.";
   }
   return null;
+}
+
+/* Email admins + the social team about a publishing problem — at most one
+   email per brand account per 6 hours (the in-app alerts are unchanged). */
+function emailPublishProblem(p, { title, detail }) {
+  (async () => {
+    const { claimOnce, usersWithRoles, emailUsers, layout, esc, dashboardUrl } = require("./emails");
+    if (!require("./mailer").configured() || !(await claimOnce(`publish:${p.client}`, 6 * 3600000))) return;
+    emailUsers(await usersWithRoles(["social"]), "publishing", {
+      subject: `Finvera: ${title}`,
+      html: layout({
+        title,
+        body: `<p><b>${esc(p.client)}</b> · ${esc(p.theme || "")}</p><p>${esc(detail)}</p><p style="color:#8a93aa">Further problems with ${esc(p.client)} in the next 6 hours show up in the dashboard only.</p>`,
+        button: { label: "Open the content calendar", url: dashboardUrl("/dashboard/social") },
+      }),
+      text: `${title}\n${p.client} · ${p.theme || ""}\n${detail}`,
+    });
+  })().catch((e) => console.warn("publish email:", e.message));
 }
 
 async function teamFor(p) {
@@ -166,6 +186,7 @@ async function runJob(job) {
       type: "due", title: status === "check" ? `Check ${NAMES[j.platform]}: ${p.theme}` : `Auto-post failed: ${p.theme}`,
       body: `${p.client} · ${NAMES[j.platform]}: ${error}`, link: "/dashboard/social", meta: { socialPostId: p.id },
     });
+    emailPublishProblem(p, { title: status === "check" ? `Check ${NAMES[j.platform]}: ${p.theme}` : `Auto-post failed: ${p.theme}`, detail: `${NAMES[j.platform]}: ${error}` });
   };
   if (problem) return fail("failed", problem);
   if (!acc || acc.status !== "connected") return fail("failed", `${p.client} isn't connected to ${NAMES[j.platform]} any more — reconnect it in Team & uploads.`);
@@ -181,7 +202,9 @@ async function runJob(job) {
   } catch (e) {
     const msg = e.message || "Meta returned an error.";
     if (/token|session|OAuthException|permission/i.test(`${e.meta?.type || ""} ${msg}`) && [190, 102, 10, 200].includes(Number(e.meta?.code))) {
+      const was = acc.status;
       await acc.update({ status: "reconnect", lastError: msg }).catch(() => {});
+      if (was === "connected") require("./metaHealth").alertReconnect(acc, msg).catch(() => {});
     }
     if (cp.publishCalled) return fail("check", `No clear answer from ${NAMES[j.platform]} after publishing started (${msg}). Check the account before retrying.`);
     if (isRetryable(e) && j.attempts < MAX_ATTEMPTS) {

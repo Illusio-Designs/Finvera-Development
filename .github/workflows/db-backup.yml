@@ -1,0 +1,68 @@
+name: Database backup (off-server copy)
+
+# Downloads the newest database backup from the API and keeps it as a
+# workflow artifact for 30 days, so a copy exists outside the hosting account.
+# The API makes today's backup first if it hasn't yet (it also makes one on
+# its own every day after 02:30 IST and keeps the last 14 on the server).
+#
+# Setup (once):
+#   1. Pick a long random token, e.g.  openssl rand -hex 32
+#   2. Add it to the backend .env (or the BACKEND_ENV secret) as BACKUP_TOKEN=<token>
+#   3. Add the same value as a GitHub secret: Settings → Secrets and variables
+#      → Actions → New repository secret → name BACKUP_TOKEN
+#   Optional secret API_BASE_URL (default https://api.finvera.solutions).
+#
+# Restore: download the artifact (a .zip holding the .sql.gz), then in cPanel
+# → phpMyAdmin → select the database → Import → choose the .sql.gz file.
+on:
+  schedule:
+    - cron: "20 22 * * *"   # 22:20 UTC = 03:50 AM IST (after the 02:30 IST server backup)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check secret
+        env:
+          BACKUP_TOKEN: ${{ secrets.BACKUP_TOKEN }}
+        run: |
+          if [ -z "$BACKUP_TOKEN" ]; then
+            echo "::error::BACKUP_TOKEN secret is not set (see the comment at the top of this workflow)."
+            exit 1
+          fi
+
+      - name: Download the newest backup
+        env:
+          BACKUP_TOKEN: ${{ secrets.BACKUP_TOKEN }}
+          API: ${{ secrets.API_BASE_URL || 'https://api.finvera.solutions' }}
+        run: |
+          set -e
+          mkdir -p out
+          for i in 1 2 3; do
+            if curl -fsS --max-time 600 -H "X-Backup-Token: $BACKUP_TOKEN" \
+                 -D headers.txt -o out/backup.sql.gz "${API%/}/api/backups/latest"; then
+              break
+            fi
+            [ "$i" = 3 ] && { echo "::error::The API did not return a backup."; exit 1; }
+            sleep 30
+          done
+          name=$(grep -i '^content-disposition:' headers.txt | sed -E 's/.*filename="?([^";]+)"?.*/\1/' | tr -d '\r')
+          case "$name" in finvera-*.sql.gz) mv out/backup.sql.gz "out/$name" ;; *) name=backup.sql.gz ;; esac
+          # Integrity: valid gzip and a complete dump.
+          gzip -t "out/$name"
+          zcat "out/$name" | tail -n 1 | grep -q '^-- Dump completed' || { echo "::error::Backup is incomplete."; exit 1; }
+          echo "Saved out/$name ($(stat -c %s "out/$name") bytes)"
+          zcat "out/$name" | tail -n 1
+
+      - name: Keep as artifact (30 days)
+        uses: actions/upload-artifact@v4
+        with:
+          name: finvera-db-backup-${{ github.run_id }}
+          path: out/*.sql.gz
+          retention-days: 30
+          compression-level: 0

@@ -78,8 +78,9 @@ jobs:
           port: 21
           local-dir: ./Backendjs/
           server-dir: ${{ secrets.FTP_REMOTE_DIR || 'api.finvera.solutions/' }}
-          # Never upload these. uploads/ is excluded so runtime-uploaded images
-          # on the server are never deleted by the sync.
+          # Never upload these. uploads/ and backups/ are excluded so runtime
+          # files on the server (uploaded images, database backups) are never
+          # deleted by the sync.
           exclude: |
             **/.git*
             **/.git*/**
@@ -96,6 +97,7 @@ jobs:
             **/.htaccess
             **/.well-known/**
             **/uploads/**
+            **/backups/**
             **/tmp/**
             **/logs/**
             **/*.log
