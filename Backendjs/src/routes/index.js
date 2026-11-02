@@ -260,7 +260,10 @@ socialPostRouter.post("/bulk", ...canSocial, social.guardBody, async (req, res, 
   try {
     const rows = Array.isArray(req.body?.posts) ? req.body.posts.slice(0, 1000) : [];
     const clean = rows
-      .map((r) => Object.fromEntries(SOCIAL_FIELDS.filter((f) => r[f] !== undefined && r[f] !== "").map((f) => [f, r[f]])))
+      .map((r) => ({
+        ...Object.fromEntries(SOCIAL_FIELDS.filter((f) => r[f] !== undefined && r[f] !== "").map((f) => [f, r[f]])),
+        ...(r.altTheme ? { altTheme: String(r.altTheme).slice(0, 255) } : {}), // older title of the same row (see importRows)
+      }))
       .filter((r) => r.client && r.theme);
     if (!clean.length) return res.status(400).json({ message: "No rows with a client and a post theme to import." });
     const brands = [...new Set(clean.map((r) => r.client))];

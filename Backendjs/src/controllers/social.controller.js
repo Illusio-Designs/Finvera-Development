@@ -292,8 +292,17 @@ async function importRows(rows) {
     const existing = await SocialPost.findAll({ where: { client } });
     const byKey = new Map();
     for (const p of existing) { const k = matchKey(p); if (!byKey.has(k)) byKey.set(k, []); byKey.get(k).push(p); }
-    for (const r of rows.filter((x) => x.client === client)) {
-      const hit = (byKey.get(matchKey(r)) || []).shift(); // each existing post matches at most one row
+    for (const row of rows.filter((x) => x.client === client)) {
+      const { altTheme, ...r } = row;
+      let hit = (byKey.get(matchKey(r)) || []).shift(); // each existing post matches at most one row
+      // The same sheet uploaded before under another title (e.g. its "Content
+      // Theme" column, before Post Topic became the title): update that post
+      // and give it the new title instead of adding a duplicate.
+      if (!hit && altTheme) {
+        const list = byKey.get(matchKey({ postDate: r.postDate, theme: altTheme })) || [];
+        const i = list.findIndex((p) => p.importBatch);
+        if (i >= 0) { hit = list.splice(i, 1)[0]; await hit.update({ theme: r.theme }); }
+      }
       // An uploaded sheet is a plan: new rows always start in Planned.
       if (!hit) { toCreate.push({ ...r, status: "planned", assigneeId: null, dueDate: r.dueDate || weekBefore(r.postDate), importBatch: batch }); continue; }
       const patch = { importBatch: batch };
