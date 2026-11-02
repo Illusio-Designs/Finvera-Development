@@ -83,6 +83,13 @@ async function start() {
     const { maybeRunDaily } = require("./src/utils/dailyReminders");
     setInterval(() => { maybeRunDaily().catch(() => {}); }, 5 * 60 * 1000).unref();
 
+    // Daily database backup (after 02:30 IST) + Meta connection check (after
+    // 09:00 IST): each claimed once per day in the DB, so only one process
+    // runs it; also kicked by /api/cron/*.
+    const ops = require("./src/controllers/ops.controller");
+    setTimeout(() => ops.runDailyOps(), 60 * 1000).unref();
+    setInterval(() => ops.runDailyOps(), 5 * 60 * 1000).unref();
+
     // Auto-publishing: check every minute for posts due to go live.
     const autoPublish = require("./src/utils/autoPublish");
     setInterval(() => { autoPublish.runDue().catch(() => {}); }, 60 * 1000).unref();

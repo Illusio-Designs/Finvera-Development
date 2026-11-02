@@ -17,15 +17,12 @@ const auto = require("../utils/autoPublish");
 const { UPLOAD_DIR } = require("../middleware/upload");
 
 const SEL_TTL_MS = 15 * 60 * 1000;
-const frontendUrl = () => {
-  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL.replace(/\/$/, "");
-  const fromCors = String(process.env.CORS_ORIGIN || "").split(",").map((s) => s.trim()).find((o) => /^https:\/\//.test(o) && !/localhost/.test(o));
-  return (fromCors || "https://www.finvera.solutions").replace(/\/$/, "");
-};
+const frontendUrl = require("../utils/frontendUrl");
 const inScope = (req, client) => !req.socialScope || req.socialScope.has(client);
 const publicAccount = (a) => ({
   client: a.client, pageId: a.pageId, pageName: a.pageName, igUserId: a.igUserId, igUsername: a.igUsername,
   igAvatar: a.igAvatar, status: a.status, lastError: a.status === "connected" ? null : a.lastError, connectedAt: a.updatedAt,
+  tokenExpiresAt: a.tokenExpiresAt || null, lastCheckedAt: a.lastCheckedAt || null,
 });
 
 /* ── Connect ── */
@@ -185,8 +182,19 @@ const mediaUpload = multer({
 });
 const uploadMedia = asyncHandler(async (req, res) => {
   if (!req.files?.length) return res.status(400).json({ message: "No files uploaded." });
-  const base = (process.env.PUBLIC_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
-  res.status(201).json({ items: req.files.map((f) => ({ url: `${base}/uploads/social/${f.filename}`, type: /^video\//.test(f.mimetype) ? "video" : "image", name: f.originalname, size: f.size })) });
+  // Images → JPEG (Instagram publishing needs JPEG), max 2000 px, + a thumbnail;
+  // videos are stored untouched. Without sharp on the host: stored as uploaded.
+  const { describe } = require("./upload.controller");
+  const items = [];
+  for (const f of req.files) {
+    const video = /^video\//.test(f.mimetype);
+    const d = video ? null : await describe(req, f, { mode: "social", sub: "social" });
+    const base = (process.env.PUBLIC_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
+    items.push(d
+      ? { url: d.url, type: "image", name: f.originalname, size: d.size, thumbUrl: d.thumbUrl, width: d.width, height: d.height, bytes: d.bytes, originalBytes: d.originalBytes }
+      : { url: `${base}/uploads/social/${f.filename}`, type: video ? "video" : "image", name: f.originalname, size: f.size });
+  }
+  res.status(201).json({ items });
 });
 
 module.exports = { status, start, callback, pages, choose, accounts, disconnect, jobs, retry, markPosted, publishNow, mediaUpload, uploadMedia };

@@ -27,6 +27,14 @@ const WANTED = [
   { table: "blog_posts", name: "idx_blog_posts_status_publishedAt", columns: ["status", "publishedAt", "createdAt"] },
   // Public settings map: WHERE isPublic = 1 AND group <> 'system'.
   { table: "settings", name: "idx_settings_isPublic_group", columns: ["isPublic", "group"] },
+  // Account security: my sessions, a user's activity, the admin security log.
+  { table: "user_sessions", name: "idx_user_sessions_userId", columns: ["userId", "revokedAt"] },
+  { table: "security_events", name: "idx_security_events_userId_createdAt", columns: ["userId", "createdAt"] },
+  { table: "security_events", name: "idx_security_events_createdAt", columns: ["createdAt"] },
+  { table: "security_events", name: "idx_security_events_type_createdAt", columns: ["type", "createdAt"] },
+  { table: "auth_tokens", name: "idx_auth_tokens_userId_kind", columns: ["userId", "kind"] },
+  // Lead follow-ups (today / overdue / this week widget + daily reminder).
+  { table: "leads", name: "idx_leads_nextFollowUpAt", columns: ["nextFollowUpAt"] },
 ];
 
 module.exports = async function ensureIndexes(sequelize) {

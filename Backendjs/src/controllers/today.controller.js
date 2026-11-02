@@ -9,6 +9,7 @@
        goingLiveWeek,    // posts going live Mon–Sun this week (any stage)
        scheduledWeek,    // of those, Ready to post or Posted
        onTimeMonthPct,   // team on-time % this month (KPIs), null if nothing delivered
+       leadsFollowUpToday, leadsFollowUpOverdue, // lead follow-ups (null without the leads area)
      },
      needsYou: [ { kind: "failed"|"approval"|"atRisk"|"renewal", title, sub, link, id, ... } ]  // max 8
      week: [ { day: "YYYY-MM-DD", total, ready } ] × 7, Monday first
@@ -55,7 +56,7 @@ const today = asyncHandler(async (req, res) => {
   const soon = addDays(todayIso, 2); // 48 h ahead, by date; exact time checked below
 
   const canRenewals = rolesCan(roles, "renewals");
-  const [posts, overdueCount, jobs, renewals, kpi] = await Promise.all([
+  const [posts, overdueCount, jobs, renewals, kpi, leadCounts] = await Promise.all([
     // Anything in approval, this whole week, and everything up to two days
     // ahead (at risk). Overdue posts (go-live passed, any age) are only
     // counted — loading them all made this the slowest part of the page.
@@ -77,6 +78,9 @@ const today = asyncHandler(async (req, res) => {
       ? Renewal.findAll({ where: { status: "active", renewalDate: { [Op.lte]: addDays(todayIso, 7) } }, order: [["renewalDate", "ASC"]], limit: 50 })
       : [],
     getKpis({ period: "month", scope, userId: me }).catch((e) => { console.warn("today kpis:", e.message); return null; }),
+    rolesCan(roles, "leads")
+      ? require("./leads.controller").followUpCounts(req.user, isAdmin).catch(() => null)
+      : null,
   ]);
 
   const postById = new Map(posts.map((p) => [p.id, p]));
@@ -97,6 +101,8 @@ const today = asyncHandler(async (req, res) => {
     goingLiveWeek: thisWeek.length,
     scheduledWeek: thisWeek.filter(isReady).length,
     onTimeMonthPct: kpi?.team?.onTime ?? null,
+    leadsFollowUpToday: leadCounts ? leadCounts.leadsFollowUpToday : null,     // null = no leads area
+    leadsFollowUpOverdue: leadCounts ? leadCounts.leadsFollowUpOverdue : null,
   };
 
   /* ── Needs you ── */

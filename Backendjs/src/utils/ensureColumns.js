@@ -12,6 +12,19 @@ const WANTED = [
   { table: "tasks", column: "renewalDate", def: "DATE NULL" },
   { table: "users", column: "roles", def: "JSON NULL" },
   { table: "users", column: "socialClients", def: "JSON NULL" },
+  { table: "users", column: "mustChangePassword", def: "TINYINT(1) NOT NULL DEFAULT 0" },
+  { table: "users", column: "invitePending", def: "TINYINT(1) NOT NULL DEFAULT 0" },
+  { table: "users", column: "invitedAt", def: "DATETIME NULL" },
+  { table: "users", column: "failedLogins", def: "INT NOT NULL DEFAULT 0" },
+  { table: "users", column: "firstFailedAt", def: "DATETIME NULL" },
+  { table: "users", column: "lockedUntil", def: "DATETIME NULL" },
+  { table: "users", column: "lastLoginAt", def: "DATETIME NULL" },
+  { table: "users", column: "lastSeenAt", def: "DATETIME NULL" },
+  { table: "users", column: "passwordChangedAt", def: "DATETIME NULL" },
+  { table: "users", column: "tokensValidAfter", def: "DATETIME NULL" },
+  { table: "users", column: "twoFactorEnabled", def: "TINYINT(1) NOT NULL DEFAULT 0" },
+  { table: "users", column: "twoFactorSecret", def: "VARCHAR(255) NULL" },
+  { table: "users", column: "twoFactorBackup", def: "JSON NULL" },
   { table: "social_posts", column: "importBatch", def: "VARCHAR(40) NULL" },
   { table: "social_posts", column: "media", def: "JSON NULL" },
   { table: "social_posts", column: "publishTo", def: "JSON NULL" },
@@ -23,6 +36,21 @@ const WANTED = [
   { table: "social_accounts", column: "statsAt", def: "DATETIME NULL" },
   { table: "social_publish_jobs", column: "metrics", def: "JSON NULL" },
   { table: "social_publish_jobs", column: "metricsAt", def: "DATETIME NULL" },
+  // Lead follow-ups. `after` runs once, right after the column is added.
+  { table: "leads", column: "ownerId", def: "INT NULL",
+    after: "UPDATE `leads` l JOIN `users` u ON u.`name` = l.`owner` SET l.`ownerId` = u.`id` WHERE l.`ownerId` IS NULL AND l.`owner` IS NOT NULL AND l.`owner` <> ''" },
+  { table: "leads", column: "nextFollowUpAt", def: "DATE NULL",
+    after: "UPDATE `leads` SET `nextFollowUpAt` = `nextFollowUp` WHERE `nextFollowUpAt` IS NULL AND `nextFollowUp` IS NOT NULL" },
+  { table: "leads", column: "followUpNote", def: "TEXT NULL" },
+  { table: "leads", column: "meetingUrl", def: "VARCHAR(500) NULL" },
+  { table: "leads", column: "meetingAt", def: "DATETIME NULL" },
+  { table: "leads", column: "lastContactedAt", def: "DATETIME NULL" },
+  { table: "leads", column: "lostReason", def: "VARCHAR(500) NULL" },
+  { table: "users", column: "emailPrefs", def: "JSON NULL" },
+  { table: "contact_submissions", column: "isSpam", def: "TINYINT(1) NOT NULL DEFAULT 0" },
+  { table: "contact_submissions", column: "spamReason", def: "VARCHAR(120) NULL" },
+  { table: "social_accounts", column: "tokenExpiresAt", def: "DATETIME NULL" },
+  { table: "social_accounts", column: "lastCheckedAt", def: "DATETIME NULL" },
 ];
 
 /* ENUM columns whose allowed values grew (sync() never ALTERs an existing
@@ -75,6 +103,7 @@ module.exports = async function ensureColumns(sequelize) {
       if (!exists) {
         await sequelize.query(`ALTER TABLE \`${w.table}\` ADD COLUMN \`${w.column}\` ${w.def}`);
         console.log(`\x1b[32m✔ Added missing column ${w.table}.${w.column}\x1b[0m`);
+        if (w.after) await sequelize.query(w.after).catch((e) => console.warn(`\x1b[33m⚠ backfill ${w.table}.${w.column}:\x1b[0m`, e.message));
       }
     } catch (e) {
       console.warn(`\x1b[33m⚠ ensureColumns ${w.table}.${w.column}:\x1b[0m`, e.message);

@@ -15,7 +15,59 @@ const User = sequelize.define("User", {
   title: { type: DataTypes.STRING },    // job title / role label
   // Social media brands (SocialClient ids) this user may work on; empty = all.
   socialClients: { type: DataTypes.JSON, defaultValue: [] },
+  // ── Account security (added columns: see utils/ensureColumns.js) ──
+  mustChangePassword: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  invitePending: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }, // invited, no password set yet
+  invitedAt: { type: DataTypes.DATE },
+  failedLogins: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },     // wrong passwords in the current window
+  firstFailedAt: { type: DataTypes.DATE },                                            // start of that 15-min window
+  lockedUntil: { type: DataTypes.DATE },
+  lastLoginAt: { type: DataTypes.DATE },
+  lastSeenAt: { type: DataTypes.DATE },
+  passwordChangedAt: { type: DataTypes.DATE },
+  // Tokens WITHOUT a session id (issued before sessions existed) older than
+  // this are refused — set on reset / logout-all / deactivate.
+  tokensValidAfter: { type: DataTypes.DATE },
+  twoFactorEnabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  twoFactorSecret: { type: DataTypes.STRING(255) },   // encrypted (utils/totp.js)
+  twoFactorBackup: { type: DataTypes.JSON },          // sha256 hashes of unused backup codes
+  // Which emails this user gets: { contact, renewals, calendar, publishing, security } (null/missing key = on).
+  emailPrefs: { type: DataTypes.JSON },
 }, { tableName: "users" });
+
+/* ── Sign-in session (one per login; the JWT carries its jti) ── */
+const UserSession = sequelize.define("UserSession", {
+  userId: { type: DataTypes.INTEGER, allowNull: false },
+  jti: { type: DataTypes.STRING(64), allowNull: false, unique: true },
+  device: { type: DataTypes.STRING(120) },     // "Chrome on Windows"
+  userAgent: { type: DataTypes.STRING(255) },
+  ip: { type: DataTypes.STRING(64) },
+  lastSeenAt: { type: DataTypes.DATE },
+  expiresAt: { type: DataTypes.DATE },
+  revokedAt: { type: DataTypes.DATE },
+  revokedReason: { type: DataTypes.STRING(40) },
+}, { tableName: "user_sessions" });
+
+/* ── Security log (logins, lockouts, password / 2FA / role changes) ── */
+const SecurityEvent = sequelize.define("SecurityEvent", {
+  userId: { type: DataTypes.INTEGER },          // null for unknown-email attempts
+  email: { type: DataTypes.STRING },            // email tried / of the user at the time
+  type: { type: DataTypes.STRING(40), allowNull: false },
+  actorId: { type: DataTypes.INTEGER },         // who did it (admin actions); null = the user / system
+  ip: { type: DataTypes.STRING(64) },
+  device: { type: DataTypes.STRING(120) },
+  meta: { type: DataTypes.JSON },
+}, { tableName: "security_events", updatedAt: false });
+
+/* ── Single-use email links (password reset / invite) — only a hash is kept ── */
+const AuthToken = sequelize.define("AuthToken", {
+  userId: { type: DataTypes.INTEGER, allowNull: false },
+  kind: { type: DataTypes.STRING(20), allowNull: false },     // reset | invite
+  tokenHash: { type: DataTypes.STRING(64), allowNull: false, unique: true },
+  expiresAt: { type: DataTypes.DATE, allowNull: false },
+  usedAt: { type: DataTypes.DATE },
+  createdBy: { type: DataTypes.INTEGER },
+}, { tableName: "auth_tokens" });
 
 /* ── Project / Work ──────────────────────────────────── */
 const Project = sequelize.define("Project", {
@@ -111,6 +163,8 @@ const ContactSubmission = sequelize.define("ContactSubmission", {
   message: { type: DataTypes.TEXT, allowNull: false },
   ip: { type: DataTypes.STRING },
   isRead: { type: DataTypes.BOOLEAN, defaultValue: false },
+  isSpam: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }, // suspected spam (kept, hidden from the inbox)
+  spamReason: { type: DataTypes.STRING(120) },
 }, { tableName: "contact_submissions" });
 
 /* ── Kanban board (Trello-style) ─────────────────────── */
@@ -209,7 +263,45 @@ const Lead = sequelize.define("Lead", {
   nextFollowUp: { type: DataTypes.DATEONLY },
   notes: { type: DataTypes.TEXT },
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
-}, { tableName: "leads" });
+  // ── Follow-ups ──
+  ownerId: { type: DataTypes.INTEGER },                         // User id of `owner` (kept in sync with the name)
+  nextFollowUpAt: { type: DataTypes.DATEONLY },                 // mirrors the older `nextFollowUp` (both kept in sync)
+  followUpNote: { type: DataTypes.TEXT },                       // what to do on the follow-up
+  meetingUrl: { type: DataTypes.STRING(500) },                  // Calendly / Meet / Zoom link
+  meetingAt: { type: DataTypes.DATE },
+  lastContactedAt: { type: DataTypes.DATE },
+  lostReason: { type: DataTypes.STRING(500) },
+}, {
+  tableName: "leads",
+  hooks: {
+    /* `nextFollowUp` (old) and `nextFollowUpAt` (new) are the same date;
+       `owner` (name) and `ownerId` follow each other. */
+    async beforeSave(lead) {
+      const ch = (f) => lead.changed(f);
+      if (ch("nextFollowUpAt") && !ch("nextFollowUp")) lead.nextFollowUp = lead.nextFollowUpAt || null;
+      else if (ch("nextFollowUp") && !ch("nextFollowUpAt")) lead.nextFollowUpAt = lead.nextFollowUp || null;
+      if (ch("ownerId") && !ch("owner")) {
+        const u = lead.ownerId ? await User.findByPk(lead.ownerId, { attributes: ["id", "name"] }) : null;
+        lead.owner = u ? u.name : null;
+        if (!u) lead.ownerId = null;
+      } else if (ch("owner") && !ch("ownerId")) {
+        const name = String(lead.owner || "").trim();
+        const u = name ? await User.findOne({ where: { name }, attributes: ["id"] }) : null;
+        lead.ownerId = u ? u.id : null;
+      }
+    },
+  },
+});
+
+/* A lead "touch": a call, email, WhatsApp, meeting or note logged on a lead. */
+const LeadActivity = sequelize.define("LeadActivity", {
+  leadId: { type: DataTypes.INTEGER, allowNull: false },
+  type: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "note" }, // call | email | whatsapp | meeting | note
+  note: { type: DataTypes.TEXT },
+  nextFollowUpAt: { type: DataTypes.DATEONLY },                  // follow-up set with this touch, if any
+  userId: { type: DataTypes.INTEGER },
+  userName: { type: DataTypes.STRING },
+}, { tableName: "lead_activities", updatedAt: false, indexes: [{ name: "idx_lead_activities_lead", fields: ["leadId", "createdAt"] }] });
 
 /* ── Maintenance / renewal invoices (completed projects) ─
    A renewal entry is a recurring maintenance/hosting/domain invoice for a
@@ -289,6 +381,8 @@ const SocialAccount = sequelize.define("SocialAccount", {
   paused: { type: DataTypes.JSON },                                    // platforms paused, e.g. ["facebook"]
   stats: { type: DataTypes.JSON },                                     // cached profile numbers (followers, pictures)
   statsAt: { type: DataTypes.DATE },
+  tokenExpiresAt: { type: DataTypes.DATE },                            // from Meta debug_token (null = no known expiry)
+  lastCheckedAt: { type: DataTypes.DATE },                             // last connection health check
 }, { tableName: "social_accounts" });
 
 /* Daily follower counts per brand channel, for "new followers" over time. */
@@ -337,6 +431,30 @@ const SocialPostEvent = sequelize.define("SocialPostEvent", {
   postDate: { type: DataTypes.DATEONLY },              // go-live at the time of the move
   at: { type: DataTypes.DATE, allowNull: false },
 }, { tableName: "social_post_events", indexes: [{ fields: ["postId"] }, { fields: ["at"] }] });
+
+/* ── Activity history (audit log) ─────────────────────
+   One row per create / update / delete (and a few other actions such as
+   renewals renewed / terminated). `changes` = { field: [old, new] } with
+   long text trimmed; passwords and tokens are never stored. Written in the
+   background (utils/audit.js) so saving is never slowed down. */
+const ActivityLog = sequelize.define("ActivityLog", {
+  userId: { type: DataTypes.INTEGER },
+  userName: { type: DataTypes.STRING },
+  action: { type: DataTypes.STRING(12), allowNull: false },   // create | update | delete | other
+  entity: { type: DataTypes.STRING(40), allowNull: false },   // lead, renewal, user, setting, project, blog, …
+  entityId: { type: DataTypes.STRING(64) },
+  entityLabel: { type: DataTypes.STRING },
+  summary: { type: DataTypes.STRING(500) },                   // one line, e.g. "Renewed till 2 Nov 2027 — paid by UPI"
+  changes: { type: DataTypes.JSON },
+  ip: { type: DataTypes.STRING(64) },
+}, {
+  tableName: "activity_logs", updatedAt: false,
+  indexes: [
+    { name: "idx_activity_entity", fields: ["entity", "entityId"] },
+    { name: "idx_activity_user_created", fields: ["userId", "createdAt"] },
+    { name: "idx_activity_created", fields: ["createdAt"] },
+  ],
+});
 
 /* ── Editable content collections (CMS) ──────────────── */
 const contentDefaults = {
@@ -411,11 +529,13 @@ Comment.belongsTo(Task, { foreignKey: "taskId" });
 Comment.belongsTo(User, { as: "author", foreignKey: "userId" });
 Notification.belongsTo(User, { foreignKey: "userId", onDelete: "CASCADE" });
 PushSubscription.belongsTo(User, { foreignKey: "userId", onDelete: "CASCADE" });
+UserSession.belongsTo(User, { foreignKey: "userId", onDelete: "CASCADE" });
+AuthToken.belongsTo(User, { foreignKey: "userId", onDelete: "CASCADE" });
 
 module.exports = {
   sequelize,
-  User, Project, Service, Testimonial, TeamMember,
+  User, UserSession, SecurityEvent, AuthToken, Project, Service, Testimonial, TeamMember,
   BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page, Lead, Notification, PushSubscription,
-  Renewal, SocialClient, SocialPost, SocialPostEvent, SocialAccount, SocialPublishJob, SocialStat,
+  Renewal, SocialClient, SocialPost, LeadActivity, ActivityLog, SocialPostEvent, SocialAccount, SocialPublishJob, SocialStat,
   Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature,
 };

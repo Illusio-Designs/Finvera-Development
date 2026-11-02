@@ -4,6 +4,7 @@
 const fs = require("fs");
 const path = require("path");
 const { UPLOAD_DIR } = require("../middleware/upload");
+const { thumbNameOf } = require("./images");
 
 const asArr = (v) => (Array.isArray(v) ? v : (typeof v === "string" && v.trim().startsWith("[") ? (() => { try { return JSON.parse(v); } catch { return []; } })() : []));
 
@@ -16,6 +17,7 @@ async function purgeMedia(post) {
     const name = path.basename(new URL(m.url, "http://x").pathname); // never follows ../
     const file = path.join(UPLOAD_DIR, "social", name);
     try { await fs.promises.unlink(file); removed++; } catch (e) { if (e.code !== "ENOENT") console.warn("purge media:", e.message); }
+    await fs.promises.unlink(path.join(UPLOAD_DIR, "social", thumbNameOf(name))).catch(() => {}); // its thumbnail, if any
   }
   // Keep links to files hosted elsewhere; drop the ones we deleted.
   await post.update({ media: media.filter((m) => !ours.includes(m)) });
