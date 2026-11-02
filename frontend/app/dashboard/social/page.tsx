@@ -551,17 +551,44 @@ export default function SocialCalendar() {
 
   /* Hand-off picker: every move asks who takes the post next. The person
      picked at upload (the post's team) is pre-selected. */
-  type Handoff = { post: Post; role: Role; patch: Partial<Post>; kind: "next" | "approve" | "back" | "move"; chosen: number | null; note: string; busy: boolean };
+  type Handoff = { post: Post; role: Role; patch: Partial<Post>; kind: "next" | "approve" | "back" | "move"; chosen: number | null; note: string; busy: boolean;
+    late?: boolean; when?: "now" | "pick"; newDate?: string; newTime?: string };
+  /* Go-live time already passed (date before today, or today with the time gone). */
+  const liveTimePassed = (p: Post) => {
+    if (!p.postDate) return false;
+    const t = todayIso();
+    if (p.postDate < t) return true;
+    if (p.postDate > t) return false;
+    const m = /^(\d{1,2}):(\d{2})/.exec(p.postTime || "10:00");
+    const [nh, nm] = hhmm(new Date()).split(":").map(Number);
+    return !!m && nh * 60 + nm > +m[1] * 60 + +m[2];
+  };
+  // Go-live times are India time, whatever timezone the browser is in.
+  const hhmm = (d: Date) => d.toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false });
+  const istToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   const [handoff, setHandoff] = useState<Handoff | null>(null);
   const peopleFor = (role: Role) => users.filter((u) => (u.roles || []).includes(role));
   function askHandoff(p: Post, role: Role, patch: Partial<Post>, kind: Handoff["kind"]) {
     const picked = p.team?.[role] ?? null;
     const list = peopleFor(role);
-    setHandoff({ post: p, role, patch, kind, note: "", busy: false, chosen: picked ?? (list.length === 1 ? list[0].id : null) });
+    const late = kind === "approve" && liveTimePassed(p);
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+    setHandoff({ post: p, role, patch, kind, note: "", busy: false, chosen: picked ?? (list.length === 1 ? list[0].id : null),
+      late, when: "now", newDate: iso(tomorrow), newTime: p.postTime?.slice(0, 5) || "10:00" });
   }
   async function confirmHandoff() {
     if (!handoff) return;
-    const { post: p, role, patch, kind, chosen, note } = handoff;
+    const { post: p, role, kind, chosen, note } = handoff;
+    let patch = handoff.patch;
+    // Approving an overdue post: it goes live now, or at the new date and time picked.
+    if (handoff.late) {
+      if (handoff.when === "pick") {
+        if (!handoff.newDate) return toast("Pick the new go-live date", "warn");
+        patch = { ...patch, postDate: handoff.newDate, postTime: handoff.newTime || "10:00", dueDate: weekBefore(handoff.newDate) };
+      } else {
+        patch = { ...patch, postDate: istToday(), postTime: hhmm(new Date(Date.now() + 2 * 60000)) };
+      }
+    }
     setHandoff({ ...handoff, busy: true });
     const ok = await applyHandoff(p, role, patch, kind, chosen, note);
     if (ok) setHandoff(null); else setHandoff((h) => (h ? { ...h, busy: false } : h));
@@ -611,7 +638,8 @@ export default function SocialCalendar() {
     if (!hop) return moveTo(p.id, "posted");
     const kind = p.status === "approval" ? "approve" : "next";
     const picked = p.team?.[hop.role];
-    if (picked && users.some((u) => u.id === picked)) { applyHandoff(p, hop.role, hop.patch, kind, picked); return; }
+    // Overdue approval always asks when it should go live.
+    if (picked && users.some((u) => u.id === picked) && !(kind === "approve" && liveTimePassed(p))) { applyHandoff(p, hop.role, hop.patch, kind, picked); return; }
     askHandoff(p, hop.role, hop.patch, kind);
   }
   const doneLabel = (p: Post) => {
@@ -736,22 +764,76 @@ export default function SocialCalendar() {
   const startOf = (p: Post) => p.dueDate || weekBefore(p.postDate);
 
   /* Render helpers are plain functions (not components) so a re-render mid-drag never remounts the board. */
-  function renderCard(p: Post) {
+  /* Stage → card tint (planned blue, production peach, approval pink, ready mint, posted sky). */
+  const tintOf = (st: Stage) => (st === "production" ? "pr" : st === "approval" ? "ap" : st === "ready" ? "rd" : st === "posted" ? "po" : st === "client" ? "cl" : "pl");
+  /* The team picked for this post, in order, for the avatar row. */
+  const teamRow = (p: Post) => {
+    const cur = roleFor(p.status, p.format, p.step);
+    const ci = CHAIN.indexOf(cur);
+    const rows = CHAIN.map((r, i) => ({ r, i, id: (p.team?.[r] ?? (r === cur ? p.assigneeId : null)) as number | null | undefined })).filter((x) => x.id);
+    if (!rows.length && p.assigneeId) rows.push({ r: cur, i: ci, id: p.assigneeId });
+    return rows.map((x) => ({ ...x, u: userById(x.id ?? null), state: isDone(p) || x.i < ci ? "done" : x.i === ci ? "now" : "next" }));
+  };
+  const avatars = (p: Post) => (
+    <span className="fvc-stack">
+      {teamRow(p).map((x) => x.u && (
+        <i key={x.r} className={x.state} style={{ background: ROLE_META[x.r].fg }} title={`${x.u.name} · ${ROLE_META[x.r].label}${x.state === "now" ? " · has it now" : ""}`}>{initials(x.u.name)}</i>
+      ))}
+    </span>
+  );
+  /* Time progress: dots fill from the start-work day to go-live. */
+  const timeDots = (p: Post) => {
+    const pct = progressPct(p), n = 12, on = Math.round((pct / 100) * n);
+    const left = p.postDate ? daysFrom(todayIso(), p.postDate) : null;
+    const label = isOverdue(p) ? `Overdue ${-(left || 0)}d` : left === 0 ? "Goes live today" : left != null ? `${left} day${left === 1 ? "" : "s"} left` : "No date";
     return (
-      <button type="button" key={p.id} className={"cal-card" + (canEdit(p) ? "" : " ro")} draggable={canEdit(p)}
+      <span className="fvc-prog">
+        <span className="fvc-prog-h"><span>Progress</span><b className={isOverdue(p) ? "late" : ""}>{pct}% · {label}</b></span>
+        <span className="fvc-dots" aria-label={`${pct}% of the time to go-live used`}>{Array.from({ length: n }, (_, i) => <i key={i} className={i < on ? "on" : ""} />)}</span>
+      </span>
+    );
+  };
+
+  /* Render helpers are plain functions (not components) so a re-render mid-drag never remounts the board. */
+  function renderCard(p: Post) {
+    const js = jobsFor(p.id);
+    const media = p.media || [];
+    const first = media[0];
+    const flag = p.dataStatus && !/^(planning|ok|done|ready|we have)$/i.test(p.dataStatus.trim()) ? p.dataStatus : "";
+    return (
+      <button type="button" key={p.id} className={"fvc-card " + tintOf(p.status) + (canEdit(p) ? "" : " ro")} draggable={canEdit(p)}
         onDragStart={(e) => { dragId.current = p.id; e.currentTarget.classList.add("dragging"); }}
         onDragEnd={(e) => e.currentTarget.classList.remove("dragging")}
         onClick={() => setViewId(p.id)} aria-label={`${p.theme}, ${p.client}, ${dueInfo(p)?.text || ""}`}>
-        <span className="cal-card-top">
-          <i style={{ background: clientColor(p.client) }} /><span className="cal-brand">{p.client}</span>{fmtChip(p.format)}
-        </span>
-        <span className="cal-title">{p.theme || "Untitled post"}</span>
-        {p.festive && <span className="cal-fest">{p.festive}</span>}
-        {p.postDate && (
-          <span className="cal-dates"><span>Start {fmtShort(startOf(p))}</span><span>Live {fmtShort(p.postDate)}{p.postTime ? ` · ${fmtTime(p.postTime)}` : ""}</span></span>
+        <span className="fvc-tags"><span>#{p.client.replace(/\s+/g, "")}</span>{p.format && <span>#{p.format.replace(/\s+/g, "")}</span>}</span>
+        <span className="fvc-title">{p.theme || "Untitled post"}</span>
+        {flag ? <span className="fvc-flag">⚠ {flag}</span> : (p.festive || p.topic) ? <span className="fvc-note">{p.festive || p.topic}</span> : null}
+        {(p.status === "production" || p.status === "approval") && first && (
+          <span className="fvc-shot">
+            {isVideoMedia(first) ? <video src={first.url} muted playsInline preload="metadata" /> : <img src={first.url} alt="" />}
+            <em>{isVideoMedia(first) ? "▶ video" : media.length > 1 ? `${media.length} files` : "finished work"}</em>
+          </span>
         )}
-        {p.postDate && progress(p)}
-        <span className="cal-card-foot">{whoPill(p)}{badge(p)}{pubChip(p)}</span>
+        {p.status === "ready" && (
+          <span className="fvc-check">
+            <span>🕑 Goes live {fmtShort(p.postDate)} · {p.postTime ? fmtTime(p.postTime) : "10:00 AM"}</span>
+            {js.map((j) => <span key={j.id}>{PLATFORM_NAME[j.platform]} · {(JOB_LABEL[j.status]?.[0] || j.status).toLowerCase()}</span>)}
+          </span>
+        )}
+        {p.status === "posted" && (
+          <span className="fvc-check">
+            {js.filter((j) => j.status === "published").map((j) => <span key={j.id}>✓ {PLATFORM_NAME[j.platform]} · published</span>)}
+            {!js.some((j) => j.status === "published") && <span>✓ Posted {fmtShort(p.postDate)}</span>}
+          </span>
+        )}
+        {!isDone(p) && p.postDate && timeDots(p)}
+        <span className="fvc-foot">
+          {avatars(p)}
+          <span className="fvc-meta">
+            {media.length > 0 && <span title="Finished work files">📎 {media.length}</span>}
+            {p.postDate && <span>📅 {p.postDate === todayIso() ? "Today" : fmtShort(p.postDate)}</span>}
+          </span>
+        </span>
       </button>
     );
   }
@@ -768,8 +850,7 @@ export default function SocialCalendar() {
                 onDragLeave={() => setOverStage((o) => (o === s.id ? null : o))}
                 onDrop={() => { setOverStage(null); if (dragId.current != null) moveTo(dragId.current, s.id); dragId.current = null; }}>
                 <div className="cal-col-head">
-                  <span className="cal-col-title"><i style={{ background: s.color }} /><h2>{s.title}</h2><b>{items.length}</b></span>
-                  <span className="cal-col-owner">{s.owner}</span>
+                  <span className="cal-col-title"><h2>{s.title}</h2><b className={"fvc-n " + tintOf(s.id)}>{items.length}</b><small>{s.owner}</small></span>
                 </div>
                 {items.map(renderCard)}
                 {!items.length && <div className="cal-col-empty">Nothing here</div>}
@@ -793,126 +874,90 @@ export default function SocialCalendar() {
     ] as [string, string, string, Post[]][]).filter((g) => g[3].length);
   }
 
-  function renderSchedule() {
-    const groups = scheduleGroups(list);
-    if (!groups.length) return <div className="cal-empty">Nothing open here. Every post in this view is posted.</div>;
-    return (
-      <div className="cal-sched">
-        {groups.map(([name, hint, cls, items]) => (
-          <section key={name} aria-label={name}>
-            <div className="cal-group-head"><h2 className={cls}>{name}</h2><b>{items.length}</b><span>{hint}</span></div>
-            <div className="cal-table-wrap">
-              <table className="cal-table">
-                <thead><tr><th>Goes live</th><th>Start work</th><th>Post</th><th>Stage</th><th>With</th><th>Timeline</th></tr></thead>
-                <tbody>
-                  {items.map((p) => (
-                    <tr key={p.id}>
-                      <td className="nw" data-label="Goes live"><b>{fmtDay(p.postDate)}</b><br /><span className="cal-muted">{fmtTime(p.postTime) || "—"}</span></td>
-                      <td className="nw cal-muted" data-label="Start work">{p.postDate ? fmtShort(startOf(p)) : "—"}</td>
-                      <td className="cal-tpost">
-                        <button type="button" className="cal-link" onClick={() => setViewId(p.id)}>{p.theme}</button>
-                        <span className="cal-sub"><i style={{ background: clientColor(p.client) }} />{p.client}{fmtChip(p.format)}</span>
-                      </td>
-                      <td data-label="Stage">{stageChip(p.status)}</td>
-                      <td data-label="With">{whoPill(p)}</td>
-                      <td data-label="Timeline">{badge(p)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        ))}
-      </div>
-    );
-  }
-
+  /* Week calendar: posts placed at their go-live time, tinted by stage. */
   function renderCalendar() {
-    const cm = month || calMonth || todayIso().slice(0, 7);
-    const [y, mo] = cm.split("-").map(Number);
-    const first = new Date(y, mo - 1, 1);
-    const start = new Date(first); start.setDate(1 - ((first.getDay() + 6) % 7));
-    const daysIn = new Date(y, mo, 0).getDate();
-    const total = Math.ceil((((first.getDay() + 6) % 7) + daysIn) / 7) * 7;
-    const liveOn: Record<string, Post[]> = {}, startsOn: Record<string, Post[]> = {};
-    for (const p of list) {
-      if (p.postDate) (liveOn[p.postDate] ||= []).push(p);
-      if (showStarts && p.postDate && !isDone(p)) (startsOn[startOf(p)] ||= []).push(p);
-    }
-    const cells: Date[] = [];
-    for (let i = 0; i < total; i++) { const d = new Date(start); d.setDate(start.getDate() + i); cells.push(d); }
-    const shift = (n: number) => { setMonth(""); setCalMonth(iso(new Date(y, mo - 1 + n, 1)).slice(0, 7)); };
     const t = todayIso();
-    const selLive = liveOn[calDay] || [], selStarts = startsOn[calDay] || [];
+    const base = calDay || t;
+    const d0 = new Date(base + "T00:00:00"); d0.setDate(d0.getDate() - ((d0.getDay() + 6) % 7));
+    const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(d0); d.setDate(d0.getDate() + i); return iso(d); });
+    const hourOf = (p: Post) => { const m = /^(\d{1,2}):(\d{2})/.exec(p.postTime || ""); return m ? +m[1] + +m[2] / 60 : 10; };
+    const inWeek = list.filter((p) => p.postDate && days.includes(p.postDate));
+    const hrs = inWeek.map(hourOf);
+    const PX = 96, DUR = 1.7; // px per hour, card length in hours
+    const H0 = Math.min(9, Math.floor(hrs.length ? Math.min(...hrs) : 9));
+    let H1 = Math.max(20, Math.ceil((hrs.length ? Math.max(...hrs) : 18) + DUR));
+    const shift = (n: number) => { const d = new Date(d0); d.setDate(d0.getDate() + n * 7); setMonth(""); setCalDay(iso(d)); };
+    const now = new Date(), nowH = now.getHours() + now.getMinutes() / 60;
+    // Posts that overlap on a day are stacked as compact rows (full width), a lone post gets a big card.
+    const MINI = 74; // px per compact row
+    const layoutFor = (ps: Post[]) => {
+      const sorted = [...ps].sort((x, y) => hourOf(x) - hourOf(y));
+      const groups: { start: number; items: Post[] }[] = [];
+      for (const p of sorted) {
+        const g = groups[groups.length - 1];
+        const end = g ? g.start + Math.max(DUR, (g.items.length * MINI) / PX) : -1;
+        if (g && hourOf(p) < end) g.items.push(p); else groups.push({ start: hourOf(p), items: [p] });
+      }
+      const pos = new Map<number, { top: number; height: number; mini: boolean }>();
+      for (const g of groups) {
+        if (g.items.length === 1) pos.set(g.items[0].id, { top: (g.start - H0) * PX + 4, height: DUR * PX - 8, mini: false });
+        else g.items.forEach((p, i) => pos.set(p.id, { top: (g.start - H0) * PX + 4 + i * MINI, height: MINI - 6, mini: true }));
+      }
+      const bottom = Math.max(0, ...[...pos.values()].map((x) => x.top + x.height));
+      return { pos, bottom };
+    };
+    // Make the day tall enough for stacked rows.
+    const tallest = Math.max(0, ...days.map((ds) => layoutFor(inWeek.filter((p) => p.postDate === ds)).bottom));
+    H1 = Math.max(H1, H0 + Math.ceil((tallest + 16) / PX));
     return (
-      <>
-        <div className="cal-calhead">
-          <button type="button" className="cal-icon" onClick={() => shift(-1)} aria-label="Previous month">‹</button>
-          <h2>{MONTHS[mo - 1]} {y}</h2>
-          <button type="button" className="cal-icon" onClick={() => shift(1)} aria-label="Next month">›</button>
-          <button type="button" className="cal-btn" onClick={() => { setMonth(""); setCalMonth(t.slice(0, 7)); setCalDay(t); }}>Today</button>
-          <label className="cal-check"><input type="checkbox" checked={showStarts} onChange={(e) => setShowStarts(e.target.checked)} /> Show start-work days</label>
+      <div className="fvw">
+        <div className="fvw-bar">
+          <button type="button" className="cal-icon" onClick={() => shift(-1)} aria-label="Previous week">‹</button>
+          <b>{fmtShort(days[0])} – {fmtShort(days[6])}</b>
+          <button type="button" className="cal-icon" onClick={() => shift(1)} aria-label="Next week">›</button>
+          <button type="button" className="cal-btn" onClick={() => { setMonth(""); setCalDay(t); }}>This week</button>
+          <span className="fvw-legend">{STAGES.map((st) => <span key={st.id}><i className={tintOf(st.id)} />{st.title}</span>)}</span>
         </div>
-        <div className="cal-legend">
-          {STAGES.map((s) => <span key={s.id}><i style={{ background: s.bg, borderLeftColor: s.color }} />{s.title}</span>)}
-          <span><i className="dash" />Start work (7 days before)</span>
-        </div>
-        <div className="cal-cal-wrap">
-          <div className="cal-cal-scroll">
-            <div className="cal-cal">
-              {DOW.map((d) => <div key={d} className="cal-dow">{d}</div>)}
-              {cells.map((d) => {
-                const ds = iso(d), inMonth = d.getMonth() === mo - 1;
-                const live = liveOn[ds] || [], starts = startsOn[ds] || [];
-                const room = Math.max(0, 3 - live.length);
-                const more = live.length + starts.length - Math.min(3, live.length) - Math.min(room, starts.length);
-                return (
-                  <button type="button" key={ds} onClick={() => setCalDay(ds)}
-                    className={"cal-day" + (inMonth ? "" : " out") + (ds === t ? " today" : "") + (ds === calDay ? " sel" : "")}
-                    aria-label={`${fmtDay(ds)}: ${live.length} going live, ${starts.length} starting`}>
-                    <span className="cal-num"><b>{d.getDate()}</b></span>
-                    {live.slice(0, 3).map((p) => {
-                      const st = STAGES.find((s) => s.id === p.status)!;
-                      return <span key={p.id} className="cal-ev" style={css({ "--bg": st.bg, "--fg": st.color })}>{p.postTime ? `${fmtTime(p.postTime).replace(":00", "").replace(" ", "").toLowerCase()} ` : ""}{p.theme}</span>;
-                    })}
-                    {starts.slice(0, room).map((p) => <span key={"s" + p.id} className="cal-ev start">Start · {p.theme}</span>)}
-                    {more > 0 && <span className="cal-more">+{more} more</span>}
-                    {(live.length > 0 || starts.length > 0) && (
-                      <span className="cal-dots" aria-hidden="true">
-                        {live.slice(0, 4).map((p) => <i key={p.id} style={{ background: STAGES.find((x) => x.id === p.status)!.color }} />)}
-                        {starts.length > 0 && <i className="s" />}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+        <div className="fvw-scroll">
+          <div className="fvw-grid">
+            <div className="fvw-head"><span />{days.map((ds) => {
+              const d = new Date(ds + "T00:00:00");
+              return <span key={ds} className={ds === t ? "today" : ""}>{String(d.getDate()).padStart(2, "0")} {DOW[(d.getDay() + 6) % 7].toUpperCase()}</span>;
+            })}</div>
+            <div className="fvw-body" style={{ height: (H1 - H0) * PX }}>
+              <div className="fvw-hours">{Array.from({ length: H1 - H0 }, (_, i) => H0 + i).map((h) => <span key={h} style={{ top: (h - H0) * PX }}>{h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`}</span>)}</div>
+              <div className="fvw-days" style={{ backgroundSize: `100% ${PX}px` }}>
+                {days.map((ds) => {
+                  const ps = inWeek.filter((p) => p.postDate === ds);
+                  const { pos } = layoutFor(ps);
+                  return (
+                    <div key={ds} className={"fvw-day" + (ds === t ? " today" : "")}>
+                      {ps.map((p) => {
+                        const at = pos.get(p.id)!;
+                        const js = jobsFor(p.id);
+                        const plats = js.length ? [...new Set(js.map((j) => j.platform as string))] : platformsFor(p);
+                        return (
+                          <button type="button" key={p.id} className={"fvw-ev " + tintOf(p.status) + (at.mini ? " mini" : "")} onClick={() => setViewId(p.id)}
+                            style={{ top: at.top, height: at.height }}
+                            aria-label={`${p.theme}, ${p.client}, ${fmtTime(p.postTime) || "10:00 AM"}`}>
+                            {ds === t && <span className="fvw-today">Today</span>}
+                            <b>{p.theme || "Untitled post"}</b>
+                            <small>{fmtTime(p.postTime) || "10:00 AM"} · {p.client}{p.format ? ` · ${p.format}` : ""}</small>
+                            <span className="fvw-st">{STAGES.find((x) => x.id === p.status)?.title}</span>
+                            <span className="fvw-foot">{avatars(p)}<span className="fvw-plat">{plats.map((pl) => <em key={pl} className={pl}>{pl === "instagram" ? "IG" : "f"}</em>)}</span></span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+              {days.includes(t) && nowH >= H0 && nowH <= H1 && <div className="fvw-now" style={{ top: (nowH - H0) * PX }} />}
             </div>
           </div>
-          <aside className="cal-agenda" aria-label="Selected day">
-            <span className="cal-eyebrow">Selected day</span>
-            <h3>{fmtDay(calDay)}</h3>
-            {selLive.length > 0 && <span className="cal-agenda-h">Going live</span>}
-            {selLive.map((p) => {
-              const st = STAGES.find((s) => s.id === p.status)!;
-              return (
-                <button type="button" key={p.id} className="cal-agenda-item" style={css({ "--fg": st.color })} onClick={() => setViewId(p.id)}>
-                  <span className="cal-agenda-meta"><span>{p.client}</span><b>{st.title}</b></span>
-                  <b>{p.theme}</b>
-                  <span className="cal-muted">{[fmtTime(p.postTime), p.format, userById(p.assigneeId)?.name && `with ${userById(p.assigneeId)!.name}`].filter(Boolean).join(" · ")}</span>
-                </button>
-              );
-            })}
-            {selStarts.length > 0 && <span className="cal-agenda-h">Work starts</span>}
-            {selStarts.map((p) => (
-              <button type="button" key={"s" + p.id} className="cal-agenda-item start" onClick={() => setViewId(p.id)}>
-                <b>{p.theme}</b>
-                <span className="cal-muted">Goes live {fmtShort(p.postDate)}{userById(p.assigneeId) ? ` · ${userById(p.assigneeId)!.name}` : ""}</span>
-              </button>
-            ))}
-            {!selLive.length && !selStarts.length && <div className="cal-empty sm">Nothing planned this day.</div>}
-          </aside>
         </div>
-      </>
+        {!inWeek.length && <div className="cal-empty sm">Nothing goes live this week{client ? ` for ${client}` : ""}. Use the arrows to see other weeks.</div>}
+      </div>
     );
   }
 
@@ -1214,8 +1259,8 @@ export default function SocialCalendar() {
   const viewed = viewId != null ? posts.find((p) => p.id === viewId) : undefined;
   const set = (patch: Partial<Post>) => setEditing((e) => ({ ...e, ...patch }));
   const txt = (k: keyof Post) => String(editing?.[k] ?? "");
-  const views: [View, string][] = limited ? [["mine", "My work"], ["schedule", "Schedule"], ["calendar", "Calendar"], ["board", "Board"]] : [["board", "Board"], ["schedule", "Schedule"], ["calendar", "Calendar"]];
-  const activeView: View = !limited && view === "mine" ? "board" : view;
+  const views: [View, string][] = limited ? [["mine", "My work"], ["board", "Board"], ["calendar", "Calendar"]] : [["board", "Board"], ["calendar", "Calendar"]];
+  const activeView: View = (!limited && view === "mine") || view === "schedule" ? "board" : view;
 
   // Editor: who the post goes to at its stage, and whether the start date is automatic.
   const edRole = editing ? roleFor((editing.status || "planned") as Stage, editing.format, editing.step) : "graphic";
@@ -1284,7 +1329,7 @@ export default function SocialCalendar() {
           ? "No brands assigned to you yet. Ask an admin to give you access under Users → Social media brands."
           : limited ? "Nothing is assigned to you right now. Posts appear here when they reach your stage."
           : "No posts yet. Import a brand's media calendar sheet (Excel or CSV). A new brand is added automatically from the upload."}</div>
-      ) : activeView === "mine" ? renderMine() : activeView === "schedule" ? renderSchedule() : activeView === "calendar" ? renderCalendar() : renderBoard()}
+      ) : activeView === "mine" ? renderMine() : activeView === "calendar" ? renderCalendar() : renderBoard()}
 
       {viewed && !editing && renderDetails(viewed)}
       {uploads && renderTeamPanel(uploads)}
@@ -1310,7 +1355,23 @@ export default function SocialCalendar() {
               </div>
               {h.kind === "back" && <label className="adm-field" style={{ margin: 0 }}><span>What needs changing</span>
                 <textarea rows={3} value={h.note} onChange={(e) => setHandoff({ ...h, note: e.target.value })} placeholder="e.g. Use the new price card, shorten the intro" /></label>}
-              {h.kind === "approve" && <p className="adm-hint" style={{ margin: 0 }}>It goes to Ready to post and is scheduled for {fmtDay(h.post.postDate)}{h.post.postTime ? ` · ${fmtTime(h.post.postTime)}` : " · 10:00 AM"} on connected channels.</p>}
+              {h.kind === "approve" && !h.late && <p className="adm-hint" style={{ margin: 0 }}>It goes to Ready to post and is scheduled for {fmtDay(h.post.postDate)}{h.post.postTime ? ` · ${fmtTime(h.post.postTime)}` : " · 10:00 AM"} on connected channels.</p>}
+              {h.kind === "approve" && h.late && (
+                <div className="cal-late">
+                  <b>The go-live time has passed</b>
+                  <span>It was due {fmtDay(h.post.postDate)}{h.post.postTime ? ` · ${fmtTime(h.post.postTime)}` : ""}. When should it go live?</span>
+                  <label className={h.when === "now" ? "on" : ""}><input type="radio" name="late" checked={h.when === "now"} onChange={() => setHandoff({ ...h, when: "now" })} />
+                    <span><b>Right after approval</b><small>Posts within a couple of minutes on connected channels.</small></span></label>
+                  <label className={h.when === "pick" ? "on" : ""}><input type="radio" name="late" checked={h.when === "pick"} onChange={() => setHandoff({ ...h, when: "pick" })} />
+                    <span><b>New date &amp; time</b><small>Scheduled for later; the calendar moves with it.</small></span></label>
+                  {h.when === "pick" && (
+                    <div className="cal-late-row">
+                      <DatePicker value={h.newDate || ""} onChange={(v) => setHandoff({ ...h, newDate: v })} placeholder="New go-live date" />
+                      <input type="time" value={h.newTime || "10:00"} onChange={(e) => setHandoff({ ...h, newTime: e.target.value })} aria-label="New go-live time" />
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="cal-pick-f">
                 <button type="button" className="cal-btn" onClick={() => setHandoff(null)}>Cancel</button>
                 <button type="button" className="cal-primary" disabled={h.busy || (!h.chosen && h.kind !== "move")} onClick={confirmHandoff}>{h.busy ? "Saving…" : btn}</button>
