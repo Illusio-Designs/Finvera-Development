@@ -3,6 +3,7 @@ const app = require("./src/app");
 const { sequelize } = require("./src/models");
 const seed = require("./src/utils/seed");
 const ensureColumns = require("./src/utils/ensureColumns");
+const ensureIndexes = require("./src/utils/ensureIndexes");
 
 const PORT = Number(process.env.PORT || 5000);
 
@@ -41,6 +42,8 @@ async function start() {
     // Self-heal newly added columns (e.g. tasks.startDate, users.roles) without
     // a full ALTER scan or manual SQL — adds only what's missing.
     try { await ensureColumns(sequelize); } catch (e) { console.warn("\x1b[33m⚠ ensureColumns skipped:\x1b[0m", e.message); }
+    // Same idea for indexes on existing tables (CREATE INDEX only if missing).
+    try { await ensureIndexes(sequelize); } catch (e) { console.warn("\x1b[33m⚠ ensureIndexes skipped:\x1b[0m", e.message); }
 
     // Seeding must never take the API down — a schema mismatch or seed bug
     // here previously threw to the outer catch → process.exit(1) → Passenger
@@ -63,6 +66,13 @@ async function start() {
     // Auto-publishing: check every minute for posts due to go live.
     const autoPublish = require("./src/utils/autoPublish");
     setInterval(() => { autoPublish.runDue().catch(() => {}); }, 60 * 1000).unref();
+
+    // Social calendar upkeep (unassigned-post sweep, default deadlines, the
+    // one-time uploaded→Planned fix) — once now, then every 5 minutes. This
+    // used to run on every GET /social-posts.
+    const social = require("./src/controllers/social.controller");
+    social.maintenance().catch(() => {});
+    setInterval(() => { social.maintenance().catch(() => {}); }, 5 * 60 * 1000).unref();
   } catch (err) {
     // Only genuine start failures (e.g. DB unreachable) reach here.
     console.error("\x1b[31m✘ Failed to start server:\x1b[0m", err.message);
