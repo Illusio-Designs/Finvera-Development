@@ -68,7 +68,8 @@ function composeCaption(p) {
    post's own ticks if it has any. */
 function targetsFor(p, acc) {
   if (!acc || acc.status !== "connected") return [];
-  const connected = ["facebook", ...(acc.igUserId ? ["instagram"] : [])];
+  const paused = asArr(acc.paused);
+  const connected = ["facebook", ...(acc.igUserId ? ["instagram"] : [])].filter((pl) => !paused.includes(pl));
   const chosen = p.publishTo == null ? null : asArr(p.publishTo);
   return PLATFORMS.filter((pl) => connected.includes(pl) && (!chosen || chosen.includes(pl)));
 }

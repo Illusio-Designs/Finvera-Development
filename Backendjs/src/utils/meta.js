@@ -28,6 +28,8 @@ const SCOPES = [
   "instagram_basic",
   "instagram_content_publish",
   "business_management",
+  // Extra permissions once added to the Meta app, e.g. META_EXTRA_SCOPES=pages_manage_metadata (edit Page details)
+  ...String(process.env.META_EXTRA_SCOPES || "").split(",").map((x) => x.trim()).filter(Boolean),
 ];
 
 const configured = () => !!(process.env.META_APP_ID && process.env.META_APP_SECRET);
@@ -187,4 +189,49 @@ async function publishFacebook(acc, media, caption, cp = {}, save = async () => 
   return { id: postId, url: info.permalink_url || `https://www.facebook.com/${postId}` };
 }
 
-module.exports = { configured, redirectUri, SCOPES, encrypt, decrypt, buildAuthUrl, exchangeCode, listPages, publishInstagram, publishFacebook, isVideo, graph };
+/* ── Numbers for Social studio (permissions already granted for publishing) ── */
+async function fetchProfile(acc) {
+  const token = decrypt(acc.pageToken);
+  const out = {};
+  const fb = await graph("GET", `/${acc.pageId}`, { fields: "name,followers_count,fan_count,picture.type(large){url}", access_token: token }).catch(() => null);
+  if (fb) out.facebook = { followers: fb.followers_count ?? fb.fan_count ?? null, name: fb.name, picture: fb.picture?.data?.url || null };
+  if (acc.igUserId) {
+    const ig = await graph("GET", `/${acc.igUserId}`, { fields: "username,followers_count,media_count,profile_picture_url", access_token: token }).catch(() => null);
+    if (ig) out.instagram = { followers: ig.followers_count ?? null, posts: ig.media_count ?? null, username: ig.username, picture: ig.profile_picture_url || null };
+  }
+  return out;
+}
+
+/* Likes / comments (and shares on Facebook) of one published post. */
+async function fetchPostMetrics(acc, platform, remoteId) {
+  const token = decrypt(acc.pageToken);
+  if (platform === "instagram") {
+    const m = await graph("GET", `/${remoteId}`, { fields: "like_count,comments_count,media_type,media_url,thumbnail_url,permalink", access_token: token });
+    return { likes: m.like_count ?? 0, comments: m.comments_count ?? 0, picture: m.thumbnail_url || m.media_url || null, url: m.permalink || null };
+  }
+  const m = await graph("GET", `/${remoteId}`, { fields: "reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0),shares,full_picture,permalink_url", access_token: token });
+  return { likes: m.reactions?.summary?.total_count ?? 0, comments: m.comments?.summary?.total_count ?? 0, shares: m.shares?.count ?? 0, picture: m.full_picture || null, url: m.permalink_url || null };
+}
+
+/* Full profile of one channel, for the Profile panel. */
+async function profileDetails(acc, platform) {
+  const token = decrypt(acc.pageToken);
+  if (platform === "instagram") {
+    if (!acc.igUserId) throw new Error("No Instagram account is linked to this brand's Facebook Page.");
+    const ig = await graph("GET", `/${acc.igUserId}`, { fields: "username,name,biography,website,followers_count,follows_count,media_count,profile_picture_url", access_token: token });
+    return { platform, username: ig.username, name: ig.name || "", biography: ig.biography || "", website: ig.website || "", followers: ig.followers_count ?? null, following: ig.follows_count ?? null, posts: ig.media_count ?? null, picture: ig.profile_picture_url || null, link: `https://www.instagram.com/${ig.username}/` };
+  }
+  const fb = await graph("GET", `/${acc.pageId}`, { fields: "name,about,description,website,phone,emails,category,link,followers_count,fan_count,picture.type(large){url}", access_token: token });
+  return { platform, name: fb.name || "", about: fb.about || "", description: fb.description || "", website: fb.website || "", phone: fb.phone || "", email: (fb.emails || [])[0] || "", category: fb.category || "", followers: fb.followers_count ?? fb.fan_count ?? null, picture: fb.picture?.data?.url || null, link: fb.link || `https://www.facebook.com/${acc.pageId}` };
+}
+
+/* Update a Facebook Page's details (needs pages_manage_metadata). */
+async function updatePage(acc, fields) {
+  const token = decrypt(acc.pageToken);
+  const params = { access_token: token };
+  for (const k of ["about", "description", "website", "phone"]) if (fields[k] !== undefined) params[k] = String(fields[k] || "").slice(0, k === "description" ? 5000 : 255);
+  if (fields.email !== undefined) params.emails = JSON.stringify(fields.email ? [String(fields.email).trim()] : []);
+  return graph("POST", `/${acc.pageId}`, params);
+}
+
+module.exports = { profileDetails, updatePage, fetchProfile, fetchPostMetrics, configured, redirectUri, SCOPES, encrypt, decrypt, buildAuthUrl, exchangeCode, listPages, publishInstagram, publishFacebook, isVideo, graph };

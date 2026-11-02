@@ -294,6 +294,11 @@ router.use("/social-posts", socialPostRouter);
 /* Auto-publishing: connect a brand's Facebook Page + Instagram, upload post
    media, and the publishing queue. */
 const pub = require("../controllers/publish.controller");
+const studio = require("../controllers/studio.controller");
+router.get("/social-studio", ...canSocial, studio.overview);
+router.post("/social-accounts/:client/pause", ...canSocial, social.requireAllBrands, studio.pause);
+router.get("/social-accounts/:client/profile", ...canSocial, studio.profile);
+router.put("/social-accounts/:client/profile", ...canSocial, social.requireAllBrands, studio.updateProfile);
 router.get("/social-connect/meta/status", ...canSocial, pub.status);
 router.get("/social-connect/meta/start", ...canSocial, social.requireAllBrands, pub.start);
 router.get("/social-connect/meta/callback", pub.callback);               // Facebook redirects here

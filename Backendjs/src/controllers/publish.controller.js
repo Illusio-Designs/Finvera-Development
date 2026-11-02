@@ -42,7 +42,7 @@ const start = asyncHandler(async (req, res) => {
 });
 
 const callback = async (req, res) => {
-  const back = (params) => res.redirect(`${frontendUrl()}/dashboard/social?${new URLSearchParams(params).toString()}`);
+  const back = (params) => res.redirect(`${frontendUrl()}/dashboard/social-studio?${new URLSearchParams(params).toString()}`);
   const { code, state, error, error_description: desc } = req.query;
   if (error) return back({ metaError: desc || error });
   try {
@@ -157,7 +157,7 @@ const publishNow = asyncHandler(async (req, res) => {
   if (!p) return res.status(404).json({ message: "Post not found." });
   const acc = await SocialAccount.findOne({ where: { client: p.client } });
   const targets = auto.targetsFor(p, acc);
-  if (!targets.length) return res.status(400).json({ message: `Connect ${p.client}'s Instagram / Facebook first (Team & uploads → Social accounts).` });
+  if (!targets.length) return res.status(400).json({ message: `Connect ${p.client}'s Instagram / Facebook first (Social studio → Channels).` });
   for (const pl of targets) {
     const j = await SocialPublishJob.findOne({ where: { postId: p.id, platform: pl } });
     if (j && ["published", "publishing"].includes(j.status)) continue;
