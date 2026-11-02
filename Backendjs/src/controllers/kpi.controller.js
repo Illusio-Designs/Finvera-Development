@@ -159,14 +159,51 @@ async function backfillOnce() {
   }
 }
 
+/* ── In-memory cache ──
+   Results are kept for 10 minutes per (day, period, brand, caller scope).
+   Any stage change clears the lot (bumpKpiCache), so numbers never lag
+   behind the board; a computation started before a bump is not kept. */
+const CACHE_MS = 10 * 60 * 1000;
+const CACHE_MAX = 300;
+const cache = new Map(); // key → { at, value: Promise }
+let generation = 0;
+
+function bumpKpiCache() { generation += 1; cache.clear(); }
+
+function cacheKey({ period, brand, scope, userId }) {
+  const who = scope ? `u${userId}:${[...scope].sort().join(",")}` : "all";
+  return `${todayIst()}|${period}|${brand}|${who}`;
+}
+
+/* Cached KPIs. `scope` null = whole team (admin); otherwise a Set of brand
+   names, and only `userId`'s own row is returned in people. */
+function getKpis({ period = "month", brand = "", scope = null, userId = null } = {}) {
+  const args = { period: String(period || "month"), brand: brand ? String(brand) : "", scope, userId };
+  const key = cacheKey(args);
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.value;
+  const gen = generation;
+  const value = computeKpis(args);
+  if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
+  cache.set(key, { at: Date.now(), value });
+  value.then(
+    () => { if (gen !== generation && cache.get(key)?.value === value) cache.delete(key); }, // bumped mid-way
+    () => { if (cache.get(key)?.value === value) cache.delete(key); },
+  );
+  return value;
+}
+
 const kpis = asyncHandler(async (req, res) => {
+  res.json(await getKpis({ period: req.query.period, brand: req.query.brand, scope: req.socialScope, userId: req.user.id }));
+});
+
+async function computeKpis({ period, brand, scope, userId }) {
   await backfillOnce();
   const today = todayIst();
-  const P = periodOf(String(req.query.period || "month"), today);
-  const scope = req.socialScope; // null = admin (all brands)
-  const meOnly = !!scope;
-  const brandFilter = req.query.brand ? String(req.query.brand) : "";
-  if (scope && brandFilter && !scope.has(brandFilter)) return res.json({ period: P, team: null, people: [] });
+  const P = periodOf(period, today);
+  const meOnly = !!scope; // scope null = admin (all brands)
+  const brandFilter = brand;
+  if (scope && brandFilter && !scope.has(brandFilter)) return { period: P, team: null, people: [] };
   const brandWhere = brandFilter ? { client: brandFilter } : scope ? { client: [...scope] } : {};
 
   const weeks = weekBuckets(today, P.kind === "quarter" ? 12 : 8);
@@ -235,7 +272,7 @@ const kpis = asyncHandler(async (req, res) => {
   const isTeam = (u) => rolesOf(u).some((r) => TEAM_ROLES.includes(r));
   const involved = new Set([...open.map((p) => p.assigneeId), ...delivered.map((m) => m.who)].filter(Boolean).map(Number));
   let people = users.filter((u) => isTeam(u) || involved.has(u.id));
-  if (meOnly) people = people.filter((u) => u.id === req.user.id);
+  if (meOnly) people = people.filter((u) => u.id === Number(userId));
 
   const roleLabel = { social: "Social media", marketer: "Marketer", graphic: "Graphic designer", video: "Video editor", admin: "Admin" };
   const rows = people.map((u) => {
@@ -275,7 +312,7 @@ const kpis = asyncHandler(async (req, res) => {
     return { name, planned: planned.length, posted: planned.filter((p) => p.status === "posted").length, overdue: overdueOf(planned.filter((p) => p.status !== "posted")).length };
   }).filter((b) => b.planned > 0);
 
-  res.json({
+  return {
     period: { ...P, spanTo }, today, historySince: firstEvent ? istDay(firstEvent) : null,
     team: {
       delivered: t.delivered, deliveredPrev: t.deliveredPrev, onTime: t.onTime, onTimePrev: t.onTimePrev,
@@ -284,7 +321,7 @@ const kpis = asyncHandler(async (req, res) => {
       people: people.length, stages, brands,
     },
     people: rows,
-  });
-});
+  };
+}
 
-module.exports = { kpis };
+module.exports = { kpis, getKpis, bumpKpiCache };

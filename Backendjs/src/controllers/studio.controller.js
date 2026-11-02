@@ -3,8 +3,10 @@
    (with likes / comments read back from Instagram and Facebook) and the
    posts behind them. The page filters by the selected brand itself.
 
-   Numbers from Meta are cached: profiles for an hour, post metrics for an
-   hour (at most 30 refreshed per request), so the page stays fast. */
+   Numbers from Meta are cached in the database: profiles for an hour, post
+   metrics for an hour. The page always answers straight from those saved
+   numbers; stale ones are refreshed in the background (one refresh at a
+   time per process), on page views and hourly (server.js + /api/cron/tick). */
 
 const { Op } = require("sequelize");
 const { SocialAccount, SocialPublishJob, SocialPost, SocialClient, SocialStat } = require("../models");
@@ -42,7 +44,7 @@ async function refreshProfiles(accounts) {
   });
 }
 
-async function refreshMetrics(jobs, accounts) {
+async function refreshMetrics(jobs, accounts, max = 30) {
   if (!meta.configured()) return;
   const accBy = new Map(accounts.map((a) => [a.client, a]));
   const since = Date.now() - 45 * 24 * HOUR;
@@ -50,12 +52,41 @@ async function refreshMetrics(jobs, accounts) {
     .filter((j) => j.status === "published" && j.remoteId && j.publishedAt && new Date(j.publishedAt).getTime() > since
       && (!j.metricsAt || Date.now() - new Date(j.metricsAt).getTime() > HOUR) && accBy.get(j.client)?.status === "connected")
     .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
-    .slice(0, 30);
+    .slice(0, max);
   await pool(stale, 4, async (j) => {
     const metrics = await meta.fetchPostMetrics(accBy.get(j.client), j.platform, j.remoteId);
     await j.update({ metrics, metricsAt: new Date() });
   });
 }
+
+/* Background refresh of every brand's numbers. Only one runs at a time;
+   page views start one at most once a minute (items that are still fresh are
+   skipped anyway, so a run with nothing stale costs two DB reads). */
+const MIN_GAP = 60 * 1000;
+const RUN_CAP = 3 * 60 * 1000; // a run never holds the guard longer than this
+let refreshing = null, lastStart = 0, lastDone = null;
+
+function refreshAllStudio({ force = false } = {}) {
+  if (refreshing) return refreshing;
+  if (!meta.configured()) return Promise.resolve();
+  if (!force && Date.now() - lastStart < MIN_GAP) return Promise.resolve();
+  lastStart = Date.now();
+  const work = (async () => {
+    const accounts = await SocialAccount.findAll({ where: { status: "connected" } });
+    if (!accounts.length) return;
+    const since = new Date(Date.now() - 45 * 24 * HOUR);
+    const jobs = await SocialPublishJob.findAll({
+      where: { client: { [Op.in]: accounts.map((a) => a.client) }, status: "published", publishedAt: { [Op.gte]: since } },
+      order: [["publishedAt", "DESC"]], limit: 1500,
+    });
+    await Promise.all([refreshProfiles(accounts), refreshMetrics(jobs, accounts, 60)]);
+  })().catch((e) => console.warn("studio refresh:", e.message));
+  refreshing = Promise.race([work, new Promise((r) => setTimeout(r, RUN_CAP).unref())])
+    .finally(() => { refreshing = null; lastDone = new Date(); });
+  return refreshing;
+}
+
+const latest = (dates) => dates.filter(Boolean).map((d) => new Date(d).getTime()).reduce((a, b) => Math.max(a, b), 0) || null;
 
 const overview = asyncHandler(async (req, res) => {
   const scope = req.socialScope; // null = every brand
@@ -68,11 +99,9 @@ const overview = asyncHandler(async (req, res) => {
     order: [["runAt", "ASC"]], limit: 1500,
   }) : [];
 
-  // Fresh numbers from Meta, but never let a slow or failing call break the page.
-  await Promise.race([
-    Promise.all([refreshProfiles(accounts), refreshMetrics(jobs, accounts)]),
-    new Promise((r) => setTimeout(r, 12000)),
-  ]).catch(() => {});
+  // Answer from the saved numbers; fetch fresh ones from Meta in the background.
+  refreshAllStudio();
+  const savedAt = latest([...accounts.map((a) => a.statsAt), ...jobs.map((j) => j.metricsAt)]);
 
   const ids = [...new Set(jobs.map((j) => j.postId))];
   const posts = ids.length ? await SocialPost.findAll({ where: { id: ids }, attributes: ["id", "client", "theme", "format", "status", "postDate", "postTime", "media", "assigneeId"] }) : [];
@@ -94,6 +123,11 @@ const overview = asyncHandler(async (req, res) => {
     })),
     posts: posts.map((p) => ({ id: p.id, client: p.client, theme: p.theme, format: p.format, status: p.status, postDate: p.postDate, postTime: p.postTime, assigneeId: p.assigneeId, picture: asArr(p.media)[0] || null })),
     metaConfigured: meta.configured(),
+    // When Meta numbers were last saved for these brands (ISO) and whether a
+    // background refresh is running now — "Updated 12 min ago · refreshing…".
+    refreshedAt: savedAt ? new Date(savedAt).toISOString() : null,
+    refreshing: !!refreshing,
+    lastRefreshRun: lastDone ? lastDone.toISOString() : null,
   });
 });
 
@@ -136,4 +170,4 @@ const updateProfile = asyncHandler(async (req, res) => {
   }
 });
 
-module.exports = { overview, pause, profile, updateProfile };
+module.exports = { overview, pause, profile, updateProfile, refreshAllStudio };

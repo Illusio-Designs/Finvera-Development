@@ -139,6 +139,7 @@ async function afterPublished(p) {
     const social = require("../controllers/social.controller");
     await social.recordEvents([social.eventOf(p, { from: before.status, fromAssigneeId: before.assigneeId })]);
   } catch (e) { console.warn("autoPublish history:", e.message); }
+  try { require("../controllers/kpi.controller").bumpKpiCache(); } catch { /* cache only */ } // new stage → fresh KPIs
   await notifyUsers(await teamFor(p), {
     type: "done", title: `Published: ${p.theme}`,
     body: `${p.client} · ${jobs.map((j) => NAMES[j.platform]).join(", ")}`, link: "/dashboard/social", meta: { socialPostId: p.id },

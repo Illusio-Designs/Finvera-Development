@@ -16,7 +16,8 @@ app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(compression());
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
-if (process.env.NODE_ENV !== "test") app.use(morgan("dev"));
+// Per-request logs only in development; production keeps just the error logs.
+if (!["production", "test"].includes(process.env.NODE_ENV)) app.use(morgan("dev"));
 
 /* CORS — allow configured frontend origins */
 const origins = (process.env.CORS_ORIGIN || "*").split(",").map((s) => s.trim());
