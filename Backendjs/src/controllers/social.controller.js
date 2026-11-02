@@ -35,6 +35,24 @@ const withScope = asyncHandler(async (req, _res, next) => {
   next();
 });
 
+/* Who was picked for a role on this post (people choose; nothing is automatic). */
+const teamOf = (p) => { const t = p && p.team; if (t && typeof t === "object") return t; try { return JSON.parse(t || "{}") || {}; } catch { return {}; } };
+const pickedFor = (p, role) => { const id = Number(teamOf(p)[role]); return Number.isFinite(id) && id > 0 ? id : null; };
+
+/* Someone picked for a brand's post gets that brand in their access list,
+   so they can see and work on it. Admins see every brand already. */
+async function grantBrand(userIds, client) {
+  const ids = [...new Set((Array.isArray(userIds) ? userIds : [userIds]).map(Number).filter((x) => x > 0))];
+  if (!ids.length || !client) return;
+  const brand = await SocialClient.findOne({ where: { name: client } });
+  if (!brand) return;
+  for (const u of await User.findAll({ where: { id: ids } })) {
+    const have = brandIdsOf(u);
+    if (have === null || have.includes(String(brand.id))) continue;
+    await u.update({ socialClients: [...have, String(brand.id)] });
+  }
+}
+
 const allowed = (req, client) => !req.socialScope || req.socialScope.has(client);
 const isMine = (req, post) => !req.socialScope || Number(post.assigneeId) === Number(req.user.id);
 const DENIED = { message: "You can only work on the brands assigned to you." };
@@ -88,11 +106,13 @@ const listPosts = (crudList) => asyncHandler(async (req, res, next) => {
      Planned                     → Marketer (plans it)
      In production, step graphic → Graphic designer (designs)
      In production, step video   → Video editor (edits)
-     Ready to post, Posted       → Social media (posts it)
+     Pending approval            → an admin approves it (or sends it back)
+     Ready to post, Posted       → Social media (it's scheduled and posted)
    Each person clicks Done and it goes to the next one automatically. */
 const STEPS = ["marketer", "graphic", "video", "social"];
 function stageRole(status, format, step) {
   if (status === "ready" || status === "posted") return "social";
+  if (status === "approval") return "admin";
   if (status === "production") return step === "video" ? "video" : "graphic";
   return "marketer";
 }
@@ -170,7 +190,8 @@ async function fillDeadlines() {
 const assignOnCreate = asyncHandler(async (req, _res, next) => {
   const b = req.body || {};
   b.step = stepFor(b.status || "planned", b.step);
-  if (!b.assigneeId && b.client) b.assigneeId = await pickAssignee(stageRole(b.status || "planned", b.format, b.step), b.client, {});
+  // No automatic pick: the person chosen, or whoever the post's team has for this step.
+  if (!b.assigneeId && b.client) b.assigneeId = pickedFor(b, stageRole(b.status || "planned", b.format, b.step));
   next();
 });
 
@@ -190,23 +211,11 @@ const assignOnStageChange = asyncHandler(async (req, _res, next) => {
   b.step = stepFor(status, b.step !== undefined ? b.step : (status === post.status ? post.step : null));
   if (status === post.status && (b.step || null) === (post.step || null)) return next();
   if (b.assigneeId !== undefined && Number(b.assigneeId || 0) !== Number(post.assigneeId || 0)) return next();
+  if (status === "posted") return next(); // whoever posted it keeps it
+  // No automatic pick: the person the post's team has for the new step, else unassigned until someone is chosen.
   const role = stageRole(status, b.format !== undefined ? b.format : post.format, b.step);
-  const current = post.assigneeId ? await User.findByPk(post.assigneeId) : null;
-  const client = b.client !== undefined ? b.client : post.client;
-  if (status === "ready") {
-    const other = await pickAssignee("social", client, {}, post.assigneeId);
-    if (other) b.assigneeId = other;
-    else if (!(current && current.active && rolesOf(current).includes("social"))) {
-      const anyone = await pickAssignee("social", client, {});
-      if (anyone) b.assigneeId = anyone;
-    }
-    return next();
-  }
-  // A hand-off goes to the next person; the current one keeps it only if
-  // nobody else covers that role for the brand.
-  const who = await pickAssignee(role, client, {}, post.assigneeId) || (current && current.active && rolesOf(current).includes(role) ? null : await pickAssignee(role, client, {}));
-  if (who) b.assigneeId = who;
-  else if (!(current && current.active && rolesOf(current).includes(role))) b.assigneeId = null; // waits for someone with the role
+  const team = b.team !== undefined ? b.team : post.team;
+  b.assigneeId = pickedFor({ team }, role);
   next();
 });
 
@@ -220,14 +229,15 @@ async function assignUnassigned({ force = false } = {}) {
   if (!force && Date.now() - lastSweep < 60000) return;
   lastSweep = Date.now();
   try { await fillDeadlines(); } catch (e) { console.warn("fillDeadlines:", e.message); }
-  const posts = await SocialPost.findAll({ where: { assigneeId: null }, order: [["postDate", "ASC"]] });
+  // Only fills a post from the people picked for it (its team); never picks anyone by itself.
+  const posts = await SocialPost.findAll({ where: { assigneeId: null, team: { [Op.ne]: null } }, order: [["postDate", "ASC"]] });
   if (!posts.length) return;
-  const ctx = {}, gained = {};
+  const gained = {};
   for (const p of posts) {
-    const who = await pickAssignee(stageRole(p.status, p.format, p.step), p.client, ctx);
+    const who = pickedFor(p, stageRole(p.status, p.format, p.step));
     if (!who) continue;
     await p.update({ assigneeId: who });
-    if (p.status !== "posted") { ctx.load[who] = (ctx.load[who] || 0) + 1; (gained[who] = gained[who] || []).push(p); }
+    if (p.status !== "posted") (gained[who] = gained[who] || []).push(p);
   }
   for (const [uid, ps] of Object.entries(gained)) {
     await notifyUsers([Number(uid)], {
@@ -279,7 +289,7 @@ async function moveUploadedToPlannedOnce() {
    added (Planned, assigned to their maker). Every upload is a batch, so an
    admin can review or delete it later. */
 const SHEET_FIELDS = ["festive", "topic", "format", "requirements", "reference", "dataStatus", "poc", "caption",
-  "driveLink", "tags", "keywords", "channels", "remarks"];
+  "driveLink", "tags", "keywords", "channels", "remarks", "team"];
 const matchKey = (r) => `${String(r.postDate || "").slice(0, 10)}|${String(r.theme || "").trim().toLowerCase().replace(/\s+/g, " ")}`;
 
 async function importRows(rows) {
@@ -348,13 +358,13 @@ const deleteBrandPosts = asyncHandler(async (req, res) => {
 
 /* Bulk import: fill assignees row by row, keeping the load balance honest. */
 async function assignRows(rows) {
-  const ctx = {};
-  for (const r of rows) {
-    if (r.assigneeId) continue;
-    r.assigneeId = await pickAssignee(stageRole(r.status || "planned", r.format), r.client, ctx);
-    if (r.assigneeId && r.status !== "posted") ctx.load[r.assigneeId] = (ctx.load[r.assigneeId] || 0) + 1;
+  // The person picked for the first step at upload (no automatic pick).
+  for (const r of rows) if (!r.assigneeId) r.assigneeId = pickedFor(r, stageRole(r.status || "planned", r.format, r.step));
+  for (const client of [...new Set(rows.map((r) => r.client))]) {
+    const ids = rows.filter((r) => r.client === client).flatMap((r) => Object.values(teamOf(r)));
+    await grantBrand(ids, client);
   }
 }
 
 module.exports = { recordEvents, eventOf, brandIdsOf, withScope, requireAllBrands, guardBody, guardPost, listClients, listPosts,
-  stageRole, STEPS, assignOnCreate, assignOnStageChange, assignRows, assignUnassigned, importRows, listUploads, deleteUpload, deleteBrandPosts, deadlineDefaults };
+  stageRole, STEPS, grantBrand, teamOf, assignOnCreate, assignOnStageChange, assignRows, assignUnassigned, importRows, listUploads, deleteUpload, deleteBrandPosts, deadlineDefaults };

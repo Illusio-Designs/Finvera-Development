@@ -21,8 +21,8 @@ const { SocialPost, SocialPostEvent, User, Setting, Notification } = require("..
 const { asyncHandler } = require("../utils/crud");
 const { rolesOf } = require("../utils/permissions");
 
-const ORDER = ["planned", "client", "production", "ready", "posted"];
-const STAGE_NAMES = { planned: "Planned", client: "Need from client", production: "In production", ready: "Ready to post", posted: "Posted" };
+const ORDER = ["planned", "client", "production", "approval", "ready", "posted"];
+const STAGE_NAMES = { planned: "Planned", client: "Need from client", production: "In production", approval: "Pending approval", ready: "Ready to post", posted: "Posted" };
 const TEAM_ROLES = ["social", "marketer", "graphic", "video"];
 const IST = 330 * 60000;
 
@@ -125,8 +125,8 @@ async function backfillOnce() {
       // hand-offs this post has completed: [from, to]
       const steps = [];
       if (isReel && reached >= 2) steps.push(["client", "production"]);   // Marketer → Video editor
-      if (reached >= 3) steps.push(["production", "ready"]);              // maker → Social media
-      if (reached >= 4) steps.push(["ready", "posted"]);                  // Social media posts it
+      if (reached >= ORDER.indexOf("ready")) steps.push(["production", "ready"]);  // maker → Social media
+      if (reached >= ORDER.indexOf("posted")) steps.push(["ready", "posted"]);     // Social media posts it
       for (const [from, to] of steps) {
         if (have.has(`${p.id}|${to}`)) continue;
         const role = stageRole(from, p.format);

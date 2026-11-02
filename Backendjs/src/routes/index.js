@@ -212,11 +212,12 @@ socialClientRouter.patch("/:id", ...canSocial, social.requireAllBrands, socialCl
 socialClientRouter.delete("/:id", ...canSocial, social.requireAllBrands, socialClientCtrl.remove);
 router.use("/social-clients", socialClientRouter);
 
-const socialAssigned = (p) => ({ type: "assigned", title: `Social post assigned to you: ${p.theme}`, body: p.client, link: "/dashboard/social", meta: { socialPostId: p.id } });
+const socialAssigned = (p) => ({ type: "assigned", title: p.status === "approval" ? `Approval needed: ${p.theme}` : `Social post assigned to you: ${p.theme}`, body: p.client, link: "/dashboard/social", meta: { socialPostId: p.id } });
 const socialPostCtrl = crudController(SocialPost, {
   order: [["postDate", "ASC"], ["postTime", "ASC"], ["position", "ASC"]],
   searchable: ["client", "theme", "topic", "caption", "festive"],
   onCreate: async (p, req) => {
+    await social.grantBrand([p.assigneeId, ...Object.values(social.teamOf(p))], p.client);
     await social.recordEvents([social.eventOf(p, { byUserId: req.user?.id })]);
     await autoPublish.syncJobs(p);
     if (p.assigneeId) await notifyUsers([p.assigneeId], socialAssigned(p), req.user?.id);
@@ -225,10 +226,11 @@ const socialPostCtrl = crudController(SocialPost, {
     await notifyUsers(team, { type: "info", title: `New post for ${p.client}: ${p.theme}`, body: p.postDate ? `Goes live ${when(p.postDate, p.postTime)}` : undefined, link: "/dashboard/social", meta: { socialPostId: p.id } }, req.user?.id);
   },
   onUpdate: async (p, req, before) => {
+    await social.grantBrand([p.assigneeId, ...Object.values(social.teamOf(p))], p.client);
     await autoPublish.syncJobs(p); // Ready → scheduled at go-live; date moves follow; leaving Ready cancels
     // Stage history: who had it before the move delivered that stage.
     // A step hand-off inside In production (designer → video editor) counts too.
-    if (before.status !== p.status || (before.step || null) !== (p.step || null) && p.status === "production" && before.status === "production")
+    if (before.status !== p.status || ((before.step || null) !== (p.step || null) && p.status === "production" && before.status === "production"))
       await social.recordEvents([social.eventOf(p, { from: before.status, fromAssigneeId: before.assigneeId, byUserId: req.user?.id })]);
     const reassigned = p.assigneeId && p.assigneeId !== before.assigneeId;
     if (reassigned) await notifyUsers([p.assigneeId], socialAssigned(p), req.user?.id);
@@ -241,12 +243,13 @@ const socialPostCtrl = crudController(SocialPost, {
         req.user?.id, kind === "edit" ? { merge: { key: `post-${p.id}`, minutes: 15, notes, render } } : undefined); // only plain edits merge
     }
     if (p.status === "posted" && before.status !== "posted") {
+      try { await require("../utils/purgeMedia").purgeMedia(p); } catch (e) { console.warn("purge media:", e.message); } // live → delete our copies
       await notifyAdmins({ type: "done", title: `Posted: ${p.theme}`, body: `${p.client} · by ${req.user?.name || "someone"}`, link: "/dashboard/social", meta: { socialPostId: p.id } }, req.user?.id);
     }
   },
 });
 const SOCIAL_FIELDS = ["client", "status", "postDate", "postTime", "dueDate", "assigneeId", "estimateHours", "festive", "theme", "topic",
-  "format", "requirements", "reference", "dataStatus", "poc", "caption", "driveLink", "tags", "keywords", "channels", "remarks", "position", "step"];
+  "format", "requirements", "reference", "dataStatus", "poc", "caption", "driveLink", "tags", "keywords", "channels", "remarks", "position", "step", "team"];
 const socialPostRouter = express.Router();
 socialPostRouter.get("/", ...canSocial, social.listPosts(socialPostCtrl.list));
 // Sheet uploads (admin): list batches, delete one batch, or clear a brand.

@@ -17,6 +17,7 @@ const WANTED = [
   { table: "social_posts", column: "publishTo", def: "JSON NULL" },
   { table: "social_posts", column: "keywordHashtags", def: "TINYINT(1) NOT NULL DEFAULT 1" },
   { table: "social_posts", column: "step", def: "VARCHAR(20) NULL" },
+  { table: "social_posts", column: "team", def: "JSON NULL" },
   { table: "social_accounts", column: "paused", def: "JSON NULL" },
   { table: "social_accounts", column: "stats", def: "JSON NULL" },
   { table: "social_accounts", column: "statsAt", def: "DATETIME NULL" },
@@ -28,6 +29,7 @@ const WANTED = [
    table). Widened in place with MODIFY, keeping nullability and default. */
 const WANTED_ENUMS = [
   { table: "users", column: "role", values: ["admin", "editor", "content", "projects", "leads", "seo", "social", "marketer", "graphic", "video"], def: "admin" },
+  { table: "social_posts", column: "status", values: ["planned", "client", "production", "approval", "ready", "posted"], def: "planned" },
 ];
 
 async function ensureEnums(sequelize) {

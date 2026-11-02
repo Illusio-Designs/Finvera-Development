@@ -242,7 +242,7 @@ const SocialClient = sequelize.define("SocialClient", {
    time management: post time, work deadline, assignee, estimate, time log. */
 const SocialPost = sequelize.define("SocialPost", {
   client: { type: DataTypes.STRING, allowNull: false },          // SocialClient.name
-  status: { type: DataTypes.ENUM("planned", "client", "production", "ready", "posted"), defaultValue: "planned" },
+  status: { type: DataTypes.ENUM("planned", "client", "production", "approval", "ready", "posted"), defaultValue: "planned" },
   postDate: { type: DataTypes.DATEONLY },                        // goes live on
   postTime: { type: DataTypes.STRING(5) },                       // "HH:MM"
   dueDate: { type: DataTypes.DATEONLY },                         // start-work date (default: a week before postDate)
@@ -270,6 +270,7 @@ const SocialPost = sequelize.define("SocialPost", {
   publishTo: { type: DataTypes.JSON },                           // ["instagram","facebook"]; null = every connected account
   keywordHashtags: { type: DataTypes.BOOLEAN, defaultValue: true }, // add keywords as hashtags when publishing
   step: { type: DataTypes.STRING(20), allowNull: true }, // In production: "graphic" (design) then "video" (edit)
+  team: { type: DataTypes.JSON },                          // who does each step, chosen by hand: { marketer, graphic, video, admin, social } user ids
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
 }, { tableName: "social_posts" });
 

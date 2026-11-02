@@ -15,7 +15,7 @@ type Post = {
   assigneeId?: number | null; timeLog?: LogEntry[] | string | null;
 };
 
-const STAGE: Record<string, string> = { planned: "Planned", client: "Need from client", production: "In production", ready: "Ready to post", posted: "Posted" };
+const STAGE: Record<string, string> = { planned: "Planned", client: "Need from client", production: "In production", approval: "Pending approval", ready: "Ready to post", posted: "Posted" };
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const day = (s?: string | null) => (s ? String(s).slice(0, 10) : "");
 const addDays = (s: string, n: number) => { const d = new Date(s + "T00:00:00"); d.setDate(d.getDate() + n); return iso(d); };

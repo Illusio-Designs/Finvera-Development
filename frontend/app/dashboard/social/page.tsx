@@ -8,7 +8,7 @@ import DatePicker from "@/components/ui/DatePicker";
 import { BoardSkeleton } from "@/components/admin/Skeleton";
 import { readXlsx } from "@/lib/xlsx";
 
-type Stage = "planned" | "client" | "production" | "ready" | "posted";
+type Stage = "planned" | "client" | "production" | "approval" | "ready" | "posted";
 type LogEntry = { id: string; userId?: number | null; minutes: number; note?: string; at: string };
 type Post = {
   id: number; client: string; status: Stage;
@@ -20,6 +20,7 @@ type Post = {
   channels?: string; remarks?: string; position?: number;
   media?: Media[]; publishTo?: string[] | null; keywordHashtags?: boolean;
   step?: string | null; // In production: "graphic" (design) then "video" (edit)
+  team?: Partial<Record<string, number | null>> | null; // who does each step, picked by hand
 };
 /* Auto-publishing */
 type Media = { url: string; type: "image" | "video"; name?: string };
@@ -50,36 +51,39 @@ function composeCaption(p: Partial<Post>) {
 }
 const isVideoMedia = (m: Media) => m.type === "video" || /\.(mp4|mov|m4v)(\?|$)/i.test(m.url);
 type Client = { id: number; name: string; color?: string };
-type User = { id: number; name: string; avatar?: string | null };
+type User = { id: number; name: string; avatar?: string | null; roles?: string[] };
 type View = "board" | "schedule" | "calendar" | "mine";
 
 const STAGES: { id: Stage; title: string; owner: string; color: string; bg: string; fg: string }[] = [
   { id: "planned", title: "Planned", owner: "Marketer", color: "#6b7590", bg: "#eef0f4", fg: "#4b5466" },
   { id: "client", title: "Need from client", owner: "Marketer", color: "#d97706", bg: "#fdf0dc", fg: "#9a4b06" },
   { id: "production", title: "In production", owner: "Graphic designer → Video editor", color: "#3e60ab", bg: "#e6ecf8", fg: "#2f55a4" },
+  { id: "approval", title: "Pending approval", owner: "Admin approves", color: "#0e7490", bg: "#e0f2f7", fg: "#0e5f74" },
   { id: "ready", title: "Ready to post", owner: "Social media", color: "#7c5cff", bg: "#efeaff", fg: "#5b35c9" },
   { id: "posted", title: "Posted", owner: "Social media", color: "#16a34a", bg: "#e4f5ea", fg: "#15703a" },
 ];
 /* Who works on a post at each stage — same rule as the server. */
-type Role = "marketer" | "video" | "graphic" | "social";
+type Role = "marketer" | "video" | "graphic" | "admin" | "social";
 const ROLE_META: Record<Role, { label: string; fg: string; bg: string; does: string }> = {
   marketer: { label: "Marketer", fg: "#9a4b06", bg: "#fdf0dc", does: "Plans & shoots" },
   video: { label: "Video editor", fg: "#b0185a", bg: "#fbe6ef", does: "Edits the video" },
   graphic: { label: "Graphic designer", fg: "#0f6b62", bg: "#dff3f0", does: "Designs it" },
+  admin: { label: "Approver", fg: "#0e5f74", bg: "#e0f2f7", does: "Approves it" },
   social: { label: "Social media", fg: "#2f55a4", bg: "#e6ecf8", does: "Posts it" },
 };
 /* Every post passes the same four people, in this order. Each clicks Done
    and it goes to the next one (the server picks who). */
-const CHAIN: Role[] = ["marketer", "graphic", "video", "social"];
+const CHAIN: Role[] = ["marketer", "graphic", "video", "admin", "social"];
 const roleFor = (status: Stage, _format?: string, step?: string | null): Role =>
-  (status === "ready" || status === "posted") ? "social" : status === "production" ? (step === "video" ? "video" : "graphic") : "marketer";
+  (status === "ready" || status === "posted") ? "social" : status === "approval" ? "admin" : status === "production" ? (step === "video" ? "video" : "graphic") : "marketer";
 /* What "Done" does from here: the next person in the chain. */
 function nextHop(p: Pick<Post, "status" | "step">): { role: Role; patch: { status?: Stage; step?: string } } | null {
   const r = roleFor(p.status, undefined, p.step);
   if (p.status === "posted") return null;
   if (r === "marketer") return { role: "graphic", patch: { status: "production", step: "graphic" } };
   if (r === "graphic") return { role: "video", patch: { step: "video" } };
-  if (r === "video") return { role: "social", patch: { status: "ready" } };
+  if (r === "video") return { role: "admin", patch: { status: "approval" } };
+  if (r === "admin") return { role: "social", patch: { status: "ready" } }; // approved → scheduled
   return null; // Ready to post → posts itself (or Mark as posted)
 }
 const CLIENT_COLORS = ["#3e60ab", "#0f766e", "#be185d", "#a16207", "#7c5cff", "#0369a1", "#c2410c", "#15803d"];
@@ -87,7 +91,7 @@ const FORMATS = ["Post", "Reel", "Carousel", "Video", "Story", "Influencer Reel"
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 /* Fields the drawer edits — time log + timer are written separately so a save never clobbers them. */
-const EDITABLE: (keyof Post)[] = ["step", "client", "status", "postDate", "postTime", "dueDate", "assigneeId", "estimateHours", "festive", "theme", "topic",
+const EDITABLE: (keyof Post)[] = ["team", "step", "client", "status", "postDate", "postTime", "dueDate", "assigneeId", "estimateHours", "festive", "theme", "topic",
   "format", "requirements", "reference", "dataStatus", "poc", "caption", "driveLink", "tags", "keywords", "channels", "remarks",
   "media", "publishTo", "keywordHashtags"];
 
@@ -106,6 +110,7 @@ const normPost = (p: Post): Post => ({
   media: toArr<Media>(p.media),
   publishTo: p.publishTo == null ? null : toArr<string>(p.publishTo),
   keywordHashtags: p.keywordHashtags === undefined ? true : !!p.keywordHashtags,
+  team: typeof p.team === "string" ? (() => { try { return JSON.parse(p.team as unknown as string) || {}; } catch { return {}; } })() : (p.team || {}),
 });
 const uid = () => "tl-" + Math.random().toString(36).slice(2, 9);
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -507,10 +512,15 @@ export default function SocialCalendar() {
   const notYours = (p: Partial<Post>) => toast("This post isn't yours to delete", "warn", {
     description: `It's assigned to ${userById(p.assigneeId ?? null)?.name || "nobody yet"} — only they or an admin can delete it.`,
   });
+  /* Moving to another stage asks who takes it there (nothing is assigned automatically). */
   async function moveTo(id: number, status: Stage) {
     const p = posts.find((x) => x.id === id);
     if (!p || p.status === status) return;
     if (!canEdit(p)) return notYours(p);
+    if (status !== "posted") {
+      const step = status === "production" ? "graphic" : null;
+      return askHandoff(p, roleFor(status, p.format, step), { status, ...(step ? { step } : {}) }, "move");
+    }
     patchLocal(id, { status });
     try {
       // The server hands the post to the next stage's role — show the new assignee straight away.
@@ -527,27 +537,71 @@ export default function SocialCalendar() {
     catch (e: any) { patchLocal(id, { status: p.status }); toast("Couldn't move the post", "err", { description: e.message || "It's back where it was — try again." }); }
   }
   /* Done → the next person in the chain gets it (picked by the server). */
-  async function advance(p: Post) {
-    const hop = nextHop(p);
-    if (!hop) return moveTo(p.id, "posted");
-    const before = { status: p.status, step: p.step, assigneeId: p.assigneeId };
-    patchLocal(p.id, hop.patch);
+  /* Approver: send it back to the video editor with a note. */
+  function sendBack(p: Post) { askHandoff(p, "video", { status: "production", step: "video" }, "back"); }
+
+  /* Hand-off picker: every move asks who takes the post next. The person
+     picked at upload (the post's team) is pre-selected. */
+  type Handoff = { post: Post; role: Role; patch: Partial<Post>; kind: "next" | "approve" | "back" | "move"; chosen: number | null; note: string; busy: boolean };
+  const [handoff, setHandoff] = useState<Handoff | null>(null);
+  const peopleFor = (role: Role) => users.filter((u) => (u.roles || []).includes(role));
+  function askHandoff(p: Post, role: Role, patch: Partial<Post>, kind: Handoff["kind"]) {
+    const picked = p.team?.[role] ?? null;
+    const list = peopleFor(role);
+    setHandoff({ post: p, role, patch, kind, note: "", busy: false, chosen: picked ?? (list.length === 1 ? list[0].id : null) });
+  }
+  async function confirmHandoff() {
+    if (!handoff) return;
+    const { post: p, role, patch, kind, chosen, note } = handoff;
+    setHandoff({ ...handoff, busy: true });
+    const team = { ...(p.team || {}), [role]: chosen };
+    const body: Record<string, unknown> = { ...patch, assigneeId: chosen, team };
+    if (kind === "back" && note.trim()) {
+      const stamp = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+      body.remarks = [`Changes requested (${stamp}): ${note.trim()}`, p.remarks].filter(Boolean).join("\n");
+    }
     try {
-      const saved = await api.update("social-posts", p.id, hop.patch);
-      patchLocal(p.id, { status: saved?.status ?? hop.patch.status ?? p.status, step: saved?.step ?? null, assigneeId: saved?.assigneeId ?? null });
+      const saved = await api.update("social-posts", p.id, body);
+      patchLocal(p.id, { ...(patch as Partial<Post>), team, assigneeId: saved?.assigneeId ?? chosen, step: saved?.step ?? null, ...(body.remarks ? { remarks: body.remarks as string } : {}) });
+      setHandoff(null);
       window.dispatchEvent(new Event("fv-badges"));
       loadPublishing();
-      const who = users.find((u) => u.id === saved?.assigneeId);
-      toast(`Sent to ${ROLE_META[hop.role].label}`, "ok", {
-        description: who ? `“${p.theme}” is now with ${who.name}.` : `Nobody covers ${p.client} as ${ROLE_META[hop.role].label} yet — it waits until someone is assigned.`,
-      });
-    } catch (e: any) { patchLocal(p.id, before); toast("Couldn't send it on", "err", { description: e.message || "Try again." }); }
+      const who = users.find((u) => u.id === chosen);
+      const head = kind === "approve" ? "Approved — scheduled" : kind === "back" ? "Sent back for changes" : kind === "move" ? `Moved to ${STAGES.find((x) => x.id === patch.status)?.title || "the next stage"}` : `Sent to ${ROLE_META[role].label}`;
+      toast(head, "ok", { description: who ? `“${p.theme}” is now with ${who.name}.` : `“${p.theme}” waits until someone is picked.` });
+    } catch (e: any) { setHandoff((h) => (h ? { ...h, busy: false } : h)); toast("Couldn't hand it over", "err", { description: e.message }); }
+  }
+  /* Finished work: upload the final design / video straight onto the post. */
+  const [workBusy, setWorkBusy] = useState<number | null>(null);
+  async function uploadWork(p: Post, files: FileList | null) {
+    if (!files?.length) return;
+    setWorkBusy(p.id);
+    try {
+      const r = await api.uploadSocialMedia(Array.from(files).slice(0, 10));
+      const media = [...(p.media || []), ...r.items].slice(0, 10);
+      await api.update("social-posts", p.id, { media });
+      patchLocal(p.id, { media });
+      toast(`${r.items.length} file${r.items.length === 1 ? "" : "s"} added`, "ok", { description: `“${p.theme}” · finished work` });
+    } catch (e: any) { toast("Upload failed", "err", { description: e.message || "Use JPG/PNG images or MP4/MOV videos." }); }
+    finally { setWorkBusy(null); }
+  }
+  async function removeWork(p: Post, i: number) {
+    const media = (p.media || []).filter((_, k) => k !== i);
+    try { await api.update("social-posts", p.id, { media }); patchLocal(p.id, { media }); }
+    catch (e: any) { toast("Couldn't remove it", "err", { description: e.message }); }
+  }
+
+  function advance(p: Post) {
+    const hop = nextHop(p);
+    if (!hop) return moveTo(p.id, "posted");
+    askHandoff(p, hop.role, hop.patch, p.status === "approval" ? "approve" : "next");
   }
   const doneLabel = (p: Post) => {
     const hop = nextHop(p);
     if (!hop) return p.status === "ready" ? "Mark as posted" : "";
-    const c = !limited ? candidates(hop.role, p.client) : [];
-    return `Done → ${c.length === 1 ? c[0].name.split(" ")[0] : ROLE_META[hop.role].label}`;
+    if (p.status === "approval") return limited ? "" : "Approve & schedule";
+    const picked = users.find((u) => u.id === p.team?.[hop.role]);
+    return `Done → ${picked ? picked.name.split(" ")[0] : ROLE_META[hop.role].label}`;
   };
   async function savePost(e: React.FormEvent) {
     e.preventDefault();
@@ -626,6 +680,7 @@ export default function SocialCalendar() {
   }
 
   /* ── import ── */
+  const [importTeam, setImportTeam] = useState<{ name: string; parsed: Partial<Post>[]; team: Partial<Record<string, number | null>>; busy: boolean } | null>(null);
   async function importCsv(file?: File) {
     if (!file) return;
     let rows: string[][];
@@ -637,13 +692,22 @@ export default function SocialCalendar() {
     if (limited && !clientNames.includes(name)) return dialog.alert({ title: "Not one of your brands", message: `You can import only into: ${clientNames.join(", ") || "no brands yet"}.` });
     const parsed = sheetToPosts(rows, name);
     if (!parsed.length) return dialog.alert({ title: "No posts found", message: "The sheet needs a header row with a “Date” column and a “Post Theme” (or “Content Theme” + “Post Topic”) column." });
-    if (!(await dialog.confirm({ title: `Import ${parsed.length} posts for ${name}?`, message: "Rows already on the board (same date + post theme) are updated, keeping their stage and assignee. New rows go to Planned, with a Marketer. Each person clicks Done and it moves on: Marketer → Graphic designer → Video editor → Social media.", confirmText: "Import" }))) return;
+    if (!(await dialog.confirm({ title: `Import ${parsed.length} posts for ${name}?`, message: "Rows already on the board (same date + post theme) are updated, keeping their stage and person. Next you'll pick who does each step for these posts.", confirmText: "Next" }))) return;
+    // Who does each step for these posts — chosen now, nothing is assigned automatically.
+    const last = posts.filter((x) => x.client === name && x.team && Object.values(x.team).some(Boolean)).sort((x, y) => y.id - x.id)[0];
+    setImportTeam({ name, parsed, team: { ...(last?.team || {}) }, busy: false });
+  }
+  async function finishImport() {
+    if (!importTeam) return;
+    const { name, parsed, team } = importTeam;
+    setImportTeam({ ...importTeam, busy: true });
     try {
-      const r = await api.importSocialPosts(parsed);
+      const r = await api.importSocialPosts(parsed.map((row) => ({ ...row, team, assigneeId: team.marketer || null })));
       const parts = [r.created ? `${r.created} added to Planned` : "", r.updated ? `${r.updated} updated` : ""].filter(Boolean).join(", ");
-      toast(`Sheet uploaded · ${name}`, "ok", { description: `${parts || "Nothing new"}.${limited ? " You'll see the ones assigned to you." : ""}` });
-      setClient(name); load();
-    } catch (e: any) { toast("Import failed", "err", { description: e.message || "Check the file is the media calendar sheet (.xlsx or .csv)." }); }
+      const first = users.find((u) => u.id === team.marketer);
+      toast(`Sheet uploaded · ${name}`, "ok", { description: `${parts || "Nothing new"}.${first ? ` New posts start with ${first.name}.` : ""}${limited ? " You'll see the ones assigned to you." : ""}` });
+      setImportTeam(null); setClient(name); load();
+    } catch (e: any) { setImportTeam((t) => (t ? { ...t, busy: false } : t)); toast("Import failed", "err", { description: e.message || "Check the file is the media calendar sheet (.xlsx or .csv)." }); }
   }
 
   /* ── small pieces ── */
@@ -915,13 +979,14 @@ export default function SocialCalendar() {
             <span className="cal-eyebrow">Who has it</span>
             {chain.map((r, i) => {
               const state = isDone(p) || i < cur ? "done" : i === cur ? "now" : "next";
-              const names = state === "now" ? (assignee ? [assignee.name] : []) : (!limited ? candidates(r, p.client).map((u) => u.name) : []);
+              const pickedName = users.find((u) => u.id === p.team?.[r])?.name;
+              const names = state === "now" ? (assignee ? [assignee.name] : []) : pickedName ? [pickedName] : [];
               const meta = ROLE_META[r];
               return (
                 <div key={r} className={"cal-step " + state}>
                   <i style={state === "now" ? css({ "--fg": meta.fg }) : undefined}>{state === "done" ? "✓" : i + 1}</i>
                   <span>
-                    <b className={!names.length && state === "now" ? "missing" : ""}>{names.length ? names.join(", ") : state === "now" ? "Nobody yet — set up in Team" : meta.label}</b>
+                    <b className={!names.length && state === "now" ? "missing" : ""}>{names.length ? names.join(", ") : state === "now" ? "Nobody yet — pick someone" : meta.label}</b>
                     <small>{meta.label} · {state === "now" ? "has it now" : state === "done" ? "done" : meta.does}</small>
                   </span>
                 </div>
@@ -935,6 +1000,28 @@ export default function SocialCalendar() {
             <div><span>Timeline</span>{badge(p) || <b>—</b>}</div>
             {p.poc && <div><span>Client contact</span><b>{p.poc}</b></div>}
             {p.dataStatus && <div><span>Data status</span><b>{p.dataStatus}</b></div>}
+          </div>
+
+          <div className="cal-vsec cal-work">
+            <h4>Finished work</h4>
+            <div className="cal-media">
+              {(p.media || []).map((m, i) => (
+                <a key={m.url + i} className="cal-media-item" href={m.url} target="_blank" rel="noopener noreferrer" title={m.name || "Open"}>
+                  {isVideoMedia(m) ? <video src={m.url} muted playsInline preload="metadata" /> : <img src={m.url} alt={m.name || `File ${i + 1}`} />}
+                  {canEdit(p) && p.status !== "posted" && <button type="button" aria-label="Remove" onClick={(e) => { e.preventDefault(); removeWork(p, i); }}>×</button>}
+                </a>
+              ))}
+              {canEdit(p) && p.status !== "posted" && (p.media || []).length < 10 && (
+                <label className={"cal-media-add" + (workBusy === p.id ? " busy" : "")}>
+                  <input type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" disabled={workBusy === p.id}
+                    onChange={(e) => { uploadWork(p, e.target.files); e.target.value = ""; }} />
+                  {workBusy === p.id ? "Uploading…" : "+ Upload"}
+                </label>
+              )}
+            </div>
+            <span className="adm-hint">{p.status === "posted"
+              ? "Live now — the uploaded files were removed from our server to save space."
+              : "Upload the final design or video here. It's what gets posted, and it's deleted from our server once the post is live."}</span>
           </div>
 
           {renderPublishing(p)}
@@ -954,7 +1041,9 @@ export default function SocialCalendar() {
 
           {canEdit(p) ? (
             <div className="adm-drawer-actions cal-actions">
+              {p.status === "approval" && limited && <div className="cal-readonly">Waiting for an admin to approve. Once approved it's scheduled for {fmtDay(p.postDate)}{p.postTime ? ` · ${fmtTime(p.postTime)}` : ""}.</div>}
               {nextLabel && <button type="button" className="cal-primary wide" onClick={() => advance(p)}>{nextLabel}</button>}
+              {p.status === "approval" && !limited && <button type="button" className="cal-btn lg" onClick={() => sendBack(p)}>Send back for changes</button>}
               <div className="cal-row">
                 <button type="button" className="cal-btn lg grow" onClick={() => { setEditing({ ...p }); setViewId(null); }}>Edit post</button>
               </div>
@@ -978,7 +1067,7 @@ export default function SocialCalendar() {
       if (p.status !== "ready" && p.status !== "production") return null;
       return (
         <div className="cal-vsec"><h4>Auto-publishing</h4>
-          <p className="adm-hint" style={{ margin: 0 }}>{p.client} isn't connected to Instagram / Facebook yet{limited ? " — ask an admin to connect it." : <> — connect it in <button type="button" className="cal-link" onClick={() => { setViewId(null); openUploads(); }}>Team &amp; uploads</button> and Ready posts publish themselves.</>}</p>
+          <p className="adm-hint" style={{ margin: 0 }}>{p.client} isn't connected to Instagram / Facebook yet{limited ? " — ask an admin to connect it." : <> — connect it in <a className="cal-link" href="/dashboard/social-studio?tab=channels">Social studio</a> and Ready posts publish themselves.</>}</p>
         </div>
       );
     }
@@ -1061,73 +1150,10 @@ export default function SocialCalendar() {
     const roles: Role[] = ["marketer", "video", "graphic", "social"];
     return (
       <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setUploads(null); }}>
-        <div className="adm-drawer kb-drawer cal-view cal-wide" role="dialog" aria-modal="true" aria-label="Team & uploads">
-          <div className="cal-vtop"><h2 style={{ margin: 0 }}>Team &amp; uploads</h2>
+        <div className="adm-drawer kb-drawer cal-view cal-wide" role="dialog" aria-modal="true" aria-label="Upload history">
+          <div className="cal-vtop"><h2 style={{ margin: 0 }}>Upload history</h2>
             <button type="button" className="cal-x" onClick={() => setUploads(null)} aria-label="Close">×</button></div>
-          <p className="cal-lead">Posts go to someone automatically — but only to a person who has the role <b>and</b> the brand ticked. A gap means posts wait.</p>
-
-          <div className="cal-vsec">
-            <h4>Who covers each brand</h4>
-            <div className="cal-table-wrap">
-              <table className="cal-table cal-cover">
-                <thead><tr><th>Brand</th>{roles.map((r) => <th key={r} style={{ color: ROLE_META[r].fg }}>{ROLE_META[r].label}</th>)}</tr></thead>
-                <tbody>
-                  {clientNames.map((b) => (
-                    <Fragment key={b}>
-                    <tr>
-                      <td><span className="cal-sub strong"><i style={{ background: clientColor(b) }} />{b}</span></td>
-                      {roles.map((r) => {
-                        const c = candidates(r, b);
-                        const waitingHere = gaps.find((g) => g.brand === b && g.role === r)?.count || 0;
-                        const on = coverEdit?.brand === b && coverEdit?.role === r;
-                        return (
-                          <td key={r} className={(c.length ? "" : "gap") + (on ? " editing" : "")}>
-                            <button type="button" className="cal-cover-cell" aria-expanded={on} onClick={() => setCoverEdit(on ? null : { brand: b, role: r })}
-                              aria-label={`Change who covers ${b} as ${ROLE_META[r].label}`}>
-                              {c.length ? <span>{c.map((u) => u.name).join(", ")}</span> : <><b>Nobody</b>{waitingHere > 0 && <small>{waitingHere} waiting</small>}</>}
-                              <em>{c.length ? "Change" : "Assign"}</em>
-                            </button>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                    {coverEdit?.brand === b && (
-                      <tr className="cal-cover-editrow"><td colSpan={roles.length + 1}>{renderCoverEdit()}</td></tr>
-                    )}
-                    </Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="cal-vsec">
-            <h4>Social accounts</h4>
-            <p className="adm-hint" style={{ marginTop: 0 }}>Connect each brand's Facebook Page (with its Instagram business account). Posts in Ready to post then publish by themselves at their go-live time, with the caption and keywords as hashtags. <a href="/dashboard/social-studio?tab=channels" className="cal-link">Manage channels and see analytics in Social studio →</a></p>
-            {metaOk === false ? (
-              <div className="cal-empty sm">Auto-publishing isn't switched on yet: the server needs <b>META_APP_ID</b> and <b>META_APP_SECRET</b>.</div>
-            ) : (
-              <div className="sm-uploads">
-                {clientNames.map((b) => {
-                  const a = accounts.find((x) => x.client === b);
-                  return (
-                    <div key={b} className="sm-upload">
-                      <div>
-                        <b>{b}</b>
-                        <span className="cal-muted">{!a ? "Not connected" : a.status === "connected"
-                          ? [a.igUsername ? `Instagram @${a.igUsername}` : "No Instagram linked", `Facebook ${a.pageName}`].join(" · ")
-                          : `Needs reconnecting${a.lastError ? ` — ${a.lastError}` : ""}`}</span>
-                      </div>
-                      <div className="cal-row">
-                        {(!a || a.status !== "connected") && <button type="button" className="cal-primary sm" onClick={() => connectBrand(b)}>{a ? "Reconnect" : "Connect"}</button>}
-                        {a && <button type="button" className="cal-btn danger" onClick={() => disconnectBrand(b)}>Disconnect</button>}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <p className="cal-lead">Every sheet you've uploaded, newest first. Delete an upload to remove all of its posts.</p>
 
           <div className="cal-vsec">
             <h4>Sheet uploads</h4>
@@ -1206,7 +1232,7 @@ export default function SocialCalendar() {
         <div className="cal-head-actions">
           <input ref={fileRef} type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={(e) => { importCsv(e.target.files?.[0]); e.currentTarget.value = ""; }} />
           <button type="button" className="cal-btn" onClick={() => fileRef.current?.click()}>Import sheet</button>
-          {!limited && <button type="button" className="cal-btn" onClick={openUploads}>Team &amp; uploads</button>}
+          {!limited && <button type="button" className="cal-btn" onClick={openUploads}>Upload history</button>}
           {!limited && <button type="button" className="cal-btn" onClick={addClient}>+ Brand</button>}
           {(!limited || clientNames.length > 0) && <button type="button" className="cal-primary" onClick={() => newPost()}>+ New post</button>}
         </div>
@@ -1226,17 +1252,6 @@ export default function SocialCalendar() {
         })}
       </div>
 
-      {gaps.length > 0 && (
-        <div className="cal-alert" role="status">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6A2 2 0 0 0 22 18L13.7 3.9a2 2 0 0 0-3.4 0z" /></svg>
-          <span>
-            <b>{gaps.reduce((n, g) => n + g.count, 0)} posts are waiting</b> — {gaps.map((g, i) => (
-              <span key={g.brand + g.role}>{i > 0 && "; "}{g.count} need a <b>{ROLE_META[g.role].label}</b> with <b>{g.brand}</b> ticked</span>
-            ))}.
-          </span>
-          <button type="button" className="cal-link" onClick={openUploads}>See who covers what</button>
-        </div>
-      )}
 
       <div className="cal-tiles">
         {tiles.map(([k, v, hint, cls]) => <div key={k} className={"cal-tile " + cls}><span>{k}</span><b>{v}</b><small>{hint}</small></div>)}
@@ -1270,6 +1285,61 @@ export default function SocialCalendar() {
 
       {viewed && !editing && renderDetails(viewed)}
       {uploads && renderTeamPanel(uploads)}
+      {handoff && (() => {
+        const h = handoff, list = peopleFor(h.role), meta = ROLE_META[h.role];
+        const title = h.kind === "approve" ? "Approve & schedule" : h.kind === "back" ? "Send back for changes" : h.kind === "move" ? `Move to ${STAGES.find((x) => x.id === h.patch.status)?.title}` : `Done — who's next?`;
+        const btn = h.kind === "approve" ? "Approve & schedule" : h.kind === "back" ? "Send back" : h.chosen ? `Send to ${list.find((u) => u.id === h.chosen)?.name.split(" ")[0] || "them"}` : "Move without a person";
+        return (
+          <div className="adm-overlay center" onMouseDown={(e) => { if (e.target === e.currentTarget) setHandoff(null); }}>
+            <div className="cal-pick" role="dialog" aria-modal="true" aria-label={title}>
+              <div className="cal-pick-h"><div><h3>{title}</h3><small>“{h.post.theme}” · {h.post.client}</small></div>
+                <button type="button" className="cal-x" onClick={() => setHandoff(null)} aria-label="Close">×</button></div>
+              <span className="cal-pick-l">Pick the <b style={{ color: meta.fg }}>{meta.label}</b>{h.kind === "approve" ? " who posts it" : ""}</span>
+              <div className="cal-pick-list" role="radiogroup">
+                {list.map((u) => (
+                  <label key={u.id} className={h.chosen === u.id ? "on" : ""}>
+                    <input type="radio" name="handoff" checked={h.chosen === u.id} onChange={() => setHandoff({ ...h, chosen: u.id })} />
+                    <i style={{ background: meta.fg }}>{initials(u.name)}</i>
+                    <span><b>{u.name}</b><small>{h.post.team?.[h.role] === u.id ? "Picked for this post" : (u.roles || []).map((r) => ROLE_META[r as Role]?.label || r).join(", ")}</small></span>
+                  </label>
+                ))}
+                {!list.length && <p className="adm-hint">Nobody has the {meta.label} role yet. Give someone the role on the Users page.</p>}
+              </div>
+              {h.kind === "back" && <label className="adm-field" style={{ margin: 0 }}><span>What needs changing</span>
+                <textarea rows={3} value={h.note} onChange={(e) => setHandoff({ ...h, note: e.target.value })} placeholder="e.g. Use the new price card, shorten the intro" /></label>}
+              {h.kind === "approve" && <p className="adm-hint" style={{ margin: 0 }}>It goes to Ready to post and is scheduled for {fmtDay(h.post.postDate)}{h.post.postTime ? ` · ${fmtTime(h.post.postTime)}` : " · 10:00 AM"} on connected channels.</p>}
+              <div className="cal-pick-f">
+                <button type="button" className="cal-btn" onClick={() => setHandoff(null)}>Cancel</button>
+                <button type="button" className="cal-primary" disabled={h.busy || (!h.chosen && h.kind !== "move")} onClick={confirmHandoff}>{h.busy ? "Saving…" : btn}</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+      {importTeam && (
+        <div className="adm-overlay center" onMouseDown={(e) => { if (e.target === e.currentTarget) setImportTeam(null); }}>
+          <div className="cal-pick wide" role="dialog" aria-modal="true" aria-label="Who works on these posts">
+            <div className="cal-pick-h"><div><h3>Who works on these posts?</h3><small>{importTeam.parsed.length} posts for {importTeam.name}. Each person clicks Done and it moves to the next.</small></div>
+              <button type="button" className="cal-x" onClick={() => setImportTeam(null)} aria-label="Close">×</button></div>
+            <div className="cal-pick-team">
+              {CHAIN.map((r, i) => (
+                <div key={r} className="cal-pick-row">
+                  <span className="n" style={{ background: ROLE_META[r].bg, color: ROLE_META[r].fg }}>{i + 1}</span>
+                  <span className="lbl"><b>{ROLE_META[r].label}</b><small>{ROLE_META[r].does}{i === 0 ? " · gets the posts now" : ""}</small></span>
+                  <Select value={importTeam.team[r] ? String(importTeam.team[r]) : ""} ariaLabel={ROLE_META[r].label}
+                    onChange={(v) => setImportTeam({ ...importTeam, team: { ...importTeam.team, [r]: v ? Number(v) : null } })}
+                    options={[{ value: "", label: "Pick later" }, ...peopleFor(r).map((u) => ({ value: String(u.id), label: u.name }))]} />
+                </div>
+              ))}
+            </div>
+            <p className="adm-hint" style={{ margin: 0 }}>People picked here get access to {importTeam.name}. You can change anyone later, and each Done lets you pick someone else.</p>
+            <div className="cal-pick-f">
+              <button type="button" className="cal-btn" onClick={() => setImportTeam(null)}>Cancel</button>
+              <button type="button" className="cal-primary" disabled={importTeam.busy} onClick={finishImport}>{importTeam.busy ? "Importing…" : `Import ${importTeam.parsed.length} posts`}</button>
+            </div>
+          </div>
+        </div>
+      )}
       {metaPick && (
         <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setMetaPick(null); }}>
           <div className="adm-drawer kb-drawer cal-view" role="dialog" aria-modal="true" aria-label={`Connect ${metaPick.brand}`}>
@@ -1363,13 +1433,20 @@ export default function SocialCalendar() {
                 ))}
               </div>
               <div className="cal-goes">
-                <span className="cal-muted">At this stage it's for a <b style={{ color: ROLE_META[edRole].fg }}>{ROLE_META[edRole].label}</b>
-                  {!limited && editing.client && (edCands.length ? ` — ${edCands.map((u) => u.name).join(", ")}` : " — nobody has this brand ticked yet")}.</span>
+                <span className="cal-muted">At this stage it's for the <b style={{ color: ROLE_META[edRole].fg }}>{ROLE_META[edRole].label}</b>.</span>
               </div>
               <div className="adm-field"><label>Assigned to</label>
                 <Select value={editing.assigneeId ? String(editing.assigneeId) : ""} onChange={(v) => set({ assigneeId: v ? Number(v) : null })} ariaLabel="Assigned to"
-                  options={[{ value: "", label: edAssignee ? "Unassigned" : "Pick automatically" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]} />
-                <span className="adm-hint">Changes by itself when the stage moves (Ready to post always goes to a different person than the maker). Pick someone here to override.</span></div>
+                  options={[{ value: "", label: "Nobody yet" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]} />
+                <span className="adm-hint">Nothing is assigned automatically. When someone clicks Done they pick who's next; the people below are pre-selected.</span></div>
+              <div className="cal-teamgrid">
+                {CHAIN.map((r) => (
+                  <div key={r} className="adm-field"><label style={{ color: ROLE_META[r].fg }}>{ROLE_META[r].label}</label>
+                    <Select value={editing.team?.[r] ? String(editing.team[r]) : ""} ariaLabel={ROLE_META[r].label}
+                      onChange={(v) => set({ team: { ...(editing.team || {}), [r]: v ? Number(v) : null } })}
+                      options={[{ value: "", label: "Not picked" }, ...users.filter((u) => (u.roles || []).includes(r)).map((u) => ({ value: String(u.id), label: u.name }))]} /></div>
+                ))}
+              </div>
             </fieldset>
 
             <fieldset className="cal-fs">

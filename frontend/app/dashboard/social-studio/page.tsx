@@ -14,6 +14,7 @@ import {
 import { api } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
 import { dialog } from "@/lib/dialog";
+import Select from "@/components/Select";
 
 type Platform = "instagram" | "facebook";
 type Stats = { instagram?: { followers: number | null; picture: string | null; username?: string }; facebook?: { followers: number | null; picture: string | null; name?: string } };
@@ -94,6 +95,7 @@ export default function SocialStudio() {
   const [busy, setBusy] = useState(false);
   const [connectFor, setConnectFor] = useState<string | null>(null);
   const [metaPick, setMetaPick] = useState<{ sel: string; brand: string; pages: { pageId: string; pageName: string; igUsername: string | null }[]; chosen: string } | null>(null);
+  const [pageQ, setPageQ] = useState("");
   const ddRef = useRef<HTMLDivElement | null>(null);
   const [prof, setProf] = useState<{ client: string; platform: Platform; data: Profile | null; error: string | null; form: Record<string, string>; saving: boolean } | null>(null);
   async function openProfile(client: string, platform: Platform) {
@@ -145,7 +147,9 @@ export default function SocialStudio() {
       setTab("channels");
       if (err) toast("Couldn't connect", "err", { description: err });
       else api.metaPages(sel as string).then((r) => {
-        const best = r.pages.find((x: { igUsername: string | null }) => x.igUsername) || r.pages[0];
+        // Pre-select only a Page whose name matches the brand; otherwise let them pick.
+        const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, "");
+        const best = r.pages.find((x: { pageName: string }) => norm(x.pageName).includes(norm(r.brand)) || norm(r.brand).includes(norm(x.pageName)));
         setMetaPick({ sel: sel as string, brand: r.brand, pages: r.pages, chosen: best?.pageId || "" });
         setBrand(r.brand);
       }).catch((e) => toast("Couldn't finish connecting", "err", { description: e.message }));
@@ -501,11 +505,10 @@ export default function SocialStudio() {
         <div className="adm-overlay center" onMouseDown={(e) => { if (e.target === e.currentTarget) setConnectFor(null); }}>
           <div className="ss-modal" role="dialog" aria-modal="true" aria-label="Connect a channel">
             <div className="ss-modal-h"><h3>Connect a channel</h3><button type="button" className="ss-btn" onClick={() => setConnectFor(null)} aria-label="Close">×</button></div>
-            <label className="ss-field">Brand
-              <select value={connectFor} onChange={(e) => setConnectFor(e.target.value)}>
-                {data.brands.map((b) => <option key={b} value={b}>{b}{data.accounts.some((a) => a.client === b) ? " (connected — reconnect)" : ""}</option>)}
-              </select>
-            </label>
+            <div className="ss-field"><span>Brand</span>
+              <Select value={connectFor} onChange={(val) => setConnectFor(val)} ariaLabel="Brand"
+                options={data.brands.map((b) => ({ value: b, label: data.accounts.some((a) => a.client === b) ? `${b} · connected (reconnect)` : b }))} />
+            </div>
             <div className="ss-plat"><span className="lg"><Icon i={InstagramIcon} size={18} /></span><span className="lg fb"><Icon i={Facebook01Icon} size={18} /></span>
               <div><b>Instagram + Facebook Page</b><small>Both connect together. Brands without an Instagram business account connect their Facebook Page only.</small></div></div>
             <ul className="ss-checks">
@@ -585,14 +588,19 @@ export default function SocialStudio() {
 
       {metaPick && (
         <div className="adm-overlay center" onMouseDown={(e) => { if (e.target === e.currentTarget) setMetaPick(null); }}>
-          <div className="ss-modal" role="dialog" aria-modal="true" aria-label={`Connect ${metaPick.brand}`}>
+          <div className="ss-modal pages" role="dialog" aria-modal="true" aria-label={`Connect ${metaPick.brand}`}>
             <div className="ss-modal-h"><h3>Which Page is {metaPick.brand}'s?</h3><button type="button" className="ss-btn" onClick={() => setMetaPick(null)} aria-label="Close">×</button></div>
-            <p className="ss-note" style={{ margin: 0 }}>Its linked Instagram account connects with it.</p>
-            <div className="ss-pages">
-              {metaPick.pages.map((pg) => (
+            <p className="ss-note" style={{ margin: 0 }}>{metaPick.pages.length} Pages found. Its linked Instagram account connects with it.</p>
+            {metaPick.pages.length > 6 && <input className="ss-search" placeholder="Search Pages…" value={pageQ} onChange={(e) => setPageQ(e.target.value)} aria-label="Search Pages" />}
+            <div className="ss-pages" role="radiogroup">
+              {metaPick.pages
+                .filter((pg) => !pageQ.trim() || `${pg.pageName} ${pg.igUsername || ""}`.toLowerCase().includes(pageQ.trim().toLowerCase()))
+                .sort((x, y) => (x.pageName.toLowerCase().includes(metaPick.brand.toLowerCase().split(" ")[0]) ? -1 : 0) - (y.pageName.toLowerCase().includes(metaPick.brand.toLowerCase().split(" ")[0]) ? -1 : 0))
+                .map((pg, i) => (
                 <label key={pg.pageId} className={metaPick.chosen === pg.pageId ? "on" : ""}>
                   <input type="radio" name="ss-page" checked={metaPick.chosen === pg.pageId} onChange={() => setMetaPick({ ...metaPick, chosen: pg.pageId })} />
-                  <span><b>{pg.pageName}</b><small>{pg.igUsername ? <><Icon i={InstagramIcon} size={12} /> @{pg.igUsername}</> : "No Instagram business account — Facebook only"}</small></span>
+                  <i className="pav" style={{ background: COLORS[i % COLORS.length] }}>{pg.pageName[0]}</i>
+                  <span><b>{pg.pageName}</b><small>{pg.igUsername ? <><Icon i={InstagramIcon} size={12} /> @{pg.igUsername}</> : "Facebook only"}</small></span>
                   {metaPick.chosen === pg.pageId && <Icon i={CheckmarkCircle02Icon} size={18} />}
                 </label>
               ))}
