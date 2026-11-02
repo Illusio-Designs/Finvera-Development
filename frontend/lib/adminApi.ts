@@ -198,3 +198,49 @@ export const opsApi = {
   setSpam: (id: number, isSpam: boolean) => req(`/contact/${id}/spam`, { method: "PATCH", body: JSON.stringify({ isSpam }) }),
 };
 /* ═══ end Ops block ═══ */
+/* ════════════════════════════════════════════════════════════════════
+   Activity history · lead follow-ups · exports · image clean-up
+   (kept together in one block at the end of the file)
+   ════════════════════════════════════════════════════════════════════ */
+export type ActivityRow = {
+  id: number; userId: number | null; userName: string | null; action: "create" | "update" | "delete" | "other";
+  entity: string; entityId: string | null; entityLabel: string | null; summary: string | null;
+  changes: Record<string, [unknown, unknown]> | null; ip?: string | null; createdAt: string;
+};
+export type Paged<T> = { items: T[]; total: number; page: number; limit: number };
+export type LeadTouch = { id: number; leadId: number; type: "call" | "email" | "whatsapp" | "meeting" | "note"; note: string | null; nextFollowUpAt: string | null; userId: number | null; userName: string | null; createdAt: string };
+export type FollowUpLead = { id: number; name: string; company?: string | null; phone?: string | null; stage: string; value?: number; owner?: string | null; nextFollowUpAt: string | null; followUpNote?: string | null; meetingAt?: string | null; meetingUrl?: string | null; lastContactedAt?: string | null };
+export type ExportData = { entity: string; columns: string[]; rows: Record<string, string | number | null>[]; total: number; truncated: boolean; generatedAt: string };
+export type KpiReport = {
+  month: string; label: string; period?: unknown;
+  team: { delivered: number; deliveredPrev: number; onTime: number | null; onTimePrev: number | null; avgStageDays: number | null; hours: number; estHours: number | null; open: number; overdue: number; people?: number; stages: { stage: string; avgDays: number | null; moves: number }[] } | null;
+  columns: string[]; rows: Record<string, string | number>[]; brandColumns: string[]; brandRows: Record<string, string | number>[]; generatedAt: string;
+};
+type Q = Record<string, string | number | boolean | null | undefined>;
+/* Query string from an object, skipping empty values. */
+const qs = (q: Q = {}) => {
+  const s = new URLSearchParams(Object.entries(q).filter(([, v]) => v !== "" && v != null && v !== false).map(([k, v]) => [k, String(v)])).toString();
+  return s ? `?${s}` : "";
+};
+
+export const trackApi = {
+  /* Activity history */
+  activity: (q: Q = {}): Promise<Paged<ActivityRow>> => req(`/activity${qs(q)}`),
+  history: (entity: string, id: string | number): Promise<ActivityRow[]> => req(`/activity/${encodeURIComponent(entity)}/${encodeURIComponent(String(id))}`),
+
+  /* Lead follow-ups */
+  logTouch: (leadId: number, body: { type: LeadTouch["type"]; note?: string; nextFollowUpAt?: string | null; followUpNote?: string; meetingAt?: string }): Promise<{ touch: LeadTouch; lead: Record<string, unknown> }> =>
+    req(`/leads/${leadId}/touch`, { method: "POST", body: JSON.stringify(body) }),
+  touches: (leadId: number): Promise<LeadTouch[]> => req(`/leads/${leadId}/touches`),
+  followUps: (mine = false): Promise<{ today: string; counts: { today: number; overdue: number; week: number }; overdue: FollowUpLead[]; week: FollowUpLead[] }> =>
+    req(`/leads/follow-ups${mine ? "?mine=1" : ""}`),
+
+  /* Export (rows as JSON; lib/xlsxWrite builds the file) */
+  exportRows: (entity: string, q: Q = {}): Promise<ExportData> => req(`/export/${encodeURIComponent(entity)}${qs({ ...q, format: "json" })}`),
+  kpiReport: (month: string): Promise<KpiReport> => req(`/export/kpi-report${qs({ month })}`),
+
+  /* Re-compress images uploaded before compression existed (admin). */
+  optimizeImages: (limit = 20): Promise<{ processed: number; savedBytes: number; remaining: number; errors: { name: string; error: string }[] }> =>
+    req(`/uploads/optimize-existing?limit=${limit}`, { method: "POST" }),
+};
+/* ═════════════════ end of activity / follow-ups / export block ═════════ */

@@ -8,6 +8,8 @@ import DatePicker from "@/components/ui/DatePicker";
 import { BoardSkeleton } from "@/components/admin/Skeleton";
 import { readXlsx } from "@/lib/xlsx";
 import { visibleInterval } from "@/lib/visibleInterval";
+import HistoryList from "@/components/admin/HistoryList";
+import ExportButton from "@/components/admin/ExportButton";
 
 type Stage = "planned" | "client" | "production" | "approval" | "ready" | "posted";
 type LogEntry = { id: string; userId?: number | null; minutes: number; note?: string; at: string };
@@ -25,7 +27,7 @@ type Post = {
   _full?: boolean; // client-only: the heavy fields (HEAVY) are loaded — the board loads light "card" posts
 };
 /* Auto-publishing */
-type Media = { url: string; type: "image" | "video"; name?: string };
+type Media = { url: string; type: "image" | "video"; name?: string; thumbUrl?: string | null }; // thumbUrl: small preview (newer uploads)
 type PubJob = { id: number; postId: number; client: string; platform: "instagram" | "facebook"; status: string; runAt: string | null; attempts: number;
   error: string | null; url: string | null; publishedAt: string | null; account: string | null; theme: string; format: string | null; postStatus: string | null };
 type SocialAcc = { client: string; pageName: string; igUsername: string | null; igAvatar: string | null; status: string; lastError: string | null };
@@ -893,7 +895,7 @@ export default function SocialCalendar() {
         {flag ? <span className="fvc-flag">⚠ {flag}</span> : (p.festive || p.topic) ? <span className="fvc-note">{p.festive || p.topic}</span> : null}
         {(p.status === "production" || p.status === "approval") && first && (
           <span className="fvc-shot">
-            {isVideoMedia(first) ? <video src={first.url} muted playsInline preload="metadata" /> : <img src={first.url} alt="" />}
+            {isVideoMedia(first) ? <video src={first.url} muted playsInline preload="metadata" /> : <img src={first.thumbUrl || first.url} alt="" loading="lazy" />}
             <em>{isVideoMedia(first) ? "▶ video" : media.length > 1 ? `${media.length} files` : "finished work"}</em>
           </span>
         )}
@@ -1146,7 +1148,7 @@ export default function SocialCalendar() {
             <div className="cal-media">
               {(p.media || []).map((m, i) => (
                 <a key={m.url + i} className="cal-media-item" href={m.url} target="_blank" rel="noopener noreferrer" title={m.name || "Open"}>
-                  {isVideoMedia(m) ? <video src={m.url} muted playsInline preload="metadata" /> : <img src={m.url} alt={m.name || `File ${i + 1}`} />}
+                  {isVideoMedia(m) ? <video src={m.url} muted playsInline preload="metadata" /> : <img src={m.thumbUrl || m.url} alt={m.name || `File ${i + 1}`} />}
                   {canEdit(p) && p.status !== "posted" && <button type="button" aria-label="Remove" onClick={(e) => { e.preventDefault(); removeWork(p, i); }}>×</button>}
                 </a>
               ))}
@@ -1176,6 +1178,7 @@ export default function SocialCalendar() {
           {section("People to tag", text(p.tags))}
           {section("Keywords", text(p.keywords))}
           {section("Remarks", text(p.remarks))}
+          <HistoryList entity="social-post" id={p.id} refreshKey={`${p.status}|${p.assigneeId ?? ""}`} />
 
 
           {canEdit(p) ? (
@@ -1372,6 +1375,11 @@ export default function SocialCalendar() {
           <input ref={fileRef} type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={(e) => { importCsv(e.target.files?.[0]); e.currentTarget.value = ""; }} />
           <button type="button" className="cal-primary" onClick={() => fileRef.current?.click()}>Import sheet</button>
           {!limited && <button type="button" className="cal-btn" onClick={openUploads}>Upload history</button>}
+          <ExportButton entity="social-posts" file={client ? `content-calendar-${client.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}` : "content-calendar"} sheet={client || "Content calendar"}
+            params={() => ({
+              client, q: query.trim(), assigneeId: /^\d+$/.test(who) ? who : "",
+              from: month ? `${month}-01` : "", to: month ? iso(new Date(+month.slice(0, 4), +month.slice(5, 7), 0)) : "",
+            })} />
 
         </div>
       </div>
@@ -1694,7 +1702,7 @@ export default function SocialCalendar() {
                     <div className="cal-media">
                       {media.map((m, i) => (
                         <div key={m.url + i} className="cal-media-item">
-                          {isVideoMedia(m) ? <video src={m.url} muted playsInline preload="metadata" /> : <img src={m.url} alt={m.name || `Image ${i + 1}`} />}
+                          {isVideoMedia(m) ? <video src={m.url} muted playsInline preload="metadata" /> : <img src={m.thumbUrl || m.url} alt={m.name || `Image ${i + 1}`} />}
                           {media.length > 1 && <span className="cal-media-n">{i + 1}</span>}
                           <button type="button" aria-label="Remove" onClick={() => set({ media: media.filter((_, k) => k !== i) })}>×</button>
                         </div>

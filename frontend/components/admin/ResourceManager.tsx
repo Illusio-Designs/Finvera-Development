@@ -11,6 +11,9 @@ import Toggle from "../ui/Toggle";
 import Tooltip from "../ui/Tooltip";
 import TagsInput, { normalizeTags } from "../ui/TagsInput";
 import { TableSkeleton } from "./Skeleton";
+import HistoryList from "./HistoryList";
+import ExportButton from "./ExportButton";
+import { relative, whenOf } from "@/lib/activityText";
 
 /* TipTap is heavy (~150 kB) and only needed once a form with a rich-text
    field opens — load it on demand instead of with every list page. */
@@ -22,11 +25,36 @@ const RichText = dynamic(() => import("./RichText"), {
 export type Field = {
   name: string;
   label: string;
-  type?: "text" | "password" | "textarea" | "number" | "select" | "multiselect" | "userselect" | "boolean" | "tags" | "image" | "avatar" | "date" | "richtext" | "calendly";
+  type?: "text" | "password" | "textarea" | "number" | "select" | "multiselect" | "userselect" | "boolean" | "tags" | "image" | "avatar" | "date" | "richtext" | "calendly"
+    | "datetime" /* date + time, stored as an ISO moment */ | "link" /* URL with an Open button */ | "relative" /* read-only "3 days ago" */;
   options?: (string | { value: string; label: string })[];
   placeholder?: string;
+  /* Show the field only when this returns true for the values being edited. */
+  showIf?: (values: Record<string, any>) => boolean;
+  /* Short help under the field. */
+  hint?: string;
 };
-export type Column = { name: string; label: string; type?: "image" | "avatar" | "status" | "tags" | "text" | "money" | "progress" | "stageprogress" | "role" | "roles" | "date" | "renewal" | "note" };
+export type Column = { name: string; label: string; type?: "image" | "avatar" | "status" | "tags" | "text" | "money" | "progress" | "stageprogress" | "role" | "roles" | "date" | "renewal" | "note" | "followup" };
+
+/* History (activity log) entity and Excel export for each resource. */
+const HISTORY_ENTITY: Record<string, string> = {
+  projects: "project", services: "service", testimonials: "testimonial", team: "team-member", blog: "blog", pages: "page",
+  faqs: "faq", values: "value", brands: "brand", milestones: "milestone", "process-steps": "process-step", stats: "stat",
+  logos: "logo", features: "feature", leads: "lead", renewals: "renewal", users: "user", boards: "board", "social-clients": "social-client",
+};
+const EXPORT_ENTITY: Record<string, string> = { leads: "leads", renewals: "renewals", users: "users" };
+
+/* India-time "today" (the server's follow-up dates are India dates). */
+const istToday = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+/* ISO moment <-> <input type="datetime-local"> value (browser time). */
+const toLocalInput = (v: unknown) => {
+  if (!v) return "";
+  const d = new Date(String(v));
+  if (isNaN(+d)) return "";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+const isUrl = (v: unknown) => /^https?:\/\/\S+\.\S+/i.test(String(v || "").trim());
 
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -77,7 +105,27 @@ type Props = {
   backLabel?: string;
   /* Extra buttons for each row; call reload() after changing the row. */
   rowActions?: (row: any, reload: () => Promise<void>) => React.ReactNode;
+  /* Shown between the header and the list (e.g. a follow-ups strip). */
+  toolbar?: (rows: any[], reload: () => Promise<void>) => React.ReactNode;
+  /* Only rows this keeps are listed (on top of the search). */
+  rowFilter?: (row: any) => boolean;
+  /* Extra drawer content above the fields, for a saved item. `patch` merges
+     values into the open form (e.g. after a server action changed the row). */
+  drawerExtra?: (ctx: DrawerCtx) => React.ReactNode;
+  /* Open this item's drawer once the list has loaded (deep links). */
+  openId?: string | number | null;
+  onOpened?: (found: boolean) => void;
+  /* Last change to the payload before it's sent. */
+  beforeSave?: (payload: Record<string, any>) => Record<string, any>;
+  /* History section in the drawer: the activity entity, or false to hide (default: by resource). */
+  historyEntity?: string | false;
+  /* Excel export: the export entity (default: by resource) or false; params from the current view. */
+  exportEntity?: string | false;
+  exportParams?: (ctx: { query: string }) => Record<string, string | number | undefined>;
+  /* Drawer heading / sub-line for a saved item (default "Edit X" / "ID #n"). */
+  drawerTitle?: (row: Record<string, any>) => { title?: string; sub?: string };
 };
+export type DrawerCtx = { editing: Record<string, any>; setField: (name: string, value: any) => void; patch: (values: Record<string, any>) => void; reload: () => Promise<void> };
 
 const emptyFrom = (fields: Field[], defaults?: Record<string, any>) => {
   const o: Record<string, any> = { ...defaults };
@@ -134,7 +182,10 @@ function PasswordInput({ id, value, placeholder, onChange }: { id: string; value
   );
 }
 
-export default function ResourceManager({ resource, title, subtitle, columns, fields, defaults, calendlyUrl, backHref, backLabel, rowActions }: Props) {
+export default function ResourceManager({ resource, title, subtitle, columns, fields, defaults, calendlyUrl, backHref, backLabel, rowActions,
+  toolbar, rowFilter, drawerExtra, openId, onOpened, beforeSave, historyEntity, exportEntity, exportParams, drawerTitle }: Props) {
+  const histEntity = historyEntity === false ? null : historyEntity || HISTORY_ENTITY[resource] || null;
+  const expEntity = exportEntity === false ? null : exportEntity || EXPORT_ENTITY[resource] || null;
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -149,7 +200,7 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
   const [deleting, setDeleting] = useState(false);
   const PER_PAGE = 10;
 
-  useEffect(() => { setPage(1); }, [query, sortKey, sortDir]);
+  useEffect(() => { setPage(1); }, [query, sortKey, sortDir, rowFilter]);
 
   async function load() {
     setLoading(true); setError("");
@@ -159,6 +210,19 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [resource]);
 
+  /* Deep link: open one item's drawer once the list is here. */
+  const openedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (openId == null || openId === "") { openedFor.current = null; return; }
+    if (loading) return;
+    if (openedFor.current === String(openId)) return;
+    openedFor.current = String(openId);
+    const row = rows.find((r) => String(r.id) === String(openId));
+    if (row) { setFormErr(""); setEditing({ ...row }); }
+    onOpened?.(!!row);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openId, loading, rows]);
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true); setFormErr("");
@@ -166,9 +230,12 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
       const payload: Record<string, any> = { ...editing };
       // empty strings → null so blank dates/optionals don't fail validation
       Object.keys(payload).forEach((k) => { if (payload[k] === "") payload[k] = null; });
+      // Read-only fields are shown, never sent back.
+      fields.forEach((f) => { if (f.type === "relative") delete payload[f.name]; });
+      const body = beforeSave ? beforeSave(payload) : payload;
       const editingItem = editing?.id;
-      if (editingItem) await api.update(resource, editing.id, payload);
-      else await api.create(resource, payload);
+      if (editingItem) await api.update(resource, editing.id, body);
+      else await api.create(resource, body);
       setEditing(null);
       await load();
       toast(editingItem ? "Changes saved" : "Item created");
@@ -192,9 +259,10 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
     else { setSortKey(name); setSortDir("asc"); }
   };
 
+  const kept = rowFilter ? rows.filter(rowFilter) : rows;
   const filtered = query
-    ? rows.filter((r) => JSON.stringify(r).toLowerCase().includes(query.toLowerCase()))
-    : rows;
+    ? kept.filter((r) => JSON.stringify(r).toLowerCase().includes(query.toLowerCase()))
+    : kept;
 
   const sortVal = (r: any) => { const v = r[sortKey]; return Array.isArray(v) ? v.join(",") : v; };
   const sorted = !sortKey ? filtered : [...filtered].sort((a, b) => {
@@ -225,6 +293,7 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.3-4.3" /></svg>
             <input placeholder={`Search ${title.toLowerCase()}…`} value={query} onChange={(e) => setQuery(e.target.value)} />
           </label>
+          {expEntity && <ExportButton entity={expEntity} file={resource} sheet={title} params={() => (exportParams ? exportParams({ query }) : { q: query || undefined })} />}
           <button className="adm-btn primary" onClick={() => { setFormErr(""); setEditing(emptyFrom(fields, defaults)); }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 5v14M5 12h14" /></svg>
             New
@@ -233,6 +302,7 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
       </div>
 
       {error && <div className="adm-msg err">{error}</div>}
+      {toolbar?.(rows, load)}
 
       <div className="adm-panel">
         {loading ? (
@@ -240,7 +310,7 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
         ) : rows.length === 0 ? (
           <div className="adm-empty">No items yet. Click “New” to add one.</div>
         ) : sorted.length === 0 ? (
-          <div className="adm-empty">No matches for “{query}”.</div>
+          <div className="adm-empty">{query ? <>No matches for “{query}”.</> : "Nothing here with this filter."}</div>
         ) : (
           <>
           <table className="adm-table cardify">
@@ -292,6 +362,18 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                         </span>
                       ) : c.type === "date" ? (
                         fmtDate(row[c.name]) || <span style={{ color: "var(--muted-2)" }}>—</span>
+                      ) : c.type === "followup" ? (
+                        (() => {
+                          // Next follow-up chip: red when overdue, amber today; closed leads show nothing.
+                          const d = String(row[c.name] ?? "").slice(0, 10);
+                          if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || ["won", "lost"].includes(String(row.stage))) return <span style={{ color: "var(--muted-2)" }}>—</span>;
+                          const t = istToday();
+                          const cls = d < t ? "over" : d === t ? "today" : "";
+                          const days = Math.round((Date.parse(d) - Date.parse(t)) / 86400000);
+                          const short = fmtDate(d).replace(/, \d{4}$/, "");
+                          const txt = d < t ? `Overdue · ${short}` : d === t ? "Today" : days === 1 ? "Tomorrow" : short;
+                          return <span className={"fu-chip " + cls} title={`Next follow-up ${fmtDate(d)}${row.followUpNote ? ` — ${row.followUpNote}` : ""}`}>{txt}</span>;
+                        })()
                       ) : c.type === "note" ? (
                         (() => {
                           // Latest line of a dated log ("1 Nov 2026 · Renewed … — remark"): remark first, what/when below.
@@ -350,10 +432,16 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
       {editing && (
         <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditing(null); }}>
           <form className="adm-drawer" onSubmit={save}>
-            <h2>{editing.id ? "Edit" : "New"} {title.replace(/s$/, "")}</h2>
-            <p className="sub">{editing.id ? `ID #${editing.id}` : "Create a new item"}</p>
+            {(() => {
+              const custom = editing.id && drawerTitle ? drawerTitle(editing) : {};
+              return <>
+                <h2>{custom.title || `${editing.id ? "Edit" : "New"} ${title.replace(/s$/, "")}`}</h2>
+                <p className="sub">{custom.sub || (editing.id ? `ID #${editing.id}` : "Create a new item")}</p>
+              </>;
+            })()}
             {formErr && <div className="adm-msg err">{formErr}</div>}
-            {fields.map((f) => (
+            {editing.id && drawerExtra?.({ editing, setField, patch: (v) => setEditing((s) => (s ? { ...s, ...v } : s)), reload: load })}
+            {fields.filter((f) => !f.showIf || f.showIf(editing)).map((f) => (
               <div className="adm-field" key={f.name}>
                 <label htmlFor={f.name}>{f.label}</label>
                 {f.type === "richtext" ? (
@@ -395,13 +483,28 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                 ) : f.type === "date" ? (
                   <DatePicker id={f.name} name={f.name} value={String(editing[f.name] ?? "").slice(0, 10)}
                     onChange={(v) => setField(f.name, v)} placeholder={f.placeholder || "Select a date"} />
+                ) : f.type === "datetime" ? (
+                  <input id={f.name} type="datetime-local" value={toLocalInput(editing[f.name])}
+                    onChange={(e) => setField(f.name, e.target.value ? new Date(e.target.value).toISOString() : "")} />
+                ) : f.type === "link" ? (
+                  <div className="fu-linkrow">
+                    <input id={f.name} type="url" inputMode="url" value={editing[f.name] ?? ""} placeholder={f.placeholder}
+                      onChange={(e) => setField(f.name, e.target.value)} />
+                    {isUrl(editing[f.name]) && <a className="adm-btn ghost" href={String(editing[f.name]).trim()} target="_blank" rel="noopener noreferrer">Open</a>}
+                  </div>
+                ) : f.type === "relative" ? (
+                  <div className="fu-readonly" id={f.name}>
+                    {editing[f.name] ? <><b>{relative(editing[f.name])}</b><span>{whenOf(editing[f.name])}</span></> : <span>{f.placeholder || "Not yet"}</span>}
+                  </div>
                 ) : (
                   <input id={f.name} type={f.type === "number" ? "number" : "text"}
                     value={editing[f.name] ?? ""} placeholder={f.placeholder}
                     onChange={(e) => setField(f.name, f.type === "number" ? Number(e.target.value) : e.target.value)} />
                 )}
+                {f.hint && <small className="fu-hint">{f.hint}</small>}
               </div>
             ))}
+            {editing.id && histEntity && <HistoryList entity={histEntity} id={editing.id} />}
             <div className="adm-drawer-actions">
               <button className="adm-btn primary" type="submit" disabled={saving}>{saving ? <><span className="spin" /> Saving…</> : "Save"}</button>
               <button className="adm-btn ghost" type="button" onClick={() => setEditing(null)}>Cancel</button>

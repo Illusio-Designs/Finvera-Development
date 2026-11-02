@@ -6,6 +6,8 @@ import { dialog } from "@/lib/dialog";
 import Select from "@/components/Select";
 import DatePicker from "@/components/ui/DatePicker";
 import { BoardSkeleton } from "@/components/admin/Skeleton";
+import HistoryList from "@/components/admin/HistoryList";
+import ExportButton from "@/components/admin/ExportButton";
 
 type Col = { id: string; title: string };
 type Label = { id: string; name: string; color: string };
@@ -419,6 +421,8 @@ export default function Kanban() {
               </div>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <ExportButton entity="tasks" params={{ boardId: board.id }} sheet={board.name}
+                file={`board-${board.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || board.id}`} />
               <button className="adm-btn ghost" onClick={addColumn}>+ Column</button>
               <button className="adm-btn ghost" onClick={renameBoard}>Rename</button>
               <button className="adm-btn ghost" onClick={deleteBoard}>Delete</button>
@@ -707,6 +711,8 @@ export default function Kanban() {
                 </div>
               </div>
             )}
+
+            {editing.id && <HistoryList entity="task" id={editing.id} />}
 
             <div className="adm-drawer-actions">
               <button className="adm-btn primary" type="submit">Save</button>

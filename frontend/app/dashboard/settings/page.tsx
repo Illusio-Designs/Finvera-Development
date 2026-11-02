@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/adminApi";
+import ShrinkImages from "@/components/admin/ShrinkImages";
 
 const LABELS: Record<string, string> = {
   site_name: "Site name",
@@ -84,6 +85,7 @@ export default function AdminSettings() {
         </div>
       ))}
       <button className="adm-btn primary" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
+      <ShrinkImages />
     </>
   );
 }

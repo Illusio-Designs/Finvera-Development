@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api, opsApi } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
 import { dialog } from "@/lib/dialog";
+import ExportButton from "@/components/admin/ExportButton";
 
 export default function AdminContact() {
   const [rows, setRows] = useState<any[]>([]);
@@ -48,6 +49,7 @@ export default function AdminContact() {
     <>
       <div className="adm-top">
         <div><h1>Contact inbox</h1><p>Messages submitted from the website contact form.</p></div>
+        <ExportButton entity="contact" file="contact-inbox" sheet="Contact inbox" label="Export to Excel" />
       </div>
       {error && <div className="adm-msg err">{error}</div>}
       <div className="ops-tabs" role="tablist" aria-label="Messages">
