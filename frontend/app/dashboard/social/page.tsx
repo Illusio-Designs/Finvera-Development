@@ -714,14 +714,23 @@ export default function SocialCalendar() {
   }
 
   /* ── import ── */
+  const [brandPick, setBrandPick] = useState<{ rows: string[][]; value: string; newName: string } | null>(null);
   const [importTeam, setImportTeam] = useState<{ name: string; parsed: Partial<Post>[]; team: Partial<Record<string, number | null>>; busy: boolean } | null>(null);
   async function importCsv(file?: File) {
     if (!file) return;
     let rows: string[][];
     try { rows = /\.xlsx$/i.test(file.name) ? await readXlsx(file) : parseCsv(await file.text()); }
     catch (e: any) { return dialog.alert({ title: "Couldn't read the file", message: e.message || "Save it as .xlsx or .csv and try again." }); }
-    const guess = client || (rows[0]?.find((c) => c.trim()) || "").trim().replace(/\b\w+/g, (w) => w[0] + w.slice(1).toLowerCase());
-    const name = (await dialog.prompt({ title: "Import posts for which brand?", defaultValue: guess, confirmText: "Next" }))?.trim();
+    // Pick the brand from a dropdown (or create a new one) — guessed from the selected tab or the sheet's first cell.
+    const fileWords = file.name.replace(/\.(xlsx|csv)$/i, "").replace(/[_-]+/g, " ");
+    const fromSheet = `${fileWords} ${(rows[0]?.find((c) => c.trim()) || "").trim()}`.toLowerCase();
+    const squash = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const match = clientNames.find((n) => n.toLowerCase() === (client || "").toLowerCase())
+      || clientNames.find((n) => squash(fromSheet).includes(squash(n)));
+    const guessNew = fileWords.replace(/\b(social|media|content|calendar|sheet|posts?)\b.*$/i, "").trim().replace(/\b\w+/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
+    setBrandPick({ rows, value: match || (clientNames.length ? clientNames[0] : "__new"), newName: match ? "" : guessNew });
+  }
+  async function continueImport(rows: string[][], name: string) {
     if (!name) return;
     if (limited && !clientNames.includes(name)) return dialog.alert({ title: "Not one of your brands", message: `You can import only into: ${clientNames.join(", ") || "no brands yet"}.` });
     const parsed = sheetToPosts(rows, name);
@@ -1375,6 +1384,35 @@ export default function SocialCalendar() {
               <div className="cal-pick-f">
                 <button type="button" className="cal-btn" onClick={() => setHandoff(null)}>Cancel</button>
                 <button type="button" className="cal-primary" disabled={h.busy || (!h.chosen && h.kind !== "move")} onClick={confirmHandoff}>{h.busy ? "Saving…" : btn}</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+      {brandPick && (() => {
+        const creating = brandPick.value === "__new";
+        const name = creating ? brandPick.newName.trim() : brandPick.value;
+        const dupe = creating && clientNames.find((n) => n.toLowerCase() === name.toLowerCase());
+        const go = () => { if (!name) return; const rows = brandPick.rows; setBrandPick(null); continueImport(rows, dupe || name); };
+        return (
+          <div className="adm-overlay center" onMouseDown={(e) => { if (e.target === e.currentTarget) setBrandPick(null); }}>
+            <div className="cal-pick" role="dialog" aria-modal="true" aria-label="Import posts for which brand?">
+              <div className="cal-pick-h"><div><h3>Import posts for which brand?</h3><small>Pick a brand, or create a new one for this sheet.</small></div>
+                <button type="button" className="cal-x" onClick={() => setBrandPick(null)} aria-label="Close">×</button></div>
+              <div className="adm-field" style={{ margin: 0 }}><label>Brand</label>
+                <Select value={brandPick.value} ariaLabel="Brand" onChange={(v) => setBrandPick({ ...brandPick, value: v })}
+                  options={[...clientNames.map((n) => ({ value: n, label: n })), ...(!limited ? [{ value: "__new", label: "+ Create a new brand" }] : [])]} />
+              </div>
+              {creating && (
+                <div className="adm-field" style={{ margin: 0 }}><label>New brand name</label>
+                  <input autoFocus value={brandPick.newName} placeholder="e.g. Maharani by Rungta's" onChange={(e) => setBrandPick({ ...brandPick, newName: e.target.value })}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); go(); } }} />
+                  <span className="adm-hint">{dupe ? `${dupe} already exists — the posts go into it.` : "It's added to the brand list with this upload."}</span>
+                </div>
+              )}
+              <div className="cal-pick-f">
+                <button type="button" className="cal-btn" onClick={() => setBrandPick(null)}>Cancel</button>
+                <button type="button" className="cal-primary" disabled={!name} onClick={go}>Next</button>
               </div>
             </div>
           </div>
