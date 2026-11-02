@@ -25,9 +25,14 @@ async function req(path: string, options: RequestInit = {}, auth = true): Promis
   }
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
-  if (!res.ok) throw Object.assign(new Error(data?.message || `Request failed (${res.status})`), { status: res.status });
+  if (!res.ok) throw Object.assign(new Error(data?.message || `Request failed (${res.status})`), { status: res.status, field: data?.field as string | undefined, data });
   return data;
 }
+
+/* An API error carries the HTTP status, the form field it is about (when the
+   backend names one, e.g. "password") and the full JSON body. */
+export type ApiError = Error & { status?: number; field?: string; data?: any };
+export const apiErr = (e: unknown): ApiError => (e instanceof Error ? e : new Error(String(e))) as ApiError;
 
 /* Short-lived memo for reads several components fire on the same page load
    (the shell, the page and its widgets each asked for /auth/me). Shares the
@@ -43,12 +48,84 @@ function shared(key: string, ms: number, run: () => Promise<any>): Promise<any> 
 }
 export const clearApiMemo = () => memo.clear();
 
+/* ── Account & security types (backend: auth + users controllers) ── */
+export type AuthUser = {
+  id: number; name: string; email: string; role: string; roles: string[]; avatar: string | null; title: string | null;
+  socialClients: number[] | null; mustChangePassword: boolean; twoFactorEnabled: boolean; lastLoginAt: string | null;
+};
+export type LoginResult =
+  | { twoFactorRequired?: false; token: string; user: AuthUser; mustChangePassword: boolean; sessionId: number; usedBackupCode?: boolean; backupCodesLeft?: number }
+  | { twoFactorRequired: true; ticket: string; message: string };
+export type UserStatus = "invited" | "active" | "locked" | "deactivated";
+export type AdminUser = {
+  id: number; name: string; email: string; role: string; roles: string[]; active: boolean; avatar: string | null; title: string | null;
+  createdAt: string; socialClients: number[]; status: UserStatus; lastLoginAt: string | null; lastSeenAt: string | null;
+  twoFactorEnabled: boolean; mustChangePassword: boolean; invitedAt: string | null; lockedUntil: string | null;
+};
+export type Session = { id: number; device: string; userAgent: string; ip: string; createdAt: string; lastSeenAt: string; expiresAt: string; current: boolean };
+export type SecEvent = {
+  id: number; type: string; createdAt: string; ip: string | null; device: string | null; email: string | null; meta: Record<string, any>;
+  user: { id: number; name: string | null; email: string | null; avatar?: string | null } | null; actor: { id: number; name: string } | null;
+};
+export type SecPage = { items: SecEvent[]; total: number; page: number; limit: number; pages: number; types: string[] };
+export type LogQuery = { page?: number; limit?: number; type?: string; from?: string; to?: string; userId?: number | string; q?: string };
+export type ShareLink = { link: string; expiresAt: string; emailed: boolean; message: string; kind?: "reset" | "invite"; user?: AdminUser };
+export type InviteBody = { name: string; email: string; roles: string[]; title?: string; avatar?: string; socialClients?: number[]; sendEmail?: boolean };
+
+const qs = (q: Record<string, unknown>) => {
+  const s = new URLSearchParams(Object.entries(q).filter(([, v]) => v !== undefined && v !== null && v !== "").map(([k, v]) => [k, String(v)])).toString();
+  return s ? `?${s}` : "";
+};
+const post = (path: string, body?: unknown, auth = true) =>
+  req(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }, auth);
+
 export const api = {
-  login: (email: string, password: string) => {
+  login: (email: string, password: string): Promise<LoginResult> => {
     memo.clear(); // a different person may be signing in
     return req("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }, false);
   },
+  /* Second sign-in step: 6-digit app code or a backup code (ab12-cd34).
+     Public call, so a 401 ("code didn't work") doesn't sign anyone out. */
+  login2fa: (ticket: string, code: string): Promise<LoginResult> => { memo.clear(); return post("/auth/login/2fa", { ticket, code }, false); },
   me: () => shared("me", 10000, () => req("/auth/me")),
+
+  /* ── Public password links ── */
+  forgotPassword: (email: string): Promise<{ message: string }> => post("/auth/forgot", { email }, false),
+  resetInfo: (token: string): Promise<{ valid: true; kind: "reset" | "invite"; email: string; name: string; expiresAt: string }> =>
+    req(`/auth/reset-info${qs({ token })}`, {}, false),
+  resetPassword: (token: string, password: string): Promise<{ message: string; email: string }> => post("/auth/reset", { token, password }, false),
+
+  /* ── The signed-in user's own account ── */
+  updateMe: (body: { name?: string; email?: string; avatar?: string | null; currentPassword?: string }): Promise<{ user: AuthUser; message: string }> =>
+    req("/auth/me", { method: "PUT", body: JSON.stringify(body) }).finally(() => memo.delete("me")),
+  changePassword: (currentPassword: string, newPassword: string): Promise<{ message: string; sessionsEnded: number }> =>
+    post("/auth/change-password", { currentPassword, newPassword }).finally(() => memo.delete("me")),
+  mySessions: (): Promise<{ sessions: Session[]; currentSessionId: number | null }> => req("/auth/sessions"),
+  revokeMySession: (id: number): Promise<{ message: string; id: number; current: boolean }> => req(`/auth/sessions/${id}`, { method: "DELETE" }),
+  logout: (): Promise<{ message: string }> => post("/auth/logout"),
+  logoutAll: (includeCurrent = false): Promise<{ message: string; count: number }> => post("/auth/logout-all", { includeCurrent }),
+  myActivity: (q: LogQuery = {}): Promise<SecPage> => req(`/auth/activity${qs(q)}`),
+  twoFactorSetup: (): Promise<{ secret: string; otpauthUrl: string; issuer: string; account: string }> => post("/auth/2fa/setup"),
+  twoFactorEnable: (code: string): Promise<{ message: string; backupCodes: string[] }> => post("/auth/2fa/enable", { code }).finally(() => memo.delete("me")),
+  twoFactorDisable: (password: string, code: string): Promise<{ message: string }> => post("/auth/2fa/disable", { password, code }).finally(() => memo.delete("me")),
+  newBackupCodes: (code: string): Promise<{ message: string; backupCodes: string[] }> => post("/auth/2fa/backup-codes", { code }),
+
+  /* ── Team members' accounts (admin only) ── */
+  listAdminUsers: (): Promise<AdminUser[]> => req("/users"),
+  createUser: (body: Record<string, unknown>): Promise<AdminUser> => post("/users", body),
+  updateUser: (id: number, body: Record<string, unknown>): Promise<AdminUser> => req(`/users/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteUser: (id: number): Promise<{ message: string; id: number }> => req(`/users/${id}`, { method: "DELETE" }),
+  inviteUser: (body: InviteBody): Promise<ShareLink & { user: AdminUser }> => post("/users/invite", body),
+  resendInvite: (id: number, sendEmail = true): Promise<ShareLink & { user: AdminUser }> => post(`/users/${id}/resend-invite`, { sendEmail }),
+  userResetLink: (id: number, sendEmail = true): Promise<ShareLink> => post(`/users/${id}/reset-link`, { sendEmail }),
+  requirePasswordChange: (id: number, required = true): Promise<{ message: string; user: AdminUser }> => post(`/users/${id}/require-password-change`, { required }),
+  unlockUser: (id: number): Promise<{ message: string; user: AdminUser }> => post(`/users/${id}/unlock`),
+  resetUser2fa: (id: number): Promise<{ message: string; user: AdminUser }> => post(`/users/${id}/2fa/reset`),
+  userSessions: (id: number): Promise<{ sessions: Session[] }> => req(`/users/${id}/sessions`),
+  revokeUserSession: (id: number, sid: number): Promise<{ message: string; id: number }> => req(`/users/${id}/sessions/${sid}`, { method: "DELETE" }),
+  logoutUserAll: (id: number): Promise<{ message: string; count: number }> => post(`/users/${id}/logout-all`),
+  userActivity: (id: number, q: LogQuery = {}): Promise<SecPage> => req(`/users/${id}/activity${qs(q)}`),
+  securityLog: (q: LogQuery = {}): Promise<SecPage> => req(`/security/log${qs(q)}`),
 
   list: (resource: string) => req(`/${resource}`),
   get: (resource: string, id: string | number) => req(`/${resource}/${id}`),
@@ -218,14 +295,14 @@ export type KpiReport = {
 };
 type Q = Record<string, string | number | boolean | null | undefined>;
 /* Query string from an object, skipping empty values. */
-const qs = (q: Q = {}) => {
+const qsT = (q: Q = {}) => {
   const s = new URLSearchParams(Object.entries(q).filter(([, v]) => v !== "" && v != null && v !== false).map(([k, v]) => [k, String(v)])).toString();
   return s ? `?${s}` : "";
 };
 
 export const trackApi = {
   /* Activity history */
-  activity: (q: Q = {}): Promise<Paged<ActivityRow>> => req(`/activity${qs(q)}`),
+  activity: (q: Q = {}): Promise<Paged<ActivityRow>> => req(`/activity${qsT(q)}`),
   history: (entity: string, id: string | number): Promise<ActivityRow[]> => req(`/activity/${encodeURIComponent(entity)}/${encodeURIComponent(String(id))}`),
 
   /* Lead follow-ups */
@@ -236,8 +313,8 @@ export const trackApi = {
     req(`/leads/follow-ups${mine ? "?mine=1" : ""}`),
 
   /* Export (rows as JSON; lib/xlsxWrite builds the file) */
-  exportRows: (entity: string, q: Q = {}): Promise<ExportData> => req(`/export/${encodeURIComponent(entity)}${qs({ ...q, format: "json" })}`),
-  kpiReport: (month: string): Promise<KpiReport> => req(`/export/kpi-report${qs({ month })}`),
+  exportRows: (entity: string, q: Q = {}): Promise<ExportData> => req(`/export/${encodeURIComponent(entity)}${qsT({ ...q, format: "json" })}`),
+  kpiReport: (month: string): Promise<KpiReport> => req(`/export/kpi-report${qsT({ month })}`),
 
   /* Re-compress images uploaded before compression existed (admin). */
   optimizeImages: (limit = 20): Promise<{ processed: number; savedBytes: number; remaining: number; errors: { name: string; error: string }[] }> =>

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Mark } from "@/components/icons";
-import { getToken, clearToken, api } from "@/lib/adminApi";
+import { getToken, clearToken, clearApiMemo, api } from "@/lib/adminApi";
 import { type Me } from "@/components/admin/UserMenu";
 import JumpTo from "@/components/admin/JumpTo";
 import InstallApp from "@/components/admin/InstallApp";
@@ -102,6 +102,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => { setCollapsed(localStorage.getItem("fv_admin_collapsed") === "1"); }, []);
   useEffect(() => { setToday(new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })); }, []);
   useEffect(() => { if (getToken()) api.me().then((r) => setMe(r?.user ?? r)).catch(() => {}); }, []);
+  /* My account page saved the profile → refresh the name/avatar shown here. */
+  useEffect(() => {
+    const onMe = (e: Event) => setMe((m) => ({ ...(m || {}), ...((e as CustomEvent).detail || {}) }));
+    window.addEventListener("fv-me", onMe);
+    return () => window.removeEventListener("fv-me", onMe);
+  }, []);
   /* Push notifications: start the service worker, keep this device's
      subscription linked to whoever is signed in, and refresh the bell and
      sidebar badges the moment a push arrives while the app is open. */
@@ -122,7 +128,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   /* Team members without the content area get a personal "My work" home. */
   const teamHome = roles.length > 0 && !rolesCan(roles, "content") && rolesCan(roles, "social");
   const labelOf = (it: NavItem) => (it.href === "/dashboard" && teamHome ? "My work" : it.label);
-  const pageTitle = active ? labelOf(active) : "Dashboard";
+  const pageTitle = active ? labelOf(active) : pathname.startsWith("/dashboard/account") ? "My account" : "Dashboard";
   const crumb = NAV_GROUPS.find((g) => g.label && active && g.items.includes(active))?.label;
   const roleText = roles.map((r) => ROLE_LABELS[r] || r).join(" · ");
 
@@ -232,7 +238,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!ready) return <div style={{ minHeight: "100vh", background: "#070910" }} />;
 
   // Signing out stops this device getting the previous person's notifications.
-  const logout = async () => { await disablePush(); clearToken(); router.replace("/login"); };
+  // Ends this session on the server too (errors ignored — we sign out locally either way).
+  const logout = async () => {
+    await disablePush();
+    try { await api.logout(); } catch { /* ignore */ }
+    clearToken(); clearApiMemo(); router.replace("/login");
+  };
 
   const NavLink = ({ it }: { it: NavItem }) => {
     const isActive = it.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(it.href);
@@ -281,14 +292,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         <InstallApp />
         <div className="adm-sidefoot">
-          {me?.avatar
-            // eslint-disable-next-line @next/next/no-img-element
-            ? <img className="adm-sideav" src={me.avatar} alt="" />
-            : <span className="adm-sideav">{(me?.name || "").split(/\s+/).map((w) => w[0] || "").slice(0, 2).join("").toUpperCase()}</span>}
-          <div className="adm-lbl adm-sidewho">
-            <b>{me?.name || "Signed in"}</b>
-            <span>{roleText}</span>
-          </div>
+          <Link href="/dashboard/account" className={"acc-sidelink" + (pathname.startsWith("/dashboard/account") ? " active" : "")}
+            aria-label="My account" data-tip="My account" data-tip-pos="right">
+            {me?.avatar
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img className="adm-sideav" src={me.avatar} alt="" />
+              : <span className="adm-sideav">{(me?.name || "").split(/\s+/).map((w) => w[0] || "").slice(0, 2).join("").toUpperCase()}</span>}
+            <div className="adm-lbl adm-sidewho">
+              <b>{me?.name || "Signed in"}</b>
+              <span>My account · {roleText}</span>
+            </div>
+          </Link>
           <button className="adm-signout" onClick={logout} aria-label="Sign out" data-tip="Sign out" data-tip-pos="right">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" /></svg>
           </button>
