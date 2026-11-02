@@ -6,6 +6,7 @@ import { toast } from "@/lib/toast";
 import { playSound, isSoundOn, setSoundOn } from "@/lib/sound";
 import { pushState, enablePush, disablePush, type PushState } from "@/lib/push";
 import { dialog } from "@/lib/dialog";
+import { visibleInterval } from "@/lib/visibleInterval";
 
 type Notif = { id: number; type: string; title: string; body?: string | null; link?: string | null; isRead: boolean; createdAt: string };
 
@@ -89,13 +90,14 @@ export default function NotificationBell({ announce: _announce = false }: { anno
 
   useEffect(() => {
     setSound(isSoundOn()); load();
-    const t = setInterval(load, 30000);
-    // Catch up straight away when the tab comes back or the layout switches bells.
+    // Polls every 30s only while the tab is visible; catches up straight away
+    // when the tab comes back.
+    const stop = visibleInterval(load, 30000);
+    // Also catch up when the layout switches bells.
     const wake = () => load();
-    document.addEventListener("visibilitychange", wake);
     window.addEventListener("resize", wake);
     window.addEventListener("fv-push", wake); // a push just arrived (from the service worker)
-    return () => { clearInterval(t); document.removeEventListener("visibilitychange", wake); window.removeEventListener("resize", wake); window.removeEventListener("fv-push", wake); };
+    return () => { stop(); window.removeEventListener("resize", wake); window.removeEventListener("fv-push", wake); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const toggleSound = () => { const on = !sound; setSound(on); setSoundOn(on); if (on) playSound("notify"); };

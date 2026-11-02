@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { API_BASE } from "@/lib/adminApi";
+import { visibleInterval } from "@/lib/visibleInterval";
 
 type S = "checking" | "online" | "offline";
 
@@ -22,8 +23,9 @@ export default function BackendStatus({ variant = "pill" }: { variant?: "pill" |
       }
     };
     check();
-    const t = setInterval(check, 30000);
-    return () => { alive = false; clearInterval(t); };
+    // Every 60s, only while the tab is visible (re-checks on return).
+    const stop = visibleInterval(check, 60000);
+    return () => { alive = false; stop(); };
   }, []);
 
   const color = state === "online" ? "#28c840" : state === "offline" ? "#ff5f57" : "#febc2e";
