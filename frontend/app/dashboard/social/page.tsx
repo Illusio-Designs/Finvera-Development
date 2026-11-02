@@ -77,14 +77,23 @@ const CHAIN: Role[] = ["marketer", "graphic", "video", "admin", "social"];
 const roleFor = (status: Stage, _format?: string, step?: string | null): Role =>
   (status === "ready" || status === "posted") ? "social" : status === "approval" ? "admin" : status === "production" ? (step === "video" ? "video" : "graphic") : "marketer";
 /* What "Done" does from here: the next person in the chain. */
-function nextHop(p: Pick<Post, "status" | "step">): { role: Role; patch: { status?: Stage; step?: string } } | null {
-  const r = roleFor(p.status, undefined, p.step);
-  if (p.status === "posted") return null;
-  if (r === "marketer") return { role: "graphic", patch: { status: "production", step: "graphic" } };
-  if (r === "graphic") return { role: "video", patch: { step: "video" } };
-  if (r === "video") return { role: "admin", patch: { status: "approval" } };
-  if (r === "admin") return { role: "social", patch: { status: "ready" } }; // approved → scheduled
-  return null; // Ready to post → posts itself (or Mark as posted)
+/* Where each person's step starts. */
+const STEP_AT: Record<Role, { status: Stage; step?: string }> = {
+  marketer: { status: "planned" }, graphic: { status: "production", step: "graphic" }, video: { status: "production", step: "video" },
+  admin: { status: "approval" }, social: { status: "ready" },
+};
+/* What "Done" does from here: the next step in the chain. Steps nobody was
+   picked for at upload (designer / video editor) are skipped — e.g. a post
+   with no video editor goes from the designer straight to approval. */
+function nextHop(p: Pick<Post, "status" | "step" | "team">): { role: Role; patch: { status?: Stage; step?: string } } | null {
+  if (p.status === "posted" || p.status === "ready") return null; // Ready to post → posts itself (or Mark as posted)
+  const hasTeam = !!p.team && Object.values(p.team).some(Boolean);
+  for (let k = CHAIN.indexOf(roleFor(p.status, undefined, p.step)) + 1; k < CHAIN.length; k++) {
+    const role = CHAIN[k];
+    if (hasTeam && (role === "graphic" || role === "video") && !p.team?.[role]) continue;
+    return { role, patch: STEP_AT[role] };
+  }
+  return null;
 }
 const CLIENT_COLORS = ["#3e60ab", "#0f766e", "#be185d", "#a16207", "#7c5cff", "#0369a1", "#c2410c", "#15803d"];
 const FORMATS = ["Post", "Reel", "Carousel", "Video", "Story", "Influencer Reel"];
@@ -554,6 +563,11 @@ export default function SocialCalendar() {
     if (!handoff) return;
     const { post: p, role, patch, kind, chosen, note } = handoff;
     setHandoff({ ...handoff, busy: true });
+    const ok = await applyHandoff(p, role, patch, kind, chosen, note);
+    if (ok) setHandoff(null); else setHandoff((h) => (h ? { ...h, busy: false } : h));
+  }
+  /* Hand the post over: save stage + person, then tell everyone what happened. */
+  async function applyHandoff(p: Post, role: Role, patch: Partial<Post>, kind: Handoff["kind"], chosen: number | null, note = ""): Promise<boolean> {
     const team = { ...(p.team || {}), [role]: chosen };
     const body: Record<string, unknown> = { ...patch, assigneeId: chosen, team };
     if (kind === "back" && note.trim()) {
@@ -563,13 +577,13 @@ export default function SocialCalendar() {
     try {
       const saved = await api.update("social-posts", p.id, body);
       patchLocal(p.id, { ...(patch as Partial<Post>), team, assigneeId: saved?.assigneeId ?? chosen, step: saved?.step ?? null, ...(body.remarks ? { remarks: body.remarks as string } : {}) });
-      setHandoff(null);
       window.dispatchEvent(new Event("fv-badges"));
       loadPublishing();
       const who = users.find((u) => u.id === chosen);
       const head = kind === "approve" ? "Approved — scheduled" : kind === "back" ? "Sent back for changes" : kind === "move" ? `Moved to ${STAGES.find((x) => x.id === patch.status)?.title || "the next stage"}` : `Sent to ${ROLE_META[role].label}`;
       toast(head, "ok", { description: who ? `“${p.theme}” is now with ${who.name}.` : `“${p.theme}” waits until someone is picked.` });
-    } catch (e: any) { setHandoff((h) => (h ? { ...h, busy: false } : h)); toast("Couldn't hand it over", "err", { description: e.message }); }
+      return true;
+    } catch (e: any) { toast("Couldn't hand it over", "err", { description: e.message }); return false; }
   }
   /* Finished work: upload the final design / video straight onto the post. */
   const [workBusy, setWorkBusy] = useState<number | null>(null);
@@ -591,17 +605,22 @@ export default function SocialCalendar() {
     catch (e: any) { toast("Couldn't remove it", "err", { description: e.message }); }
   }
 
+  /* Done: goes straight to the person picked at upload; asks only when nobody was picked. */
   function advance(p: Post) {
     const hop = nextHop(p);
     if (!hop) return moveTo(p.id, "posted");
-    askHandoff(p, hop.role, hop.patch, p.status === "approval" ? "approve" : "next");
+    const kind = p.status === "approval" ? "approve" : "next";
+    const picked = p.team?.[hop.role];
+    if (picked && users.some((u) => u.id === picked)) { applyHandoff(p, hop.role, hop.patch, kind, picked); return; }
+    askHandoff(p, hop.role, hop.patch, kind);
   }
   const doneLabel = (p: Post) => {
     const hop = nextHop(p);
     if (!hop) return p.status === "ready" ? "Mark as posted" : "";
     if (p.status === "approval") return limited ? "" : "Approve & schedule";
     const picked = users.find((u) => u.id === p.team?.[hop.role]);
-    return `Done → ${picked ? picked.name.split(" ")[0] : ROLE_META[hop.role].label}`;
+    const where = hop.role === "admin" ? "approval" : picked ? picked.name.split(" ")[0] : ROLE_META[hop.role].label;
+    return `Done → ${where}`;
   };
   async function savePost(e: React.FormEvent) {
     e.preventDefault();
@@ -1312,11 +1331,11 @@ export default function SocialCalendar() {
                   <span className="lbl"><b>{ROLE_META[r].label}</b><small>{ROLE_META[r].does}{i === 0 ? " · gets the posts now" : ""}</small></span>
                   <Select value={importTeam.team[r] ? String(importTeam.team[r]) : ""} ariaLabel={ROLE_META[r].label}
                     onChange={(v) => setImportTeam({ ...importTeam, team: { ...importTeam.team, [r]: v ? Number(v) : null } })}
-                    options={[{ value: "", label: "Pick later" }, ...peopleFor(r).map((u) => ({ value: String(u.id), label: u.name }))]} />
+                    options={[{ value: "", label: r === "graphic" || r === "video" ? "Not needed (skip)" : "Pick later" }, ...peopleFor(r).map((u) => ({ value: String(u.id), label: u.name }))]} />
                 </div>
               ))}
             </div>
-            <p className="adm-hint" style={{ margin: 0 }}>People picked here get access to {importTeam.name}. You can change anyone later, and each Done lets you pick someone else.</p>
+            <p className="adm-hint" style={{ margin: 0 }}>Each Done moves the post to the next person here automatically. Leave Graphic designer or Video editor empty to skip that step (e.g. no video editor: design → approval). People picked get access to {importTeam.name}.</p>
             <div className="cal-pick-f">
               <button type="button" className="cal-btn" onClick={() => setImportTeam(null)}>Cancel</button>
               <button type="button" className="cal-primary" disabled={importTeam.busy} onClick={finishImport}>{importTeam.busy ? "Importing…" : `Import ${importTeam.parsed.length} posts`}</button>
