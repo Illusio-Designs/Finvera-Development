@@ -21,7 +21,14 @@ function crudController(Model, options = {}) {
     onUpdate = null,   // async (item, req, before) => {}
     load = null,       // (req) => Promise<item> — reuse a row an earlier middleware already loaded
     publicCache = 0,   // ms to keep signed-out list reads in memory (marketing site); 0 = off
+    entity = null,     // activity-history name (e.g. "lead"); null = not recorded
+    onRemove = null,   // async (item, req) => {} — after a delete
   } = options;
+  const audit = require("./audit");
+  const { pageOf, sortOf, paged } = require("./paginate");
+  const SORTABLE = Object.keys(Model.rawAttributes);
+  // ?fields=list → leave out the heavy long-text body (blog / projects / pages).
+  const LIST_OMIT = ["content"].filter((f) => SORTABLE.includes(f));
 
   const { Op } = require("sequelize");
 
@@ -67,7 +74,17 @@ function crudController(Model, options = {}) {
       if (req.query.q && searchable.length) {
         where[Op.or] = searchable.map((f) => ({ [f]: { [Op.like]: `%${req.query.q}%` } }));
       }
-      const items = await Model.findAll({ where, order });
+      // Opt-in: ?page/&limit → { items, total, page, limit }; ?sort=field|-field;
+      // ?fields=list. Without them the answer is exactly as before.
+      const p = pageOf(req);
+      const sorted = sortOf(req, SORTABLE, order);
+      const attrs = req.query.fields === "list" && LIST_OMIT.length ? { attributes: { exclude: LIST_OMIT } } : {};
+      if (p) {
+        const result = await Model.findAndCountAll({ where, order: sorted, limit: p.limit, offset: p.offset, ...attrs });
+        if (publicCache && !req.user) { const body = JSON.stringify({ items: result.rows, total: result.count, page: p.page, limit: p.limit }); keepPub(req, body); return res.type("json").send(body); }
+        return paged(res, result, p);
+      }
+      const items = await Model.findAll({ where, order: sorted, ...attrs });
       if (publicCache && !req.user) { const body = JSON.stringify(items); keepPub(req, body); return res.type("json").send(body); }
       res.json(items);
     }),
@@ -89,6 +106,7 @@ function crudController(Model, options = {}) {
       if (slugFrom) data.slug = req.body.slug ? await uniqueSlug(req.body.slug) : await uniqueSlug(data[slugFrom]);
       const item = await Model.create(data);
       clearPub();
+      if (entity) audit.record(req, { action: "create", entity, before: null, after: item });
       if (onCreate) { try { await onCreate(item, req); } catch (e) { console.warn("onCreate hook:", e.message); } }
       res.status(201).json(item);
     }),
@@ -104,6 +122,7 @@ function crudController(Model, options = {}) {
       delete data.id;
       await item.update(data);
       clearPub();
+      if (entity) audit.record(req, { action: "update", entity, before, after: item });
       if (onUpdate) { try { await onUpdate(item, req, before); } catch (e) { console.warn("onUpdate hook:", e.message); } }
       res.json(item);
     }),
@@ -113,6 +132,8 @@ function crudController(Model, options = {}) {
       if (!item) return res.status(404).json({ message: `${Model.name} not found.` });
       await item.destroy();
       clearPub();
+      if (entity) audit.record(req, { action: "delete", entity, before: item, after: null });
+      if (onRemove) { try { await onRemove(item, req); } catch (e) { console.warn("onRemove hook:", e.message); } }
       res.json({ message: "Deleted.", id: Number(req.params.id) });
     }),
   };

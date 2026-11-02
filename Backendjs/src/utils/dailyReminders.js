@@ -42,6 +42,8 @@ async function maybeRunDaily() {
     checkedFor = date;
     if (!claimed) return { ran: false };
     const sent = await runDaily(date);
+    // Activity history retention (365 days), once a day with the reminders.
+    require("./audit").purgeOld().catch(() => {});
     console.log(`\x1b[36mℹ Daily reminders ${date}: ${sent} sent\x1b[0m`);
     return { ran: true, sent };
   } catch (e) {
@@ -114,6 +116,10 @@ async function runDaily(today) {
       ? { type: "due", title: `Overdue card: ${ts[0].title}`, body: `Was due ${fmtDate(ts[0].dueDate)}`, link: "/dashboard/kanban", meta: { kind: "card-overdue", day: today } }
       : { type: "due", title: `${ts.length} cards are overdue`, body: list(ts, (t) => `${t.title} (${fmtDate(t.dueDate)})`), link: "/dashboard/kanban", meta: { kind: "card-overdue", day: today } });
   }
+
+  /* ── Lead follow-ups (today / overdue / meeting today) → the lead owner ── */
+  try { rows.push(...(await require("../controllers/leads.controller").reminderRows(today, users, adminIds))); }
+  catch (e) { console.warn("lead follow-up reminders:", e.message); }
 
   await createRows(rows);
   return rows.length;

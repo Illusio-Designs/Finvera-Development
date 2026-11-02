@@ -30,9 +30,24 @@ const submit = asyncHandler(async (req, res) => {
   res.status(201).json({ message: "Thanks! Your message has been received.", id: row.id });
 });
 
-/* Admin: list submissions */
+/* Admin: list submissions. Without params: every submission, newest first
+   (as before). Opt-in: ?q= (name, email, company, project type, message),
+   ?unread=1, ?sort=field|-field, ?page=&limit= → { items, total, page, limit }. */
+const CONTACT_SEARCH = ["name", "email", "company", "projectType", "message", "phone"];
+const contactWhere = (q) => {
+  const { Op } = require("sequelize");
+  const where = {};
+  if (q.q) where[Op.or] = CONTACT_SEARCH.map((f) => ({ [f]: { [Op.like]: `%${String(q.q).slice(0, 100)}%` } }));
+  if (q.unread === "1" || q.unread === "true") where[Op.and] = [{ [Op.or]: [{ isRead: false }, { isRead: null }] }];
+  return where;
+};
 const list = asyncHandler(async (req, res) => {
-  const rows = await ContactSubmission.findAll({ order: [["createdAt", "DESC"]] });
+  const { pageOf, sortOf, paged } = require("../utils/paginate");
+  const order = sortOf(req, Object.keys(ContactSubmission.rawAttributes), [["createdAt", "DESC"]]);
+  const where = contactWhere(req.query);
+  const p = pageOf(req);
+  if (p) return paged(res, await ContactSubmission.findAndCountAll({ where, order, limit: p.limit, offset: p.offset }), p);
+  const rows = await ContactSubmission.findAll({ where, order });
   res.json(rows);
 });
 
@@ -53,4 +68,4 @@ const remove = asyncHandler(async (req, res) => {
   res.json({ message: "Deleted.", id: Number(req.params.id) });
 });
 
-module.exports = { submit, list, setRead, remove };
+module.exports = { submit, list, setRead, remove, contactWhere };

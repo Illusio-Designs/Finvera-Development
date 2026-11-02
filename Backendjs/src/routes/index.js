@@ -14,6 +14,8 @@ const uploadCtrl = require("../controllers/upload.controller");
 const usersCtrl = require("../controllers/users.controller");
 const notifCtrl = require("../controllers/notifications.controller");
 const { notifyRoles, notifyUsers, notifyByName, notifyAdmins, brandUserIds } = require("../utils/notify");
+const audit = require("../utils/audit");                           // activity history
+const leadsCtrl = require("../controllers/leads.controller");     // lead follow-ups / touches
 
 /* JSON arrays can come back as strings on some MySQL setups — coerce. */
 const asArr = (v) => (Array.isArray(v) ? v : (typeof v === "string" && v.trim().startsWith("[") ? (() => { try { return JSON.parse(v); } catch { return []; } })() : []));
@@ -64,26 +66,26 @@ authRouter.post("/2fa/backup-codes", requireAuth, limitMsg(10, 15), authCtrl.two
 router.use("/auth", authRouter);
 
 /* ── Content resources ───────────────────────────────── */
-resource("/projects", Project, { slugFrom: "title", hasStatus: true, searchable: ["title", "category", "blurb"] });
-resource("/services", Service, { slugFrom: "title", hasStatus: true, searchable: ["title", "description"] });
-resource("/testimonials", Testimonial, { hasStatus: true, searchable: ["name", "company", "quote"] });
-resource("/team", TeamMember, { hasStatus: true, searchable: ["name", "role"] });
-resource("/blog", BlogPost, { slugFrom: "title", hasStatus: true, order: [["publishedAt", "DESC"], ["createdAt", "DESC"]], searchable: ["title", "excerpt", "category"] });
-resource("/pages", Page, { slugFrom: "title", hasStatus: true, order: [["title", "ASC"]], searchable: ["title", "slug"] });
+resource("/projects", Project, { entity: "project", slugFrom: "title", hasStatus: true, searchable: ["title", "category", "blurb"] });
+resource("/services", Service, { entity: "service", slugFrom: "title", hasStatus: true, searchable: ["title", "description"] });
+resource("/testimonials", Testimonial, { entity: "testimonial", hasStatus: true, searchable: ["name", "company", "quote"] });
+resource("/team", TeamMember, { entity: "team-member", hasStatus: true, searchable: ["name", "role"] });
+resource("/blog", BlogPost, { entity: "blog", slugFrom: "title", hasStatus: true, order: [["publishedAt", "DESC"], ["createdAt", "DESC"]], searchable: ["title", "excerpt", "category"] });
+resource("/pages", Page, { entity: "page", slugFrom: "title", hasStatus: true, order: [["title", "ASC"]], searchable: ["title", "slug"] });
 
 /* ── Editable content collections (public read, auth write) ─ */
 const CONTENT_ORDER = [["position", "ASC"], ["createdAt", "ASC"]];
-resource("/faqs", Faq, { hasStatus: true, order: CONTENT_ORDER, searchable: ["question", "answer"] });
-resource("/values", Value, { hasStatus: true, order: CONTENT_ORDER, searchable: ["title", "description"] });
-resource("/brands", Brand, { hasStatus: true, order: CONTENT_ORDER, searchable: ["name", "category"] });
-resource("/milestones", Milestone, { hasStatus: true, order: CONTENT_ORDER, searchable: ["year", "title"] });
-resource("/process-steps", ProcessStep, { hasStatus: true, order: CONTENT_ORDER, searchable: ["title"] });
-resource("/stats", Stat, { hasStatus: true, order: CONTENT_ORDER, searchable: ["label"] });
-resource("/logos", Logo, { hasStatus: true, order: CONTENT_ORDER, searchable: ["name"] });
-resource("/features", Feature, { hasStatus: true, order: CONTENT_ORDER, searchable: ["title"] });
+resource("/faqs", Faq, { entity: "faq", hasStatus: true, order: CONTENT_ORDER, searchable: ["question", "answer"] });
+resource("/values", Value, { entity: "value", hasStatus: true, order: CONTENT_ORDER, searchable: ["title", "description"] });
+resource("/brands", Brand, { entity: "brand", hasStatus: true, order: CONTENT_ORDER, searchable: ["name", "category"] });
+resource("/milestones", Milestone, { entity: "milestone", hasStatus: true, order: CONTENT_ORDER, searchable: ["year", "title"] });
+resource("/process-steps", ProcessStep, { entity: "process-step", hasStatus: true, order: CONTENT_ORDER, searchable: ["title"] });
+resource("/stats", Stat, { entity: "stat", hasStatus: true, order: CONTENT_ORDER, searchable: ["label"] });
+resource("/logos", Logo, { entity: "logo", hasStatus: true, order: CONTENT_ORDER, searchable: ["name"] });
+resource("/features", Feature, { entity: "feature", hasStatus: true, order: CONTENT_ORDER, searchable: ["title"] });
 
 /* ── Kanban boards (all endpoints require auth) ──────── */
-const boardCtrl = crudController(Board, { order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["name"] });
+const boardCtrl = crudController(Board, { entity: "board", order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["name"] });
 const boardRouter = express.Router();
 const canBoard = [requireAuth, requireArea("board")];
 boardRouter.get("/", ...canBoard, boardCtrl.list);
@@ -96,6 +98,7 @@ router.use("/boards", boardRouter);
 
 /* ── Kanban tasks + comments (all require auth) ──────── */
 const taskCtrl = crudController(Task, {
+  entity: "task",
   order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["title", "assignee", "label"],
   onCreate: async (t, req) => {
     await notifyUsers(asArr(t.memberIds), { type: "assigned", title: `You were assigned: ${t.title}`, link: "/dashboard/kanban", meta: { taskId: t.id } }, req.user?.id);
@@ -137,6 +140,8 @@ router.delete("/comments/:id", ...canBoard, tasksCustom.deleteComment);
 
 /* ── Leads (private BD pipeline — auth on every endpoint) ─ */
 const leadCtrl = crudController(Lead, {
+  entity: "lead",
+  onRemove: (lead) => leadsCtrl.forgetLead(lead.id), // its touches go with it
   order: [["position", "ASC"], ["createdAt", "DESC"]], searchable: ["name", "company", "email", "source", "owner"],
   onCreate: async (lead, req) => {
     await notifyRoles(["leads"], { type: "lead", title: `New lead: ${lead.name}`, body: lead.company || undefined, link: "/dashboard/leads", meta: { leadId: lead.id } }, req.user?.id);
@@ -149,6 +154,10 @@ const leadCtrl = crudController(Lead, {
 const leadRouter = express.Router();
 const canLeads = [requireAuth, requireArea("leads")];
 leadRouter.get("/", ...canLeads, leadCtrl.list);
+// Follow-ups: dashboard widget + touches log (before "/:id").
+leadRouter.get("/follow-ups", ...canLeads, leadsCtrl.followUps);
+leadRouter.get("/:id/touches", ...canLeads, leadsCtrl.touches);
+leadRouter.post("/:id/touch", ...canLeads, leadsCtrl.touch);
 leadRouter.get("/:id", ...canLeads, leadCtrl.getOne);
 leadRouter.post("/", ...canLeads, leadCtrl.create);
 leadRouter.put("/:id", ...canLeads, leadCtrl.update);
@@ -158,6 +167,7 @@ router.use("/leads", leadRouter);
 
 /* ── Renewals (maintenance invoices — auth on every endpoint) ─ */
 const renewalCtrl = crudController(Renewal, {
+  entity: "renewal",
   order: [["renewalDate", "ASC"], ["position", "ASC"], ["createdAt", "DESC"]],
   searchable: ["client", "project", "owner", "email"],
   onCreate: async (rec, req) => {
@@ -197,17 +207,21 @@ renewalRouter.post("/:id/renew", ...canRenewals, async (req, res) => {
   const remark = String(req.body?.remark || "").trim().slice(0, 1000);
   const from = rec.renewalDate ? String(rec.renewalDate).slice(0, 10) : todayIstIso();
   const next = addMonthsIso(from, CYCLE_MONTHS[rec.cycle] || 12);
+  const before = rec.toJSON();
   await rec.update({
     renewalDate: next, lastInvoiced: todayIstIso(), status: "active",
     notes: logRemark(rec, `Renewed till ${fmtIn(next)} · ${req.user?.name || "someone"}`, remark),
   });
+  audit.record(req, { action: "other", entity: "renewal", before, after: rec, diffOpts: { skip: ["notes"] }, summary: `Renewed till ${fmtIn(next)}${remark ? ` — ${remark}` : ""}` });
   res.json(rec);
 });
 renewalRouter.post("/:id/terminate", ...canRenewals, async (req, res) => {
   const rec = await Renewal.findByPk(req.params.id);
   if (!rec) return res.status(404).json({ message: "Renewal not found." });
   const remark = String(req.body?.remark || "").trim().slice(0, 1000);
+  const before = rec.toJSON();
   await rec.update({ status: "cancelled", notes: logRemark(rec, `Terminated · ${req.user?.name || "someone"}`, remark) });
+  audit.record(req, { action: "other", entity: "renewal", before, after: rec, diffOpts: { skip: ["notes"] }, summary: `Terminated${remark ? ` — ${remark}` : ""}` });
   res.json(rec);
 });
 router.use("/renewals", renewalRouter);
@@ -222,6 +236,7 @@ const kpiCtrl = require("../controllers/kpi.controller");
 // Bulk changes to posts (imports, deletes) → clear the KPI cache once they succeed.
 const kpiBump = (_req, res, next) => { res.on("finish", () => { if (res.statusCode < 400) kpiCtrl.bumpKpiCache(); }); next(); };
 const socialClientCtrl = crudController(SocialClient, {
+  entity: "social-client",
   order: [["position", "ASC"], ["name", "ASC"]], searchable: ["name"],
   onCreate: async (b, req) => {
     await notifyAdmins({ type: "info", title: `New brand added: ${b.name}`, body: `Content calendar · by ${req.user?.name || "someone"}`, link: "/dashboard/social" }, req.user?.id);
@@ -239,6 +254,7 @@ router.use("/social-clients", socialClientRouter);
 
 const socialAssigned = (p) => ({ type: "assigned", title: p.status === "approval" ? `Approval needed: ${p.theme}` : `Social post assigned to you: ${p.theme}`, body: p.client, link: "/dashboard/social", meta: { socialPostId: p.id } });
 const socialPostCtrl = crudController(SocialPost, {
+  entity: "social-post",
   order: [["postDate", "ASC"], ["postTime", "ASC"], ["position", "ASC"]],
   searchable: ["client", "theme", "topic", "caption", "festive"],
   load: social.postOf, // the guards already loaded it — don't read it a second/third time
@@ -286,8 +302,10 @@ const socialPostRouter = express.Router();
 socialPostRouter.get("/", ...canSocial, social.listPosts(socialPostCtrl.list));
 // Sheet uploads (admin): list batches, delete one batch, or clear a brand.
 socialPostRouter.get("/uploads", ...canSocial, social.requireAllBrands, social.listUploads);
-socialPostRouter.delete("/uploads/:batch", ...canSocial, social.requireAllBrands, kpiBump, social.deleteUpload);
-socialPostRouter.post("/delete-brand", ...canSocial, social.requireAllBrands, kpiBump, social.deleteBrandPosts);
+socialPostRouter.delete("/uploads/:batch", ...canSocial, social.requireAllBrands, kpiBump,
+  audit.track("social-post", { action: "delete", idFrom: () => null, label: (_r, req) => `Sheet upload ${req.params.batch}`, summary: (_req, b) => `Deleted a sheet upload (${b?.deleted ?? 0} posts)` }), social.deleteUpload);
+socialPostRouter.post("/delete-brand", ...canSocial, social.requireAllBrands, kpiBump,
+  audit.track("social-post", { action: "delete", idFrom: () => null, label: (_r, req) => req.body?.client, summary: (req, b) => `Deleted every post of ${req.body?.client} (${b?.deleted ?? 0})` }), social.deleteBrandPosts);
 socialPostRouter.get("/:id", ...canSocial, social.guardPost, socialPostCtrl.getOne);
 socialPostRouter.post("/", ...canSocial, social.guardBody, social.deadlineDefaults, social.assignOnCreate, socialPostCtrl.create);
 // Bulk import (rows parsed from a client's media-calendar sheet).
@@ -308,6 +326,8 @@ socialPostRouter.post("/bulk", ...canSocial, social.guardBody, kpiBump, async (r
     }
     const result = await social.importRows(clean); // { created, updated, batch }
     res.status(201).json(result);
+    audit.record(req, { action: "other", entity: "social-post", entityId: null, entityLabel: brands.join(", ").slice(0, 250), changes: null,
+      summary: `Sheet upload: ${result.created ?? 0} new, ${result.updated ?? 0} updated` });
     // One alert per brand for the whole upload, to everyone on that brand.
     for (const name of brands) {
       const rowsOf = clean.filter((r) => r.client === name);
@@ -353,15 +373,22 @@ router.post("/social-media/upload", ...canSocial, pub.mediaUpload.array("files",
 router.get("/social-kpis", ...canSocial, kpiCtrl.kpis);
 
 /* ── Users ───────────────────────────────────────────── */
+// Activity history for user changes (roles, brands, active …); the password
+// is only ever noted as "(changed)". Runs around the handler, untouched.
+const auditUser = audit.track("user", {
+  load: (req, body) => { const id = req.params.id || body?.id; return id ? require("../models").User.findByPk(id, { attributes: { exclude: ["password"] } }) : null; },
+  label: (u) => u?.name,
+  summary: (req) => (req.method === "PUT" && req.body?.password ? "Password changed" : undefined),
+});
 const usersRouter = express.Router();
 // Minimal member directory for assignment pickers — any signed-in user.
 usersRouter.get("/assignable", requireAuth, usersCtrl.assignable);
 // Full user management — admin only.
 usersRouter.get("/", requireAuth, requireRole("admin"), usersCtrl.list);
-usersRouter.post("/", requireAuth, requireRole("admin"), usersCtrl.create);
+usersRouter.post("/", requireAuth, requireRole("admin"), auditUser, usersCtrl.create);
 usersRouter.post("/invite", requireAuth, requireRole("admin"), usersCtrl.invite);
-usersRouter.put("/:id", requireAuth, requireRole("admin"), usersCtrl.update);
-usersRouter.delete("/:id", requireAuth, requireRole("admin"), usersCtrl.remove);
+usersRouter.put("/:id", requireAuth, requireRole("admin"), auditUser, usersCtrl.update);
+usersRouter.delete("/:id", requireAuth, requireRole("admin"), auditUser, usersCtrl.remove);
 // Account security actions — admin only.
 const isAdmin = [requireAuth, requireRole("admin")];
 usersRouter.post("/:id/reset-link", ...isAdmin, usersCtrl.resetLink);
@@ -405,28 +432,53 @@ const canContact = [requireAuth, requireArea("contact")];
 contactRouter.post("/", contactLimiter, contactCtrl.submit);   // public website form
 contactRouter.get("/", ...canContact, contactCtrl.list);
 contactRouter.patch("/:id/read", ...canContact, contactCtrl.setRead);
-contactRouter.delete("/:id", ...canContact, contactCtrl.remove);
+contactRouter.delete("/:id", ...canContact, audit.track("contact", { load: (req) => require("../models").ContactSubmission.findByPk(req.params.id), label: (m) => m?.name }), contactCtrl.remove);
 router.use("/contact", contactRouter);
 
 /* ── SEO ─────────────────────────────────────────────── */
 const seoRouter = express.Router();
 seoRouter.get("/", settingsCtrl.listSeo);
 seoRouter.get("/:page", settingsCtrl.getSeo);
-seoRouter.put("/:page", requireAuth, requireArea("seo"), settingsCtrl.upsertSeo);
+seoRouter.put("/:page", requireAuth, requireArea("seo"),
+  audit.track("seo", { load: (req) => require("../models").Seo.findOne({ where: { page: req.params.page } }), idFrom: (req) => req.params.page, label: (_r, req) => req.params.page }),
+  settingsCtrl.upsertSeo);
 router.use("/seo", seoRouter);
 
 /* ── Settings (analytics / pixels / brand) ───────────── */
+// One history row per save: { key: [old, new] } for the keys that changed
+// (values of secret-looking keys are never stored).
+const auditSettings = audit.track("setting", {
+  action: "update",
+  load: async (req) => {
+    const keys = (Array.isArray(req.body) ? req.body.map((e) => e && e.key) : Object.keys(req.body || {})).filter(Boolean).map(String).slice(0, 200);
+    if (!keys.length) return {};
+    const rows = await require("../models").Setting.findAll({ where: { key: keys }, attributes: ["key", "value"], raw: true });
+    return Object.fromEntries(keys.map((k) => [k, rows.find((r) => r.key === k)?.value ?? null]));
+  },
+  idFrom: () => "settings", label: () => "Site settings",
+});
 const settingsRouter = express.Router();
 settingsRouter.get("/", optionalAuth, settingsCtrl.getSettings);       // flat { key: value } — public (pixels)
 settingsRouter.get("/all", requireAuth, requireArea("settings"), settingsCtrl.getSettingsDetailed);
-settingsRouter.put("/", requireAuth, requireArea("settings"), settingsCtrl.updateSettings);
+settingsRouter.put("/", requireAuth, requireArea("settings"), auditSettings, settingsCtrl.updateSettings);
 router.use("/settings", settingsRouter);
 
 /* ── Uploads ─────────────────────────────────────────── */
 const uploadRouter = express.Router();
 uploadRouter.post("/", requireAuth, upload.single("file"), uploadCtrl.uploadOne);
 uploadRouter.post("/many", requireAuth, upload.array("files", 12), uploadCtrl.uploadMany);
+uploadRouter.post("/optimize-existing", requireAuth, requireRole("admin"), uploadCtrl.optimizeExisting); // older images, a batch per call
 router.use("/uploads", uploadRouter);
+
+/* ── Activity history (audit log) ────────────────────── */
+const activityCtrl = require("../controllers/activity.controller");
+router.get("/activity", requireAuth, requireRole("admin"), activityCtrl.list);
+router.get("/activity/:entity/:id", requireAuth, activityCtrl.forItem);
+
+/* ── Export (flat JSON rows; the dashboard builds the .xlsx) ── */
+const exportCtrl = require("../controllers/export.controller");
+router.get("/export/kpi-report", ...canSocial, exportCtrl.kpiReport);
+router.get("/export/:entity", requireAuth, exportCtrl.scopeIfSocial, exportCtrl.exportEntity);
 
 /* ── Daily reminders wake-up (pinged by a scheduled GitHub workflow at
    10:16 AM IST; safe to call any time — it only runs once per day, after

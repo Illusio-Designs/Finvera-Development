@@ -23,6 +23,8 @@ const WANTED = [
   { table: "security_events", name: "idx_security_events_createdAt", columns: ["createdAt"] },
   { table: "security_events", name: "idx_security_events_type_createdAt", columns: ["type", "createdAt"] },
   { table: "auth_tokens", name: "idx_auth_tokens_userId_kind", columns: ["userId", "kind"] },
+  // Lead follow-ups (today / overdue / this week widget + daily reminder).
+  { table: "leads", name: "idx_leads_nextFollowUpAt", columns: ["nextFollowUpAt"] },
 ];
 
 module.exports = async function ensureIndexes(sequelize) {

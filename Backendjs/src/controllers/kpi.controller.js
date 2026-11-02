@@ -52,6 +52,15 @@ const pct = (a, b) => (b ? Math.round((100 * a) / b) : null);
 
 function periodOf(kind, today) {
   const t = new Date(today + "T00:00:00Z");
+  // A calendar month, "YYYY-MM" (the KPI report export): to its last day, or today for the running month.
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(kind)) {
+    const [y, m] = kind.split("-").map(Number);
+    const from = `${kind}-01`;
+    const end = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+    const prevFrom = new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 10);
+    const label = new Date(from + "T00:00:00Z").toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
+    return { kind: "month", month: kind, from, to: end < today ? end : today, prevFrom, prevTo: addDays(from, -1), label };
+  }
   if (kind === "week") {
     const from = addDays(today, -((t.getUTCDay() + 6) % 7)); // Monday
     return { kind, from, to: today, prevFrom: addDays(from, -7), prevTo: addDays(from, -1), label: "This week" };
