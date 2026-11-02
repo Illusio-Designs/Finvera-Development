@@ -55,17 +55,19 @@ const today = asyncHandler(async (req, res) => {
   const soon = addDays(todayIso, 2); // 48 h ahead, by date; exact time checked below
 
   const canRenewals = rolesCan(roles, "renewals");
-  const [posts, jobs, renewals, kpi] = await Promise.all([
-    // Everything still open up to two days ahead (overdue + at risk), anything
-    // in approval, and the whole of this week.
+  const [posts, overdueCount, jobs, renewals, kpi] = await Promise.all([
+    // Anything in approval, this whole week, and everything up to two days
+    // ahead (at risk). Overdue posts (go-live passed, any age) are only
+    // counted — loading them all made this the slowest part of the page.
     SocialPost.findAll({
       where: { ...brandWhere, [Op.or]: [
-        { status: { [Op.ne]: "posted" }, postDate: { [Op.lte]: soon > sunday ? soon : sunday } },
         { status: "approval" },
-        { postDate: { [Op.between]: [monday, sunday] } },
+        { postDate: { [Op.between]: [monday < todayIso ? monday : todayIso, soon > sunday ? soon : sunday] } },
       ] },
       attributes: POST_ATTRS,
+      raw: true,
     }),
+    SocialPost.count({ where: { ...brandWhere, status: { [Op.ne]: "posted" }, postDate: { [Op.lt]: todayIso } } }),
     SocialPublishJob.findAll({
       where: { ...brandWhere, status: { [Op.in]: ["failed", "check", "missed"] } },
       attributes: ["id", "postId", "client", "platform", "status", "error", "runAt", "updatedAt"],
@@ -90,7 +92,7 @@ const today = asyncHandler(async (req, res) => {
   const thisWeek = posts.filter((p) => { const d = day(p.postDate); return d >= monday && d <= sunday; });
   const isReady = (p) => p.status === "ready" || p.status === "posted";
   const counts = {
-    overdue: open.filter((p) => p.postDate && day(p.postDate) < todayIso).length,
+    overdue: overdueCount,
     approvals: posts.filter((p) => p.status === "approval").length,
     goingLiveWeek: thisWeek.length,
     scheduledWeek: thisWeek.filter(isReady).length,

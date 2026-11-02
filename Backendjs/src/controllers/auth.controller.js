@@ -34,7 +34,7 @@ const login = asyncHandler(async (req, res) => {
 });
 
 const me = asyncHandler(async (req, res) => {
-  const u = await User.findByPk(req.user.id);
+  const u = req.userRow || await User.findByPk(req.user.id); // requireAuth already loaded it
   if (!u || !u.active) return res.status(401).json({ message: "Invalid or inactive account." });
   res.json({ user: publicUser(u) });
 });

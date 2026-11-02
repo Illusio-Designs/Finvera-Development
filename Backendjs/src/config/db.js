@@ -13,7 +13,16 @@ const sequelize = new Sequelize(
       charset: "utf8mb4",
       collate: "utf8mb4_unicode_ci",
     },
-    pool: { max: 10, min: 0, acquire: 30000, idle: 10000 },
+    // Shared hosting caps connections per MySQL user (often ~15–25) and
+    // Passenger can run several app processes, each with its own pool —
+    // tune with DB_POOL_MAX. Idle connections are kept 30 s (was 10 s) so an
+    // admin clicking around doesn't pay a fresh MySQL connect on most requests.
+    pool: {
+      max: Number(process.env.DB_POOL_MAX || 10),
+      min: 0,
+      acquire: 30000,
+      idle: Number(process.env.DB_POOL_IDLE_MS || 30000),
+    },
   }
 );
 

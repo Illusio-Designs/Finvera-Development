@@ -21,15 +21,16 @@ async function badges(req, res) {
 
 async function count(req, out) {
   const roles = (req.user && req.user.roles) || [];
+  const jobs = [];
   const safe = async (key, fn) => { try { out[key] = Number(await fn()) || 0; } catch (e) { console.warn(`badges.${key}:`, e.message); } };
 
   if (rolesCan(roles, "social")) {
     let scope = null; // null → every post (admin)
     try {
-      const user = await User.findByPk(req.user.id);
+      const user = req.userRow || await User.findByPk(req.user.id);
       const ids = brandIdsOf(user || { roles: rolesOf(req.user), role: req.user.role });
       if (ids) {
-        const names = ids.length ? (await SocialClient.findAll({ attributes: ["name"], where: { id: ids } })).map((c) => c.name) : [];
+        const names = ids.length ? await require("./social.controller").brandNames(ids) : []; // cached briefly
         scope = { assigneeId: req.user.id, client: names };
       }
     } catch (e) {
@@ -38,13 +39,14 @@ async function count(req, out) {
     }
     if (scope !== false && !(scope && !scope.client.length)) {
       const mine = scope || {};
-      await safe("socialOverdue", () => SocialPost.count({ where: { ...mine, status: { [Op.ne]: "posted" }, postDate: { [Op.lt]: todayIST() } } }));
-      await safe("approvals", () => SocialPost.count({ where: { ...mine, status: "approval" } }));
+      jobs.push(safe("socialOverdue", () => SocialPost.count({ where: { ...mine, status: { [Op.ne]: "posted" }, postDate: { [Op.lt]: todayIST() } } })));
+      jobs.push(safe("approvals", () => SocialPost.count({ where: { ...mine, status: "approval" } })));
     }
   }
   if (rolesCan(roles, "contact")) {
-    await safe("inboxUnread", () => ContactSubmission.count({ where: { [Op.or]: [{ isRead: false }, { isRead: null }] } }));
+    jobs.push(safe("inboxUnread", () => ContactSubmission.count({ where: { [Op.or]: [{ isRead: false }, { isRead: null }] } })));
   }
+  await Promise.all(jobs); // the counts run side by side
 }
 
 module.exports = { badges, todayIST };

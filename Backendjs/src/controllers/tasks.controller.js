@@ -7,11 +7,37 @@ const asArr = (v) => (Array.isArray(v) ? v : (typeof v === "string" && v.trim().
 const authorSafe = (u) => (u ? { id: u.id, name: u.name, avatar: u.avatar } : null);
 
 /* List cards, optionally scoped to a board via ?boardId= */
+/* ?fields=summary → only { id, boardId, column, completed, memberIds } — what
+   the boards overview needs for its counts and member avatars, without every
+   card's description / checklist / attachments. */
+const SUMMARY = ["id", "boardId", "column", "completed", "memberIds"];
 const list = asyncHandler(async (req, res) => {
   const where = {};
   if (req.query.boardId) where.boardId = req.query.boardId;
-  const tasks = await Task.findAll({ where, order: [["position", "ASC"], ["createdAt", "ASC"]] });
+  const summary = req.query.fields === "summary";
+  const tasks = await Task.findAll({
+    where, order: [["position", "ASC"], ["createdAt", "ASC"]],
+    ...(summary ? { attributes: SUMMARY, raw: true } : {}),
+  });
+  if (summary) for (const t of tasks) t.completed = !!t.completed;
   res.json(tasks);
+});
+
+/* POST /tasks/reorder { column, ids: [taskId, …] } — one column's new card
+   order after a drag, in a single UPDATE (it used to be one PATCH per card).
+   Only position (and column, so a card dropped here is placed in it) is
+   written; the moved card's own PATCH carries notifications as before. */
+const reorder = asyncHandler(async (req, res) => {
+  const column = String(req.body?.column || "");
+  const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number).filter((n) => Number.isInteger(n) && n > 0).slice(0, 2000);
+  if (!column || !ids.length) return res.status(400).json({ message: "Send the column and the card ids in order." });
+  const { sequelize } = require("../models");
+  const cases = ids.map((id, i) => `WHEN ${id} THEN ${i}`).join(" ");
+  await sequelize.query(
+    `UPDATE \`tasks\` SET \`position\` = CASE \`id\` ${cases} END, \`column\` = ?, \`updatedAt\` = NOW() WHERE \`id\` IN (${ids.join(",")})`,
+    { replacements: [column] },
+  );
+  res.json({ ok: true, column, count: ids.length });
 });
 
 /* Comments for a card (newest last), with author name + avatar */
@@ -48,4 +74,4 @@ const deleteComment = asyncHandler(async (req, res) => {
   res.json({ message: "Deleted.", id: Number(req.params.id) });
 });
 
-module.exports = { list, listComments, addComment, deleteComment };
+module.exports = { list, reorder, listComments, addComment, deleteComment };

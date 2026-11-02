@@ -26,7 +26,18 @@ const STAGE_NAMES = { planned: "Planned", client: "Need from client", production
 const TEAM_ROLES = ["social", "marketer", "graphic", "video"];
 const IST = 330 * 60000;
 
-const istDay = (d) => new Date(new Date(d).getTime() + IST).toISOString().slice(0, 10);
+/* India-time calendar day of a timestamp. Called for every stage move and
+   every time-log entry (tens of thousands per KPI run), so the string for
+   each day number is built once and reused. */
+const DAY_MS = 86400000;
+const dayStr = new Map(); // day number → "YYYY-MM-DD"
+const istDay = (d) => {
+  const t = (d instanceof Date ? d.getTime() : typeof d === "number" ? d : new Date(d).getTime()) + IST;
+  const n = Math.floor(t / DAY_MS);
+  let s = dayStr.get(n);
+  if (s === undefined) { s = new Date(n * DAY_MS).toISOString().slice(0, 10); if (dayStr.size > 20000) dayStr.clear(); dayStr.set(n, s); }
+  return s;
+};
 const todayIst = () => istDay(Date.now());
 const addDays = (iso, n) => { const d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const day = (v) => (v ? String(v).slice(0, 10) : "");
@@ -197,6 +208,9 @@ const kpis = asyncHandler(async (req, res) => {
   res.json(await getKpis({ period: req.query.period, brand: req.query.brand, scope: req.socialScope, userId: req.user.id }));
 });
 
+const KPI_POST_ATTRS = ["id", "client", "status", "postDate", "dueDate", "assigneeId", "theme", "format", "estimateHours", "timeLog"];
+const KPI_EVENT_ATTRS = ["id", "postId", "client", "format", "fromStatus", "toStatus", "fromAssigneeId", "postDate", "at"];
+
 async function computeKpis({ period, brand, scope, userId }) {
   await backfillOnce();
   const today = todayIst();
@@ -209,9 +223,12 @@ async function computeKpis({ period, brand, scope, userId }) {
   const weeks = weekBuckets(today, P.kind === "quarter" ? 12 : 8);
   const historyFrom = [P.prevFrom, weeks[0].from].sort()[0];
 
+  // Only the columns used below, as plain rows: the posts' captions, briefs
+  // and media made this the heaviest read in the app, and it reruns after
+  // every stage change (bumpKpiCache).
   const [posts, events, users, firstEvent] = await Promise.all([
-    SocialPost.findAll({ where: brandWhere }),
-    SocialPostEvent.findAll({ where: { ...brandWhere, at: { [Op.gte]: startUtc(addDays(historyFrom, -120)) } }, order: [["at", "ASC"]] }),
+    SocialPost.findAll({ where: brandWhere, attributes: KPI_POST_ATTRS, raw: true }),
+    SocialPostEvent.findAll({ where: { ...brandWhere, at: { [Op.gte]: startUtc(addDays(historyFrom, -120)) } }, attributes: KPI_EVENT_ATTRS, order: [["at", "ASC"]], raw: true }),
     User.findAll({ where: { active: true } }),
     SocialPostEvent.min("at", { where: { byUserId: { [Op.ne]: null } } }), // first real (not caught-up) move
   ]);
@@ -244,11 +261,32 @@ async function computeKpis({ period, brand, scope, userId }) {
     logs.push({ userId: Number(l.userId), postId: p.id, client: p.client, minutes: Number(l.minutes) || 0, day: istDay(l.at), est: Number(p.estimateHours) || 0 });
   }
 
-  function statsFor(filterUser) {
-    const del = delivered.filter((m) => inRange(m.day, P.from, P.to) && filterUser(m.who));
-    const prev = delivered.filter((m) => inRange(m.day, P.prevFrom, P.prevTo) && filterUser(m.who));
+  // Grouped once by person (in event order) so each person's numbers scan
+  // only their own moves / time logs instead of the whole history again.
+  const groupBy = (list, keyOf) => { const m = new Map(); for (const x of list) { const k = keyOf(x); if (!m.has(k)) m.set(k, []); m.get(k).push(x); } return m; };
+  const deliveredBy = groupBy(delivered, (m) => Number(m.who));
+  const logsBy = groupBy(logs, (l) => l.userId);
+  const logMinutes = new Map(); // "postId|userId" → minutes
+  for (const l of logs) { const k = `${l.postId}|${l.userId}`; logMinutes.set(k, (logMinutes.get(k) || 0) + l.minutes); }
+  const weekStart = Date.parse(weeks[0].from + "T00:00:00Z");
+  const weekIdx = new Map();
+  const weekOf = (d) => {
+    let i = weekIdx.get(d);
+    if (i === undefined) { i = Math.floor((Date.parse(d + "T00:00:00Z") - weekStart) / (7 * 86400000)); if (!(i >= 0 && i < weeks.length)) i = -1; weekIdx.set(d, i); }
+    return i;
+  };
+
+  function statsFor(filterUser, moves = delivered, logList = logs) {
+    const del = moves.filter((m) => inRange(m.day, P.from, P.to) && filterUser(m.who));
+    const prev = moves.filter((m) => inRange(m.day, P.prevFrom, P.prevTo) && filterUser(m.who));
     const stageDays = del.filter((m) => m.days != null).map((m) => m.days);
-    const myLogs = logs.filter((l) => inRange(l.day, P.from, P.to) && filterUser(l.userId));
+    const myLogs = logList.filter((l) => inRange(l.day, P.from, P.to) && filterUser(l.userId));
+    const wk = weeks.map((w) => ({ label: w.label, onTime: 0, late: 0 }));
+    for (const m of moves) {
+      if (!filterUser(m.who)) continue;
+      const i = weekOf(m.day);
+      if (i >= 0) { if (m.onTime) wk[i].onTime++; else wk[i].late++; }
+    }
     const minutes = myLogs.reduce((s, l) => s + l.minutes, 0);
     const estPosts = new Map(myLogs.map((l) => [`${l.userId}|${l.postId}`, l.est]));
     const est = [...estPosts.values()].reduce((s, v) => s + v, 0);
@@ -257,10 +295,7 @@ async function computeKpis({ period, brand, scope, userId }) {
       onTime: pct(del.filter((m) => m.onTime).length, del.length), onTimePrev: pct(prev.filter((m) => m.onTime).length, prev.length),
       avgStageDays: stageDays.length ? round1(stageDays.reduce((a, b) => a + b, 0) / stageDays.length) : null,
       hours: round1(minutes / 60), estHours: est ? round1(est) : null,
-      weeks: weeks.map((w) => {
-        const ws = delivered.filter((m) => inRange(m.day, w.from, w.to) && filterUser(m.who));
-        return { label: w.label, onTime: ws.filter((m) => m.onTime).length, late: ws.filter((m) => !m.onTime).length };
-      }),
+      weeks: wk,
       del, myLogs,
     };
   }
@@ -276,13 +311,13 @@ async function computeKpis({ period, brand, scope, userId }) {
 
   const roleLabel = { social: "Social media", marketer: "Marketer", graphic: "Graphic designer", video: "Video editor", admin: "Admin" };
   const rows = people.map((u) => {
-    const s = statsFor((id) => Number(id) === u.id);
+    const s = statsFor((id) => Number(id) === u.id, deliveredBy.get(u.id) || [], logsBy.get(u.id) || []);
     const mine = open.filter((p) => Number(p.assigneeId) === u.id);
     const byBrand = new Map();
     for (const l of s.myLogs) byBrand.set(l.client, (byBrand.get(l.client) || 0) + l.minutes);
     const recent = s.del.slice(-8).reverse().map((m) => {
       const p = postById.get(m.postId);
-      const minutes = logs.filter((l) => l.postId === m.postId && l.userId === u.id).reduce((a, l) => a + l.minutes, 0);
+      const minutes = logMinutes.get(`${m.postId}|${u.id}`) || 0;
       return { postId: m.postId, theme: p?.theme || "(deleted post)", client: m.client, format: m.format, day: m.day, to: STAGE_NAMES[m.to] || m.to, onTime: m.onTime, minutes };
     });
     return {
