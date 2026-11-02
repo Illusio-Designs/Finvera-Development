@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
-import RichText from "./RichText";
+import dynamic from "next/dynamic";
 import CalendlyButton from "./CalendlyButton";
 import Select from "../Select";
 import DatePicker from "../ui/DatePicker";
@@ -11,6 +11,13 @@ import Toggle from "../ui/Toggle";
 import Tooltip from "../ui/Tooltip";
 import TagsInput, { normalizeTags } from "../ui/TagsInput";
 import { TableSkeleton } from "./Skeleton";
+
+/* TipTap is heavy (~150 kB) and only needed once a form with a rich-text
+   field opens — load it on demand instead of with every list page. */
+const RichText = dynamic(() => import("./RichText"), {
+  ssr: false,
+  loading: () => <div className="rte" style={{ minHeight: 220 }} aria-busy="true" aria-label="Loading editor" />,
+});
 
 export type Field = {
   name: string;
