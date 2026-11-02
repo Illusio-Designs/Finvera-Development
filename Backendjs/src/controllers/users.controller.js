@@ -60,7 +60,8 @@ const list = asyncHandler(async (_req, res) => {
    user may read it; exposes only id/name/avatar/title — no emails or roles. */
 const assignable = asyncHandler(async (_req, res) => {
   const users = await User.findAll({ where: { active: true }, order: [["name", "ASC"]] });
-  res.json(users.map((u) => ({ id: u.id, name: u.name, avatar: u.avatar, title: u.title })));
+  // roles let the content calendar list who can take each step (picked by hand)
+  res.json(users.map((u) => ({ id: u.id, name: u.name, avatar: u.avatar, title: u.title, roles: rolesOf(u) })));
 });
 
 const create = asyncHandler(async (req, res) => {

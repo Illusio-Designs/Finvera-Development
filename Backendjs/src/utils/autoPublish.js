@@ -133,6 +133,8 @@ async function afterPublished(p) {
   const channels = [...new Set([...String(p.channels || "").split(/\s*\n\s*|\s+(?=https?:)/).filter(Boolean), ...links])].join("\n");
   const before = { status: p.status, assigneeId: p.assigneeId };
   await p.update({ status: "posted", channels });
+  // It's live: free the server space taken by its uploaded image / video.
+  try { await require("./purgeMedia").purgeMedia(p); } catch (e) { console.warn("purge media:", e.message); }
   try {
     const social = require("../controllers/social.controller");
     await social.recordEvents([social.eventOf(p, { from: before.status, fromAssigneeId: before.assigneeId })]);

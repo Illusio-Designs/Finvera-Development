@@ -17,7 +17,7 @@ const asArr = (v) => {
   return [];
 };
 
-const STAGES = { planned: "Planned", client: "Need from client", production: "In production", ready: "Ready to post", posted: "Posted" };
+const STAGES = { planned: "Planned", client: "Need from client", production: "In production", approval: "Pending approval", ready: "Ready to post", posted: "Posted" };
 const POST_FIELDS = {
   theme: "post theme", topic: "topic", caption: "caption", requirements: "requirements", reference: "reference",
   format: "format", festive: "day/festival", driveLink: "drive link", tags: "tags", keywords: "keywords",
