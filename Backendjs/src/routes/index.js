@@ -337,6 +337,9 @@ notifRouter.post("/clear", requireAuth, notifCtrl.clear);
 notifRouter.patch("/:id/read", requireAuth, notifCtrl.read);
 router.use("/notifications", notifRouter);
 
+/* ── Sidebar badge counts (COUNT queries; never 500s) ── */
+router.get("/badges", requireAuth, require("../controllers/badges.controller").badges);
+
 /* ── Web Push (phone / desktop notifications) ────────── */
 const pushCtrl = require("../controllers/push.controller");
 const pushRouter = express.Router();
@@ -383,6 +386,7 @@ const cronTick = async (_req, res) => {
   const { maybeRunDaily } = require("../utils/dailyReminders");
   const r = await maybeRunDaily();
   await autoPublish.runDue({ force: true }); // posts due to go live
+  await social.maintenance(); // unassigned-post sweep + default deadlines (never throws)
   res.json({ ok: true, ran: !!r.ran });
 };
 router.get("/cron/daily", cronTick);
