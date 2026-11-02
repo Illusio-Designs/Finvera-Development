@@ -92,12 +92,44 @@ const listClients = (crudList) => asyncHandler(async (req, res, next) => {
   const items = await SocialClient.findAll({ where: { name: [...req.socialScope] }, order: [["position", "ASC"], ["name", "ASC"]] });
   res.json(items);
 });
+/* GET /social-posts. With no query params it behaves exactly as before
+   (every column of every post the caller may see). Optional params:
+     ?fields=card              → leave out the heavy text/JSON fields (CARD_OMIT)
+     ?from=YYYY-MM-DD&to=…     → postDate inside the window, PLUS every post
+                                 with no postDate and every post not yet
+                                 'posted' (so overdue work never drops out)
+   Brand scoping (req.socialScope) applies either way. Maintenance sweeps no
+   longer run here — see maintenance() (boot + timer + /cron/tick). */
+const CARD_OMIT = ["caption", "requirements", "remarks", "reference", "tags", "keywords", "timeLog", "poc", "driveLink", "estimateHours"];
+const POST_ORDER = [["postDate", "ASC"], ["postTime", "ASC"], ["position", "ASC"]];
+const POST_SEARCH = ["client", "theme", "topic", "caption", "festive"];
+const isDay = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 const listPosts = (crudList) => asyncHandler(async (req, res, next) => {
-  try { await moveUploadedToPlannedOnce(); } catch (e) { console.warn("uploaded→Planned fix:", e.message); }
-  try { await assignUnassigned(); } catch (e) { console.warn("assignUnassigned:", e.message); }
-  if (!req.socialScope) return crudList(req, res, next);
-  if (!req.socialScope.size) return res.json([]);
-  const items = await SocialPost.findAll({ where: { client: [...req.socialScope] }, order: [["postDate", "ASC"], ["postTime", "ASC"], ["position", "ASC"]] });
+  const card = req.query.fields === "card";
+  const from = isDay(req.query.from) ? req.query.from : null;
+  const to = isDay(req.query.to) ? req.query.to : null;
+  if (!card && !from && !to) {
+    if (!req.socialScope) return crudList(req, res, next);
+    if (!req.socialScope.size) return res.json([]);
+    const items = await SocialPost.findAll({ where: { client: [...req.socialScope] }, order: POST_ORDER });
+    return res.json(items);
+  }
+  if (req.socialScope && !req.socialScope.size) return res.json([]);
+  const and = [];
+  if (req.socialScope) and.push({ client: [...req.socialScope] });
+  if (from || to) {
+    const range = {};
+    if (from) range[Op.gte] = from;
+    if (to) range[Op.lte] = to;
+    and.push({ [Op.or]: [{ postDate: range }, { postDate: null }, { status: { [Op.ne]: "posted" } }] });
+  }
+  // Same ?q= search the default (admin) list supports.
+  if (!req.socialScope && req.query.q) and.push({ [Op.or]: POST_SEARCH.map((f) => ({ [f]: { [Op.like]: `%${req.query.q}%` } })) });
+  const items = await SocialPost.findAll({
+    where: and.length ? { [Op.and]: and } : {},
+    ...(card ? { attributes: { exclude: CARD_OMIT } } : {}),
+    order: POST_ORDER,
+  });
   res.json(items);
 });
 
@@ -281,6 +313,14 @@ async function moveUploadedToPlannedOnce() {
   if (posts.length) console.log(`✔ Moved ${posts.length} not-yet-live social posts back to Planned`);
 }
 
+/* Background upkeep that used to run on every post-list read: the one-time
+   uploaded→Planned fix and the unassigned-post sweep (+ default deadlines).
+   Runs once at boot, every 5 minutes, and from /api/cron/tick. Never throws. */
+async function maintenance({ force = false } = {}) {
+  try { await moveUploadedToPlannedOnce(); } catch (e) { console.warn("uploaded→Planned fix:", e.message); }
+  try { await assignUnassigned({ force }); } catch (e) { console.warn("assignUnassigned:", e.message); }
+}
+
 /* ── Sheet uploads ──────────────────────────────────────
    Re-uploading a sheet updates matching posts instead of duplicating them.
    A row matches an existing post of the same brand by go-live date + post
@@ -366,5 +406,5 @@ async function assignRows(rows) {
   }
 }
 
-module.exports = { recordEvents, eventOf, brandIdsOf, withScope, requireAllBrands, guardBody, guardPost, listClients, listPosts,
+module.exports = { maintenance, recordEvents, eventOf, brandIdsOf, withScope, requireAllBrands, guardBody, guardPost, listClients, listPosts,
   stageRole, STEPS, grantBrand, teamOf, assignOnCreate, assignOnStageChange, assignRows, assignUnassigned, importRows, listUploads, deleteUpload, deleteBrandPosts, deadlineDefaults };
