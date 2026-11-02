@@ -7,14 +7,15 @@
    Finvera additionally asks for the publishing permissions and adds the
    publish calls. Uses Node's https (deploys don't install npm packages).
 
-   Env: META_APP_ID, META_APP_SECRET, and optionally META_REDIRECT_URI
+   Env: META_APP_ID, META_APP_SECRET, and optionally META_REDIRECT_URI,
+   META_GRAPH_VERSION (default v26.0)
    (default: <PUBLIC_URL>/api/social-connect/meta/callback). */
 
 const crypto = require("crypto");
 const https = require("https");
 const { URL, URLSearchParams } = require("url");
 
-const VERSION = "v21.0";
+const VERSION = process.env.META_GRAPH_VERSION || "v26.0"; // match the app's API version in the Meta dashboard
 const FB_AUTH_URL = `https://www.facebook.com/${VERSION}/dialog/oauth`;
 // META_GRAPH_URL only exists so tests can point at a fake Graph API.
 const FB_GRAPH = (process.env.META_GRAPH_URL || `https://graph.facebook.com/${VERSION}`).replace(/\/$/, "");
