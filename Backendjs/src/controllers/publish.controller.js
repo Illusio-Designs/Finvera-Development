@@ -17,11 +17,7 @@ const auto = require("../utils/autoPublish");
 const { UPLOAD_DIR } = require("../middleware/upload");
 
 const SEL_TTL_MS = 15 * 60 * 1000;
-const frontendUrl = () => {
-  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL.replace(/\/$/, "");
-  const fromCors = String(process.env.CORS_ORIGIN || "").split(",").map((s) => s.trim()).find((o) => /^https:\/\//.test(o) && !/localhost/.test(o));
-  return (fromCors || "https://www.finvera.solutions").replace(/\/$/, "");
-};
+const frontendUrl = require("../utils/frontendUrl");
 const inScope = (req, client) => !req.socialScope || req.socialScope.has(client);
 const publicAccount = (a) => ({
   client: a.client, pageId: a.pageId, pageName: a.pageName, igUserId: a.igUserId, igUsername: a.igUsername,

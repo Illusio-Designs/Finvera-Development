@@ -41,11 +41,29 @@ function resource(path, Model, opts, area = "content") {
 }
 
 /* ── Auth ────────────────────────────────────────────── */
-const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
+// Per IP; LOGIN_RATE_LIMIT overrides the count (default 20 per 15 min).
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: Number(process.env.LOGIN_RATE_LIMIT) || 20, standardHeaders: true, legacyHeaders: false, message: { message: "Too many sign-in attempts. Please wait a few minutes and try again." } });
+const limitMsg = (max, mins) => rateLimit({ windowMs: mins * 60 * 1000, max, standardHeaders: true, legacyHeaders: false, message: { message: "Too many requests. Please wait a few minutes and try again." } });
+const forgotLimiter = limitMsg(5, 15);
+const resetLimiter = limitMsg(20, 15);
 const authRouter = express.Router();
 authRouter.post("/login", loginLimiter, authCtrl.login);
+authRouter.post("/login/2fa", loginLimiter, authCtrl.login2fa);
 authRouter.get("/me", requireAuth, authCtrl.me);
+authRouter.put("/me", requireAuth, authCtrl.updateMe);
 authRouter.post("/change-password", requireAuth, authCtrl.changePassword);
+authRouter.post("/forgot", forgotLimiter, authCtrl.forgot);
+authRouter.get("/reset-info", resetLimiter, authCtrl.resetInfo);
+authRouter.post("/reset", resetLimiter, authCtrl.reset);
+authRouter.get("/sessions", requireAuth, authCtrl.sessions);
+authRouter.delete("/sessions/:id", requireAuth, authCtrl.revokeSession);
+authRouter.post("/logout", requireAuth, authCtrl.logout);
+authRouter.post("/logout-all", requireAuth, authCtrl.logoutAll);
+authRouter.get("/activity", requireAuth, authCtrl.activity);
+authRouter.post("/2fa/setup", requireAuth, authCtrl.twoFactorSetup);
+authRouter.post("/2fa/enable", requireAuth, limitMsg(10, 15), authCtrl.twoFactorEnable);
+authRouter.post("/2fa/disable", requireAuth, limitMsg(10, 15), authCtrl.twoFactorDisable);
+authRouter.post("/2fa/backup-codes", requireAuth, limitMsg(10, 15), authCtrl.twoFactorBackupCodes);
 router.use("/auth", authRouter);
 
 /* ── Content resources ───────────────────────────────── */
@@ -349,9 +367,22 @@ usersRouter.get("/assignable", requireAuth, usersCtrl.assignable);
 // Full user management — admin only.
 usersRouter.get("/", requireAuth, requireRole("admin"), usersCtrl.list);
 usersRouter.post("/", requireAuth, requireRole("admin"), usersCtrl.create);
+usersRouter.post("/invite", requireAuth, requireRole("admin"), usersCtrl.invite);
 usersRouter.put("/:id", requireAuth, requireRole("admin"), usersCtrl.update);
 usersRouter.delete("/:id", requireAuth, requireRole("admin"), usersCtrl.remove);
+// Account security actions — admin only.
+const isAdmin = [requireAuth, requireRole("admin")];
+usersRouter.post("/:id/reset-link", ...isAdmin, usersCtrl.resetLink);
+usersRouter.post("/:id/require-password-change", ...isAdmin, usersCtrl.requirePasswordChange);
+usersRouter.post("/:id/resend-invite", ...isAdmin, usersCtrl.resendInvite);
+usersRouter.post("/:id/unlock", ...isAdmin, usersCtrl.unlock);
+usersRouter.post("/:id/2fa/reset", ...isAdmin, usersCtrl.resetTwoFactor);
+usersRouter.get("/:id/sessions", ...isAdmin, usersCtrl.userSessions);
+usersRouter.delete("/:id/sessions/:sid", ...isAdmin, usersCtrl.userRevokeSession);
+usersRouter.post("/:id/logout-all", ...isAdmin, usersCtrl.userLogoutAll);
+usersRouter.get("/:id/activity", ...isAdmin, usersCtrl.userActivity);
 router.use("/users", usersRouter);
+router.get("/security/log", requireAuth, requireRole("admin"), usersCtrl.securityLog);
 
 /* ── Notifications (each user sees their own) ─────────── */
 const notifRouter = express.Router();

@@ -15,7 +15,57 @@ const User = sequelize.define("User", {
   title: { type: DataTypes.STRING },    // job title / role label
   // Social media brands (SocialClient ids) this user may work on; empty = all.
   socialClients: { type: DataTypes.JSON, defaultValue: [] },
+  // ── Account security (added columns: see utils/ensureColumns.js) ──
+  mustChangePassword: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  invitePending: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }, // invited, no password set yet
+  invitedAt: { type: DataTypes.DATE },
+  failedLogins: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },     // wrong passwords in the current window
+  firstFailedAt: { type: DataTypes.DATE },                                            // start of that 15-min window
+  lockedUntil: { type: DataTypes.DATE },
+  lastLoginAt: { type: DataTypes.DATE },
+  lastSeenAt: { type: DataTypes.DATE },
+  passwordChangedAt: { type: DataTypes.DATE },
+  // Tokens WITHOUT a session id (issued before sessions existed) older than
+  // this are refused — set on reset / logout-all / deactivate.
+  tokensValidAfter: { type: DataTypes.DATE },
+  twoFactorEnabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  twoFactorSecret: { type: DataTypes.STRING(255) },   // encrypted (utils/totp.js)
+  twoFactorBackup: { type: DataTypes.JSON },          // sha256 hashes of unused backup codes
 }, { tableName: "users" });
+
+/* ── Sign-in session (one per login; the JWT carries its jti) ── */
+const UserSession = sequelize.define("UserSession", {
+  userId: { type: DataTypes.INTEGER, allowNull: false },
+  jti: { type: DataTypes.STRING(64), allowNull: false, unique: true },
+  device: { type: DataTypes.STRING(120) },     // "Chrome on Windows"
+  userAgent: { type: DataTypes.STRING(255) },
+  ip: { type: DataTypes.STRING(64) },
+  lastSeenAt: { type: DataTypes.DATE },
+  expiresAt: { type: DataTypes.DATE },
+  revokedAt: { type: DataTypes.DATE },
+  revokedReason: { type: DataTypes.STRING(40) },
+}, { tableName: "user_sessions" });
+
+/* ── Security log (logins, lockouts, password / 2FA / role changes) ── */
+const SecurityEvent = sequelize.define("SecurityEvent", {
+  userId: { type: DataTypes.INTEGER },          // null for unknown-email attempts
+  email: { type: DataTypes.STRING },            // email tried / of the user at the time
+  type: { type: DataTypes.STRING(40), allowNull: false },
+  actorId: { type: DataTypes.INTEGER },         // who did it (admin actions); null = the user / system
+  ip: { type: DataTypes.STRING(64) },
+  device: { type: DataTypes.STRING(120) },
+  meta: { type: DataTypes.JSON },
+}, { tableName: "security_events", updatedAt: false });
+
+/* ── Single-use email links (password reset / invite) — only a hash is kept ── */
+const AuthToken = sequelize.define("AuthToken", {
+  userId: { type: DataTypes.INTEGER, allowNull: false },
+  kind: { type: DataTypes.STRING(20), allowNull: false },     // reset | invite
+  tokenHash: { type: DataTypes.STRING(64), allowNull: false, unique: true },
+  expiresAt: { type: DataTypes.DATE, allowNull: false },
+  usedAt: { type: DataTypes.DATE },
+  createdBy: { type: DataTypes.INTEGER },
+}, { tableName: "auth_tokens" });
 
 /* ── Project / Work ──────────────────────────────────── */
 const Project = sequelize.define("Project", {
@@ -411,10 +461,12 @@ Comment.belongsTo(Task, { foreignKey: "taskId" });
 Comment.belongsTo(User, { as: "author", foreignKey: "userId" });
 Notification.belongsTo(User, { foreignKey: "userId", onDelete: "CASCADE" });
 PushSubscription.belongsTo(User, { foreignKey: "userId", onDelete: "CASCADE" });
+UserSession.belongsTo(User, { foreignKey: "userId", onDelete: "CASCADE" });
+AuthToken.belongsTo(User, { foreignKey: "userId", onDelete: "CASCADE" });
 
 module.exports = {
   sequelize,
-  User, Project, Service, Testimonial, TeamMember,
+  User, UserSession, SecurityEvent, AuthToken, Project, Service, Testimonial, TeamMember,
   BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page, Lead, Notification, PushSubscription,
   Renewal, SocialClient, SocialPost, SocialPostEvent, SocialAccount, SocialPublishJob, SocialStat,
   Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature,
