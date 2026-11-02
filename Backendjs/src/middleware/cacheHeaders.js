@@ -11,8 +11,10 @@
 const PUBLIC_PREFIXES = new Set([
   "projects", "services", "testimonials", "team", "blog", "pages", "faqs", "values", "brands",
   "milestones", "process-steps", "stats", "logos", "features", "seo",
+  "public", // /public/bootstrap — everything the marketing site needs in one call
 ]);
-const PUBLIC_CC = "public, max-age=60, stale-while-revalidate=300";
+// Same value the shared public cache sends (utils/publicCache.js).
+const { PUBLIC_CACHE_CONTROL: PUBLIC_CC } = require("../utils/publicCache");
 
 function isPublicRead(req) {
   if (req.method !== "GET" && req.method !== "HEAD") return false;

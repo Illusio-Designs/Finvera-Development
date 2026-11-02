@@ -17,6 +17,16 @@ const WANTED = [
   { table: "contact_submissions", name: "idx_contact_createdAt", columns: ["createdAt"] },
   // Today: posts in Pending approval (status = 'approval') and the badge counts.
   { table: "social_posts", name: "idx_social_posts_status_postDate", columns: ["status", "postDate"] },
+  // Public site lists: WHERE status = 'published' ORDER BY position, createdAt
+  // (crud list + /public/bootstrap) — one index per content table so the
+  // filter + sort is an index range scan instead of a full scan + filesort.
+  ...["projects", "services", "testimonials", "team_members", "faqs", "values", "brands",
+    "milestones", "process_steps", "stats", "logos", "features"].map((t) => (
+    { table: t, name: `idx_${t}_status_position`, columns: ["status", "position", "createdAt"] })),
+  // Blog list: WHERE status = 'published' ORDER BY publishedAt DESC, createdAt DESC.
+  { table: "blog_posts", name: "idx_blog_posts_status_publishedAt", columns: ["status", "publishedAt", "createdAt"] },
+  // Public settings map: WHERE isPublic = 1 AND group <> 'system'.
+  { table: "settings", name: "idx_settings_isPublic_group", columns: ["isPublic", "group"] },
   // Account security: my sessions, a user's activity, the admin security log.
   { table: "user_sessions", name: "idx_user_sessions_userId", columns: ["userId", "revokedAt"] },
   { table: "security_events", name: "idx_security_events_userId_createdAt", columns: ["userId", "createdAt"] },

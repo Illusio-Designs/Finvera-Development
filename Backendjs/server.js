@@ -67,9 +67,16 @@ async function start() {
       console.warn("\x1b[33m⚠ Seed skipped (continuing):\x1b[0m", e.message);
     }
 
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       console.log(`\x1b[36m✔ Finvera API running on http://localhost:${PORT}\x1b[0m`);
     });
+    // Keep idle HTTP keep-alive connections open longer than a typical proxy's
+    // idle timeout (Node's default is 5 s), so the proxy in front (LiteSpeed /
+    // a CDN) can reuse them instead of reconnecting for every request.
+    if (server && typeof server.keepAliveTimeout === "number") {
+      server.keepAliveTimeout = Number(process.env.KEEP_ALIVE_TIMEOUT_MS || 65 * 1000);
+      server.headersTimeout = server.keepAliveTimeout + 5 * 1000;
+    }
 
     // Daily reminders (10:15 AM India time) — checked every 5 minutes while
     // the app is awake; claimed once per day so restarts never resend.
