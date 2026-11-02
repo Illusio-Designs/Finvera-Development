@@ -24,14 +24,25 @@ const upsertSeo = asyncHandler(async (req, res) => {
 });
 
 /* ── Settings (key/value: analytics, pixels, brand) ──── */
+/* The flat map is read by every page of the public site (pixels) and rarely
+   changes: keep it in memory per process for a minute; saving settings here
+   clears it (another app process catches up within the minute). */
+const SETTINGS_TTL_MS = 60 * 1000;
+const flatCache = { public: null, all: null };
+const clearSettingsCache = () => { flatCache.public = null; flatCache.all = null; };
+
 const getSettings = asyncHandler(async (req, res) => {
   // Signed-in users get every non-internal setting; the "system" group (seed
   // version, push keys, migration markers) is never returned.
+  const which = req.user ? "all" : "public";
+  const hit = flatCache[which];
+  if (hit && Date.now() - hit.at < SETTINGS_TTL_MS) return res.json(hit.map);
   const where = req.user ? NOT_SYSTEM : { isPublic: true, ...NOT_SYSTEM };
-  const rows = await Setting.findAll({ where });
+  const rows = await Setting.findAll({ where, attributes: ["key", "value"], raw: true });
   // return as a flat object { key: value } plus grouped meta
   const map = {};
   rows.forEach((r) => { map[r.key] = r.value; });
+  flatCache[which] = { at: Date.now(), map };
   res.json(map);
 });
 
@@ -61,6 +72,7 @@ const updateSettings = asyncHandler(async (req, res) => {
     });
     results.push(row);
   }
+  clearSettingsCache();
   if (skipped.length) res.set("X-Settings-Skipped", skipped.join(","));
   res.json(results);
 });

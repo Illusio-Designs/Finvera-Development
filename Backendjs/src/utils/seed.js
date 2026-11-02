@@ -174,7 +174,8 @@ async function runVersionedSeed() {
   // Reads the last applied seed version from settings, runs any pending
   // migrations up to SEED_VERSION, then records the new version.
   let stored = 0;
-  const [vs] = await Setting.findOrCreate({ where: { key: "seed_version" }, defaults: { value: "0", group: "system", isPublic: false } });
+  const vs = (await Setting.findOne({ where: { key: "seed_version" } }))
+    || (await Setting.findOrCreate({ where: { key: "seed_version" }, defaults: { value: "0", group: "system", isPublic: false } }))[0];
   stored = Number(vs.value) || 0;
   if (stored >= SEED_VERSION) { console.log(`\x1b[36mℹ Seed up to date (v${stored})\x1b[0m`); return; }
   for (let v = stored + 1; v <= SEED_VERSION; v++) {
@@ -188,10 +189,43 @@ async function runVersionedSeed() {
   console.log(`\x1b[32m✔ Seed version updated ${stored} → ${SEED_VERSION}\x1b[0m`);
 }
 
+/* Boot cost matters on shared hosting (every Passenger cold start runs this
+   before the first request is answered), so the checks below are batched:
+   one query for "which tables are empty" and one per keyed list, instead of
+   a COUNT / findOrCreate (a transaction each) per row. */
+
+/* Names of the given models whose tables have no rows — one round trip. */
+async function emptyModels(models) {
+  const list = models.filter(Boolean);
+  try {
+    const { sequelize } = require("../models");
+    const sql = "SELECT " + list.map((M, i) => `EXISTS(SELECT 1 FROM \`${M.getTableName()}\`) AS \`m${i}\``).join(", ");
+    const [[row]] = await sequelize.query(sql);
+    return new Set(list.filter((_, i) => !Number(row[`m${i}`])).map((M) => M.name));
+  } catch {
+    // A table is missing (fresh install mid-provisioning) → check one by one.
+    const out = new Set();
+    for (const M of list) { try { if ((await M.count()) === 0) out.add(M.name); } catch { /* skip */ } }
+    return out;
+  }
+}
+
+/* Insert the rows whose `key` value isn't there yet (findOrCreate semantics,
+   never overwriting an edit). INSERT IGNORE keeps two booting processes from
+   colliding on the unique key. */
+async function ensureRows(Model, key, rows) {
+  const have = new Set((await Model.findAll({ attributes: [key], where: { [key]: rows.map((r) => r[key]) }, raw: true })).map((r) => r[key]));
+  const missing = rows.filter((r) => !have.has(r[key]));
+  if (missing.length) await Model.bulkCreate(missing, { ignoreDuplicates: true });
+}
+
 async function seed() {
-  // 1) Admin user
+  // 1) Admin user (hash the password only when the account has to be made —
+  //    bcrypt on every boot cost a noticeable slice of each cold start).
   const email = (process.env.ADMIN_EMAIL || "finverasolutionsllp@gmail.com").toLowerCase();
-  const [admin, created] = await User.findOrCreate({
+  let admin = await User.findOne({ where: { email } });
+  let created = false;
+  if (!admin) [admin, created] = await User.findOrCreate({
     where: { email },
     defaults: {
       name: process.env.ADMIN_NAME || "Finvera Admin",
@@ -215,20 +249,23 @@ async function seed() {
   }
 
   // 2) Content (only when tables are empty, so we never clobber edits)
-  if ((await Project.count()) === 0) {
+  const CONTENT = [[Faq, FAQS], [Value, VALUES], [Brand, BRANDS], [Milestone, MILESTONES],
+    [ProcessStep, PROCESS_STEPS], [Stat, STATS], [Logo, LOGOS], [Feature, FEATURES]];
+  const empty = await emptyModels([Project, Service, Testimonial, TeamMember, BlogPost, Lead, Board, ...CONTENT.map(([M]) => M)]);
+  if (empty.has("Project")) {
     await Project.bulkCreate(PROJECTS.map((p, i) => ({ ...p, slug: slug(p.title), position: i, status: "published" })));
     console.log(`\x1b[32m✔ Seeded ${PROJECTS.length} projects\x1b[0m`);
   }
-  if ((await Service.count()) === 0) {
+  if (empty.has("Service")) {
     await Service.bulkCreate(SERVICES.map((s, i) => ({ ...s, slug: slug(s.title), position: i, status: "published" })));
   }
-  if ((await Testimonial.count()) === 0) {
+  if (empty.has("Testimonial")) {
     await Testimonial.bulkCreate(TESTIMONIALS.map((t, i) => ({ ...t, position: i, status: "published" })));
   }
-  if ((await TeamMember.count()) === 0) {
+  if (empty.has("TeamMember")) {
     await TeamMember.bulkCreate(TEAM.map((t, i) => ({ ...t, position: i, status: "published" })));
   }
-  if ((await BlogPost.count()) === 0) {
+  if (empty.has("BlogPost")) {
     await BlogPost.create({
       title: "Welcome to the Finvera blog",
       slug: "welcome-to-the-finvera-blog",
@@ -240,43 +277,32 @@ async function seed() {
       seoDescription: "Product and engineering insights from Finvera.",
     });
   }
-  if (Page) {
-    for (const p of LEGAL_PAGES) {
-      // eslint-disable-next-line no-await-in-loop
-      await Page.findOrCreate({ where: { slug: p.slug }, defaults: { ...p, status: "published" } });
-    }
-  }
+  if (Page) await ensureRows(Page, "slug", LEGAL_PAGES.map((p) => ({ ...p, status: "published" })));
   if (Lead) {
     try {
-      if ((await Lead.count()) === 0) {
+      if (empty.has("Lead")) {
         await Lead.bulkCreate(LEADS.map((l, i) => ({ ...l, position: i })));
         console.log(`\x1b[32m✔ Seeded ${LEADS.length} sample leads\x1b[0m`);
       }
     } catch (e) { console.warn(`\x1b[33m⚠ Lead seed skipped: ${e.message}\x1b[0m`); }
   }
   // Editable content collections — seed each only when empty
-  const CONTENT = [[Faq, FAQS], [Value, VALUES], [Brand, BRANDS], [Milestone, MILESTONES],
-    [ProcessStep, PROCESS_STEPS], [Stat, STATS], [Logo, LOGOS], [Feature, FEATURES]];
   for (const [Model, rows] of CONTENT) {
     try {
-      if (Model && (await Model.count()) === 0) {
+      if (Model && empty.has(Model.name)) {
         await Model.bulkCreate(rows.map((r, i) => ({ ...r, position: i, status: "published" })));
       }
     } catch (e) { console.warn(`\x1b[33m⚠ ${Model && Model.name} seed skipped: ${e.message}\x1b[0m`); }
   }
-  for (const s of SEO_PAGES) {
-    await Seo.findOrCreate({ where: { page: s.page }, defaults: s });
-  }
-  for (const s of SETTINGS) {
-    await Setting.findOrCreate({ where: { key: s.key }, defaults: s });
-  }
+  await ensureRows(Seo, "page", SEO_PAGES);
+  await ensureRows(Setting, "key", SETTINGS);
 
   // 3) Default Kanban board (Trello-style). Migrate existing global columns +
   //    orphan tasks onto it so nothing is lost. Wrapped so that if the boards
   //    table doesn't exist yet (deployed before DB_SYNC=true), the API still
   //    boots instead of hard-crashing on startup.
   try {
-    if ((await Board.count()) === 0) {
+    if (empty.has("Board")) {
       let columns = [
         { id: "backlog", title: "Backlog" }, { id: "todo", title: "To Do" },
         { id: "inprogress", title: "In Progress" }, { id: "review", title: "Review" },

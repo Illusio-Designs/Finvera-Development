@@ -32,8 +32,21 @@ async function start() {
     if (String(process.env.SKIP_DB_SYNC).toLowerCase() !== "true") {
       const alter = String(process.env.DB_SYNC_ALTER).toLowerCase() === "true";
       try {
-        await sequelize.sync(alter ? { alter: true } : undefined);
-        console.log(`\x1b[32m✔ Schema synced (${alter ? "ALTER — columns reconciled" : "create-missing only"})\x1b[0m`);
+        // Cold-start shortcut: a full sync() runs CREATE TABLE IF NOT EXISTS +
+        // SHOW INDEX for all ~30 models (~60 queries before the first request
+        // is answered). One information_schema read tells us whether any table
+        // is missing; only then does the full sync run. Models that declare
+        // their own indexes are still synced so those indexes self-heal.
+        let models = null; // null → full sync
+        if (!alter) {
+          const [rows] = await sequelize.query("SELECT TABLE_NAME AS t FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()");
+          const have = new Set(rows.map((r) => String(r.t).toLowerCase()));
+          const all = Object.values(sequelize.models);
+          if (all.every((m) => have.has(String(m.getTableName()).toLowerCase()))) models = all.filter((m) => (m.options.indexes || []).length);
+        }
+        if (models) for (const m of models) await m.sync();
+        else await sequelize.sync(alter ? { alter: true } : undefined);
+        console.log(`\x1b[32m✔ Schema synced (${alter ? "ALTER — columns reconciled" : models ? `all tables present; ${models.length} indexed models checked` : "create-missing only"})\x1b[0m`);
       } catch (e) {
         console.warn("\x1b[33m⚠ Schema sync warning (continuing):\x1b[0m", e.message);
       }

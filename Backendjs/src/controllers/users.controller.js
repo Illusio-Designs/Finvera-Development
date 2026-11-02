@@ -3,6 +3,8 @@ const { User, SocialClient } = require("../models");
 const { notifyUsers } = require("../utils/notify");
 const { asyncHandler } = require("../utils/crud");
 const { ACCEPTED_ROLES, rolesOf } = require("../utils/permissions");
+const { forgetUser } = require("../middleware/auth");
+const { forgetScopes } = require("./social.controller");
 
 /* Accept either a single `role` or a `roles` array; return a clean, de-duped
    array of valid roles. Empty means none were chosen — callers refuse that
@@ -101,6 +103,7 @@ const update = asyncHandler(async (req, res) => {
   if (socialClients !== undefined) user.socialClients = normBrands(socialClients);
   if (password) user.password = await bcrypt.hash(password, 10);
   await user.save();
+  forgetUser(user.id); forgetScopes();
   await announceBrands(user, brandsBefore, req.user?.id);
   await sweepSocial();
   res.json(safe(user));
@@ -111,6 +114,7 @@ const remove = asyncHandler(async (req, res) => {
   const user = await User.findByPk(req.params.id);
   if (!user) return res.status(404).json({ message: "User not found." });
   await user.destroy();
+  forgetUser(user.id); forgetScopes();
   res.json({ message: "Deleted.", id: Number(req.params.id) });
 });
 

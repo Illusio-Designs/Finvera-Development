@@ -25,15 +25,39 @@ function brandIdsOf(user) {
   return user ? asArr(user.socialClients).map(String).filter(Boolean) : [];
 }
 
+/* Brand ids → names, cached briefly per process (brands are renamed or
+   removed rarely; any brand write calls forgetScopes()). */
+const SCOPE_TTL_MS = 60 * 1000;
+const scopeCache = new Map(); // "1,2,3" → { at, names: Promise<string[]> }
+function brandNames(ids) {
+  const key = [...ids].sort().join(",");
+  const hit = scopeCache.get(key);
+  if (hit && Date.now() - hit.at < SCOPE_TTL_MS) return hit.names;
+  const names = SocialClient.findAll({ attributes: ["name"], where: { id: ids }, order: [["id", "ASC"]], raw: true }).then((rows) => rows.map((c) => c.name));
+  if (scopeCache.size > 200) scopeCache.clear();
+  scopeCache.set(key, { at: Date.now(), names });
+  names.catch(() => { if (scopeCache.get(key)?.names === names) scopeCache.delete(key); });
+  return names;
+}
+function forgetScopes() { scopeCache.clear(); }
+
 /* Attach req.socialScope: a Set of allowed client names, or null (all).
    Non-admins see every post of their allotted brands, but may change only
-   the posts assigned to them. */
+   the posts assigned to them. The user row comes from requireAuth (no
+   second read). */
 const withScope = asyncHandler(async (req, _res, next) => {
-  const ids = brandIdsOf(await User.findByPk(req.user.id));
-  req.socialScope = !ids ? null
-    : new Set(ids.length ? (await SocialClient.findAll({ where: { id: ids } })).map((c) => c.name) : []);
+  const { loadUser } = require("../middleware/auth");
+  const ids = brandIdsOf(req.userRow || await loadUser(req.user.id));
+  req.socialScope = !ids ? null : new Set(ids.length ? await brandNames(ids) : []);
   next();
 });
+
+/* The post named in the URL, loaded once per request and shared by the
+   guards, the deadline / assignment steps and the update itself. */
+function postOf(req) {
+  if (!req._post) req._post = SocialPost.findByPk(req.params.id);
+  return req._post;
+}
 
 /* Who was picked for a role on this post (people choose; nothing is automatic). */
 const teamOf = (p) => { const t = p && p.team; if (t && typeof t === "object") return t; try { return JSON.parse(t || "{}") || {}; } catch { return {}; } };
@@ -50,6 +74,7 @@ async function grantBrand(userIds, client) {
     const have = brandIdsOf(u);
     if (have === null || have.includes(String(brand.id))) continue;
     await u.update({ socialClients: [...have, String(brand.id)] });
+    require("../middleware/auth").forgetUser(u.id);
   }
 }
 
@@ -76,7 +101,7 @@ function guardBody(req, res, next) {
    of the brand. */
 const guardPost = asyncHandler(async (req, res, next) => {
   if (!req.socialScope) return next();
-  const post = await SocialPost.findByPk(req.params.id);
+  const post = await postOf(req);
   if (!post || !allowed(req, post.client)) return res.status(404).json({ message: "SocialPost not found." });
   // Anyone with the brand may edit any of its posts; deleting stays with the
   // person the post is assigned to (or an admin).
@@ -98,25 +123,27 @@ const listClients = (crudList) => asyncHandler(async (req, res, next) => {
      ?from=YYYY-MM-DD&to=…     → postDate inside the window, PLUS every post
                                  with no postDate and every post not yet
                                  'posted' (so overdue work never drops out)
+     ?mine=1                   → only posts assigned to the caller
    Brand scoping (req.socialScope) applies either way. Maintenance sweeps no
-   longer run here — see maintenance() (boot + timer + /cron/tick). */
+   longer run here — see maintenance() (boot + timer + /cron/tick).
+   Rows are read raw (no model instances): same JSON, a fraction of the CPU
+   on thousands of posts. */
 const CARD_OMIT = ["caption", "requirements", "remarks", "reference", "tags", "keywords", "timeLog", "poc", "driveLink", "estimateHours"];
 const POST_ORDER = [["postDate", "ASC"], ["postTime", "ASC"], ["position", "ASC"]];
 const POST_SEARCH = ["client", "theme", "topic", "caption", "festive"];
+const POST_BOOLS = ["keywordHashtags"];
 const isDay = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
-const listPosts = (crudList) => asyncHandler(async (req, res, next) => {
+/* Raw rows carry TINYINT booleans as 0/1 — match what model instances return. */
+const fixBools = (rows) => { for (const r of rows) for (const k of POST_BOOLS) if (k in r && r[k] != null) r[k] = !!r[k]; return rows; };
+const listPosts = () => asyncHandler(async (req, res) => {
   const card = req.query.fields === "card";
   const from = isDay(req.query.from) ? req.query.from : null;
   const to = isDay(req.query.to) ? req.query.to : null;
-  if (!card && !from && !to) {
-    if (!req.socialScope) return crudList(req, res, next);
-    if (!req.socialScope.size) return res.json([]);
-    const items = await SocialPost.findAll({ where: { client: [...req.socialScope] }, order: POST_ORDER });
-    return res.json(items);
-  }
+  const mine = req.query.mine === "1" || req.query.mine === "true";
   if (req.socialScope && !req.socialScope.size) return res.json([]);
   const and = [];
   if (req.socialScope) and.push({ client: [...req.socialScope] });
+  if (mine) and.push({ assigneeId: req.user.id });
   if (from || to) {
     const range = {};
     if (from) range[Op.gte] = from;
@@ -129,8 +156,9 @@ const listPosts = (crudList) => asyncHandler(async (req, res, next) => {
     where: and.length ? { [Op.and]: and } : {},
     ...(card ? { attributes: { exclude: CARD_OMIT } } : {}),
     order: POST_ORDER,
+    raw: true,
   });
-  res.json(items);
+  res.json(fixBools(items));
 });
 
 /* ── Stage-based assignment ─────────────────────────────
@@ -199,7 +227,7 @@ const deadlineDefaults = asyncHandler(async (req, _res, next) => {
     if (!b.dueDate && b.postDate) b.dueDate = weekBefore(b.postDate);
     return next();
   }
-  const post = await SocialPost.findByPk(req.params.id);
+  const post = await postOf(req);
   if (!post) return next();
   const oldDate = day(post.postDate), oldDue = day(post.dueDate);
   const newDate = b.postDate !== undefined ? day(b.postDate) : oldDate;
@@ -236,7 +264,7 @@ const assignOnCreate = asyncHandler(async (req, _res, next) => {
 const assignOnStageChange = asyncHandler(async (req, _res, next) => {
   const b = req.body || {};
   if (b.status === undefined && b.step === undefined) return next();
-  const post = await SocialPost.findByPk(req.params.id);
+  const post = await postOf(req);
   if (!post) return next();
   const status = b.status !== undefined ? b.status : post.status;
   // Entering In production starts at the design step; any other stage has no step.
@@ -406,5 +434,5 @@ async function assignRows(rows) {
   }
 }
 
-module.exports = { maintenance, recordEvents, eventOf, brandIdsOf, withScope, requireAllBrands, guardBody, guardPost, listClients, listPosts,
+module.exports = { postOf, forgetScopes, brandNames, maintenance, recordEvents, eventOf, brandIdsOf, withScope, requireAllBrands, guardBody, guardPost, listClients, listPosts,
   stageRole, STEPS, grantBrand, teamOf, assignOnCreate, assignOnStageChange, assignRows, assignUnassigned, importRows, listUploads, deleteUpload, deleteBrandPosts, deadlineDefaults };

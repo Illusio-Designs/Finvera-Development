@@ -24,7 +24,8 @@ const router = express.Router();
    Reads stay public (the marketing site needs them); writes require the
    caller's role to include `area` (admin always passes). */
 function resource(path, Model, opts, area = "content") {
-  const c = crudController(Model, opts);
+  // Signed-out list reads (the marketing site) are kept 30 s in memory.
+  const c = crudController(Model, { publicCache: 30 * 1000, ...opts });
   const r = express.Router();
   const canWrite = [requireAuth, requireArea(area)];
   r.get("/", optionalAuth, c.list);
@@ -107,6 +108,7 @@ const tasksCustom = require("../controllers/tasks.controller");
 const taskRouter = express.Router();
 taskRouter.get("/", ...canBoard, tasksCustom.list);          // supports ?boardId=
 taskRouter.post("/", ...canBoard, taskCtrl.create);
+taskRouter.post("/reorder", ...canBoard, tasksCustom.reorder); // one column's card order after a drag
 taskRouter.put("/:id", ...canBoard, taskCtrl.update);
 taskRouter.patch("/:id", ...canBoard, taskCtrl.update);
 taskRouter.delete("/:id", ...canBoard, taskCtrl.remove);
@@ -208,17 +210,20 @@ const socialClientCtrl = crudController(SocialClient, {
   },
 });
 const socialClientRouter = express.Router();
+// Brand renames / removals → drop the cached brand-id → name scopes.
+const scopeBump = (_req, res, next) => { res.on("finish", () => { if (res.statusCode < 400) social.forgetScopes(); }); next(); };
 socialClientRouter.get("/", ...canSocial, social.listClients(socialClientCtrl.list));
 socialClientRouter.post("/", ...canSocial, social.requireAllBrands, socialClientCtrl.create);
-socialClientRouter.put("/:id", ...canSocial, social.requireAllBrands, socialClientCtrl.update);
-socialClientRouter.patch("/:id", ...canSocial, social.requireAllBrands, socialClientCtrl.update);
-socialClientRouter.delete("/:id", ...canSocial, social.requireAllBrands, socialClientCtrl.remove);
+socialClientRouter.put("/:id", ...canSocial, social.requireAllBrands, scopeBump, socialClientCtrl.update);
+socialClientRouter.patch("/:id", ...canSocial, social.requireAllBrands, scopeBump, socialClientCtrl.update);
+socialClientRouter.delete("/:id", ...canSocial, social.requireAllBrands, scopeBump, socialClientCtrl.remove);
 router.use("/social-clients", socialClientRouter);
 
 const socialAssigned = (p) => ({ type: "assigned", title: p.status === "approval" ? `Approval needed: ${p.theme}` : `Social post assigned to you: ${p.theme}`, body: p.client, link: "/dashboard/social", meta: { socialPostId: p.id } });
 const socialPostCtrl = crudController(SocialPost, {
   order: [["postDate", "ASC"], ["postTime", "ASC"], ["position", "ASC"]],
   searchable: ["client", "theme", "topic", "caption", "festive"],
+  load: social.postOf, // the guards already loaded it — don't read it a second/third time
   onCreate: async (p, req) => {
     await social.grantBrand([p.assigneeId, ...Object.values(social.teamOf(p))], p.client);
     await social.recordEvents([social.eventOf(p, { byUserId: req.user?.id })]);
@@ -230,7 +235,9 @@ const socialPostCtrl = crudController(SocialPost, {
     await notifyUsers(team, { type: "info", title: `New post for ${p.client}: ${p.theme}`, body: p.postDate ? `Goes live ${when(p.postDate, p.postTime)}` : undefined, link: "/dashboard/social", meta: { socialPostId: p.id } }, req.user?.id);
   },
   onUpdate: async (p, req, before) => {
-    await social.grantBrand([p.assigneeId, ...Object.values(social.teamOf(p))], p.client);
+    // Brand access only changes when who works on it (or the brand) changes.
+    if (before.assigneeId !== p.assigneeId || before.client !== p.client || JSON.stringify(social.teamOf(before)) !== JSON.stringify(social.teamOf(p)))
+      await social.grantBrand([p.assigneeId, ...Object.values(social.teamOf(p))], p.client);
     await autoPublish.syncJobs(p); // Ready → scheduled at go-live; date moves follow; leaving Ready cancels
     // Stage history: who had it before the move delivered that stage.
     // A step hand-off inside In production (designer → video editor) counts too.
@@ -348,6 +355,8 @@ router.use("/notifications", notifRouter);
 
 /* ── Sidebar badge counts (COUNT queries; never 500s) ── */
 router.get("/badges", requireAuth, require("../controllers/badges.controller").badges);
+/* ── Admin Overview page: counts + recent messages + lead stages in one call ── */
+router.get("/overview", requireAuth, require("../controllers/overview.controller").overview);
 
 /* ── Web Push (phone / desktop notifications) ────────── */
 const pushCtrl = require("../controllers/push.controller");
