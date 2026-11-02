@@ -1,4 +1,5 @@
 const slugify = require("slugify");
+const pubCache = require("./publicCache");
 
 /* Wrap async route handlers to forward errors */
 const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -20,7 +21,8 @@ function crudController(Model, options = {}) {
     onCreate = null,   // async (item, req) => {}  — side effects (e.g. notifications)
     onUpdate = null,   // async (item, req, before) => {}
     load = null,       // (req) => Promise<item> — reuse a row an earlier middleware already loaded
-    publicCache = 0,   // ms to keep signed-out list reads in memory (marketing site); 0 = off
+    publicCache = false, // serve signed-out reads from the shared public cache (marketing site)
+    publicListExclude = [], // heavy fields left out of signed-out list reads (detail endpoint keeps them)
   } = options;
 
   const { Op } = require("sequelize");
@@ -36,39 +38,53 @@ function crudController(Model, options = {}) {
     return slug;
   }
 
-  /* Signed-out reads (the public site) can be served from memory for a few
-     seconds; any write through this controller clears them. Signed-in
-     (admin) reads always go to the database, so an editor never sees their
+  /* Signed-out reads (the public site) are served from the shared public
+     cache (utils/publicCache, ~60 s) with Cache-Control headers; any write
+     through a cached controller clears it. Signed-in (admin) reads always go
+     to the database and get no cache headers, so an editor never sees their
      own change missing. */
-  const pubCache = new Map(); // url → { at, body }
-  const clearPub = () => pubCache.clear();
-  const cachedPub = (req) => {
-    if (!publicCache || req.user) return null;
-    const hit = pubCache.get(req.originalUrl);
-    return hit && Date.now() - hit.at < publicCache ? hit.body : null;
-  };
-  const keepPub = (req, body) => {
-    if (!publicCache || req.user) return;
-    if (pubCache.size > 200) pubCache.clear();
-    pubCache.set(req.originalUrl, { at: Date.now(), body });
-  };
+  const cacheable = (req) => publicCache && !req.user;
+  const clearPub = () => { if (publicCache) pubCache.clear(); };
+
+  /* Columns sent to signed-out list reads. `publicListExclude` drops heavy
+     detail-only fields (long HTML bodies etc.) from the public list; the
+     single-item endpoint still returns everything. `?fields=full` keeps the
+     old full shape for any caller that needs it. */
+  const publicAttributes = (req) =>
+    (publicListExclude.length && req.query.fields !== "full" ? { exclude: publicListExclude } : undefined);
+
+  function listWhere(req) {
+    const where = {};
+    // public callers only see published items
+    if (hasStatus && !req.user) where.status = "published";
+    if (hasStatus && req.query.status) where.status = req.query.status;
+    if (req.query.q && searchable.length) {
+      where[Op.or] = searchable.map((f) => ({ [f]: { [Op.like]: `%${req.query.q}%` } }));
+    }
+    return where;
+  }
+
+  /* The public list as /public/bootstrap uses it (signed-out, no filters):
+     a promise of the JSON string, shared with GET / through the cache. */
+  const publicListBody = () =>
+    pubCache.get(`${Model.name}:list:/`, () =>
+      Model.findAll({ where: hasStatus ? { status: "published" } : {}, order, attributes: publicListExclude.length ? { exclude: publicListExclude } : undefined }));
 
   return {
     uniqueSlug,
     clearCache: clearPub,
+    publicListBody,
 
     list: asyncHandler(async (req, res) => {
-      const cached = cachedPub(req);
-      if (cached) return res.type("json").send(cached);
-      const where = {};
-      // public callers only see published items
-      if (hasStatus && !req.user) where.status = "published";
-      if (hasStatus && req.query.status) where.status = req.query.status;
-      if (req.query.q && searchable.length) {
-        where[Op.or] = searchable.map((f) => ({ [f]: { [Op.like]: `%${req.query.q}%` } }));
+      if (cacheable(req)) {
+        const plain = !req.query.q && !req.query.status && req.query.fields !== "full";
+        const body = plain
+          ? await publicListBody()
+          : await pubCache.get(`${Model.name}:list:${req.originalUrl}`, () =>
+            Model.findAll({ where: listWhere(req), order, attributes: publicAttributes(req) }));
+        return pubCache.sendPublic(res, body);
       }
-      const items = await Model.findAll({ where, order });
-      if (publicCache && !req.user) { const body = JSON.stringify(items); keepPub(req, body); return res.type("json").send(body); }
+      const items = await Model.findAll({ where: listWhere(req), order });
       res.json(items);
     }),
 
@@ -76,6 +92,15 @@ function crudController(Model, options = {}) {
       const key = req.params.id;
       const where = /^\d+$/.test(key) ? { id: key } : { slug: key };
       if (Model.name === "Seo") Object.assign(where, { page: key }, { id: undefined });
+      if (cacheable(req)) {
+        // null = missing or unpublished (404); cached too, briefly, like a hit.
+        const body = await pubCache.get(`${Model.name}:one:${key}`, async () => {
+          const item = await Model.findOne({ where });
+          return item && !(hasStatus && item.status !== "published") ? item : null;
+        });
+        if (body === "null") return res.status(404).json({ message: `${Model.name} not found.` });
+        return pubCache.sendPublic(res, body);
+      }
       const item = await Model.findOne({ where });
       if (!item) return res.status(404).json({ message: `${Model.name} not found.` });
       if (hasStatus && !req.user && item.status !== "published") {
