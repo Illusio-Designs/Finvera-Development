@@ -17,6 +17,12 @@ const WANTED = [
   { table: "contact_submissions", name: "idx_contact_createdAt", columns: ["createdAt"] },
   // Today: posts in Pending approval (status = 'approval') and the badge counts.
   { table: "social_posts", name: "idx_social_posts_status_postDate", columns: ["status", "postDate"] },
+  // Account security: my sessions, a user's activity, the admin security log.
+  { table: "user_sessions", name: "idx_user_sessions_userId", columns: ["userId", "revokedAt"] },
+  { table: "security_events", name: "idx_security_events_userId_createdAt", columns: ["userId", "createdAt"] },
+  { table: "security_events", name: "idx_security_events_createdAt", columns: ["createdAt"] },
+  { table: "security_events", name: "idx_security_events_type_createdAt", columns: ["type", "createdAt"] },
+  { table: "auth_tokens", name: "idx_auth_tokens_userId_kind", columns: ["userId", "kind"] },
 ];
 
 module.exports = async function ensureIndexes(sequelize) {

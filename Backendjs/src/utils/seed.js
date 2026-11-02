@@ -243,6 +243,7 @@ async function seed() {
   if (!created && String(process.env.ADMIN_RESET_PASSWORD).toLowerCase() === "true" && process.env.ADMIN_PASSWORD) {
     admin.password = await bcrypt.hash(process.env.ADMIN_PASSWORD, 10);
     admin.active = true;
+    admin.failedLogins = 0; admin.lockedUntil = null; admin.firstFailedAt = null;
     if (process.env.ADMIN_NAME) admin.name = process.env.ADMIN_NAME;
     await admin.save();
     console.log(`\x1b[33m⚠ Admin password reset from ADMIN_PASSWORD for ${admin.email}. Remove ADMIN_RESET_PASSWORD from .env now.\x1b[0m`);
