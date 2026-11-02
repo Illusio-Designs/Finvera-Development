@@ -17,7 +17,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   DashboardSquare01Icon, FolderLibraryIcon, GridViewIcon, QuoteDownIcon, UserGroupIcon,
   News01Icon, File01Icon, KanbanIcon, Mail01Icon, UserMultipleIcon, Search01Icon, Settings02Icon,
-  Target02Icon, LayoutTable01Icon, Invoice01Icon, InstagramIcon, AnalyticsUpIcon,
+  Target02Icon, LayoutTable01Icon, Invoice01Icon, InstagramIcon, AnalyticsUpIcon, Activity01Icon,
 } from "@hugeicons/core-free-icons";
 
 type Icon = typeof DashboardSquare01Icon;
@@ -53,6 +53,7 @@ const NAV_GROUPS: NavGroup[] = [
     { href: "/dashboard/seo", label: "SEO", icon: Search01Icon, area: "seo" },
     { href: "/dashboard/settings", label: "Settings & pixels", icon: Settings02Icon, area: "settings" },
     { href: "/dashboard/users", label: "Users", icon: UserMultipleIcon, area: "users" },
+    { href: "/dashboard/activity", label: "Activity", icon: Activity01Icon, area: "users" }, // admins only (same gate as Users)
   ] },
 ];
 
@@ -145,7 +146,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (!roles.length) return;
     let alive = true;
     const canContact = rolesCan(roles, "contact"), canSocial = rolesCan(roles, "social");
-    if (!canContact && !canSocial) return;
+    const canLeads = rolesCan(roles, "leads"); // lead follow-ups due today + overdue
+    if (!canContact && !canSocial && !canLeads) return;
     const legacy = async () => {
       const today = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
       const next: Record<string, number> = {};
@@ -171,6 +173,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           next = {};
           if (canContact) next["/dashboard/contact"] = Number(b?.inboxUnread) || 0;
           if (canSocial) next["/dashboard/social"] = Number(b?.socialOverdue) || 0;
+          if (canLeads) {
+            const fb = b as { leadsFollowUpToday?: number | null; leadsFollowUpOverdue?: number | null };
+            next["/dashboard/leads"] = (Number(fb?.leadsFollowUpToday) || 0) + (Number(fb?.leadsFollowUpOverdue) || 0);
+          }
         } catch (e) {
           // Endpoint not deployed yet → stop asking for it this session.
           if ((e as { status?: number })?.status === 404) badgesApi.current = false;

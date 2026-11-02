@@ -21,7 +21,7 @@ type Stats = { instagram?: { followers: number | null; picture: string | null; u
 type Acc = { client: string; pageId: string; pageName: string; igUsername: string | null; igAvatar: string | null; status: string; lastError: string | null; paused: string[]; stats: Stats };
 type Metrics = { likes?: number; comments?: number; shares?: number; picture?: string | null; url?: string | null };
 type Job = { id: number; postId: number; client: string; platform: Platform; status: string; runAt: string | null; publishedAt: string | null; url: string | null; error: string | null; metrics: Metrics };
-type Post = { id: number; client: string; theme: string; format: string | null; status: string; postDate: string | null; postTime: string | null; assigneeId: number | null; picture: { url: string; type: string } | null };
+type Post = { id: number; client: string; theme: string; format: string | null; status: string; postDate: string | null; postTime: string | null; assigneeId: number | null; picture: { url: string; type: string; thumbUrl?: string | null } | null };
 type FollowerRow = { client: string; platform: Platform; day: string; followers: number };
 type Data = { brands: string[]; accounts: Acc[]; followers: FollowerRow[]; weekAgo: string; jobs: Job[]; posts: Post[]; metaConfigured: boolean };
 type Tab = "overview" | "channels" | "posts";
@@ -264,7 +264,7 @@ export default function SocialStudio() {
   const topPost = v.top ? v.postById.get(v.top.postId) : null;
   const nextJob = v.upcoming[0];
   const nextPost = nextJob ? v.postById.get(nextJob.postId) : null;
-  const thumb = (j?: Job | null, p?: Post | null) => j?.metrics?.picture || p?.picture?.url || null;
+  const thumb = (j?: Job | null, p?: Post | null) => j?.metrics?.picture || p?.picture?.thumbUrl || p?.picture?.url || null;
   const hasMetrics = v.month.some((j) => j.metrics && Object.keys(j.metrics).length);
 
   return (
@@ -326,7 +326,7 @@ export default function SocialStudio() {
             <span className="ss-side-t"><Icon i={Clock01Icon} size={16} />Next going live</span>
             {nextJob && nextPost ? (
               <div className="ss-toppost">
-                <span className="th" style={nextPost.picture?.url ? { backgroundImage: `url(${nextPost.picture.url})` } : { background: color(nextPost.client) }} />
+                <span className="th" style={nextPost.picture?.url ? { backgroundImage: `url(${nextPost.picture.thumbUrl || nextPost.picture.url})` } : { background: color(nextPost.client) }} />
                 <span><b>{nextPost.theme}</b><small>{fmtWhen(nextJob.runAt)} · {nextPost.client} · {PNAME[nextJob.platform]}</small></span>
               </div>
             ) : <p className="ss-empty-s">Nothing scheduled. Posts in Ready to post appear here.</p>}
@@ -421,7 +421,7 @@ export default function SocialStudio() {
                         {[0, 1, 2, 3].map((i) => {
                           const j = c.scheduled[i], p = j ? v.postById.get(j.postId) : null;
                           return p ? (
-                            <span key={i} title={`${p.theme} · ${fmtWhen(j.runAt)}`} style={p.picture?.url && p.picture.type !== "video" ? { backgroundImage: `url(${p.picture.url})` } : { background: color(b) }}>
+                            <span key={i} title={`${p.theme} · ${fmtWhen(j.runAt)}`} style={p.picture?.url && p.picture.type !== "video" ? { backgroundImage: `url(${p.picture.thumbUrl || p.picture.url})` } : { background: color(b) }}>
                               {(!p.picture?.url || p.picture.type === "video") && <Icon i={isVideo(p) ? PlayIcon : Calendar03Icon} size={14} />}
                             </span>
                           ) : <span key={i} className="empty" />;

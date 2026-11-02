@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { api } from "@/lib/adminApi";
 import Select from "@/components/Select";
+import { MonthlyReportButton } from "@/components/admin/MonthlyReport";
 
 /* Content calendar performance KPIs, shown on the dashboard home.
    mode "team": admins — team cards, a row per person (tap → details),
@@ -91,6 +92,7 @@ export default function SocialKpis({ mode }: { mode: "team" | "me" }) {
           <div className="kp-brand"><Select value={brand} onChange={setBrand} ariaLabel="Brand"
             options={[{ value: "", label: "All brands" }, ...data.team.brands.map((b) => ({ value: b.name, label: b.name }))]} /></div>
         )}
+        {mode === "team" && <MonthlyReportButton />}
       </div>
     </div>
   );
