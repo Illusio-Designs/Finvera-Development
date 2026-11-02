@@ -63,6 +63,11 @@ async function start() {
     // Auto-publishing: check every minute for posts due to go live.
     const autoPublish = require("./src/utils/autoPublish");
     setInterval(() => { autoPublish.runDue().catch(() => {}); }, 60 * 1000).unref();
+
+    // Social studio numbers (followers, likes) from Meta: refresh hourly in
+    // the background so the page always answers from fresh saved numbers.
+    const studio = require("./src/controllers/studio.controller");
+    setInterval(() => { studio.refreshAllStudio().catch(() => {}); }, 60 * 60 * 1000).unref();
   } catch (err) {
     // Only genuine start failures (e.g. DB unreachable) reach here.
     console.error("\x1b[31m✘ Failed to start server:\x1b[0m", err.message);
