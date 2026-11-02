@@ -4,6 +4,7 @@ import { Arrow, Check } from "./icons";
 import PhoneInput from "./PhoneInput";
 import Select from "./Select";
 import { toast } from "@/lib/toast";
+import { useSpamGuard } from "./SpamGuard";
 
 const PROJECT_TYPES = ["SaaS platform", "CRM system", "Cloud & DevOps", "AI & automation", "Something else"];
 
@@ -14,6 +15,7 @@ export default function ContactForm() {
   const [error, setError] = useState("");
   const [bad, setBad] = useState<Record<string, string>>({});
   const [projectType, setProjectType] = useState(PROJECT_TYPES[0]);
+  const guard = useSpamGuard();
   const clr = (k: string) => setBad((b) => (b[k] ? (() => { const n = { ...b }; delete n[k]; return n; })() : b));
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -41,7 +43,7 @@ export default function ContactForm() {
         const res = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
+          body: JSON.stringify({ ...data, ...guard.extra() }),
         });
         if (!res.ok) {
           const j = await res.json().catch(() => ({}));
@@ -53,6 +55,7 @@ export default function ContactForm() {
       }
       setState("ok");
       form.reset();
+      guard.reset();
       setProjectType(PROJECT_TYPES[0]);
       toast("Message sent — we'll be in touch shortly! 🎉");
     } catch (err) {
@@ -103,6 +106,7 @@ export default function ContactForm() {
           onChange={() => clr("message")} />
         {bad.message && <span className="field-err">{bad.message}</span>}
       </div>
+      {guard.fields}
       <button type="submit" className="btn btn-primary" data-cursor data-magnetic
         disabled={state === "sending"} style={{ width: "100%", justifyContent: "center", opacity: state === "sending" ? 0.7 : 1 }}>
         {state === "sending" ? "Sending…" : "Send message"} <Arrow />

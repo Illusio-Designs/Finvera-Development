@@ -4,6 +4,7 @@ import { Arrow } from "./icons";
 import PhoneInput from "./PhoneInput";
 import Toaster from "./admin/Toaster";
 import { toast } from "@/lib/toast";
+import { useSpamGuard } from "./SpamGuard";
 
 const endpoint = `${(process.env.NEXT_PUBLIC_API_URL || "https://api.finvera.solutions").replace(/\/$/, "")}/api/contact`;
 
@@ -17,6 +18,7 @@ export default function ConsultPanel() {
   const [open, setOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
+  const guard = useSpamGuard();
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -38,9 +40,9 @@ export default function ConsultPanel() {
     const data = Object.fromEntries(new FormData(form).entries());
     setSending(true);
     try {
-      const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...data, ...guard.extra() }) });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || "Please try again.");
-      form.reset(); setDone(true); toast("Thanks! We'll be in touch shortly. 🎉");
+      form.reset(); guard.reset(); setDone(true); toast("Thanks! We'll be in touch shortly. 🎉");
       setTimeout(() => { setDone(false); setOpen(false); }, 1900);
     } catch (err) {
       toast(err instanceof Error ? err.message : "Something went wrong.", "err");
@@ -72,6 +74,7 @@ export default function ConsultPanel() {
                 <div className="field"><label htmlFor="c_email">Email *</label><input id="c_email" name="email" type="email" required placeholder="jane@company.com" /></div>
                 <div className="field"><label>Phone</label><PhoneInput name="phone" /></div>
                 <div className="field"><label htmlFor="c_msg">Project details *</label><textarea id="c_msg" name="message" required placeholder="What are you building?" /></div>
+                {guard.fields}
                 <button type="submit" className="btn btn-primary" disabled={sending} style={{ width: "100%", justifyContent: "center" }}>
                   {sending ? "Sending…" : "Send message"} <Arrow />
                 </button>
