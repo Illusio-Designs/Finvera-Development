@@ -7,6 +7,7 @@ import Select from "@/components/Select";
 import DatePicker from "@/components/ui/DatePicker";
 import { BoardSkeleton } from "@/components/admin/Skeleton";
 import { readXlsx } from "@/lib/xlsx";
+import { visibleInterval } from "@/lib/visibleInterval";
 
 type Stage = "planned" | "client" | "production" | "approval" | "ready" | "posted";
 type LogEntry = { id: string; userId?: number | null; minutes: number; note?: string; at: string };
@@ -21,6 +22,7 @@ type Post = {
   media?: Media[]; publishTo?: string[] | null; keywordHashtags?: boolean;
   step?: string | null; // In production: "graphic" (design) then "video" (edit)
   team?: Partial<Record<string, number | null>> | null; // who does each step, picked by hand
+  _full?: boolean; // client-only: the heavy fields (HEAVY) are loaded — the board loads light "card" posts
 };
 /* Auto-publishing */
 type Media = { url: string; type: "image" | "video"; name?: string };
@@ -99,10 +101,17 @@ const CLIENT_COLORS = ["#3e60ab", "#0f766e", "#be185d", "#a16207", "#7c5cff", "#
 const FORMATS = ["Post", "Reel", "Carousel", "Video", "Story", "Influencer Reel"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const COL_PAGE = 20; // cards per board column before "Show more"
 /* Fields the drawer edits — time log + timer are written separately so a save never clobbers them. */
 const EDITABLE: (keyof Post)[] = ["team", "step", "client", "status", "postDate", "postTime", "dueDate", "assigneeId", "estimateHours", "festive", "theme", "topic",
   "format", "requirements", "reference", "dataStatus", "poc", "caption", "driveLink", "tags", "keywords", "channels", "remarks",
   "media", "publishTo", "keywordHashtags"];
+
+/* Left out of the board's "card" list (?fields=card) and fetched with the
+   full post (GET /social-posts/:id) when its details card or editor opens. */
+const HEAVY: (keyof Post)[] = ["caption", "requirements", "remarks", "reference", "tags", "keywords", "timeLog", "poc", "driveLink", "estimateHours"];
+const heavyOf = (p: Partial<Post>, skip?: Set<keyof Post>) =>
+  Object.fromEntries(HEAVY.filter((k) => k in p && !skip?.has(k)).map((k) => [k, p[k]])) as Partial<Post>;
 
 /* JSON columns can come back as strings on some MySQL setups — coerce. */
 function toArr<T = unknown>(v: unknown): T[] {
@@ -110,12 +119,16 @@ function toArr<T = unknown>(v: unknown): T[] {
   if (typeof v === "string" && v.trim().startsWith("[")) { try { const a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch { return []; } }
   return [];
 }
+/* A post is "full" when the server sent every heavy field (older backends
+   ignore ?fields=card and always do). Heavy fields that weren't sent stay
+   absent, so a save can tell "not loaded" from "empty". */
 const normPost = (p: Post): Post => ({
   ...p,
+  _full: HEAVY.every((k) => k in p),
   postDate: p.postDate ? String(p.postDate).slice(0, 10) : null,
   dueDate: p.dueDate ? String(p.dueDate).slice(0, 10) : null,
-  timeLog: toArr<LogEntry>(p.timeLog),
-  estimateHours: p.estimateHours != null ? Number(p.estimateHours) : null,
+  ...("timeLog" in p ? { timeLog: toArr<LogEntry>(p.timeLog) } : {}),
+  ...("estimateHours" in p ? { estimateHours: p.estimateHours != null ? Number(p.estimateHours) : null } : {}),
   media: toArr<Media>(p.media),
   publishTo: p.publishTo == null ? null : toArr<string>(p.publishTo),
   keywordHashtags: p.keywordHashtags === undefined ? true : !!p.keywordHashtags,
@@ -304,6 +317,8 @@ export default function SocialCalendar() {
   const [coverEdit, setCoverEdit] = useState<{ brand: string; role: Role } | null>(null); // "who covers" cell being edited
   const [coverBusy, setCoverBusy] = useState<number | null>(null);
   const [overStage, setOverStage] = useState<Stage | null>(null);
+  // Board columns render COL_PAGE cards at first; "Show N more" adds the next batch.
+  const [colShown, setColShown] = useState<Partial<Record<Stage, number>>>({});
   const [, setTick] = useState(0);
   const dragId = useRef<number | null>(null);
   const firstLoadDone = useRef(false);
@@ -335,10 +350,18 @@ export default function SocialCalendar() {
   async function load() {
     try {
       const [p, c, u, me] = await Promise.all([
-        api.list("social-posts"), api.list("social-clients"),
+        api.listSocialPosts({ fields: "card" }), api.list("social-clients"),
         api.listUsers().catch(() => []), api.me().catch(() => null),
       ]);
-      setPosts((Array.isArray(p) ? p : []).map(normPost));
+      // Light card posts. Heavy fields already fetched for a post are kept so an
+      // open details card doesn't flicker; it is re-fetched (it's no longer _full).
+      setPosts((prev) => {
+        const had = new Map(prev.map((x) => [x.id, x]));
+        return (Array.isArray(p) ? p : []).map((raw: Post) => {
+          const n = normPost(raw), old = had.get(n.id);
+          return n._full || !old ? n : { ...heavyOf(old), ...n, _full: false };
+        });
+      });
       setClientRows(Array.isArray(c) ? c : []);
       setUsers(Array.isArray(u) ? u : []);
       setMeId((me?.user ?? me)?.id ?? null);
@@ -357,7 +380,42 @@ export default function SocialCalendar() {
     load();
     try { setView((localStorage.getItem("fv_social_view") as View) || "board"); setClient(localStorage.getItem("fv_social_client") || ""); } catch { /* ignore */ }
   }, []);
-  useEffect(() => { const t = setInterval(() => setTick((n) => n + 1), 30000); return () => clearInterval(t); }, []);
+  // Re-render every 30s so "Goes live in…" / overdue labels stay current — only while the tab is visible.
+  useEffect(() => visibleInterval(() => setTick((n) => n + 1), 30000), []);
+
+  /* Full post for the open details card / editor: the card data shows at
+     once; caption, requirements etc. fill in when this arrives. Fields the
+     person already typed into in the editor are never overwritten. */
+  const fullBusy = useRef(new Set<number>());
+  const dirty = useRef(new Set<keyof Post>()); // editor fields changed by hand since it opened
+  async function fetchFull(id: number): Promise<Post | null> {
+    try {
+      const full = normPost(await api.getSocialPost(id));
+      if (!full?.id) return null;
+      full._full = true;
+      setPosts((ps) => ps.map((x) => (x.id === id ? { ...x, ...full } : x)));
+      setEditing((e) => (e?.id === id && !e._full ? { ...e, ...heavyOf(full, dirty.current), _full: true } : e));
+      return full;
+    } catch { return null; }
+  }
+  const viewedFull = viewId != null ? !!posts.find((x) => x.id === viewId)?._full : true;
+  const editingFull = editing?.id ? !!editing._full : true;
+  useEffect(() => {
+    const id = editing?.id ?? viewId;
+    if (id == null || (editing?.id ? editingFull : viewedFull) || fullBusy.current.has(id)) return;
+    fullBusy.current.add(id);
+    fetchFull(id).finally(() => fullBusy.current.delete(id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewId, editing?.id, viewedFull, editingFull]);
+  /* Saved post from a PUT/POST response (always the full row) → the board. */
+  function applySaved(saved: Post | null | undefined) {
+    if (!saved?.id) return false;
+    const n = { ...normPost(saved), _full: true };
+    setPosts((ps) => (ps.some((x) => x.id === n.id) ? ps.map((x) => (x.id === n.id ? n : x)) : [...ps, n]));
+    return true;
+  }
+  /* One post changed on the server (publishing, mark posted) — re-read just it. */
+  const refreshPost = (id: number) => { fetchFull(id); };
   useEffect(() => {
     if (viewId == null || editing) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setViewId(null); };
@@ -475,19 +533,19 @@ export default function SocialCalendar() {
     catch (e: any) { toast("Couldn't disconnect", "err", { description: e.message }); }
   }
   async function retryJob(j: PubJob) {
-    try { await api.retryJob(j.id); toast(`Retrying ${PLATFORM_NAME[j.platform]}`, "info", { description: j.theme }); setTimeout(() => { loadPublishing(); load(); }, 4000); }
+    try { await api.retryJob(j.id); toast(`Retrying ${PLATFORM_NAME[j.platform]}`, "info", { description: j.theme }); setTimeout(() => { loadPublishing(); refreshPost(j.postId); }, 4000); }
     catch (e: any) { toast("Couldn't retry", "err", { description: e.message }); }
   }
   async function markJobPosted(j: PubJob) {
     const url = await dialog.prompt({ title: `Posted on ${PLATFORM_NAME[j.platform]}?`, message: "Paste the post's link (optional). It then counts as published.", placeholder: "https://…", confirmText: "Mark as posted" });
     if (url === null) return;
-    try { await api.markJobPosted(j.id, url.trim()); toast("Marked as posted", "ok", { description: j.theme }); loadPublishing(); load(); }
+    try { await api.markJobPosted(j.id, url.trim()); toast("Marked as posted", "ok", { description: j.theme }); loadPublishing(); refreshPost(j.postId); window.dispatchEvent(new Event("fv-badges")); }
     catch (e: any) { toast("Couldn't update", "err", { description: e.message }); }
   }
   async function publishNow(p: Post) {
     const where = platformsFor(p).map((x) => PLATFORM_NAME[x]).join(" and ");
     if (!(await dialog.confirm({ title: `Publish “${p.theme}” now?`, message: `It goes live on ${where} straight away, whatever its go-live time.`, confirmText: "Publish now" }))) return;
-    try { await api.publishNow(p.id); toast("Publishing…", "info", { description: `${p.theme} · ${where}` }); setTimeout(() => { loadPublishing(); load(); }, 5000); }
+    try { await api.publishNow(p.id); toast("Publishing…", "info", { description: `${p.theme} · ${where}` }); setTimeout(() => { loadPublishing(); refreshPost(p.id); }, 5000); }
     catch (e: any) { toast("Couldn't publish", "err", { description: e.message }); }
   }
   async function addMedia(files: FileList | null) {
@@ -534,7 +592,7 @@ export default function SocialCalendar() {
     try {
       // The server hands the post to the next stage's role — show the new assignee straight away.
       const saved = await api.update("social-posts", id, { status });
-      patchLocal(id, { assigneeId: saved?.assigneeId ?? null, step: saved?.step ?? null });
+      if (!applySaved(saved)) patchLocal(id, { assigneeId: saved?.assigneeId ?? null, step: saved?.step ?? null });
       window.dispatchEvent(new Event("fv-badges")); // overdue count in the sidebar
       loadPublishing(); // Ready → scheduled, or a schedule cancelled
       const who = users.find((u) => u.id === saved?.assigneeId);
@@ -597,13 +655,16 @@ export default function SocialCalendar() {
   async function applyHandoff(p: Post, role: Role, patch: Partial<Post>, kind: Handoff["kind"], chosen: number | null, note = ""): Promise<boolean> {
     const team = { ...(p.team || {}), [role]: chosen };
     const body: Record<string, unknown> = { ...patch, assigneeId: chosen, team };
-    if (kind === "back" && note.trim()) {
-      const stamp = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short" });
-      body.remarks = [`Changes requested (${stamp}): ${note.trim()}`, p.remarks].filter(Boolean).join("\n");
-    }
     try {
+      if (kind === "back" && note.trim()) {
+        // The note goes on top of the existing remarks — load them first if the board only has the card.
+        const remarks = p._full ? p.remarks : (await fetchFull(p.id))?.remarks;
+        if (!p._full && remarks === undefined) throw new Error("Couldn't load the post's remarks — try again.");
+        const stamp = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+        body.remarks = [`Changes requested (${stamp}): ${note.trim()}`, remarks].filter(Boolean).join("\n");
+      }
       const saved = await api.update("social-posts", p.id, body);
-      patchLocal(p.id, { ...(patch as Partial<Post>), team, assigneeId: saved?.assigneeId ?? chosen, step: saved?.step ?? null, ...(body.remarks ? { remarks: body.remarks as string } : {}) });
+      if (!applySaved(saved)) patchLocal(p.id, { ...(patch as Partial<Post>), team, assigneeId: saved?.assigneeId ?? chosen, step: saved?.step ?? null, ...(body.remarks ? { remarks: body.remarks as string } : {}) });
       window.dispatchEvent(new Event("fv-badges"));
       loadPublishing();
       const who = users.find((u) => u.id === chosen);
@@ -620,15 +681,15 @@ export default function SocialCalendar() {
     try {
       const r = await api.uploadSocialMedia(Array.from(files).slice(0, 10));
       const media = [...(p.media || []), ...r.items].slice(0, 10);
-      await api.update("social-posts", p.id, { media });
-      patchLocal(p.id, { media });
+      const saved = await api.update("social-posts", p.id, { media });
+      if (!applySaved(saved)) patchLocal(p.id, { media });
       toast(`${r.items.length} file${r.items.length === 1 ? "" : "s"} added`, "ok", { description: `“${p.theme}” · finished work` });
     } catch (e: any) { toast("Upload failed", "err", { description: e.message || "Use JPG/PNG images or MP4/MOV videos." }); }
     finally { setWorkBusy(null); }
   }
   async function removeWork(p: Post, i: number) {
     const media = (p.media || []).filter((_, k) => k !== i);
-    try { await api.update("social-posts", p.id, { media }); patchLocal(p.id, { media }); }
+    try { const saved = await api.update("social-posts", p.id, { media }); if (!applySaved(saved)) patchLocal(p.id, { media }); }
     catch (e: any) { toast("Couldn't remove it", "err", { description: e.message }); }
   }
 
@@ -654,22 +715,35 @@ export default function SocialCalendar() {
     e.preventDefault();
     if (!editing?.client?.trim() || !editing?.theme?.trim()) return toast("Add a brand and a post theme", "warn", { description: "Both are needed before the post can be saved." });
     const body: Record<string, unknown> = {};
-    for (const k of EDITABLE) body[k] = editing[k] === "" ? null : editing[k] ?? null;
+    // Heavy fields not loaded yet (full post still on its way) are left out
+    // unless typed into, so a save never wipes them on the server.
+    const partial = !!editing.id && !editing._full;
+    for (const k of EDITABLE) {
+      if (partial && HEAVY.includes(k) && !dirty.current.has(k)) continue;
+      body[k] = editing[k] === "" ? null : editing[k] ?? null;
+    }
     // A real post link on a post whose date has come means it's published.
     if (hasLiveLink(editing) && editing.postDate && String(editing.postDate).slice(0, 10) <= todayIso()) body.status = "posted";
     try {
-      if (editing.id) await api.update("social-posts", editing.id, body);
-      else await api.create("social-posts", { ...body, timeLog: [] });
-      if (!limited && !clientRows.some((c) => c.name === editing.client)) await api.create("social-clients", { name: editing.client }).catch(() => {});
+      const saved = editing.id ? await api.update("social-posts", editing.id, body) : await api.create("social-posts", { ...body, timeLog: [] });
+      let reload = false;
+      if (!limited && !clientRows.some((c) => c.name === editing.client)) {
+        const made = await api.create("social-clients", { name: editing.client }).catch(() => null);
+        if (made?.id) setClientRows((cs) => [...cs, made]); else reload = true;
+      }
       if (editing.id) setViewId(editing.id);
-      setEditing(null); toast(editing.id ? "Post updated" : "Post added", "ok", { description: `“${editing.theme}” · ${editing.client}` }); load(); loadPublishing(); window.dispatchEvent(new Event("fv-badges"));
+      // The response is the saved row (with server-set assignee / dates) — patch it in instead of reloading everything.
+      if (reload || !applySaved(saved)) load();
+      setEditing(null); toast(editing.id ? "Post updated" : "Post added", "ok", { description: `“${editing.theme}” · ${editing.client}` }); loadPublishing(); window.dispatchEvent(new Event("fv-badges"));
     } catch (err: any) { toast("Couldn't save the post", "err", { description: err.message || "Your changes are still in the form — try again." }); }
   }
   async function deletePost() {
     if (!editing?.id) return;
     if (!canDelete(editing)) return notYours(editing);
     if (!(await dialog.confirm({ title: "Delete this post?", message: "This can't be undone.", danger: true, confirmText: "Delete" }))) return;
-    await api.remove("social-posts", editing.id); setViewId(null); setEditing(null); toast("Post deleted", "ok", { description: `“${editing.theme}” was removed from ${editing.client}.` }); load(); window.dispatchEvent(new Event("fv-badges"));
+    const gone = editing.id;
+    await api.remove("social-posts", gone); setViewId(null); setEditing(null); toast("Post deleted", "ok", { description: `“${editing.theme}” was removed from ${editing.client}.` });
+    setPosts((ps) => ps.filter((x) => x.id !== gone)); loadPublishing(); window.dispatchEvent(new Event("fv-badges"));
   }
   // Team members add posts to their own brands: pre-fill the open brand tab, or their only brand.
 
@@ -853,6 +927,8 @@ export default function SocialCalendar() {
         <div className="cal-board">
           {STAGES.map((s) => {
             const items = list.filter((p) => p.status === s.id);
+            const shown = colShown[s.id] ?? COL_PAGE;
+            const more = Math.min(items.length - shown, Math.max(COL_PAGE, shown));
             return (
               <section key={s.id} aria-label={s.title} className={"cal-col" + (overStage === s.id ? " over" : "")}
                 onDragOver={(e) => { e.preventDefault(); setOverStage(s.id); }}
@@ -861,7 +937,12 @@ export default function SocialCalendar() {
                 <div className="cal-col-head">
                   <span className="cal-col-title"><h2>{s.title}</h2><b className={"fvc-n " + tintOf(s.id)}>{items.length}</b><small>{s.owner}</small></span>
                 </div>
-                {items.map(renderCard)}
+                {items.slice(0, shown).map(renderCard)}
+                {more > 0 && (
+                  <button type="button" className="cal-btn sm" onClick={() => setColShown((c) => ({ ...c, [s.id]: shown + more }))}>
+                    Show {more} more
+                  </button>
+                )}
                 {!items.length && <div className="cal-col-empty">Nothing here</div>}
               </section>
             );
@@ -1103,7 +1184,7 @@ export default function SocialCalendar() {
               {nextLabel && <button type="button" className="cal-primary wide" onClick={() => advance(p)}>{nextLabel}</button>}
               {p.status === "approval" && !limited && <button type="button" className="cal-btn lg" onClick={() => sendBack(p)}>Send back for changes</button>}
               <div className="cal-row">
-                <button type="button" className="cal-btn lg grow" onClick={() => { setEditing({ ...p }); setViewId(null); }}>Edit post</button>
+                <button type="button" className="cal-btn lg grow" onClick={() => { dirty.current = new Set(); setEditing({ ...p }); setViewId(null); }}>Edit post</button>
               </div>
             </div>
           ) : (
@@ -1266,7 +1347,7 @@ export default function SocialCalendar() {
     ["Posted", list.filter(isDone).length, "Live with links", "ok"],
   ];
   const viewed = viewId != null ? posts.find((p) => p.id === viewId) : undefined;
-  const set = (patch: Partial<Post>) => setEditing((e) => ({ ...e, ...patch }));
+  const set = (patch: Partial<Post>) => { Object.keys(patch).forEach((k) => dirty.current.add(k as keyof Post)); setEditing((e) => ({ ...e, ...patch })); };
   const txt = (k: keyof Post) => String(editing?.[k] ?? "");
   const views: [View, string][] = limited ? [["mine", "My work"], ["board", "Board"], ["calendar", "Calendar"]] : [["board", "Board"], ["calendar", "Calendar"]];
   const activeView: View = (!limited && view === "mine") || view === "schedule" ? "board" : view;
