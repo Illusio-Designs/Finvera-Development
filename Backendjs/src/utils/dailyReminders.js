@@ -11,7 +11,11 @@
        (go-live passed, not posted) → the assigned person
      • Renewals — due in 7 days, tomorrow, today, and the day after (overdue)
        → the owner + admins (invoice records and board-card renewal dates)
-     • Project board — card "Due tomorrow" and "Overdue" → the card's members */
+     • Project board — card "Due tomorrow" and "Overdue" → the card's members
+
+   Email: the same run also sends ONE digest email per person (renewals +
+   content calendar sections, each only if their email preferences allow it),
+   in the background — see sendDigest(). */
 
 const { Op } = require("sequelize");
 const { SocialPost, Renewal, Task, Board, User, Setting } = require("../models");
@@ -56,6 +60,14 @@ async function runDaily(today) {
   const adminIds = users.filter((u) => rolesOf(u).includes("admin")).map((u) => u.id);
   const nameToId = new Map(users.map((u) => [u.name, u.id]));
   const rows = [];
+  const digest = new Map(); // userId → { renewals: [], start: [], overdue: [] }
+  const dig = (userIds, section, item) => {
+    for (const id of new Set(userIds)) {
+      if (!active.has(id)) continue;
+      if (!digest.has(id)) digest.set(id, { renewals: [], start: [], overdue: [] });
+      digest.get(id)[section].push(item);
+    }
+  };
   const add = (userIds, n) => { for (const userId of new Set(userIds)) if (active.has(userId)) rows.push({ userId, ...n }); };
   const byUser = (items, idsOf) => {
     const m = new Map();
@@ -67,6 +79,8 @@ async function runDaily(today) {
   const posts = await SocialPost.findAll({ where: { status: { [Op.ne]: "posted" }, assigneeId: { [Op.ne]: null } } });
   const starting = posts.filter((p) => day(p.dueDate) === today);
   const overdue = posts.filter((p) => p.postDate && day(p.postDate) < today);
+  for (const p of starting) dig([p.assigneeId], "start", { title: p.theme, sub: `${p.client} · goes live ${when(p.postDate, p.postTime)}` });
+  for (const p of overdue) dig([p.assigneeId], "overdue", { title: p.theme, sub: `${p.client} · go-live was ${fmtDate(p.postDate)}` });
   for (const [uid, ps] of byUser(starting, (p) => [p.assigneeId])) {
     add([uid], ps.length === 1
       ? { type: "due", title: `Start work today: ${ps[0].theme}`, body: `${ps[0].client} · goes live ${when(ps[0].postDate, ps[0].postTime)}`, link: "/dashboard/social", meta: { kind: "start", day: today } }
@@ -85,6 +99,10 @@ async function runDaily(today) {
     const head = label(daysBetween(today, day(r.renewalDate)));
     if (!head) continue;
     const owner = r.owner ? nameToId.get(r.owner) : null;
+    dig([...adminIds, ...(owner ? [owner] : [])], "renewals", {
+      head, title: r.project ? `${r.client} — ${r.project}` : r.client,
+      sub: `Renewal date ${fmtDate(r.renewalDate)}${r.amount ? ` · ₹${Number(r.amount).toLocaleString("en-IN")}` : ""}${r.owner ? ` · ${r.owner}` : ""}`,
+    });
     add([...adminIds, ...(owner ? [owner] : [])], {
       type: "renewal", title: `${head}: ${r.project ? `${r.client} — ${r.project}` : r.client}`,
       body: `Renewal date ${fmtDate(r.renewalDate)}${r.amount ? ` · ₹${Number(r.amount).toLocaleString("en-IN")}` : ""}`,
@@ -99,6 +117,7 @@ async function runDaily(today) {
   const cards = (await Task.findAll({ where: { [Op.or]: [{ dueDate: { [Op.ne]: null } }, { renewalDate: { [Op.ne]: null } }] } })).filter(open);
   for (const t of cards) {
     const head = t.renewalDate ? label(daysBetween(today, day(t.renewalDate))) : null;
+    if (head) dig([...adminIds, ...asArr(t.memberIds)], "renewals", { head, title: t.title, sub: `Project board · renewal date ${fmtDate(t.renewalDate)}` });
     if (head) add([...adminIds, ...asArr(t.memberIds)], { type: "renewal", title: `${head}: ${t.title}`, body: `Renewal date ${fmtDate(t.renewalDate)}`, link: "/dashboard/kanban", meta: { taskId: t.id, day: today } });
   }
   const tomorrow = addDays(today, 1);
@@ -116,7 +135,41 @@ async function runDaily(today) {
   }
 
   await createRows(rows);
+  sendDigest(users, digest, today);
   return rows.length;
+}
+
+/* One email per person: their renewals and content-calendar items for today.
+   Fire-and-forget; respects each user's emailPrefs (renewals / calendar). */
+function sendDigest(users, digest, today) {
+  try {
+    const { emailUsers, prefsOf, layout, esc, ul, dashboardUrl } = require("./emails");
+    const byId = new Map(users.map((u) => [u.id, u]));
+    const people = [...digest.keys()].map((id) => byId.get(id)).filter(Boolean);
+    const item = (i) => `<b>${esc(i.title)}</b>${i.head ? ` — ${esc(i.head)}` : ""}<br><span style="color:#5b6478">${esc(i.sub)}</span>`;
+    emailUsers(people, null, (u) => {
+      const d = digest.get(u.id);
+      const prefs = prefsOf(u);
+      const parts = [], subj = [];
+      if (prefs.renewals && d.renewals.length) {
+        parts.push(`<h2 style="font-size:16px;margin:18px 0 4px">Renewals (${d.renewals.length})</h2>${ul(d.renewals.map(item))}`);
+        subj.push(`${d.renewals.length} renewal${d.renewals.length === 1 ? "" : "s"}`);
+      }
+      if (prefs.calendar && d.start.length) {
+        parts.push(`<h2 style="font-size:16px;margin:18px 0 4px">Start work today (${d.start.length})</h2>${ul(d.start.map(item))}`);
+        subj.push(`${d.start.length} post${d.start.length === 1 ? "" : "s"} to start`);
+      }
+      if (prefs.calendar && d.overdue.length) {
+        parts.push(`<h2 style="font-size:16px;margin:18px 0 4px;color:#b42318">Overdue posts (${d.overdue.length})</h2>${ul(d.overdue.map(item))}`);
+        subj.push(`${d.overdue.length} overdue`);
+      }
+      if (!parts.length) return null;
+      return {
+        subject: `Finvera today: ${subj.join(", ")}`,
+        html: layout({ title: `Your day — ${fmtDate(today)}`, body: `<p>Hi ${esc(String(u.name || "").split(" ")[0] || "there")}, here's what needs you today.</p>${parts.join("")}`, button: { label: "Open the dashboard", url: dashboardUrl("/dashboard") } }),
+      };
+    });
+  } catch (e) { console.warn("daily digest email:", e.message); }
 }
 
 module.exports = { maybeRunDaily, runDaily, istNow };

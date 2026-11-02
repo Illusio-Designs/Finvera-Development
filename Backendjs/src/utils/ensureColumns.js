@@ -23,6 +23,11 @@ const WANTED = [
   { table: "social_accounts", column: "statsAt", def: "DATETIME NULL" },
   { table: "social_publish_jobs", column: "metrics", def: "JSON NULL" },
   { table: "social_publish_jobs", column: "metricsAt", def: "DATETIME NULL" },
+  { table: "users", column: "emailPrefs", def: "JSON NULL" },
+  { table: "contact_submissions", column: "isSpam", def: "TINYINT(1) NOT NULL DEFAULT 0" },
+  { table: "contact_submissions", column: "spamReason", def: "VARCHAR(120) NULL" },
+  { table: "social_accounts", column: "tokenExpiresAt", def: "DATETIME NULL" },
+  { table: "social_accounts", column: "lastCheckedAt", def: "DATETIME NULL" },
 ];
 
 /* ENUM columns whose allowed values grew (sync() never ALTERs an existing

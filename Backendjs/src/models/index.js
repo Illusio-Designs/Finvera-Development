@@ -15,6 +15,8 @@ const User = sequelize.define("User", {
   title: { type: DataTypes.STRING },    // job title / role label
   // Social media brands (SocialClient ids) this user may work on; empty = all.
   socialClients: { type: DataTypes.JSON, defaultValue: [] },
+  // Which emails this user gets: { contact, renewals, calendar, publishing, security } (null/missing key = on).
+  emailPrefs: { type: DataTypes.JSON },
 }, { tableName: "users" });
 
 /* ── Project / Work ──────────────────────────────────── */
@@ -111,6 +113,8 @@ const ContactSubmission = sequelize.define("ContactSubmission", {
   message: { type: DataTypes.TEXT, allowNull: false },
   ip: { type: DataTypes.STRING },
   isRead: { type: DataTypes.BOOLEAN, defaultValue: false },
+  isSpam: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }, // suspected spam (kept, hidden from the inbox)
+  spamReason: { type: DataTypes.STRING(120) },
 }, { tableName: "contact_submissions" });
 
 /* ── Kanban board (Trello-style) ─────────────────────── */
@@ -289,6 +293,8 @@ const SocialAccount = sequelize.define("SocialAccount", {
   paused: { type: DataTypes.JSON },                                    // platforms paused, e.g. ["facebook"]
   stats: { type: DataTypes.JSON },                                     // cached profile numbers (followers, pictures)
   statsAt: { type: DataTypes.DATE },
+  tokenExpiresAt: { type: DataTypes.DATE },                            // from Meta debug_token (null = no known expiry)
+  lastCheckedAt: { type: DataTypes.DATE },                             // last connection health check
 }, { tableName: "social_accounts" });
 
 /* Daily follower counts per brand channel, for "new followers" over time. */

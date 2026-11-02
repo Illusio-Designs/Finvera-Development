@@ -4,3 +4,5 @@ uploads/*
 !uploads/.gitkeep
 npm-debug.log*
 .DS_Store
+# Database backups made by the server (never commit)
+backups/
