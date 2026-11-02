@@ -209,7 +209,45 @@ const Lead = sequelize.define("Lead", {
   nextFollowUp: { type: DataTypes.DATEONLY },
   notes: { type: DataTypes.TEXT },
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
-}, { tableName: "leads" });
+  // ── Follow-ups ──
+  ownerId: { type: DataTypes.INTEGER },                         // User id of `owner` (kept in sync with the name)
+  nextFollowUpAt: { type: DataTypes.DATEONLY },                 // mirrors the older `nextFollowUp` (both kept in sync)
+  followUpNote: { type: DataTypes.TEXT },                       // what to do on the follow-up
+  meetingUrl: { type: DataTypes.STRING(500) },                  // Calendly / Meet / Zoom link
+  meetingAt: { type: DataTypes.DATE },
+  lastContactedAt: { type: DataTypes.DATE },
+  lostReason: { type: DataTypes.STRING(500) },
+}, {
+  tableName: "leads",
+  hooks: {
+    /* `nextFollowUp` (old) and `nextFollowUpAt` (new) are the same date;
+       `owner` (name) and `ownerId` follow each other. */
+    async beforeSave(lead) {
+      const ch = (f) => lead.changed(f);
+      if (ch("nextFollowUpAt") && !ch("nextFollowUp")) lead.nextFollowUp = lead.nextFollowUpAt || null;
+      else if (ch("nextFollowUp") && !ch("nextFollowUpAt")) lead.nextFollowUpAt = lead.nextFollowUp || null;
+      if (ch("ownerId") && !ch("owner")) {
+        const u = lead.ownerId ? await User.findByPk(lead.ownerId, { attributes: ["id", "name"] }) : null;
+        lead.owner = u ? u.name : null;
+        if (!u) lead.ownerId = null;
+      } else if (ch("owner") && !ch("ownerId")) {
+        const name = String(lead.owner || "").trim();
+        const u = name ? await User.findOne({ where: { name }, attributes: ["id"] }) : null;
+        lead.ownerId = u ? u.id : null;
+      }
+    },
+  },
+});
+
+/* A lead "touch": a call, email, WhatsApp, meeting or note logged on a lead. */
+const LeadActivity = sequelize.define("LeadActivity", {
+  leadId: { type: DataTypes.INTEGER, allowNull: false },
+  type: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "note" }, // call | email | whatsapp | meeting | note
+  note: { type: DataTypes.TEXT },
+  nextFollowUpAt: { type: DataTypes.DATEONLY },                  // follow-up set with this touch, if any
+  userId: { type: DataTypes.INTEGER },
+  userName: { type: DataTypes.STRING },
+}, { tableName: "lead_activities", updatedAt: false, indexes: [{ name: "idx_lead_activities_lead", fields: ["leadId", "createdAt"] }] });
 
 /* ── Maintenance / renewal invoices (completed projects) ─
    A renewal entry is a recurring maintenance/hosting/domain invoice for a
@@ -338,6 +376,30 @@ const SocialPostEvent = sequelize.define("SocialPostEvent", {
   at: { type: DataTypes.DATE, allowNull: false },
 }, { tableName: "social_post_events", indexes: [{ fields: ["postId"] }, { fields: ["at"] }] });
 
+/* ── Activity history (audit log) ─────────────────────
+   One row per create / update / delete (and a few other actions such as
+   renewals renewed / terminated). `changes` = { field: [old, new] } with
+   long text trimmed; passwords and tokens are never stored. Written in the
+   background (utils/audit.js) so saving is never slowed down. */
+const ActivityLog = sequelize.define("ActivityLog", {
+  userId: { type: DataTypes.INTEGER },
+  userName: { type: DataTypes.STRING },
+  action: { type: DataTypes.STRING(12), allowNull: false },   // create | update | delete | other
+  entity: { type: DataTypes.STRING(40), allowNull: false },   // lead, renewal, user, setting, project, blog, …
+  entityId: { type: DataTypes.STRING(64) },
+  entityLabel: { type: DataTypes.STRING },
+  summary: { type: DataTypes.STRING(500) },                   // one line, e.g. "Renewed till 2 Nov 2027 — paid by UPI"
+  changes: { type: DataTypes.JSON },
+  ip: { type: DataTypes.STRING(64) },
+}, {
+  tableName: "activity_logs", updatedAt: false,
+  indexes: [
+    { name: "idx_activity_entity", fields: ["entity", "entityId"] },
+    { name: "idx_activity_user_created", fields: ["userId", "createdAt"] },
+    { name: "idx_activity_created", fields: ["createdAt"] },
+  ],
+});
+
 /* ── Editable content collections (CMS) ──────────────── */
 const contentDefaults = {
   position: { type: DataTypes.INTEGER, defaultValue: 0 },
@@ -416,6 +478,6 @@ module.exports = {
   sequelize,
   User, Project, Service, Testimonial, TeamMember,
   BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page, Lead, Notification, PushSubscription,
-  Renewal, SocialClient, SocialPost, SocialPostEvent, SocialAccount, SocialPublishJob, SocialStat,
+  Renewal, SocialClient, SocialPost, LeadActivity, ActivityLog, SocialPostEvent, SocialAccount, SocialPublishJob, SocialStat,
   Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature,
 };

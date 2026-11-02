@@ -17,6 +17,8 @@ const WANTED = [
   { table: "contact_submissions", name: "idx_contact_createdAt", columns: ["createdAt"] },
   // Today: posts in Pending approval (status = 'approval') and the badge counts.
   { table: "social_posts", name: "idx_social_posts_status_postDate", columns: ["status", "postDate"] },
+  // Lead follow-ups (today / overdue / this week widget + daily reminder).
+  { table: "leads", name: "idx_leads_nextFollowUpAt", columns: ["nextFollowUpAt"] },
 ];
 
 module.exports = async function ensureIndexes(sequelize) {
