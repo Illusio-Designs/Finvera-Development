@@ -11,14 +11,16 @@ import {
   Alert02Icon, PlayIcon, PauseIcon, SparklesIcon, Share01Icon, Refresh01Icon, CheckmarkCircle02Icon, Unlink04Icon, Tick02Icon,
   UserCircleIcon, Globe02Icon, Call02Icon, Mail01Icon, PencilEdit02Icon,
 } from "@hugeicons/core-free-icons";
-import { api } from "@/lib/adminApi";
+import { api, opsApi } from "@/lib/adminApi";
+import { userRoles } from "@/lib/permissions";
+import { daysUntil, timeAgo } from "@/lib/opsFormat";
 import { toast } from "@/lib/toast";
 import { dialog } from "@/lib/dialog";
 import Select from "@/components/Select";
 
 type Platform = "instagram" | "facebook";
 type Stats = { instagram?: { followers: number | null; picture: string | null; username?: string }; facebook?: { followers: number | null; picture: string | null; name?: string } };
-type Acc = { client: string; pageId: string; pageName: string; igUsername: string | null; igAvatar: string | null; status: string; lastError: string | null; paused: string[]; stats: Stats };
+type Acc = { client: string; pageId: string; pageName: string; igUsername: string | null; igAvatar: string | null; status: string; lastError: string | null; paused: string[]; stats: Stats; tokenExpiresAt?: string | null; lastCheckedAt?: string | null };
 type Metrics = { likes?: number; comments?: number; shares?: number; picture?: string | null; url?: string | null };
 type Job = { id: number; postId: number; client: string; platform: Platform; status: string; runAt: string | null; publishedAt: string | null; url: string | null; error: string | null; metrics: Metrics };
 type Post = { id: number; client: string; theme: string; format: string | null; status: string; postDate: string | null; postTime: string | null; assigneeId: number | null; picture: { url: string; type: string } | null };
@@ -83,6 +85,18 @@ function AreaChart({ days, series }: { days: string[]; series: { label: string; 
   );
 }
 
+/* "Login expires in N days" (amber < 14, red < 3) and "Checked 2 h ago". */
+function ConnHealth({ acc }: { acc: Acc }) {
+  const days = acc.status === "connected" ? daysUntil(acc.tokenExpiresAt) : null;
+  if (days == null && !acc.lastCheckedAt) return null;
+  return (
+    <div className="ops-chk">
+      {days != null && days < 14 && <span className={days < 3 ? "red" : "amber"}>{days < 1 ? "Login expires today" : `Login expires in ${days} day${days === 1 ? "" : "s"}`}</span>}
+      {acc.lastCheckedAt && <span title={new Date(acc.lastCheckedAt).toLocaleString()}>Checked {timeAgo(acc.lastCheckedAt)}</span>}
+    </div>
+  );
+}
+
 export default function SocialStudio() {
   const [data, setData] = useState<Data | null>(null);
   const [colors, setColors] = useState<Record<string, string>>({});
@@ -96,6 +110,8 @@ export default function SocialStudio() {
   const [connectFor, setConnectFor] = useState<string | null>(null);
   const [metaPick, setMetaPick] = useState<{ sel: string; brand: string; pages: { pageId: string; pageName: string; igUsername: string | null }[]; chosen: string } | null>(null);
   const [pageQ, setPageQ] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [checking, setChecking] = useState(false);
   const ddRef = useRef<HTMLDivElement | null>(null);
   const [prof, setProf] = useState<{ client: string; platform: Platform; data: Profile | null; error: string | null; form: Record<string, string>; saving: boolean } | null>(null);
   async function openProfile(client: string, platform: Platform) {
@@ -121,10 +137,14 @@ export default function SocialStudio() {
   async function load(quiet = false) {
     if (!quiet) setBusy(true);
     try {
-      const [d, c, me, u] = await Promise.all([
+      const [d, c, me, u, health] = await Promise.all([
         api.socialStudio(), api.list("social-clients").catch(() => []), api.me().catch(() => null), api.listUsers().catch(() => []),
+        api.socialAccounts().catch(() => []),
       ]);
+      // Login expiry / last check come from /social-accounts.
+      if (Array.isArray(health)) d.accounts = d.accounts.map((a: Acc) => { const h = health.find((x: any) => x.client === a.client); return h ? { ...a, tokenExpiresAt: h.tokenExpiresAt, lastCheckedAt: h.lastCheckedAt } : a; });
       setData(d);
+      setIsAdmin(userRoles(me?.user ?? me).includes("admin"));
       const cols: Record<string, string> = {};
       (d.brands as string[]).forEach((b, i) => { cols[b] = (Array.isArray(c) ? c.find((x: any) => x.name === b)?.color : null) || COLORS[i % COLORS.length]; });
       setColors(cols);
@@ -234,6 +254,19 @@ export default function SocialStudio() {
     if (!(await dialog.confirm({ title: `Disconnect ${b}?`, message: "Both its Instagram and Facebook stop publishing automatically. You can connect again any time.", danger: true, confirmText: "Disconnect" }))) return;
     try { await api.disconnectSocial(b); toast(`${b} disconnected`, "ok"); load(true); }
     catch (e: any) { toast("Couldn't disconnect", "err", { description: e.message }); }
+  }
+  /* Ask Meta whether each saved login still works (admin). */
+  async function checkConnections() {
+    setChecking(true);
+    try {
+      const r = await opsApi.checkSocialAccounts();
+      const bad = r.results.filter((x) => x.ok === false).length, unknown = r.results.filter((x) => x.ok === null).length, good = r.checked - bad - unknown;
+      const warn = r.results.filter((x) => x.warning).map((x) => `${x.client}: ${x.warning}`);
+      const parts = [`${good} working`, bad && `${bad} need${bad === 1 ? "s" : ""} reconnecting`, unknown && `${unknown} couldn't be checked (Meta not reachable)`].filter(Boolean).join(" · ");
+      toast(r.checked ? `Checked ${r.checked} connection${r.checked === 1 ? "" : "s"}` : "No connected brands to check", bad ? "warn" : unknown ? "info" : "ok", { description: [r.checked ? parts : "", ...warn].filter(Boolean).join(" · ") || undefined });
+      await load(true);
+    } catch (e: any) { toast("Couldn't check connections", "err", { description: e.message }); }
+    finally { setChecking(false); }
   }
   async function finishConnect() {
     if (!metaPick?.chosen) return;
@@ -384,6 +417,7 @@ export default function SocialStudio() {
           {!limited && (
             <div className="ss-groups-h">
               <span>{v.channels.length} channel{v.channels.length === 1 ? "" : "s"} for {brandLabel.toLowerCase() === "all brands" ? "all brands" : brand}</span>
+              {isAdmin && <button type="button" className="ss-chip" onClick={checkConnections} disabled={checking}>{checking ? <span className="sys-spin" aria-hidden="true" /> : <Icon i={CheckmarkCircle02Icon} size={14} />}{checking ? "Checking…" : "Check connections"}</button>}
               <button type="button" className="ss-chip dark" onClick={() => setConnectFor(brand || data.brands.find((b) => !data.accounts.some((a) => a.client === b)) || data.brands[0] || "")}><Icon i={PlusSignIcon} />Connect channel</button>
             </div>
           )}
@@ -411,6 +445,7 @@ export default function SocialStudio() {
                         <div><b>{c.handle}</b><small>{c.platform === "instagram" ? "Instagram Business" : "Facebook Page"}</small></div>
                         <span className={"ss-st " + c.state}>{c.state === "live" ? "● Live" : c.state === "paused" ? "Paused" : "● Reconnect"}</span>
                       </div>
+                      <ConnHealth acc={c.acc} />
                       {c.state === "reconnect" && <p className="ss-hold">The Facebook login expired{c.scheduled.length ? `, so ${c.scheduled.length} scheduled post${c.scheduled.length === 1 ? " is" : "s are"} on hold` : ""}. {c.acc.lastError && <small>{c.acc.lastError}</small>}</p>}
                       <div className="ss-ch-n">
                         <div><b>{nf(c.followers)}</b><span>Followers</span>{c.grew != null && <span className={c.grew >= 0 ? "u" : "d"}>{c.grew >= 0 ? "+" : ""}{c.grew} this week</span>}</div>
