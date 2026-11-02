@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Mark } from "@/components/icons";
@@ -8,6 +8,7 @@ import { type Me } from "@/components/admin/UserMenu";
 import JumpTo from "@/components/admin/JumpTo";
 import InstallApp from "@/components/admin/InstallApp";
 import { registerWorker, syncPush, disablePush } from "@/lib/push";
+import { visibleInterval } from "@/lib/visibleInterval";
 import NotificationBell from "@/components/admin/NotificationBell";
 import GooeyNotifier from "@/components/admin/GooeyNotifier";
 import DialogHost from "@/components/admin/DialogHost";
@@ -131,34 +132,57 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [rolesKey]);
 
   /* Sidebar count badges: unread inbox messages, overdue calendar posts
-     (a team member counts only posts assigned to them). Refreshed every
-     minute while the tab is visible, and when you come back to the tab. */
+     (a team member counts only posts assigned to them). One small /badges
+     call every 2 minutes while the tab is visible, straight away when you
+     come back to the tab, and shortly after an "fv-badges" event (debounced,
+     so a burst of saves makes one request). Older backends without /badges
+     fall back to counting from the full lists. */
   const [badges, setBadges] = useState<Record<string, number>>({});
+  const badgesApi = useRef(true); // false once /badges 404s (older backend)
   useEffect(() => {
     if (!roles.length) return;
     let alive = true;
-    const today = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
-    const refresh = async () => {
-      if (document.hidden) return;
+    const canContact = rolesCan(roles, "contact"), canSocial = rolesCan(roles, "social");
+    if (!canContact && !canSocial) return;
+    const legacy = async () => {
+      const today = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
       const next: Record<string, number> = {};
-      if (rolesCan(roles, "contact")) {
+      if (canContact) {
         try { next["/dashboard/contact"] = (await api.listContact()).filter((m: { isRead?: boolean }) => !m.isRead).length; } catch { /* ignore */ }
       }
-      if (rolesCan(roles, "social")) {
+      if (canSocial) {
         try {
           const mine = Array.isArray((me as { socialClients?: unknown } | null)?.socialClients);
           const myId = (me as { id?: number } | null)?.id;
-          next["/dashboard/social"] = (await api.list("social-posts")).filter((p: { status: string; postDate?: string | null; assigneeId?: number | null }) =>
+          next["/dashboard/social"] = (await api.listSocialPosts({ fields: "card" })).filter((p: { status: string; postDate?: string | null; assigneeId?: number | null }) =>
             p.status !== "posted" && !!p.postDate && String(p.postDate).slice(0, 10) < today && (!mine || p.assigneeId === myId)).length;
         } catch { /* ignore */ }
       }
+      return next;
+    };
+    const refresh = async () => {
+      if (document.hidden) return;
+      let next: Record<string, number>;
+      if (badgesApi.current) {
+        try {
+          const b = await api.badges();
+          next = {};
+          if (canContact) next["/dashboard/contact"] = Number(b?.inboxUnread) || 0;
+          if (canSocial) next["/dashboard/social"] = Number(b?.socialOverdue) || 0;
+        } catch (e) {
+          // Endpoint not deployed yet → stop asking for it this session.
+          if ((e as { status?: number })?.status === 404) badgesApi.current = false;
+          next = await legacy();
+        }
+      } else next = await legacy();
       if (alive) setBadges(next);
     };
     refresh();
-    const t = setInterval(refresh, 60000);
-    document.addEventListener("visibilitychange", refresh);
-    window.addEventListener("fv-badges", refresh);
-    return () => { alive = false; clearInterval(t); document.removeEventListener("visibilitychange", refresh); window.removeEventListener("fv-badges", refresh); };
+    const stop = visibleInterval(refresh, 120000);
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const soon = () => { if (debounce) clearTimeout(debounce); debounce = setTimeout(refresh, 1500); };
+    window.addEventListener("fv-badges", soon);
+    return () => { alive = false; stop(); if (debounce) clearTimeout(debounce); window.removeEventListener("fv-badges", soon); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rolesKey, me]);
 

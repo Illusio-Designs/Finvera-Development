@@ -25,7 +25,7 @@ async function req(path: string, options: RequestInit = {}, auth = true): Promis
   }
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
-  if (!res.ok) throw new Error(data?.message || `Request failed (${res.status})`);
+  if (!res.ok) throw Object.assign(new Error(data?.message || `Request failed (${res.status})`), { status: res.status });
   return data;
 }
 
@@ -85,6 +85,19 @@ export const api = {
   listComments: (taskId: number) => req(`/tasks/${taskId}/comments`),
   addComment: (taskId: number, body: string) => req(`/tasks/${taskId}/comments`, { method: "POST", body: JSON.stringify({ body }) }),
   deleteComment: (id: number) => req(`/comments/${id}`, { method: "DELETE" }),
+
+  /* Sidebar counts in one small call (scoped to the signed-in user). */
+  badges: (): Promise<{ socialOverdue: number; approvals: number; inboxUnread: number }> => req(`/badges`),
+
+  /* Social media calendar — `fields: "card"` drops the heavy text fields
+     (caption, requirements…); `from`/`to` (YYYY-MM-DD) limit dated posts to a
+     go-live range (open and undated posts always come back). Older backends
+     ignore these and return everything. getSocialPost returns the full post. */
+  listSocialPosts: (q: { fields?: "card"; from?: string; to?: string } = {}) => {
+    const qs = new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][]).toString();
+    return req(`/social-posts${qs ? `?${qs}` : ""}`);
+  },
+  getSocialPost: (id: number) => req(`/social-posts/${id}`),
 
   /* Social media calendar — bulk import rows parsed from a client's sheet */
   importSocialPosts: (posts: any[]) => req(`/social-posts/bulk`, { method: "POST", body: JSON.stringify({ posts }) }),
