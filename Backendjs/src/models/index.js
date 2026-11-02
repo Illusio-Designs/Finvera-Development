@@ -285,7 +285,18 @@ const SocialAccount = sequelize.define("SocialAccount", {
   connectedBy: { type: DataTypes.INTEGER },
   status: { type: DataTypes.STRING(20), defaultValue: "connected" },   // connected | reconnect
   lastError: { type: DataTypes.TEXT },
+  paused: { type: DataTypes.JSON },                                    // platforms paused, e.g. ["facebook"]
+  stats: { type: DataTypes.JSON },                                     // cached profile numbers (followers, pictures)
+  statsAt: { type: DataTypes.DATE },
 }, { tableName: "social_accounts" });
+
+/* Daily follower counts per brand channel, for "new followers" over time. */
+const SocialStat = sequelize.define("SocialStat", {
+  client: { type: DataTypes.STRING, allowNull: false },
+  platform: { type: DataTypes.STRING(20), allowNull: false },
+  day: { type: DataTypes.DATEONLY, allowNull: false },
+  followers: { type: DataTypes.INTEGER },
+}, { tableName: "social_stats", indexes: [{ unique: true, fields: ["client", "platform", "day"] }] });
 
 /* ── Auto-publishing: one job per post per platform ──
    scheduled → publishing → published | failed | check (outcome unclear:
@@ -305,6 +316,8 @@ const SocialPublishJob = sequelize.define("SocialPublishJob", {
   leaseToken: { type: DataTypes.STRING(40) },
   leaseUntil: { type: DataTypes.DATE },
   publishedAt: { type: DataTypes.DATE },
+  metrics: { type: DataTypes.JSON },                                   // likes, comments, shares, picture (read back from the platform)
+  metricsAt: { type: DataTypes.DATE },
 }, { tableName: "social_publish_jobs", indexes: [{ unique: true, fields: ["postId", "platform"] }, { fields: ["status", "runAt"] }] });
 
 /* ── Content calendar stage history (feeds the performance KPIs) ──
@@ -402,6 +415,6 @@ module.exports = {
   sequelize,
   User, Project, Service, Testimonial, TeamMember,
   BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page, Lead, Notification, PushSubscription,
-  Renewal, SocialClient, SocialPost, SocialPostEvent, SocialAccount, SocialPublishJob,
+  Renewal, SocialClient, SocialPost, SocialPostEvent, SocialAccount, SocialPublishJob, SocialStat,
   Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature,
 };

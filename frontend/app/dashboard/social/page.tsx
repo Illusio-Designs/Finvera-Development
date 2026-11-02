@@ -1103,7 +1103,7 @@ export default function SocialCalendar() {
 
           <div className="cal-vsec">
             <h4>Social accounts</h4>
-            <p className="adm-hint" style={{ marginTop: 0 }}>Connect each brand's Facebook Page (with its Instagram business account). Posts in Ready to post then publish by themselves at their go-live time, with the caption and keywords as hashtags.</p>
+            <p className="adm-hint" style={{ marginTop: 0 }}>Connect each brand's Facebook Page (with its Instagram business account). Posts in Ready to post then publish by themselves at their go-live time, with the caption and keywords as hashtags. <a href="/dashboard/social-studio?tab=channels" className="cal-link">Manage channels and see analytics in Social studio →</a></p>
             {metaOk === false ? (
               <div className="cal-empty sm">Auto-publishing isn't switched on yet: the server needs <b>META_APP_ID</b> and <b>META_APP_SECRET</b>.</div>
             ) : (

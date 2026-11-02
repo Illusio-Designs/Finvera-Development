@@ -16,7 +16,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   DashboardSquare01Icon, FolderLibraryIcon, GridViewIcon, QuoteDownIcon, UserGroupIcon,
   News01Icon, File01Icon, KanbanIcon, Mail01Icon, UserMultipleIcon, Search01Icon, Settings02Icon,
-  Target02Icon, LayoutTable01Icon, Invoice01Icon, InstagramIcon,
+  Target02Icon, LayoutTable01Icon, Invoice01Icon, InstagramIcon, AnalyticsUpIcon,
 } from "@hugeicons/core-free-icons";
 
 type Icon = typeof DashboardSquare01Icon;
@@ -46,6 +46,7 @@ const NAV_GROUPS: NavGroup[] = [
   ] },
   { key: "social", label: "Social media", icon: InstagramIcon, items: [
     { href: "/dashboard/social", label: "Content calendar", icon: InstagramIcon, area: "social" },
+    { href: "/dashboard/social-studio", label: "Social studio", icon: AnalyticsUpIcon, area: "social" },
   ] },
   { key: "config", label: "Admin", icon: Settings02Icon, items: [
     { href: "/dashboard/seo", label: "SEO", icon: Search01Icon, area: "seo" },

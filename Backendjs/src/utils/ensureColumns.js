@@ -17,6 +17,11 @@ const WANTED = [
   { table: "social_posts", column: "publishTo", def: "JSON NULL" },
   { table: "social_posts", column: "keywordHashtags", def: "TINYINT(1) NOT NULL DEFAULT 1" },
   { table: "social_posts", column: "step", def: "VARCHAR(20) NULL" },
+  { table: "social_accounts", column: "paused", def: "JSON NULL" },
+  { table: "social_accounts", column: "stats", def: "JSON NULL" },
+  { table: "social_accounts", column: "statsAt", def: "DATETIME NULL" },
+  { table: "social_publish_jobs", column: "metrics", def: "JSON NULL" },
+  { table: "social_publish_jobs", column: "metricsAt", def: "DATETIME NULL" },
 ];
 
 /* ENUM columns whose allowed values grew (sync() never ALTERs an existing
