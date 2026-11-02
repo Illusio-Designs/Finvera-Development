@@ -2,16 +2,33 @@ const { Op } = require("sequelize");
 const { Seo, Setting } = require("../models");
 const NOT_SYSTEM = { [Op.or]: [{ group: null }, { group: { [Op.ne]: "system" } }] };
 const { asyncHandler } = require("../utils/crud");
+const pubCache = require("../utils/publicCache");
 
 /* ── SEO (per page) ──────────────────────────────────── */
-const listSeo = asyncHandler(async (_req, res) => {
-  res.json(await Seo.findAll({ order: [["page", "ASC"]] }));
+/* SEO rows are public and the same for every visitor, so signed-out reads
+   come from the shared public cache; upsertSeo clears it. Signed-in (admin)
+   reads always hit the database. */
+const seoListBody = () => pubCache.get("seo:list", () => Seo.findAll({ order: [["page", "ASC"]] }));
+// { page: row } for /public/bootstrap — built from the cached list.
+const publicSeoMapBody = () => pubCache.get("seo:map", async () => {
+  const rows = JSON.parse(await seoListBody());
+  return Object.fromEntries(rows.map((r) => [r.page, r]));
+});
+
+const listSeo = asyncHandler(async (req, res) => {
+  if (req.user) return res.json(await Seo.findAll({ order: [["page", "ASC"]] })); // admin: always fresh
+  pubCache.sendPublic(res, await seoListBody());
 });
 
 const getSeo = asyncHandler(async (req, res) => {
-  const row = await Seo.findOne({ where: { page: req.params.page } });
-  if (!row) return res.status(404).json({ message: "No SEO config for that page." });
-  res.json(row);
+  if (req.user) {
+    const row = await Seo.findOne({ where: { page: req.params.page } });
+    if (!row) return res.status(404).json({ message: "No SEO config for that page." });
+    return res.json(row);
+  }
+  const body = await pubCache.get(`seo:one:${req.params.page}`, () => Seo.findOne({ where: { page: req.params.page } }));
+  if (body === "null") return res.status(404).json({ message: "No SEO config for that page." });
+  pubCache.sendPublic(res, body);
 });
 
 /* Upsert SEO for a page (admin) */
@@ -20,29 +37,38 @@ const upsertSeo = asyncHandler(async (req, res) => {
   if (!page) return res.status(400).json({ message: "page is required." });
   const [row] = await Seo.findOrCreate({ where: { page }, defaults: { page } });
   await row.update({ ...req.body, page });
+  pubCache.clear();
   res.json(row);
 });
 
 /* ── Settings (key/value: analytics, pixels, brand) ──── */
 /* The flat map is read by every page of the public site (pixels) and rarely
-   changes: keep it in memory per process for a minute; saving settings here
-   clears it (another app process catches up within the minute). */
+   changes. The public map lives in the shared public cache (~60 s, also used
+   by /public/bootstrap); the signed-in map is kept per process for a minute.
+   Saving settings here clears both (another app process catches up within
+   the minute). */
 const SETTINGS_TTL_MS = 60 * 1000;
-const flatCache = { public: null, all: null };
-const clearSettingsCache = () => { flatCache.public = null; flatCache.all = null; };
+const flatCache = { all: null };
+const clearSettingsCache = () => { flatCache.all = null; pubCache.clear(); };
 
-const getSettings = asyncHandler(async (req, res) => {
+async function loadFlat(signedIn) {
   // Signed-in users get every non-internal setting; the "system" group (seed
   // version, push keys, migration markers) is never returned.
-  const which = req.user ? "all" : "public";
-  const hit = flatCache[which];
-  if (hit && Date.now() - hit.at < SETTINGS_TTL_MS) return res.json(hit.map);
-  const where = req.user ? NOT_SYSTEM : { isPublic: true, ...NOT_SYSTEM };
+  const where = signedIn ? NOT_SYSTEM : { isPublic: true, ...NOT_SYSTEM };
   const rows = await Setting.findAll({ where, attributes: ["key", "value"], raw: true });
-  // return as a flat object { key: value } plus grouped meta
+  // return as a flat object { key: value }
   const map = {};
   rows.forEach((r) => { map[r.key] = r.value; });
-  flatCache[which] = { at: Date.now(), map };
+  return map;
+}
+const publicSettingsBody = () => pubCache.get("settings:public", () => loadFlat(false));
+
+const getSettings = asyncHandler(async (req, res) => {
+  if (!req.user) return pubCache.sendPublic(res, await publicSettingsBody());
+  const hit = flatCache.all;
+  if (hit && Date.now() - hit.at < SETTINGS_TTL_MS) return res.json(hit.map);
+  const map = await loadFlat(true);
+  flatCache.all = { at: Date.now(), map };
   res.json(map);
 });
 
@@ -77,4 +103,4 @@ const updateSettings = asyncHandler(async (req, res) => {
   res.json(results);
 });
 
-module.exports = { listSeo, getSeo, upsertSeo, getSettings, getSettingsDetailed, updateSettings };
+module.exports = { listSeo, getSeo, upsertSeo, getSettings, getSettingsDetailed, updateSettings, publicSettingsBody, publicSeoMapBody };

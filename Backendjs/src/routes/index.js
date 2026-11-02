@@ -23,9 +23,12 @@ const router = express.Router();
 /* Build standard REST routes for a resource backed by the crud factory.
    Reads stay public (the marketing site needs them); writes require the
    caller's role to include `area` (admin always passes). */
+const publicLists = {}; // bootstrap key → crud controller (for /public/bootstrap)
 function resource(path, Model, opts, area = "content") {
-  // Signed-out list reads (the marketing site) are kept 30 s in memory.
-  const c = crudController(Model, { publicCache: 30 * 1000, ...opts });
+  // Signed-out reads (the marketing site) come from the shared public cache
+  // (~60 s, cleared on every content write) with Cache-Control headers.
+  const c = crudController(Model, { publicCache: true, ...opts });
+  if (opts.bootstrapKey) publicLists[opts.bootstrapKey] = c;
   const r = express.Router();
   const canWrite = [requireAuth, requireArea(area)];
   r.get("/", optionalAuth, c.list);
@@ -46,23 +49,28 @@ authRouter.post("/change-password", requireAuth, authCtrl.changePassword);
 router.use("/auth", authRouter);
 
 /* ── Content resources ───────────────────────────────── */
-resource("/projects", Project, { slugFrom: "title", hasStatus: true, searchable: ["title", "category", "blurb"] });
-resource("/services", Service, { slugFrom: "title", hasStatus: true, searchable: ["title", "description"] });
-resource("/testimonials", Testimonial, { hasStatus: true, searchable: ["name", "company", "quote"] });
-resource("/team", TeamMember, { hasStatus: true, searchable: ["name", "role"] });
-resource("/blog", BlogPost, { slugFrom: "title", hasStatus: true, order: [["publishedAt", "DESC"], ["createdAt", "DESC"]], searchable: ["title", "excerpt", "category"] });
-resource("/pages", Page, { slugFrom: "title", hasStatus: true, order: [["title", "ASC"]], searchable: ["title", "slug"] });
+/* Public list views (cards, "next project", sitemap) never use the long
+   case-study / article bodies; those stay on GET /projects/:slug and
+   GET /blog/:slug. Signed-in (admin) lists still return every column. */
+const PROJECT_DETAIL_ONLY = ["content", "challenge", "approach", "results", "tech", "gallery",
+  "testimonialQuote", "testimonialName", "testimonialRole", "seoTitle", "seoDescription"];
+resource("/projects", Project, { slugFrom: "title", hasStatus: true, searchable: ["title", "category", "blurb"], publicListExclude: PROJECT_DETAIL_ONLY, bootstrapKey: "projects" });
+resource("/services", Service, { slugFrom: "title", hasStatus: true, searchable: ["title", "description"], bootstrapKey: "services" });
+resource("/testimonials", Testimonial, { hasStatus: true, searchable: ["name", "company", "quote"], bootstrapKey: "testimonials" });
+resource("/team", TeamMember, { hasStatus: true, searchable: ["name", "role"], bootstrapKey: "team" });
+resource("/blog", BlogPost, { slugFrom: "title", hasStatus: true, order: [["publishedAt", "DESC"], ["createdAt", "DESC"]], searchable: ["title", "excerpt", "category"], publicListExclude: ["content"] });
+resource("/pages", Page, { slugFrom: "title", hasStatus: true, order: [["title", "ASC"]], searchable: ["title", "slug"], publicListExclude: ["content"] });
 
 /* ── Editable content collections (public read, auth write) ─ */
 const CONTENT_ORDER = [["position", "ASC"], ["createdAt", "ASC"]];
-resource("/faqs", Faq, { hasStatus: true, order: CONTENT_ORDER, searchable: ["question", "answer"] });
-resource("/values", Value, { hasStatus: true, order: CONTENT_ORDER, searchable: ["title", "description"] });
-resource("/brands", Brand, { hasStatus: true, order: CONTENT_ORDER, searchable: ["name", "category"] });
-resource("/milestones", Milestone, { hasStatus: true, order: CONTENT_ORDER, searchable: ["year", "title"] });
-resource("/process-steps", ProcessStep, { hasStatus: true, order: CONTENT_ORDER, searchable: ["title"] });
-resource("/stats", Stat, { hasStatus: true, order: CONTENT_ORDER, searchable: ["label"] });
-resource("/logos", Logo, { hasStatus: true, order: CONTENT_ORDER, searchable: ["name"] });
-resource("/features", Feature, { hasStatus: true, order: CONTENT_ORDER, searchable: ["title"] });
+resource("/faqs", Faq, { hasStatus: true, order: CONTENT_ORDER, searchable: ["question", "answer"], bootstrapKey: "faqs" });
+resource("/values", Value, { hasStatus: true, order: CONTENT_ORDER, searchable: ["title", "description"], bootstrapKey: "values" });
+resource("/brands", Brand, { hasStatus: true, order: CONTENT_ORDER, searchable: ["name", "category"], bootstrapKey: "brands" });
+resource("/milestones", Milestone, { hasStatus: true, order: CONTENT_ORDER, searchable: ["year", "title"], bootstrapKey: "milestones" });
+resource("/process-steps", ProcessStep, { hasStatus: true, order: CONTENT_ORDER, searchable: ["title"], bootstrapKey: "processSteps" });
+resource("/stats", Stat, { hasStatus: true, order: CONTENT_ORDER, searchable: ["label"], bootstrapKey: "stats" });
+resource("/logos", Logo, { hasStatus: true, order: CONTENT_ORDER, searchable: ["name"], bootstrapKey: "logos" });
+resource("/features", Feature, { hasStatus: true, order: CONTENT_ORDER, searchable: ["title"], bootstrapKey: "features" });
 
 /* ── Kanban boards (all endpoints require auth) ──────── */
 const boardCtrl = crudController(Board, { order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["name"] });
@@ -379,8 +387,8 @@ router.use("/contact", contactRouter);
 
 /* ── SEO ─────────────────────────────────────────────── */
 const seoRouter = express.Router();
-seoRouter.get("/", settingsCtrl.listSeo);
-seoRouter.get("/:page", settingsCtrl.getSeo);
+seoRouter.get("/", optionalAuth, settingsCtrl.listSeo);        // public; signed-in reads skip the cache
+seoRouter.get("/:page", optionalAuth, settingsCtrl.getSeo);
 seoRouter.put("/:page", requireAuth, requireArea("seo"), settingsCtrl.upsertSeo);
 router.use("/seo", seoRouter);
 
@@ -410,6 +418,24 @@ const cronTick = async (_req, res) => {
 };
 router.get("/cron/daily", cronTick);
 router.get("/cron/tick", cronTick); // point a cPanel cron here every 5 minutes
+
+/* ── Public bootstrap (marketing site) ───────────────────
+   Everything the public pages read, in one response: settings, SEO for
+   every page and each published content list (slim project cards). The site
+   makes one request instead of ~15 (each one a full round trip to the API).
+   Built from the same cached bodies as the individual endpoints, which keep
+   working unchanged. */
+const pubCache = require("../utils/publicCache");
+router.get("/public/bootstrap", async (_req, res, next) => {
+  try {
+    const parts = await Promise.all([
+      settingsCtrl.publicSettingsBody().then((b) => `"settings":${b}`),
+      settingsCtrl.publicSeoMapBody().then((b) => `"seo":${b}`),
+      ...Object.entries(publicLists).map(([key, c]) => c.publicListBody().then((b) => `${JSON.stringify(key)}:${b}`)),
+    ]);
+    pubCache.sendPublic(res, `{${parts.join(",")}}`);
+  } catch (e) { next(e); }
+});
 
 /* ── Health ──────────────────────────────────────────── */
 const { health } = require("../controllers/health.controller");
