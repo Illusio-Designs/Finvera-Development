@@ -18,6 +18,7 @@ import {
   DashboardSquare01Icon, FolderLibraryIcon, GridViewIcon, QuoteDownIcon, UserGroupIcon,
   News01Icon, File01Icon, KanbanIcon, Mail01Icon, UserMultipleIcon, Search01Icon, Settings02Icon,
   Target02Icon, LayoutTable01Icon, Invoice01Icon, InstagramIcon, AnalyticsUpIcon,
+  ServerStack01Icon,
 } from "@hugeicons/core-free-icons";
 
 type Icon = typeof DashboardSquare01Icon;
@@ -53,6 +54,7 @@ const NAV_GROUPS: NavGroup[] = [
     { href: "/dashboard/seo", label: "SEO", icon: Search01Icon, area: "seo" },
     { href: "/dashboard/settings", label: "Settings & pixels", icon: Settings02Icon, area: "settings" },
     { href: "/dashboard/users", label: "Users", icon: UserMultipleIcon, area: "users" },
+    { href: "/dashboard/system", label: "System", icon: ServerStack01Icon, area: "users" }, // admin only
   ] },
 ];
 

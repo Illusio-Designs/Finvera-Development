@@ -150,3 +150,51 @@ export const api = {
   deleteSocialUpload: (batch: string) => req(`/social-posts/uploads/${encodeURIComponent(batch)}`, { method: "DELETE" }),
   deleteBrandPosts: (client: string) => req(`/social-posts/delete-brand`, { method: "POST", body: JSON.stringify({ client }) }),
 };
+
+/* ═══ Ops: backups, system status, email setup & preferences, Meta
+   connection check, contact spam. Kept as one block (merged separately). ═══ */
+export type BackupItem = { name: string; size: number; createdAt: string; tables: number | null; rows: number | null; kind: "auto" | "manual"; durationMs: number | null };
+export type BackupResult = ({ ok: true } & BackupItem) | { ok: false; error: string; at: string; kind: string };
+export type BackupList = { items: BackupItem[]; keep: number; running: boolean; lastResult: BackupResult | null };
+export type BackupCheck = {
+  ok: boolean; name: string; complete?: boolean; statements?: number; createTables?: number; inserts?: number; rows?: number; tables?: number;
+  expected?: { tables: number; rows: number } | null; matches?: boolean; bytesUncompressed?: number; durationMs?: number; error?: string;
+};
+export type EmailPrefKind = "contact" | "renewals" | "calendar" | "publishing" | "security" | "system";
+export type EmailPrefs = { prefs: Record<EmailPrefKind, boolean>; kinds: EmailPrefKind[]; email: string; mailConfigured: boolean };
+export type MetaCheck = {
+  metaConfigured: boolean; checked: number; at: string;
+  results: { client: string; pageName: string; before: string; status: string; ok: boolean | null; expiresAt: string | null; warning: string | null; error: string | null }[];
+};
+
+export const opsApi = {
+  listBackups: (): Promise<BackupList> => req(`/backups`),
+  createBackup: (): Promise<BackupItem> => req(`/backups`, { method: "POST" }),
+  verifyBackup: (name: string): Promise<BackupCheck> => req(`/backups/${encodeURIComponent(name)}/verify`, { method: "POST" }),
+  deleteBackup: (name: string) => req(`/backups/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  /* The download needs the Authorization header, so it's fetched as a blob
+     and saved through a temporary link (a plain <a href> would be refused). */
+  downloadBackup: async (name: string) => {
+    const res = await fetch(`${API_BASE}/api/backups/${encodeURIComponent(name)}/download`, { headers: { Authorization: `Bearer ${getToken() || ""}` } });
+    if (!res.ok) {
+      const j = await res.json().catch(() => null);
+      throw new Error(j?.message || `Download failed (${res.status})`);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement("a"), { href: url, download: name });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    return blob.size;
+  },
+  systemStatus: () => req(`/system/status`),
+  emailStatus: (): Promise<{ configured: boolean; from: string | null; host: string | null; port: number | null; user: string | null }> => req(`/settings/email-status`),
+  testEmail: (to?: string): Promise<{ ok: boolean; message: string }> => req(`/settings/test-email`, { method: "POST", body: JSON.stringify(to ? { to } : {}) }),
+  getEmailPrefs: (): Promise<EmailPrefs> => req(`/auth/me/email-prefs`),
+  saveEmailPrefs: (prefs: Partial<Record<EmailPrefKind, boolean>>): Promise<EmailPrefs> => req(`/auth/me/email-prefs`, { method: "PUT", body: JSON.stringify({ prefs }) }),
+  checkSocialAccounts: (): Promise<MetaCheck> => req(`/social-accounts/check`, { method: "POST" }),
+  listSpam: () => req(`/contact?spam=1`),
+  spamCount: async (): Promise<number> => Number((await req(`/contact?spam=1&page=1&limit=1`))?.total) || 0,
+  setSpam: (id: number, isSpam: boolean) => req(`/contact/${id}/spam`, { method: "PATCH", body: JSON.stringify({ isSpam }) }),
+};
+/* ═══ end Ops block ═══ */
