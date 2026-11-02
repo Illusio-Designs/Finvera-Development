@@ -31,31 +31,51 @@ export default function Dashboard() {
 
 function Overview({ admin }: { admin: boolean }) {
   const [counts, setCounts] = useState<Record<string, number>>({});
-  const [msgs, setMsgs] = useState<Msg[]>([]);
-  const [leads, setLeads] = useState<Lead[]>([]);
+  const [msgs, setMsgs] = useState<Msg[]>([]);     // newest 6
+  const [msgTotal, setMsgTotal] = useState(0);
+  const [inbox, setInbox] = useState(0);           // unread
+  const [stages, setStages] = useState<Record<string, { count: number; value: number }>>({});
+  const [leadTotal, setLeadTotal] = useState(0);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const c: Record<string, number> = {};
-      await Promise.all(RESOURCES.map(async ([r]) => { try { c[r] = (await api.list(r)).length; } catch { c[r] = 0; } }));
-      setCounts(c);
-      try { setMsgs(await api.listContact()); } catch { /* */ }
-      try { setLeads(await api.list("leads")); } catch { /* */ }
+      try {
+        // One small call with just the numbers this page shows.
+        const o = await api.overview();
+        setCounts(o.counts || {});
+        if (o.contact) { setMsgs(o.contact.recent || []); setMsgTotal(o.contact.total); setInbox(o.contact.unread); }
+        if (o.leads) { setStages(o.leads.byStage || {}); setLeadTotal(o.leads.total); }
+      } catch (e) {
+        if ((e as { status?: number })?.status !== 404) { setReady(true); return; }
+        // Older backend without /overview: count from the full lists, side by side.
+        const c: Record<string, number> = {};
+        const [, m, l] = await Promise.all([
+          Promise.all(RESOURCES.map(async ([r]) => { try { c[r] = (await api.list(r)).length; } catch { c[r] = 0; } })),
+          api.listContact().catch(() => [] as Msg[]),
+          api.list("leads").catch(() => [] as Lead[]),
+        ]);
+        setCounts(c);
+        const ms: Msg[] = Array.isArray(m) ? m : [];
+        setMsgs(ms.slice(0, 6)); setMsgTotal(ms.length); setInbox(ms.filter((x) => !x.isRead).length);
+        const by: Record<string, { count: number; value: number }> = {};
+        for (const x of (Array.isArray(l) ? l : []) as Lead[]) { const s = (by[x.stage] ||= { count: 0, value: 0 }); s.count++; s.value += Number(x.value) || 0; }
+        setStages(by); setLeadTotal(Array.isArray(l) ? l.length : 0);
+      }
       setReady(true);
     })();
   }, []);
 
   // Lead KPIs
-  const openPipeline = leads.filter((l) => OPEN_STAGES.includes(l.stage)).reduce((s, l) => s + (Number(l.value) || 0), 0);
-  const wonCount = leads.filter((l) => l.stage === "won").length;
-  const lostCount = leads.filter((l) => l.stage === "lost").length;
+  const stageCount = (st: string) => stages[st]?.count || 0;
+  const stageValue = (st: string) => stages[st]?.value || 0;
+  const openPipeline = OPEN_STAGES.reduce((s, st) => s + stageValue(st), 0);
+  const openCount = OPEN_STAGES.reduce((s, st) => s + stageCount(st), 0);
+  const wonCount = stageCount("won");
+  const lostCount = stageCount("lost");
   const decided = wonCount + lostCount;
   const winRate = decided ? Math.round((wonCount / decided) * 100) : 0;
-  const stageCount = (st: string) => leads.filter((l) => l.stage === st).length;
   const inr = (n: number) => (n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : `₹${n.toLocaleString("en-IN")}`);
-
-  const inbox = msgs.filter((m) => !m.isRead).length;
   const totalContent = RESOURCES.reduce((s, [r]) => s + (counts[r] || 0), 0);
   const maxCount = Math.max(1, ...RESOURCES.map(([r]) => counts[r] || 0));
   const fmt = (d: string) => { try { return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" }); } catch { return ""; } };
@@ -75,7 +95,7 @@ function Overview({ admin }: { admin: boolean }) {
             <span className="dash-ic"><HugeiconsIcon icon={Mail01Icon} size={20} strokeWidth={1.8} className="hgi" /></span>
             <div><b>Messages</b><small>Contact inbox</small></div>
           </div>
-          <div className="dash-val">{msgs.length}</div>
+          <div className="dash-val">{msgTotal}</div>
           <div className="dash-foot"><span className="dash-chip">{inbox} unread</span><span className="dash-more">See details →</span></div>
         </Link>
 
@@ -120,7 +140,7 @@ function Overview({ admin }: { admin: boolean }) {
           ) : (
             <table className="adm-table dash-activity">
               <tbody>
-                {msgs.slice(0, 6).map((m) => (
+                {msgs.map((m) => (
                   <tr key={m.id}>
                     <td><span className="dash-av">{m.name.slice(0, 2).toUpperCase()}</span></td>
                     <td><b>{m.name}</b><small>{m.email}</small></td>
@@ -136,17 +156,17 @@ function Overview({ admin }: { admin: boolean }) {
       </>
       )}
 
-      {ready && leads.length > 0 && (
+      {ready && leadTotal > 0 && (
         <div className="adm-panel" style={{ padding: 22, marginBottom: 18 }}>
           <div className="dash-panel-head" style={{ marginBottom: 16 }}>
             <h3>Leads pipeline</h3>
             <Link href="/dashboard/leads" className="dash-chip soft">Open leads →</Link>
           </div>
           <div className="lead-kpis">
-            <div className="lead-kpi"><span className="lk-label">Open pipeline</span><b className="lk-val">{inr(openPipeline)}</b><span className="lk-sub">{leads.filter((l) => OPEN_STAGES.includes(l.stage)).length} active leads</span></div>
-            <div className="lead-kpi"><span className="lk-label">Won</span><b className="lk-val">{wonCount}</b><span className="lk-sub">{inr(leads.filter((l) => l.stage === "won").reduce((s, l) => s + (Number(l.value) || 0), 0))} closed</span></div>
+            <div className="lead-kpi"><span className="lk-label">Open pipeline</span><b className="lk-val">{inr(openPipeline)}</b><span className="lk-sub">{openCount} active leads</span></div>
+            <div className="lead-kpi"><span className="lk-label">Won</span><b className="lk-val">{wonCount}</b><span className="lk-sub">{inr(stageValue("won"))} closed</span></div>
             <div className="lead-kpi"><span className="lk-label">Win rate</span><b className="lk-val">{winRate}%</b><span className="lk-sub">{wonCount} won · {lostCount} lost</span></div>
-            <div className="lead-kpi"><span className="lk-label">Total leads</span><b className="lk-val">{leads.length}</b><span className="lk-sub">across all stages</span></div>
+            <div className="lead-kpi"><span className="lk-label">Total leads</span><b className="lk-val">{leadTotal}</b><span className="lk-sub">across all stages</span></div>
           </div>
           <div className="lead-stagebar">
             {["new", "contacted", "qualified", "proposal", "won", "lost"].map((st) => (

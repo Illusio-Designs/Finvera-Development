@@ -152,7 +152,8 @@ export default function Kanban() {
   async function loadBoards() {
     setLoading(true);
     try {
-      const [bRaw, u, tRaw] = await Promise.all([api.listBoards(), api.listUsers().catch(() => []), api.listTasks().catch(() => [])]);
+      // Overview cards need only counts + members per board → light summary rows.
+      const [bRaw, u, tRaw] = await Promise.all([api.listBoards(), api.listUsers().catch(() => []), api.listTaskSummary().catch(() => [])]);
       const b = (Array.isArray(bRaw) ? bRaw : []).map(normBoard);
       setBoards(b);
       setUsers(Array.isArray(u) ? u : []);
@@ -168,7 +169,7 @@ export default function Kanban() {
   }
   async function backToBoards() {
     setActiveId(null); setTasks([]);
-    setAllTasks(((await api.listTasks().catch(() => [])) || []).map(normTask));
+    setAllTasks(((await api.listTaskSummary().catch(() => [])) || []).map(normTask));
   }
   const switchBoard = openBoard;
   async function reloadTasks() { if (activeId) setTasks(((await api.listTasks(activeId)) || []).map(normTask)); }
@@ -182,8 +183,25 @@ export default function Kanban() {
 
   const inCol = (id: string) => tasks.filter((t) => t.column === id).sort((a, b) => a.position - b.position);
 
-  async function persistColumnOrder(next: Task[], colId: string) {
+  /* Save a column's order after a drag. A card that changed column gets its
+     own PATCH (that's what tells its members it moved); the order of the
+     whole column is then one /tasks/reorder call. It used to be one PATCH per
+     card in the column — dozens of requests for a single drag. Older
+     backends without /tasks/reorder fall back to that. */
+  const reorderApi = useRef(true);
+  async function persistColumnOrder(next: Task[], colId: string, movedId?: number) {
     const ordered = next.filter((t) => t.column === colId).sort((a, b) => a.position - b.position);
+    if (reorderApi.current) {
+      try {
+        const i = movedId == null ? -1 : ordered.findIndex((t) => t.id === movedId);
+        if (i >= 0) await api.updateTask(movedId as number, { column: colId, position: i });
+        if (ordered.length) await api.reorderTasks(colId, ordered.map((t) => t.id));
+        return;
+      } catch (e) {
+        if ((e as { status?: number })?.status !== 404) { toast("Couldn't save the new order", "err"); return; }
+        reorderApi.current = false;
+      }
+    }
     await Promise.all(ordered.map((t, i) => api.updateTask(t.id, { column: colId, position: i })));
   }
 
@@ -210,7 +228,7 @@ export default function Kanban() {
       target.splice(idx, 0, { ...moved, column: toCol });
       target.forEach((t, i) => (t.position = i));
       const next = [...without.filter((t) => t.column !== toCol), ...target];
-      persistColumnOrder(next, toCol);
+      persistColumnOrder(next, toCol, fromCol !== toCol ? id : undefined);
       if (fromCol !== toCol) persistColumnOrder(next, fromCol);
       return next;
     });

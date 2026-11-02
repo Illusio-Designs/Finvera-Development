@@ -8,11 +8,10 @@ import SocialKpis from "@/components/admin/SocialKpis";
 /* Personal home for team members (marketer / video / graphic / social):
    only their own content-calendar work, not the site-wide admin stats. */
 
-type LogEntry = { userId?: number | null; minutes: number; at: string };
 type Post = {
   id: number; client: string; status: string; theme: string; format?: string;
   postDate?: string | null; postTime?: string | null; dueDate?: string | null;
-  assigneeId?: number | null; timeLog?: LogEntry[] | string | null;
+  assigneeId?: number | null;
 };
 
 const STAGE: Record<string, string> = { planned: "Planned", client: "Need from client", production: "In production", approval: "Pending approval", ready: "Ready to post", posted: "Posted" };
@@ -21,10 +20,6 @@ const day = (s?: string | null) => (s ? String(s).slice(0, 10) : "");
 const addDays = (s: string, n: number) => { const d = new Date(s + "T00:00:00"); d.setDate(d.getDate() + n); return iso(d); };
 const diff = (a: string, b: string) => Math.round((new Date(b + "T00:00:00").getTime() - new Date(a + "T00:00:00").getTime()) / 864e5);
 const fmt = (s: string, o: Intl.DateTimeFormatOptions) => new Date(s + "T00:00:00").toLocaleDateString("en-GB", o);
-const logs = (p: Post): LogEntry[] => {
-  const v = typeof p.timeLog === "string" ? (() => { try { return JSON.parse(p.timeLog as string); } catch { return []; } })() : p.timeLog;
-  return Array.isArray(v) ? v : [];
-};
 
 function due(p: Post, t: string) {
   const live = day(p.postDate), start = day(p.dueDate) || (live ? addDays(live, -7) : "");
@@ -37,18 +32,18 @@ function due(p: Post, t: string) {
 
 export default function MyWork() {
   const [posts, setPosts] = useState<Post[]>([]);   // assigned to me
-  const [all, setAll] = useState<Post[]>([]);       // every post I can see (for my logged time)
   const [me, setMe] = useState<{ id?: number; name?: string } | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const [m, p] = await Promise.all([api.me().catch(() => null), api.list("social-posts").catch(() => [])]);
+        // Light card fields of my own posts only (it used to download every
+        // post of every brand with captions, briefs and time logs).
+        const [m, p] = await Promise.all([api.me().catch(() => null), api.listSocialPosts({ fields: "card", mine: "1" }).catch(() => [])]);
         const u = m?.user ?? m;
         setMe(u);
         const list: Post[] = Array.isArray(p) ? p : [];
-        setAll(list);
         setPosts(list.filter((x) => x.assigneeId === u?.id));
       } finally { setReady(true); }
     })();

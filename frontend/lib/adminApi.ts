@@ -29,10 +29,26 @@ async function req(path: string, options: RequestInit = {}, auth = true): Promis
   return data;
 }
 
+/* Short-lived memo for reads several components fire on the same page load
+   (the shell, the page and its widgets each asked for /auth/me). Shares the
+   in-flight request and keeps the answer `ms` milliseconds; failures aren't kept. */
+const memo = new Map<string, { at: number; p: Promise<any> }>();
+function shared(key: string, ms: number, run: () => Promise<any>): Promise<any> {
+  const hit = memo.get(key);
+  if (hit && Date.now() - hit.at < ms) return hit.p;
+  const p = run();
+  memo.set(key, { at: Date.now(), p });
+  p.catch(() => { if (memo.get(key)?.p === p) memo.delete(key); });
+  return p;
+}
+export const clearApiMemo = () => memo.clear();
+
 export const api = {
-  login: (email: string, password: string) =>
-    req("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }, false),
-  me: () => req("/auth/me"),
+  login: (email: string, password: string) => {
+    memo.clear(); // a different person may be signing in
+    return req("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }, false);
+  },
+  me: () => shared("me", 10000, () => req("/auth/me")),
 
   list: (resource: string) => req(`/${resource}`),
   get: (resource: string, id: string | number) => req(`/${resource}/${id}`),
@@ -55,7 +71,7 @@ export const api = {
   },
 
   /* Minimal user directory for assigning members (kanban etc.) — any role. */
-  listUsers: () => req(`/users/assignable`),
+  listUsers: () => shared("assignable", 30000, () => req(`/users/assignable`)),
 
   /* Notifications */
   listNotifications: () => req(`/notifications`),
@@ -77,6 +93,11 @@ export const api = {
 
   /* Kanban — cards */
   listTasks: (boardId?: number) => req(`/tasks${boardId ? `?boardId=${boardId}` : ""}`),
+  /* Boards overview: only { id, boardId, column, completed, memberIds } per card
+     (older backends ignore the param and send full cards — still works). */
+  listTaskSummary: () => req(`/tasks?fields=summary`),
+  /* One column's card order after a drag, in one request (404 on older backends). */
+  reorderTasks: (column: string, ids: number[]) => req(`/tasks/reorder`, { method: "POST", body: JSON.stringify({ column, ids }) }),
   createTask: (body: any) => req(`/tasks`, { method: "POST", body: JSON.stringify(body) }),
   updateTask: (id: number, body: any) => req(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteTask: (id: number) => req(`/tasks/${id}`, { method: "DELETE" }),
@@ -88,12 +109,18 @@ export const api = {
 
   /* Sidebar counts in one small call (scoped to the signed-in user). */
   badges: (): Promise<{ socialOverdue: number; approvals: number; inboxUnread: number }> => req(`/badges`),
+  /* Admin Overview page in one call (counts, recent messages, lead stages). */
+  overview: (): Promise<{
+    counts: Record<string, number>;
+    contact: { total: number; unread: number; recent: { id: number; name: string; email: string; projectType?: string; createdAt: string; isRead: boolean }[] } | null;
+    leads: { total: number; byStage: Record<string, { count: number; value: number }> } | null;
+  }> => req(`/overview`),
 
   /* Social media calendar — `fields: "card"` drops the heavy text fields
      (caption, requirements…); `from`/`to` (YYYY-MM-DD) limit dated posts to a
      go-live range (open and undated posts always come back). Older backends
      ignore these and return everything. getSocialPost returns the full post. */
-  listSocialPosts: (q: { fields?: "card"; from?: string; to?: string } = {}) => {
+  listSocialPosts: (q: { fields?: "card"; from?: string; to?: string; mine?: "1" } = {}) => {
     const qs = new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][]).toString();
     return req(`/social-posts${qs ? `?${qs}` : ""}`);
   },
