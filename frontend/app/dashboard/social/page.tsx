@@ -6,6 +6,7 @@ import { dialog } from "@/lib/dialog";
 import Select from "@/components/Select";
 import DatePicker from "@/components/ui/DatePicker";
 import { BoardSkeleton } from "@/components/admin/Skeleton";
+import { readXlsx } from "@/lib/xlsx";
 
 type Stage = "planned" | "client" | "production" | "ready" | "posted";
 type LogEntry = { id: string; userId?: number | null; minutes: number; note?: string; at: string };
@@ -186,16 +187,26 @@ function parseCsv(text: string): string[][] {
   if (cell || row.length) { row.push(cell); rows.push(row); }
   return rows;
 }
-const HEADERS: [keyof Post | "date" | "day", RegExp][] = [
-  ["date", /^date/], ["day", /^days?$/], ["festive", /festiv/], ["theme", /theme/], ["topic", /topic/],
-  ["requirements", /requirement/], ["reference", /reference/], ["format", /reel|carousel|format|post type/],
-  ["dataStatus", /data\s*status/], ["poc", /point of contact|^poc/], ["caption", /caption/], ["driveLink", /drive/],
+type SheetKey = keyof Post | "date" | "day" | "contentTheme" | "concept" | "headline" | "visual" | "cta";
+const HEADERS: [SheetKey, RegExp][] = [
+  ["date", /^date/], ["day", /^days?$/], ["festive", /festiv|occasion/], ["contentTheme", /^content theme/], ["theme", /theme/], ["topic", /topic/],
+  ["requirements", /requirement/], ["reference", /reference/], ["format", /reel|carousel|format|post type|content type/],
+  ["dataStatus", /data\s*status|content status/], ["poc", /point of contact|^poc/], ["caption", /caption/], ["driveLink", /drive/],
   ["tags", /people|tag/], ["keywords", /keyword/], ["channels", /channel/], ["remarks", /remark/],
+  ["concept", /concept/], ["headline", /headline/], ["visual", /visual|design direction/], ["cta", /^cta|engagement/],
 ];
+const MONTHS3 = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 function parseSheetDate(raw: string, dayName: string): string | null {
   const s = raw.trim(); if (!s) return null;
-  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  // Excel date serial (a date cell read from an .xlsx file)
+  if (/^\d{5}(\.\d+)?$/.test(s)) return iso(new Date(1899, 11, 30 + Math.floor(+s)));
+  // "02 Nov 2026", "2-Nov-26", "Nov 2, 2026"
+  let m = s.match(/^(\d{1,2})[\s.-]+([a-z]{3})[a-z]*[\s.,-]+(\d{2,4})$/i) || null;
+  if (m && MONTHS3.includes(m[2].toLowerCase())) return iso(new Date(m[3].length === 2 ? 2000 + +m[3] : +m[3], MONTHS3.indexOf(m[2].toLowerCase()), +m[1]));
+  m = s.match(/^([a-z]{3})[a-z]*\s+(\d{1,2}),?\s+(\d{4})$/i);
+  if (m && MONTHS3.includes(m[1].toLowerCase())) return iso(new Date(+m[3], MONTHS3.indexOf(m[1].toLowerCase()), +m[2]));
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
   m = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/);
   if (m) {
@@ -221,23 +232,31 @@ function sheetToPosts(rows: string[][], client: string): Partial<Post>[] {
     const hit = HEADERS.find(([key, re]) => col[key] === undefined && re.test(name));
     if (hit) col[hit[0]] = i;
   });
-  const get = (r: string[], k: string) => (col[k] !== undefined ? (r[col[k]] || "").trim() : "");
+  // Placeholder cells ("—", "Pending", "TBD") count as empty.
+  const get = (r: string[], k: string) => { const v = col[k] !== undefined ? String(r[col[k]] ?? "").trim() : ""; return /^(—|-|–|n\/?a|tbd|pending)$/i.test(v) ? "" : v; };
+  // Sheets with a "Content Theme" category plus a "Post Topic": the topic is the post's title.
+  const titleFromTopic = col.theme === undefined && col.contentTheme !== undefined && col.topic !== undefined;
   const out: Partial<Post>[] = [];
   for (const r of rows.slice(h + 1)) {
     const postDate = parseSheetDate(get(r, "date"), get(r, "day"));
     const flat = (k: string) => get(r, k).replace(/\s*\n\s*/g, " ");
-    const theme = flat("theme"), channels = get(r, "channels");
+    const theme = titleFromTopic ? flat("topic") : flat("theme"), channels = get(r, "channels");
     if (!postDate || (!theme && !flat("topic") && !channels)) continue;
     const ds = flat("dataStatus").replace(/^\((.*)\)$/, "$1");
     const caption = get(r, "caption"), driveLink = get(r, "driveLink");
     const status: Stage = "planned"; // uploaded sheet rows start at the beginning of the pipeline
     const format = get(r, "format").replace(/caraousel/gi, "carousel").replace(/\s*[\\/]\s*/g, " / ")
       .toLowerCase().replace(/\b\w/g, (x) => x.toUpperCase()).trim();
+    // Brief columns (concept, headline, visual direction, CTA) go into the requirements.
+    const brief = ([["Content theme", "contentTheme"], ["Graphic headline", "headline"], ["Visual / design direction", "visual"], ["CTA", "cta"]] as const)
+      .map(([label, k]) => (get(r, k) ? `${label}: ${get(r, k)}` : "")).filter(Boolean);
+    const requirements = [get(r, "requirements"), ...brief].filter(Boolean).join("\n");
     out.push({
-      client, status, postDate, theme: theme || "Untitled post", topic: flat("topic"), festive: flat("festive"), format,
-      requirements: get(r, "requirements"), reference: get(r, "reference"), dataStatus: ds, poc: get(r, "poc"),
+      client, status, postDate, theme: theme || "Untitled post", topic: titleFromTopic ? flat("concept") : (flat("topic") || flat("concept")), festive: flat("festive"), format,
+      requirements, reference: get(r, "reference"), dataStatus: ds, poc: get(r, "poc"),
       caption, driveLink, tags: get(r, "tags"), keywords: get(r, "keywords"), channels, remarks: get(r, "remarks"),
-    });
+      ...(titleFromTopic && flat("contentTheme") ? { altTheme: flat("contentTheme") } : {}),
+    } as Partial<Post>);
   }
   return out;
 }
@@ -609,20 +628,22 @@ export default function SocialCalendar() {
   /* ── import ── */
   async function importCsv(file?: File) {
     if (!file) return;
-    const rows = parseCsv(await file.text());
+    let rows: string[][];
+    try { rows = /\.xlsx$/i.test(file.name) ? await readXlsx(file) : parseCsv(await file.text()); }
+    catch (e: any) { return dialog.alert({ title: "Couldn't read the file", message: e.message || "Save it as .xlsx or .csv and try again." }); }
     const guess = client || (rows[0]?.find((c) => c.trim()) || "").trim().replace(/\b\w+/g, (w) => w[0] + w.slice(1).toLowerCase());
     const name = (await dialog.prompt({ title: "Import posts for which brand?", defaultValue: guess, confirmText: "Next" }))?.trim();
     if (!name) return;
     if (limited && !clientNames.includes(name)) return dialog.alert({ title: "Not one of your brands", message: `You can import only into: ${clientNames.join(", ") || "no brands yet"}.` });
     const parsed = sheetToPosts(rows, name);
-    if (!parsed.length) return dialog.alert({ title: "No posts found", message: "The CSV needs a header row with a “Post Theme” column and a “Date” column." });
+    if (!parsed.length) return dialog.alert({ title: "No posts found", message: "The sheet needs a header row with a “Date” column and a “Post Theme” (or “Content Theme” + “Post Topic”) column." });
     if (!(await dialog.confirm({ title: `Import ${parsed.length} posts for ${name}?`, message: "Rows already on the board (same date + post theme) are updated, keeping their stage and assignee. New rows go to Planned, with a Marketer. Each person clicks Done and it moves on: Marketer → Graphic designer → Video editor → Social media.", confirmText: "Import" }))) return;
     try {
       const r = await api.importSocialPosts(parsed);
       const parts = [r.created ? `${r.created} added to Planned` : "", r.updated ? `${r.updated} updated` : ""].filter(Boolean).join(", ");
       toast(`Sheet uploaded · ${name}`, "ok", { description: `${parts || "Nothing new"}.${limited ? " You'll see the ones assigned to you." : ""}` });
       setClient(name); load();
-    } catch (e: any) { toast("Import failed", "err", { description: e.message || "Check the file is a CSV saved from the media calendar sheet." }); }
+    } catch (e: any) { toast("Import failed", "err", { description: e.message || "Check the file is the media calendar sheet (.xlsx or .csv)." }); }
   }
 
   /* ── small pieces ── */
@@ -1183,7 +1204,7 @@ export default function SocialCalendar() {
             : "Every brand's posts from plan to live link, with who has each one and when work starts."}</p>
         </div>
         <div className="cal-head-actions">
-          <input ref={fileRef} type="file" accept=".csv,text/csv" hidden onChange={(e) => { importCsv(e.target.files?.[0]); e.currentTarget.value = ""; }} />
+          <input ref={fileRef} type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={(e) => { importCsv(e.target.files?.[0]); e.currentTarget.value = ""; }} />
           <button type="button" className="cal-btn" onClick={() => fileRef.current?.click()}>Import sheet</button>
           {!limited && <button type="button" className="cal-btn" onClick={openUploads}>Team &amp; uploads</button>}
           {!limited && <button type="button" className="cal-btn" onClick={addClient}>+ Brand</button>}
