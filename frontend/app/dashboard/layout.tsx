@@ -139,6 +139,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
      fall back to counting from the full lists. */
   const [badges, setBadges] = useState<Record<string, number>>({});
   const badgesApi = useRef(true); // false once /badges 404s (older backend)
+  // Only the fallback counting needs `me` (to count "mine"); /badges is scoped by the server.
+  const legacyMe = badgesApi.current ? null : me;
   useEffect(() => {
     if (!roles.length) return;
     let alive = true;
@@ -152,8 +154,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
       if (canSocial) {
         try {
-          const mine = Array.isArray((me as { socialClients?: unknown } | null)?.socialClients);
-          const myId = (me as { id?: number } | null)?.id;
+          const mine = Array.isArray((legacyMe as { socialClients?: unknown } | null)?.socialClients);
+          const myId = (legacyMe as { id?: number } | null)?.id;
           next["/dashboard/social"] = (await api.listSocialPosts({ fields: "card" })).filter((p: { status: string; postDate?: string | null; assigneeId?: number | null }) =>
             p.status !== "posted" && !!p.postDate && String(p.postDate).slice(0, 10) < today && (!mine || p.assigneeId === myId)).length;
         } catch { /* ignore */ }
@@ -184,7 +186,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     window.addEventListener("fv-badges", soon);
     return () => { alive = false; stop(); if (debounce) clearTimeout(debounce); window.removeEventListener("fv-badges", soon); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rolesKey, me]);
+  }, [rolesKey, legacyMe]);
 
   useEffect(() => {
     if (!getToken()) { router.replace("/login"); return; }
