@@ -624,20 +624,7 @@ export default function SocialCalendar() {
     if (!(await dialog.confirm({ title: "Delete this post?", message: "This can't be undone.", danger: true, confirmText: "Delete" }))) return;
     await api.remove("social-posts", editing.id); setViewId(null); setEditing(null); toast("Post deleted", "ok", { description: `“${editing.theme}” was removed from ${editing.client}.` }); load(); window.dispatchEvent(new Event("fv-badges"));
   }
-  async function addClient() {
-    const name = (await dialog.prompt({ title: "New brand", placeholder: "e.g. Maharani by Rungta's", confirmText: "Add brand" }))?.trim();
-    if (!name) return;
-    if (clientNames.includes(name)) { setClient(name); return; }
-    try {
-      const c = await api.create("social-clients", { name, color: CLIENT_COLORS[clientNames.length % CLIENT_COLORS.length], position: clientRows.length });
-      setClientRows((cs) => [...cs, c]); setClient(name); toast("Brand added", "ok", { description: `${name} is ready. Tick it for team members under Users.` });
-    } catch (e: any) { toast("Couldn't add the brand", "err", { description: e.message }); }
-  }
   // Team members add posts to their own brands: pre-fill the open brand tab, or their only brand.
-  const newPost = (patch: Partial<Post> = {}) => setEditing({
-    client: client || (limited && clientNames.length === 1 ? clientNames[0] : ""),
-    status: "planned", postDate: todayIso(), dueDate: weekBefore(todayIso()), timeLog: [], ...patch,
-  });
 
   /* ── time tracking ── */
 
@@ -767,7 +754,6 @@ export default function SocialCalendar() {
                 </div>
                 {items.map(renderCard)}
                 {!items.length && <div className="cal-col-empty">Nothing here</div>}
-                <button type="button" className="cal-add" onClick={() => newPost({ status: s.id })}>+ Add post</button>
               </section>
             );
           })}
@@ -905,7 +891,6 @@ export default function SocialCalendar() {
               </button>
             ))}
             {!selLive.length && !selStarts.length && <div className="cal-empty sm">Nothing planned this day.</div>}
-            <button type="button" className="cal-link" onClick={() => newPost({ postDate: calDay, dueDate: weekBefore(calDay) })}>+ Add a post on this day</button>
           </aside>
         </div>
       </>
@@ -1231,10 +1216,9 @@ export default function SocialCalendar() {
         </div>
         <div className="cal-head-actions">
           <input ref={fileRef} type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={(e) => { importCsv(e.target.files?.[0]); e.currentTarget.value = ""; }} />
-          <button type="button" className="cal-btn" onClick={() => fileRef.current?.click()}>Import sheet</button>
+          <button type="button" className="cal-primary" onClick={() => fileRef.current?.click()}>Import sheet</button>
           {!limited && <button type="button" className="cal-btn" onClick={openUploads}>Upload history</button>}
-          {!limited && <button type="button" className="cal-btn" onClick={addClient}>+ Brand</button>}
-          {(!limited || clientNames.length > 0) && <button type="button" className="cal-primary" onClick={() => newPost()}>+ New post</button>}
+
         </div>
       </div>
 
@@ -1280,7 +1264,7 @@ export default function SocialCalendar() {
         <div className="cal-empty">{limited && !clientNames.length
           ? "No brands assigned to you yet. Ask an admin to give you access under Users → Social media brands."
           : limited ? "Nothing is assigned to you right now. Posts appear here when they reach your stage."
-          : "No posts yet. Add a brand and a post, or import a brand's media calendar (Excel → Save as CSV)."}</div>
+          : "No posts yet. Import a brand's media calendar sheet (Excel or CSV). A new brand is added automatically from the upload."}</div>
       ) : activeView === "mine" ? renderMine() : activeView === "schedule" ? renderSchedule() : activeView === "calendar" ? renderCalendar() : renderBoard()}
 
       {viewed && !editing && renderDetails(viewed)}
