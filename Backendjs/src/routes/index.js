@@ -198,6 +198,9 @@ const social = require("../controllers/social.controller");
 const autoPublish = require("../utils/autoPublish");
 const { postChanges, taskChanges, when, fmtDate, day, STAGES } = require("../utils/changeNotes");
 const canSocial = [requireAuth, requireArea("social"), social.withScope];
+const kpiCtrl = require("../controllers/kpi.controller");
+// Bulk changes to posts (imports, deletes) → clear the KPI cache once they succeed.
+const kpiBump = (_req, res, next) => { res.on("finish", () => { if (res.statusCode < 400) kpiCtrl.bumpKpiCache(); }); next(); };
 const socialClientCtrl = crudController(SocialClient, {
   order: [["position", "ASC"], ["name", "ASC"]], searchable: ["name"],
   onCreate: async (b, req) => {
@@ -219,6 +222,7 @@ const socialPostCtrl = crudController(SocialPost, {
   onCreate: async (p, req) => {
     await social.grantBrand([p.assigneeId, ...Object.values(social.teamOf(p))], p.client);
     await social.recordEvents([social.eventOf(p, { byUserId: req.user?.id })]);
+    kpiCtrl.bumpKpiCache();
     await autoPublish.syncJobs(p);
     if (p.assigneeId) await notifyUsers([p.assigneeId], socialAssigned(p), req.user?.id);
     // Everyone who works on this brand hears about the new post.
@@ -232,6 +236,9 @@ const socialPostCtrl = crudController(SocialPost, {
     // A step hand-off inside In production (designer → video editor) counts too.
     if (before.status !== p.status || ((before.step || null) !== (p.step || null) && p.status === "production" && before.status === "production"))
       await social.recordEvents([social.eventOf(p, { from: before.status, fromAssigneeId: before.assigneeId, byUserId: req.user?.id })]);
+    // KPIs read stages, assignees and go-live dates → recompute after any of them changes.
+    if (before.status !== p.status || (before.step || null) !== (p.step || null) || before.assigneeId !== p.assigneeId || day(before.postDate) !== day(p.postDate))
+      kpiCtrl.bumpKpiCache();
     const reassigned = p.assigneeId && p.assigneeId !== before.assigneeId;
     if (reassigned) await notifyUsers([p.assigneeId], socialAssigned(p), req.user?.id);
     // Changes by someone else → the person who has it (unless they just got it, above).
@@ -254,12 +261,12 @@ const socialPostRouter = express.Router();
 socialPostRouter.get("/", ...canSocial, social.listPosts(socialPostCtrl.list));
 // Sheet uploads (admin): list batches, delete one batch, or clear a brand.
 socialPostRouter.get("/uploads", ...canSocial, social.requireAllBrands, social.listUploads);
-socialPostRouter.delete("/uploads/:batch", ...canSocial, social.requireAllBrands, social.deleteUpload);
-socialPostRouter.post("/delete-brand", ...canSocial, social.requireAllBrands, social.deleteBrandPosts);
+socialPostRouter.delete("/uploads/:batch", ...canSocial, social.requireAllBrands, kpiBump, social.deleteUpload);
+socialPostRouter.post("/delete-brand", ...canSocial, social.requireAllBrands, kpiBump, social.deleteBrandPosts);
 socialPostRouter.get("/:id", ...canSocial, social.guardPost, socialPostCtrl.getOne);
 socialPostRouter.post("/", ...canSocial, social.guardBody, social.deadlineDefaults, social.assignOnCreate, socialPostCtrl.create);
 // Bulk import (rows parsed from a client's media-calendar sheet).
-socialPostRouter.post("/bulk", ...canSocial, social.guardBody, async (req, res, next) => {
+socialPostRouter.post("/bulk", ...canSocial, social.guardBody, kpiBump, async (req, res, next) => {
   try {
     const rows = Array.isArray(req.body?.posts) ? req.body.posts.slice(0, 1000) : [];
     const clean = rows
@@ -291,7 +298,7 @@ socialPostRouter.post("/bulk", ...canSocial, social.guardBody, async (req, res, 
 });
 socialPostRouter.put("/:id", ...canSocial, social.guardPost, social.deadlineDefaults, social.assignOnStageChange, socialPostCtrl.update);
 socialPostRouter.patch("/:id", ...canSocial, social.guardPost, social.deadlineDefaults, social.assignOnStageChange, socialPostCtrl.update);
-socialPostRouter.delete("/:id", ...canSocial, social.guardPost, socialPostCtrl.remove);
+socialPostRouter.delete("/:id", ...canSocial, social.guardPost, kpiBump, socialPostCtrl.remove);
 router.use("/social-posts", socialPostRouter);
 
 /* Auto-publishing: connect a brand's Facebook Page + Instagram, upload post
@@ -299,6 +306,8 @@ router.use("/social-posts", socialPostRouter);
 const pub = require("../controllers/publish.controller");
 const studio = require("../controllers/studio.controller");
 router.get("/social-studio", ...canSocial, studio.overview);
+// "Today" home page: counts, what needs you, this week, team on-time (one call).
+router.get("/today", ...canSocial, require("../controllers/today.controller").today);
 router.post("/social-accounts/:client/pause", ...canSocial, social.requireAllBrands, studio.pause);
 router.get("/social-accounts/:client/profile", ...canSocial, studio.profile);
 router.put("/social-accounts/:client/profile", ...canSocial, social.requireAllBrands, studio.updateProfile);
@@ -316,7 +325,7 @@ router.post("/social-posts/:id/publish-now", ...canSocial, social.guardPost, pub
 router.post("/social-media/upload", ...canSocial, pub.mediaUpload.array("files", 10), pub.uploadMedia);
 
 /* Content calendar performance KPIs (admins: whole team; others: themselves). */
-router.get("/social-kpis", ...canSocial, require("../controllers/kpi.controller").kpis);
+router.get("/social-kpis", ...canSocial, kpiCtrl.kpis);
 
 /* ── Users ───────────────────────────────────────────── */
 const usersRouter = express.Router();
@@ -387,6 +396,7 @@ const cronTick = async (_req, res) => {
   const r = await maybeRunDaily();
   await autoPublish.runDue({ force: true }); // posts due to go live
   await social.maintenance(); // unassigned-post sweep + default deadlines (never throws)
+  studio.refreshAllStudio().catch(() => {}); // stale Meta numbers, in the background (one run at a time)
   res.json({ ok: true, ran: !!r.ran });
 };
 router.get("/cron/daily", cronTick);
