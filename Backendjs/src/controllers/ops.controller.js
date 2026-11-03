@@ -100,7 +100,14 @@ const testEmail = asyncHandler(async (req, res) => {
     text: "Email works — test from the Finvera admin.",
   });
   if (r.sent) return res.json({ ok: true, message: `Test email sent to ${to}.`, id: r.id || null });
-  const why = r.reason === "nodemailer-missing" ? "The server is missing the nodemailer package — run NPM Install in cPanel." : r.reason;
+  let why = r.reason === "nodemailer-missing" ? "The server is missing the nodemailer package — run NPM Install in cPanel." : r.reason;
+  // Login refused → say exactly what the server used (never the password itself).
+  if (/rejected the login|535|EAUTH/i.test(String(why))) {
+    const d = mailer.diag();
+    why += ` Server used: user “${d.user}”, password of ${d.passLength} characters from the ${d.passFrom}` +
+      `${d.passHasEdgeSpaces ? " (it has spaces at the start or end — remove them)" : ""}` +
+      `${d.envFileHasPass && d.passFrom !== ".env file in the app folder" ? "; a .env file in the app folder also has an SMTP_PASS — delete that line to avoid confusion" : ""}.`;
+  }
   res.status(422).json({ ok: false, message: `Couldn't send: ${why}`, error: why });
 });
 

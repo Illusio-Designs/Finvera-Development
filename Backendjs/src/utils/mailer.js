@@ -69,4 +69,25 @@ async function sendMail({ to, subject, html, text, replyTo }) {
   }
 }
 
-module.exports = { sendMail, layout, esc, configured };
+/* What the server is actually using — for the admin's test email when the
+   login fails. Never includes the password itself: only its length, whether
+   it has spaces at the ends, and where the value came from. */
+function diag() {
+  const raw = String(process.env.SMTP_PASS || "");
+  let fileHas = false, fileSame = false;
+  try {
+    const parsed = require("dotenv").parse(require("fs").readFileSync(require("path").join(__dirname, "..", "..", ".env")));
+    fileHas = "SMTP_PASS" in parsed;
+    fileSame = fileHas && parsed.SMTP_PASS === raw;
+  } catch { /* no .env file */ }
+  return {
+    user: env("SMTP_USER"), host: env("SMTP_HOST"), port: Number(env("SMTP_PORT") || 465),
+    passLength: env("SMTP_PASS").length,
+    passHasEdgeSpaces: raw !== raw.trim(),
+    passHadQuotes: /^(["']).*\1$/.test(raw.trim()),
+    passFrom: !raw ? "not set" : fileSame ? ".env file in the app folder" : "cPanel environment variables",
+    envFileHasPass: fileHas,
+  };
+}
+
+module.exports = { sendMail, layout, esc, configured, diag };
