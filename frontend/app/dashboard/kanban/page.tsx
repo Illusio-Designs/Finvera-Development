@@ -1,738 +1,337 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { api } from "@/lib/adminApi";
-import { toast } from "@/lib/toast";
+/* Project board.
+   Boards home (?board absent): one card per board with counts per list,
+   overdue and members — boards + GET /tasks?fields=summary.
+   A board (?board=ID): its cards in ONE request (GET /tasks?boardId=, with
+   comment counts), lists you drag cards between, a card drawer and board
+   settings. Moves are optimistic with Undo: the moved card's PATCH carries
+   the notifications, then one POST /tasks/reorder saves the list's order.
+   ?task=ID (notifications) opens that card on its board. */
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Add01Icon } from "@hugeicons/core-free-icons";
+import { api, boardApi, type BoardRow, type BoardUser, type CardRow, type CardSummary } from "@/lib/adminApi";
+import { exportToExcel } from "@/components/admin/ExportButton";
 import { dialog } from "@/lib/dialog";
-import Select from "@/components/Select";
-import DatePicker from "@/components/ui/DatePicker";
-import { BoardSkeleton } from "@/components/admin/Skeleton";
-import HistoryList from "@/components/admin/HistoryList";
-import ExportButton from "@/components/admin/ExportButton";
+import { toast } from "@/lib/toast";
+import BoardsHome, { BoardsHomeSkeleton, LoadError } from "@/components/admin/board/BoardsHome";
+import BoardView, { ListsSkeleton } from "@/components/admin/board/BoardView";
+import CardDrawer from "@/components/admin/board/CardDrawer";
+import BoardSettings, { type SettingsSave } from "@/components/admin/board/BoardSettings";
+import { normBoard, normCard, normSummary, byPos, isDoneList, DEFAULT_LABELS, DEFAULT_LISTS } from "@/components/admin/board/boardKit";
+import "./board.css";
 
-type Col = { id: string; title: string };
-type Label = { id: string; name: string; color: string };
-type Board = { id: number; name: string; description?: string; color?: string; columns: Col[]; labels: Label[] };
-type ChecklistItem = { id: string; text: string; done: boolean };
-type Attachment = { id: string; url: string; name: string };
-type Task = {
-  id: number; title: string; description?: string; boardId: number; column: string; position: number;
-  priority?: string; startDate?: string | null; dueDate?: string | null; renewalDate?: string | null; completed?: boolean; cover?: string | null;
-  memberIds?: number[]; labelIds?: string[]; checklist?: ChecklistItem[]; attachments?: Attachment[];
-  label?: string;
-};
-type User = { id: number; name: string; avatar?: string | null; title?: string | null };
-type Comment = { id: number; body: string; createdAt: string; author?: { id: number; name: string; avatar?: string | null } | null };
+const errMsg = (e: unknown, d = "Try again in a moment.") => (e instanceof Error && e.message ? e.message : d);
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-const uid = (p = "id") => p + "-" + Math.random().toString(36).slice(2, 8);
+function ProjectBoard() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const boardParam = Number(params.get("board")) || null;
+  const taskParam = Number(params.get("task")) || null;
 
-/* JSON columns can come back as strings on some MySQL setups — coerce to arrays
-   so .map()/.length never crash. */
-function toArr<T = unknown>(v: unknown): T[] {
-  if (Array.isArray(v)) return v as T[];
-  if (typeof v === "string" && v.trim().startsWith("[")) { try { const a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch { return []; } }
-  return [];
-}
-const normBoard = (b: Board): Board => ({ ...b, columns: toArr(b.columns), labels: toArr(b.labels) });
-/* MySQL/Sequelize can hand booleans back as 1/0 or even the strings "1"/"0" on
-   some setups — and "0" is TRUTHY in JS, which made every card look "completed".
-   Coerce to a real boolean. */
-const booly = (v: unknown): boolean => v === true || v === 1 || v === "1" || v === "true";
-const normTask = (t: Task): Task => ({
-  ...t,
-  completed: booly(t.completed),
-  memberIds: toArr<number>(t.memberIds),
-  labelIds: toArr<string>(t.labelIds),
-  checklist: toArr<ChecklistItem>(t.checklist).map((c) => ({ ...c, done: booly(c.done) })),
-  attachments: toArr<Attachment>(t.attachments),
-});
-const COVER_SWATCHES = ["", "#3e60ab", "#8b5cf6", "#22c55e", "#f59e0b", "#ef4444", "#0ea5e9", "#ec4899"];
-const PRIO_SHORT: Record<string, string> = { high: "High", medium: "Medium", low: "Low" };
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-function fmtDue(d: string) {
-  const [, m, day] = String(d).split("-").map(Number);
-  if (!m || !day) return String(d);
-  return `${MONTHS[m - 1]}, ${day}`;
-}
-function statusClass(s?: string) {
-  const t = (s || "").toLowerCase();
-  if (/progress|doing|active/.test(t)) return "st-progress";
-  if (/review|check/.test(t)) return "st-review";
-  if (/correct|fix|revis/.test(t)) return "st-correction";
-  if (/done|complete|approved|shipped/.test(t)) return "st-done";
-  return "";
-}
+  const [boards, setBoards] = useState<BoardRow[] | null>(null);
+  const [boardsErr, setBoardsErr] = useState("");
+  const [summary, setSummary] = useState<CardSummary[] | null>(null);
+  const [summaryErr, setSummaryErr] = useState(false);
+  const [users, setUsers] = useState<BoardUser[]>([]);
+  const [cards, setCards] = useState<CardRow[] | null>(null);
+  const [cardsErr, setCardsErr] = useState("");
+  const [drawer, setDrawer] = useState<{ card: CardRow | null; defaults?: Partial<CardRow>; key: number } | null>(null);
+  const [settings, setSettings] = useState<{ focus: "labels" | null; back?: number | null } | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const cardsRef = useRef<CardRow[]>([]);
+  cardsRef.current = cards || [];
+  const pendingCard = useRef<number | null>(null);
 
-function initials(name = "") {
-  return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
-}
-function Avatar({ user, size = 26 }: { user?: User | null; size?: number }) {
-  const s = { width: size, height: size, fontSize: Math.round(size * 0.4) };
-  if (user?.avatar) return <img className="kb-av" src={user.avatar} alt={user.name} style={s} title={user.name} />;
-  return <span className="kb-av kb-av-i" style={s} title={user?.name}>{initials(user?.name)}</span>;
-}
+  const board = boards?.find((b) => b.id === boardParam) || null;
+  const boardRef = useRef<BoardRow | null>(null);
+  boardRef.current = board;
 
-export default function Kanban() {
-  const [boards, setBoards] = useState<Board[]>([]);
-  const [activeId, setActiveId] = useState<number | null>(null);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [allTasks, setAllTasks] = useState<Task[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState<Partial<Task> | null>(null);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [newComment, setNewComment] = useState("");
-  const [overCol, setOverCol] = useState<string | null>(null);
-  const [justDone, setJustDone] = useState<number | null>(null);
-  const dragId = useRef<number | null>(null);
-  const overColRef = useRef<string | null>(null);
-  const hoverIdRef = useRef<number | null>(null);
-  const didDrag = useRef(false);
-  const kbRef = useRef<HTMLDivElement | null>(null);
-  const ptr = useRef<{ x: number; y: number } | null>(null);
-  const scrollRAF = useRef<number | null>(null);
-  /* Touch: a card only starts dragging after a short press-and-hold, so a
-     normal swipe scrolls the board instead of moving the card. */
-  const pressTimer = useRef<number | null>(null);
-  const pressStart = useRef<{ x: number; y: number } | null>(null);
-  const touchDragging = useRef(false);
-  const [colIdx, setColIdx] = useState(0);
-  useEffect(() => {
-    // While a card is held, stop the page from scrolling under the finger.
-    const block = (e: TouchEvent) => { if (touchDragging.current) e.preventDefault(); };
-    document.addEventListener("touchmove", block, { passive: false });
-    return () => document.removeEventListener("touchmove", block);
+  /* ── loading ── */
+  const loadBoards = useCallback(async () => {
+    setBoardsErr("");
+    try { const b = await boardApi.boards(); setBoards((Array.isArray(b) ? b : []).map(normBoard)); }
+    catch (e) { setBoardsErr(errMsg(e, "Couldn't load the boards.")); }
   }, []);
-  const endTouch = (el: HTMLElement) => {
-    if (pressTimer.current != null) { clearTimeout(pressTimer.current); pressTimer.current = null; }
-    el.classList.remove("dragging");
-    kbRef.current?.classList.remove("no-snap");
-    if (!touchDragging.current) return;
-    touchDragging.current = false;
-    stopAutoScroll();
-    if (dragId.current != null && didDrag.current && overColRef.current) drop(overColRef.current, hoverIdRef.current);
-    else dragId.current = null;
-    didDrag.current = true; // swallow the click that follows a hold
-    overColRef.current = null; hoverIdRef.current = null; setOverCol(null);
-  };
-  const jumpToCol = (id: string) => {
-    const el = kbRef.current?.querySelector(`[data-col="${id}"]`) as HTMLElement | null;
-    el?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
-  };
+  const loadSummary = useCallback(async () => {
+    setSummaryErr(false);
+    try { const s = await boardApi.summary(); setSummary((Array.isArray(s) ? s : []).map(normSummary)); }
+    catch { setSummaryErr(true); }
+  }, []);
+  useEffect(() => {
+    loadBoards(); loadSummary();
+    api.listUsers().then((u: unknown) => setUsers(Array.isArray(u) ? (u as BoardUser[]) : [])).catch(() => {});
+  }, [loadBoards, loadSummary]);
 
-  /* Auto-scroll the board (horizontally) and the hovered column (vertically)
-     while dragging a card near an edge — like Trello. */
-  function autoScrollTick() {
-    const p = ptr.current;
-    if (p && dragId.current != null) {
-      const EDGE = 90, MAX = 22;
-      const kb = kbRef.current;
-      if (kb) {
-        const r = kb.getBoundingClientRect();
-        if (p.x < r.left + EDGE) kb.scrollLeft -= MAX * Math.min(1, (r.left + EDGE - p.x) / EDGE);
-        else if (p.x > r.right - EDGE) kb.scrollLeft += MAX * Math.min(1, (p.x - (r.right - EDGE)) / EDGE);
-      }
-      const el = document.elementFromPoint(p.x, p.y) as HTMLElement | null;
-      const list = el?.closest(".kb-cards") as HTMLElement | null;
-      if (list) {
-        const r = list.getBoundingClientRect();
-        if (p.y < r.top + EDGE) list.scrollTop -= MAX * Math.min(1, (r.top + EDGE - p.y) / EDGE);
-        else if (p.y > r.bottom - EDGE) list.scrollTop += MAX * Math.min(1, (p.y - (r.bottom - EDGE)) / EDGE);
-      }
-    }
-    scrollRAF.current = requestAnimationFrame(autoScrollTick);
-  }
-  function startAutoScroll() { if (scrollRAF.current == null) scrollRAF.current = requestAnimationFrame(autoScrollTick); }
-  function stopAutoScroll() { if (scrollRAF.current != null) { cancelAnimationFrame(scrollRAF.current); scrollRAF.current = null; } ptr.current = null; }
-  useEffect(() => () => stopAutoScroll(), []);
-
-  const board = boards.find((b) => b.id === activeId) || null;
-  const cols: Col[] = toArr<Col>(board?.columns);
-  const labels: Label[] = toArr<Label>(board?.labels);
-  const userById = (id: number) => users.find((u) => u.id === id);
-  const labelById = (id: string) => labels.find((l) => l.id === id);
-
-  async function loadBoards() {
-    setLoading(true);
+  const loadCards = useCallback(async (id: number) => {
+    setCardsErr("");
     try {
-      // Overview cards need only counts + members per board → light summary rows.
-      const [bRaw, u, tRaw] = await Promise.all([api.listBoards(), api.listUsers().catch(() => []), api.listTaskSummary().catch(() => [])]);
-      const b = (Array.isArray(bRaw) ? bRaw : []).map(normBoard);
-      setBoards(b);
-      setUsers(Array.isArray(u) ? u : []);
-      setAllTasks((Array.isArray(tRaw) ? tRaw : []).map(normTask));
-      // Start on the boards overview — user opens a board explicitly.
-    } finally { setLoading(false); }
-  }
-  useEffect(() => { loadBoards(); /* eslint-disable-next-line */ }, []);
+      const r = await boardApi.cards(id);
+      if (boardRef.current?.id !== id && boardRef.current) return;
+      setCards((Array.isArray(r) ? r : []).map(normCard));
+    } catch (e) { setCardsErr(errMsg(e, "Couldn't load the cards.")); }
+  }, []);
+  useEffect(() => {
+    setCards(null); setDrawer(null); setSettings(null);
+    if (boardParam) loadCards(boardParam);
+  }, [boardParam, loadCards]);
 
-  async function openBoard(id: number) {
-    setActiveId(id);
-    setTasks(((await api.listTasks(id)) || []).map(normTask));
-  }
-  async function backToBoards() {
-    setActiveId(null); setTasks([]);
-    setAllTasks(((await api.listTaskSummary().catch(() => [])) || []).map(normTask));
-  }
-  const switchBoard = openBoard;
-  async function reloadTasks() { if (activeId) setTasks(((await api.listTasks(activeId)) || []).map(normTask)); }
-
-  /* Per-board stats for the overview cards. */
-  function boardStats(bid: number) {
-    const ts = allTasks.filter((t) => t.boardId === bid);
-    const memberIds = [...new Set(ts.flatMap((t) => toArr<number>(t.memberIds)))];
-    return { count: ts.length, members: memberIds.map(userById).filter(Boolean) as User[] };
-  }
-
-  const inCol = (id: string) => tasks.filter((t) => t.column === id).sort((a, b) => a.position - b.position);
-
-  /* Save a column's order after a drag. A card that changed column gets its
-     own PATCH (that's what tells its members it moved); the order of the
-     whole column is then one /tasks/reorder call. It used to be one PATCH per
-     card in the column — dozens of requests for a single drag. Older
-     backends without /tasks/reorder fall back to that. */
-  const reorderApi = useRef(true);
-  async function persistColumnOrder(next: Task[], colId: string, movedId?: number) {
-    const ordered = next.filter((t) => t.column === colId).sort((a, b) => a.position - b.position);
-    if (reorderApi.current) {
-      try {
-        const i = movedId == null ? -1 : ordered.findIndex((t) => t.id === movedId);
-        if (i >= 0) await api.updateTask(movedId as number, { column: colId, position: i });
-        if (ordered.length) await api.reorderTasks(colId, ordered.map((t) => t.id));
-        return;
-      } catch (e) {
-        if ((e as { status?: number })?.status !== 404) { toast("Couldn't save the new order", "err"); return; }
-        reorderApi.current = false;
-      }
+  /* Deep link ?task=ID → find its board (summary), open the board, then the card. */
+  useEffect(() => {
+    if (!taskParam || !boards) return;
+    if (!summary) { if (summaryErr) { toast("Couldn't open that card", "err", { description: "The board list didn't load — try again." }); router.replace("/dashboard/kanban", { scroll: false }); } return; }
+    const t = summary.find((s) => s.id === taskParam);
+    if (!t || !boards.some((b) => b.id === t.boardId)) {
+      toast("That card isn't on the board any more", "warn", { description: "It may have been deleted." });
+      router.replace(boardParam ? `/dashboard/kanban?board=${boardParam}` : "/dashboard/kanban", { scroll: false });
+      return;
     }
-    await Promise.all(ordered.map((t, i) => api.updateTask(t.id, { column: colId, position: i })));
-  }
+    pendingCard.current = t.id;
+    router.replace(`/dashboard/kanban?board=${t.boardId}`, { scroll: false });
+  }, [taskParam, boards, summary, summaryErr, boardParam, router]);
+  useEffect(() => {
+    if (!cards || pendingCard.current == null) return;
+    const c = cards.find((x) => x.id === pendingCard.current);
+    pendingCard.current = null;
+    if (c) setDrawer({ card: c, key: Date.now() });
+  }, [cards]);
 
-  function drop(toCol: string, beforeId: number | null) {
-    const id = dragId.current;
-    setOverCol(null);
-    stopAutoScroll();
-    if (id == null) return;
-    const destTitle = (cols.find((c) => c.id === toCol)?.title || "").toLowerCase();
-    const isDone = /done|complete|shipped|✅/.test(destTitle);
-    setTasks((prev) => {
-      const moved = prev.find((t) => t.id === id);
-      if (!moved) return prev;
-      const fromCol = moved.column;
-      if (isDone && fromCol !== toCol) {
-        toast("Task complete 🎉");
-        setJustDone(id);
-        setTimeout(() => setJustDone((v) => (v === id ? null : v)), 900);
-      }
-      const without = prev.filter((t) => t.id !== id);
-      const target = without.filter((t) => t.column === toCol).sort((a, b) => a.position - b.position);
-      let idx = beforeId == null ? target.length : target.findIndex((t) => t.id === beforeId);
-      if (idx < 0) idx = target.length;
-      target.splice(idx, 0, { ...moved, column: toCol });
-      target.forEach((t, i) => (t.position = i));
-      const next = [...without.filter((t) => t.column !== toCol), ...target];
-      persistColumnOrder(next, toCol, fromCol !== toCol ? id : undefined);
-      if (fromCol !== toCol) persistColumnOrder(next, fromCol);
-      return next;
-    });
-    dragId.current = null;
-  }
-
-  async function openCard(t: Partial<Task>) {
-    setEditing({ ...t });
-    setComments([]); setNewComment("");
-    if (t.id) { try { setComments(await api.listComments(t.id)); } catch { /* ignore */ } }
-  }
-
-  async function saveCard(e: React.FormEvent) {
-    e.preventDefault();
-    if (!editing || !editing.title || !activeId) return;
-    const body = { ...editing, boardId: activeId };
-    if (editing.id) await api.updateTask(editing.id, body);
-    else await api.createTask({ ...body, position: inCol(editing.column!).length });
-    setEditing(null);
-    toast("Card saved");
-    reloadTasks();
-  }
-  async function deleteCard() {
-    if (editing?.id && await dialog.confirm({ title: "Delete this card?", message: "This can't be undone.", danger: true, confirmText: "Delete" })) {
-      await api.deleteTask(editing.id); setEditing(null); toast("Card deleted"); reloadTasks();
+  /* Unknown ?board= (deleted, or no access) → back to the boards home. */
+  useEffect(() => {
+    if (boards && boardParam && !taskParam && !boards.some((b) => b.id === boardParam)) {
+      toast("That board isn't here any more", "warn");
+      router.replace("/dashboard/kanban", { scroll: false });
     }
-  }
+  }, [boards, boardParam, taskParam, router]);
 
-  /* ── board / column management ── */
-  async function saveBoard(patch: Partial<Board>) {
-    if (!board) return;
-    const next = { ...board, ...patch };
-    setBoards((bs) => bs.map((b) => (b.id === board.id ? next : b)));
-    await api.updateBoard(board.id, patch);
-  }
-  async function addBoard() {
-    const name = await dialog.prompt({ title: "New board", placeholder: "Board name", confirmText: "Create" });
+  const openBoard = (id: number) => { router.push(`/dashboard/kanban?board=${id}`, { scroll: false }); window.scrollTo(0, 0); };
+  const backHome = () => { router.push("/dashboard/kanban", { scroll: false }); loadSummary(); };
+
+  /* ── boards ── */
+  async function newBoard() {
+    const name = (await dialog.prompt({ title: "New board", message: "Boards start with To Do, In Progress and Done. You can rename lists and add labels in Board settings.", placeholder: "e.g. Gripzus retainer", confirmText: "Create board" }))?.trim();
     if (!name) return;
-    const b = normBoard(await api.createBoard({
-      name,
-      columns: [{ id: "todo", title: "To Do" }, { id: "inprogress", title: "In Progress" }, { id: "done", title: "Done" }],
-      labels,
-      position: boards.length,
-    }));
-    setBoards((bs) => [...bs, b]); switchBoard(b.id); toast("Board created");
+    try {
+      const labels = boards?.[0]?.labels?.length ? boards[0].labels : DEFAULT_LABELS;
+      const b = normBoard(await boardApi.createBoard({ name, description: null, columns: DEFAULT_LISTS, labels, position: boards?.length || 0 }));
+      setBoards((bs) => [...(bs || []), b]);
+      toast("Board created", "ok", { description: b.name });
+      openBoard(b.id);
+    } catch (e) { toast("Couldn't create the board", "err", { description: errMsg(e) }); }
   }
-  async function renameBoard() {
-    if (!board) return;
-    const name = await dialog.prompt({ title: "Rename board", defaultValue: board.name, confirmText: "Rename" });
-    if (name) saveBoard({ name });
+  async function patchBoard(patch: Partial<BoardRow>): Promise<boolean> {
+    const b = boardRef.current;
+    if (!b) return false;
+    const before = b;
+    setBoards((bs) => bs && bs.map((x) => (x.id === b.id ? { ...x, ...patch } : x)));
+    try { const saved = normBoard(await boardApi.updateBoard(b.id, patch)); setBoards((bs) => bs && bs.map((x) => (x.id === b.id ? { ...x, ...saved } : x))); return true; }
+    catch (e) {
+      setBoards((bs) => bs && bs.map((x) => (x.id === b.id ? before : x)));
+      toast("Couldn't save the board", "err", { description: errMsg(e) });
+      return false;
+    }
+  }
+  const rename = async (name: string) => { const ok = await patchBoard({ name }); if (ok) toast("Board renamed", "ok", { description: name }); return ok; };
+
+  async function saveSettings(s: SettingsSave): Promise<boolean> {
+    const b = boardRef.current;
+    if (!b) return false;
+    // Cards in deleted lists move first (one request), so none are left in a list that's gone.
+    const moving = s.moveTo ? cardsRef.current.filter((t) => s.removed.includes(t.column)) : [];
+    if (moving.length && s.moveTo) {
+      const dest = cardsRef.current.filter((t) => t.column === s.moveTo).sort(byPos);
+      const ids = [...dest, ...moving.sort(byPos)].map((t) => t.id);
+      try { await boardApi.reorder(s.moveTo, ids); }
+      catch (e) { toast("Couldn't move the cards out of the deleted list", "err", { description: errMsg(e) }); return false; }
+      const pos = new Map(ids.map((id, i) => [id, i]));
+      setCards((cs) => cs && cs.map((t) => (pos.has(t.id) ? { ...t, column: s.moveTo as string, position: pos.get(t.id)! } : t)));
+    }
+    if (!Object.keys(s.patch).length) return true;
+    const ok = await patchBoard(s.patch);
+    if (ok) toast("Board settings saved", "ok", { description: [s.patch.columns && "lists", s.patch.labels && "labels", (s.patch.name || s.patch.description !== undefined) && "details"].filter(Boolean).join(", ") || undefined });
+    return ok;
   }
   async function deleteBoard() {
-    if (!board) return;
-    if (!(await dialog.confirm({ title: `Delete "${board.name}"?`, message: "The board and all its cards will be removed.", danger: true, confirmText: "Delete" }))) return;
-    await api.deleteBoard(board.id);
-    const rest = boards.filter((b) => b.id !== board.id);
-    setBoards(rest); toast("Board deleted");
-    backToBoards();
-  }
-  async function addColumn() {
-    const title = await dialog.prompt({ title: "New column", placeholder: "Column name", confirmText: "Add" });
-    if (title) saveBoard({ columns: [...cols, { id: uid("col"), title }] });
-  }
-  async function renameColumn(c: Col) {
-    const title = await dialog.prompt({ title: "Rename column", defaultValue: c.title, confirmText: "Rename" });
-    if (title) saveBoard({ columns: cols.map((x) => (x.id === c.id ? { ...x, title } : x)) });
-  }
-  async function deleteColumn(c: Col) {
-    if (!(await dialog.confirm({ title: `Delete column "${c.title}"?`, message: "Its cards move to the first column.", danger: true, confirmText: "Delete" }))) return;
-    const rest = cols.filter((x) => x.id !== c.id);
-    if (!rest.length) return dialog.alert({ title: "Keep at least one column." });
-    await Promise.all(inCol(c.id).map((t) => api.updateTask(t.id, { column: rest[0].id })));
-    saveBoard({ columns: rest }); reloadTasks();
+    const b = boardRef.current;
+    if (!b) return;
+    const n = cardsRef.current.length;
+    if (!(await dialog.confirm({ title: `Delete “${b.name}”?`, message: `The board and its ${n} card${n === 1 ? "" : "s"} are removed for everyone. This can't be undone.`, confirmText: "Delete board", danger: true }))) return;
+    try {
+      await boardApi.deleteBoard(b.id);
+      setSettings(null);
+      setBoards((bs) => bs && bs.filter((x) => x.id !== b.id));
+      toast("Board deleted", "ok", { description: b.name });
+      backHome();
+    } catch (e) { toast("Couldn't delete the board", "err", { description: errMsg(e) }); }
   }
 
-  /* ── card modal field helpers ── */
-  const toggleMember = (uidNum: number) =>
-    setEditing((e) => { const cur = e?.memberIds || []; return { ...e, memberIds: cur.includes(uidNum) ? cur.filter((x) => x !== uidNum) : [...cur, uidNum] }; });
-  const toggleLabel = (lid: string) =>
-    setEditing((e) => { const cur = e?.labelIds || []; return { ...e, labelIds: cur.includes(lid) ? cur.filter((x) => x !== lid) : [...cur, lid] }; });
-  const addChecklistItem = (text: string) =>
-    text.trim() && setEditing((e) => ({ ...e, checklist: [...(e?.checklist || []), { id: uid("ck"), text: text.trim(), done: false }] }));
-  const toggleChecklist = (id: string) =>
-    setEditing((e) => ({ ...e, checklist: (e?.checklist || []).map((c) => (c.id === id ? { ...c, done: !c.done } : c)) }));
-  const removeChecklist = (id: string) =>
-    setEditing((e) => ({ ...e, checklist: (e?.checklist || []).filter((c) => c.id !== id) }));
-
-  const addAttachment = (url: string, name: string) =>
-    url && setEditing((e) => ({ ...e, attachments: [...(e?.attachments || []), { id: uid("at"), url, name: name || url.split("/").pop() || "file" }] }));
-  const removeAttachment = (id: string) =>
-    setEditing((e) => ({ ...e, attachments: (e?.attachments || []).filter((a) => a.id !== id) }));
-  async function uploadAttachment(file?: File) {
-    if (!file) return;
-    try { const { url } = await api.upload(file); addAttachment(url, file.name); toast("Attachment added"); }
-    catch { toast("Attachment upload failed", "err"); }
+  /* ── moving cards (optimistic, with Undo) ── */
+  const reorderOk = useRef(true); // false once /tasks/reorder 404s (older backend)
+  async function saveOrder(col: string, ids: number[]) {
+    if (!ids.length) return;
+    if (reorderOk.current) {
+      try { await boardApi.reorder(col, ids); return; }
+      catch (e) { if ((e as { status?: number })?.status !== 404) throw e; reorderOk.current = false; }
+    }
+    await Promise.all(ids.map((id, i) => boardApi.updateCard(id, { column: col, position: i })));
   }
-  const editProgress = () => {
-    const list = editing?.checklist || []; if (!list.length) return 0;
-    return Math.round((list.filter((c) => c.done).length / list.length) * 100);
-  };
+  async function move(id: number, to: string, beforeId: number | null) {
+    const b = boardRef.current;
+    const cur = cardsRef.current;
+    const card = cur.find((t) => t.id === id);
+    if (!b || !card) return;
+    const from = card.column;
+    const fromIds = cur.filter((t) => t.column === from).sort(byPos).map((t) => t.id);
+    const dest = cur.filter((t) => t.column === to && t.id !== id).sort(byPos).map((t) => t.id);
+    const at = beforeId == null ? dest.length : Math.max(0, dest.indexOf(beforeId));
+    const ids = [...dest.slice(0, at), id, ...dest.slice(at)];
+    const sameCol = from === to;
+    if (sameCol && ids.join() === fromIds.join()) return;
+    const restIds = fromIds.filter((x) => x !== id);
 
-  async function postComment() {
-    if (!editing?.id || !newComment.trim()) return;
-    const c = await api.addComment(editing.id, newComment.trim());
-    setComments((cs) => [...cs, c]); setNewComment("");
+    const touched = new Set([...fromIds, ...ids]);
+    const before = new Map(cur.filter((t) => touched.has(t.id)).map((t) => [t.id, { column: t.column, position: t.position }]));
+    const restore = () => setCards((cs) => cs && cs.map((t) => (before.has(t.id) ? { ...t, ...before.get(t.id)! } : t)));
+    const pos = new Map(ids.map((x, i) => [x, i]));
+    if (!sameCol) restIds.forEach((x, i) => pos.set(x, i));
+    setCards((cs) => cs && cs.map((t) => (t.id === id ? { ...t, column: to, position: pos.get(id)! } : pos.has(t.id) ? { ...t, position: pos.get(t.id)! } : t)));
+
+    const toList = b.columns.find((c) => c.id === to), fromList = b.columns.find((c) => c.id === from);
+    try {
+      if (!sameCol) await boardApi.updateCard(id, { column: to, position: pos.get(id)! }); // tells the card's members it moved
+      await saveOrder(to, ids);
+      if (!sameCol && restIds.length) saveOrder(from, restIds).catch(() => { /* gaps in the old list's order are harmless */ });
+    } catch (e) {
+      restore();
+      toast(`Couldn't move “${card.title}”`, "err", { description: errMsg(e) });
+      return;
+    }
+    const undo = async () => {
+      restore();
+      try {
+        if (!sameCol) await boardApi.updateCard(id, { column: from, position: fromIds.indexOf(id) });
+        await saveOrder(from, fromIds);
+        if (!sameCol) await saveOrder(to, dest);
+        toast(`“${card.title}” is back in ${fromList?.title || "its list"}`, "info");
+      } catch (e) {
+        toast("Couldn't undo", "err", { description: errMsg(e, "Reload the page and check the card.") });
+        loadCards(b.id);
+      }
+    };
+    toast(sameCol ? "Order saved" : `Moved to ${toList?.title || "list"}${isDoneList(toList) ? " — nice work" : ""}`, "ok", {
+      description: card.title, action: { label: "Undo", onClick: undo }, duration: 7000,
+    });
   }
-  async function removeComment(id: number) {
-    await api.deleteComment(id); setComments((cs) => cs.filter((c) => c.id !== id));
+
+  /* ── cards ── */
+  const endPos = (col: string) => cardsRef.current.filter((t) => t.column === col).reduce((m, t) => Math.max(m, t.position + 1), 0);
+  async function quickAdd(col: string, title: string): Promise<boolean> {
+    const b = boardRef.current;
+    if (!b) return false;
+    try {
+      const row = normCard(await boardApi.createCard({ title, boardId: b.id, column: col, position: endPos(col), priority: "medium", completed: false, memberIds: [], labelIds: [], checklist: [], attachments: [] }));
+      setCards((cs) => [...(cs || []), { ...row, commentCount: 0 }]);
+      toast("Task added", "ok", { description: title, action: { label: "Open", onClick: () => setDrawer({ card: { ...row, commentCount: 0 }, key: Date.now() }) } });
+      return true;
+    } catch (e) { toast("Couldn't add the task", "err", { description: errMsg(e) }); return false; }
+  }
+  function saved(row: CardRow, isNew: boolean) {
+    setCards((cs) => (isNew ? [...(cs || []), row] : (cs || []).map((t) => (t.id === row.id ? { ...t, ...row } : t))));
+    setDrawer(null);
+    toast(isNew ? "Task added" : "Card saved", "ok", { description: row.title, ...(isNew ? { action: { label: "Open", onClick: () => setDrawer({ card: row, key: Date.now() }) } } : {}) });
+  }
+  function deleted(id: number) {
+    const t = cardsRef.current.find((x) => x.id === id);
+    setCards((cs) => cs && cs.filter((x) => x.id !== id));
+    setDrawer(null);
+    toast("Card deleted", "ok", { description: t?.title });
+  }
+  const setCommentCount = (id: number, n: number) => setCards((cs) => cs && cs.map((t) => (t.id === id ? { ...t, commentCount: n } : t)));
+
+  async function doExport() {
+    const b = boardRef.current;
+    if (!b) return;
+    setExporting(true);
+    try {
+      const r = await exportToExcel("tasks", { boardId: b.id }, { file: `board-${slug(b.name) || b.id}`, sheet: b.name.slice(0, 31) });
+      if (!r.total) toast("Nothing to export", "info", { description: "This board has no cards yet — the file has only the headings." });
+      else toast(`Exported ${r.total} card${r.total === 1 ? "" : "s"}`, "ok", { description: r.file });
+    } catch (e) { toast("Couldn't export", "err", { description: errMsg(e) }); }
+    finally { setExporting(false); }
   }
 
-  const ckProgress = (t: Task) => {
-    const list = t.checklist || []; if (!list.length) return null;
-    return { done: list.filter((c) => c.done).length, total: list.length };
-  };
-  const overdue = (t: Task) => t.dueDate && !t.completed && new Date(t.dueDate) < new Date(new Date().toDateString());
-  // Renewal countdown for the card chip: null (none), or { days, over, soon }
-  const renewInfo = (t: Task) => {
-    if (!t.renewalDate) return null;
-    const today = new Date(new Date().toDateString());
-    const day = new Date(String(t.renewalDate).slice(0, 10) + "T00:00:00");
-    const days = Math.round((day.getTime() - today.getTime()) / 86400000);
-    return { days, over: days < 0, soon: days >= 0 && days <= 7 };
-  };
+  const clients = useMemo(() => [...new Set((cards || []).map((t) => String(t.client || "").trim()).filter(Boolean))], [cards]);
 
-  if (loading) return (
-    <>
-      <div className="adm-top"><div><h1>Project boards</h1><p>Loading your boards…</p></div></div>
-      <BoardSkeleton cols={4} />
-    </>
-  );
+  /* ── render ── */
+  if (boardsErr && !boards) {
+    return (
+      <div className="td kb-page">
+        <Hello title="Project boards" sub="Open a board to manage its cards, members, labels and checklists." />
+        <LoadError what="the boards" msg={boardsErr} onRetry={loadBoards} />
+      </div>
+    );
+  }
+  if (!boards || (taskParam && !summaryErr)) {
+    return (
+      <div className="td kb-page">
+        <Hello title={boardParam || taskParam ? "Project board" : "Project boards"} sub="Loading…" />
+        {boardParam || taskParam ? <ListsSkeleton n={5} /> : <BoardsHomeSkeleton />}
+      </div>
+    );
+  }
+
+  if (!board) {
+    return (
+      <div className="td kb-page">
+        <Hello title="Project boards" sub="Open a board to manage its cards, members, labels and checklists."
+          action={<button type="button" className="sh-btn pri" onClick={newBoard}><HugeiconsIcon icon={Add01Icon} size={17} strokeWidth={2} />Board</button>} />
+        <BoardsHome boards={boards} summary={summary} summaryErr={summaryErr} users={users} onOpen={openBoard} onNew={newBoard} />
+      </div>
+    );
+  }
 
   return (
     <>
-      {!board ? (
-        <>
-          <div className="adm-top">
-            <div>
-              <h1>Project boards</h1>
-              <p>Open a board to manage its cards, members, labels and checklists.</p>
-            </div>
-            <button className="adm-btn primary" onClick={addBoard}>+ Board</button>
-          </div>
-
-          <div className="kb-boardgrid">
-            {boards.map((b) => {
-              const st = boardStats(b.id);
-              const accent = b.color || "#3e60ab";
-              return (
-                <button key={b.id} className="kb-folder" style={{ ["--fc" as string]: accent } as React.CSSProperties} onClick={() => openBoard(b.id)}>
-                  <span className="kb-folder-tab" />
-                  <div className="kb-folder-in">
-                    <div className="kb-folder-row">
-                      <span className="kb-folder-ic">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" /></svg>
-                      </span>
-                      <span className="kb-folder-cols">{toArr(b.columns).length} lists</span>
-                    </div>
-                    <h3>{b.name}</h3>
-                    <p>{b.description || "Project board"}</p>
-                    <div className="kb-folder-foot">
-                      <span className="kb-folder-count">{st.count} task{st.count === 1 ? "" : "s"}</span>
-                      <span className="kb-avstack">
-                        {st.members.slice(0, 4).map((m) => <Avatar key={m.id} user={m} size={26} />)}
-                        {st.members.length > 4 && <span className="kb-av kb-av-i" style={{ width: 26, height: 26, fontSize: 10 }}>+{st.members.length - 4}</span>}
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-            <button className="kb-folder kb-folder-add" onClick={addBoard}>
-              <span className="kb-folder-tab" />
-              <div className="kb-folder-in"><span className="plus">+</span><span>New board</span></div>
-            </button>
-          </div>
-        </>
+      {cardsErr && !cards ? (
+        <div className="td kb-page">
+          <Hello title={board.name} sub={board.description || "Project board"} eyebrow="Project board" />
+          <LoadError what="this board's cards" msg={cardsErr} onRetry={() => loadCards(board.id)} />
+          <button type="button" className="sh-link kb-backlink" onClick={backHome}>Back to all boards</button>
+        </div>
       ) : (
-        <>
-          <div className="adm-top">
-            <div className="kb-openhead">
-              <button className="kb-back" onClick={backToBoards} aria-label="Back to boards">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 18l-6-6 6-6" /></svg>
-                Boards
-              </button>
-              <div>
-                <h1><span className="kb-bc-dot" style={{ background: board.color || "#3e60ab" }} />{board.name}</h1>
-                <p>{board.description || "Drag cards, assign members, add labels, checklists and comments."}</p>
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <ExportButton entity="tasks" params={{ boardId: board.id }} sheet={board.name}
-                file={`board-${board.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || board.id}`} />
-              <button className="adm-btn ghost" onClick={addColumn}>+ Column</button>
-              <button className="adm-btn ghost" onClick={renameBoard}>Rename</button>
-              <button className="adm-btn ghost" onClick={deleteBoard}>Delete</button>
-            </div>
-          </div>
-
-        <div className="kb-jump" role="tablist" aria-label="Columns">
-          {cols.map((c, i) => (
-            <button key={c.id} type="button" role="tab" aria-selected={i === colIdx} className={i === colIdx ? "on" : ""} onClick={() => jumpToCol(c.id)}>
-              {c.title}<span>{inCol(c.id).length}</span>
-            </button>
-          ))}
-        </div>
-        <div className="kb" ref={kbRef}
-          onScroll={(e) => {
-            const kb = e.currentTarget, first = kb.querySelector(".kb-col") as HTMLElement | null;
-            if (first) setColIdx(Math.min(cols.length - 1, Math.round(kb.scrollLeft / (first.offsetWidth + 12))));
-          }}
-          onDragOver={(e) => { ptr.current = { x: e.clientX, y: e.clientY }; }}
-          onDrop={stopAutoScroll}>
-          {cols.map((c) => (
-            <div key={c.id} data-col={c.id}
-              className={"kb-col" + (overCol === c.id ? " over" : "")}
-              onDragOver={(e) => { e.preventDefault(); setOverCol(c.id); }}
-              onDragLeave={() => setOverCol((o) => (o === c.id ? null : o))}
-              onDrop={() => drop(c.id, null)}>
-              <div className="kb-col-head">
-                <span className="kb-cbar" />
-                <span className="t">{c.title}</span>
-                <span className="count">{inCol(c.id).length}</span>
-                <span className="m">
-                  <button title="Rename" onClick={() => renameColumn(c)}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
-                  </button>
-                  <button title="Delete" onClick={() => deleteColumn(c)}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /></svg>
-                  </button>
-                </span>
-              </div>
-              <div className="kb-col-sub">{inCol(c.id).length} task{inCol(c.id).length === 1 ? "" : "s"}</div>
-
-              <div className="kb-cards">
-                {inCol(c.id).map((t) => {
-                  const ck = ckProgress(t);
-                  const members = (t.memberIds || []).map(userById).filter(Boolean) as User[];
-                  const cardLabels = (t.labelIds || []).map(labelById).filter(Boolean) as Label[];
-                  const cover = t.cover && t.cover.startsWith("#") ? t.cover : null;
-                  const coverImg = t.cover && !t.cover.startsWith("#") ? t.cover : null;
-                  const titleText = (t.title == null ? "" : String(t.title)).trim();
-                  const rn = renewInfo(t);
-                  return (
-                    <div key={t.id} data-id={t.id}
-                      className={"kb-card" + (justDone === t.id ? " done-pop" : "") + (t.completed ? " is-done" : "")}
-                      draggable
-                      onDragStart={(e) => { dragId.current = t.id; startAutoScroll(); (e.currentTarget as HTMLElement).classList.add("dragging"); }}
-                      onDragEnd={(e) => { stopAutoScroll(); (e.currentTarget as HTMLElement).classList.remove("dragging"); }}
-                      onDragOver={(e) => { e.preventDefault(); ptr.current = { x: e.clientX, y: e.clientY }; }}
-                      onDrop={(e) => { e.stopPropagation(); drop(c.id, t.id); }}
-                      onTouchStart={(e) => {
-                        const el = e.currentTarget as HTMLElement, p0 = e.touches[0];
-                        didDrag.current = false; touchDragging.current = false;
-                        pressStart.current = { x: p0.clientX, y: p0.clientY };
-                        pressTimer.current = window.setTimeout(() => {
-                          pressTimer.current = null;
-                          touchDragging.current = true; dragId.current = t.id; overColRef.current = c.id;
-                          el.classList.add("dragging"); kbRef.current?.classList.add("no-snap"); startAutoScroll();
-                          try { navigator.vibrate?.(15); } catch { /* ignore */ }
-                        }, 350);
-                      }}
-                      onTouchMove={(e) => {
-                        const p = e.touches[0];
-                        if (!touchDragging.current) {
-                          // Moved before the hold finished: it's a scroll, not a drag.
-                          const s0 = pressStart.current;
-                          if (pressTimer.current != null && s0 && Math.hypot(p.clientX - s0.x, p.clientY - s0.y) > 10) { clearTimeout(pressTimer.current); pressTimer.current = null; }
-                          return;
-                        }
-                        didDrag.current = true;
-                        ptr.current = { x: p.clientX, y: p.clientY };
-                        const el = document.elementFromPoint(p.clientX, p.clientY) as HTMLElement | null;
-                        const col = el?.closest(".kb-col")?.getAttribute("data-col") || null;
-                        overColRef.current = col; setOverCol(col);
-                        const card = el?.closest(".kb-card") as HTMLElement | null;
-                        hoverIdRef.current = card && card !== e.currentTarget ? Number(card.getAttribute("data-id")) : null;
-                      }}
-                      onTouchEnd={(e) => endTouch(e.currentTarget as HTMLElement)}
-                      onTouchCancel={(e) => endTouch(e.currentTarget as HTMLElement)}
-                      onContextMenu={(e) => { if (touchDragging.current) e.preventDefault(); }}
-                      onClick={() => { if (didDrag.current) { didDrag.current = false; return; } openCard(t); }}>
-                      {coverImg && <div className="kbc-cover" style={{ backgroundImage: `url(${coverImg})` }} />}
-                      {cover && <div className="kbc-coverbar" style={{ background: cover }} />}
-                      <div className="kbc-body">
-                        <div className="kbc-top">
-                          <span className={"kbc-prio " + (t.priority || "medium")}>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round"><path d="M6 20v-7M12 20V4M18 20v-11" /></svg>
-                            {PRIO_SHORT[t.priority || "medium"]}
-                          </span>
-                          {(cardLabels[0]?.name || t.label) && <span className={"kbc-label " + statusClass(cardLabels[0]?.name || t.label)}>{cardLabels[0]?.name || t.label}</span>}
-                        </div>
-                        <h4 className={(t.completed ? "done " : "") + (titleText ? "" : "untitled")}>{t.completed && <span className="kb-check">✓</span>}{titleText || "Untitled task"}</h4>
-                        {t.description && <p className="kb-desc">{t.description}</p>}
-                        {(t.dueDate || rn || ck || (t.attachments || []).length > 0 || members.length > 0) && (
-                        <div className="kbc-foot">
-                          <div className="kbc-meta">
-                            {t.dueDate && (
-                              <span className={"kbc-date" + (overdue(t) ? " over" : "")}>
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
-                                {fmtDue(t.dueDate)}
-                              </span>
-                            )}
-                            {rn && (
-                              <span className={"kbc-renew" + (rn.over ? " over" : rn.soon ? " soon" : "")}
-                                title={"Renewal: " + fmtDue(t.renewalDate!)}>
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
-                                {rn.over ? "Renew due" : rn.days === 0 ? "Renews today" : `Renews in ${rn.days}d`}
-                              </span>
-                            )}
-                            {ck && (
-                              <span className="kbc-mini">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
-                                {ck.done}/{ck.total}
-                              </span>
-                            )}
-                            {(t.attachments || []).length > 0 && (
-                              <span className="kbc-mini">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg>
-                                {(t.attachments || []).length}
-                              </span>
-                            )}
-                          </div>
-                          {members.length > 0 && (
-                            <span className="kb-avstack">
-                              {members.slice(0, 4).map((m) => <Avatar key={m.id} user={m} size={26} />)}
-                              {members.length > 4 && <span className="kb-av kb-av-i" style={{ width: 26, height: 26, fontSize: 10 }}>+{members.length - 4}</span>}
-                            </span>
-                          )}
-                        </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <button className="kb-addcard" onClick={() => openCard({ column: c.id, priority: "medium", completed: false, memberIds: [], labelIds: [], checklist: [], attachments: [] })}>+ Add card</button>
-            </div>
-          ))}
-          <div className="kb-addcol"><button onClick={addColumn}>+ Add column</button></div>
-        </div>
-        </>
+        <BoardView board={board} cards={cards} users={users} exporting={exporting}
+          onBack={backHome} onRename={rename} onSettings={() => setSettings({ focus: null })} onExport={doExport}
+          onOpen={(c) => setDrawer({ card: c, key: Date.now() })}
+          onNew={(col) => setDrawer({ card: null, defaults: { column: col }, key: Date.now() })}
+          onQuickAdd={quickAdd} onMove={move} />
       )}
-
-      {editing && (
-        <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditing(null); }}>
-          <form className="adm-drawer kb-drawer" onSubmit={saveCard}>
-            <h2>{editing.id ? "Edit card" : "New card"}</h2>
-            <p className="sub">{cols.find((c) => c.id === editing.column)?.title}</p>
-
-            <div className="adm-field"><label>Title</label>
-              <input value={editing.title || ""} onChange={(e) => setEditing({ ...editing, title: e.target.value })} required autoFocus /></div>
-            <div className="adm-field"><label>Description</label>
-              <textarea value={editing.description || ""} onChange={(e) => setEditing({ ...editing, description: e.target.value })} /></div>
-
-            {/* Members */}
-            <div className="adm-field"><label>Members</label>
-              <div className="kb-picker">
-                {users.map((u) => {
-                  const on = (editing.memberIds || []).includes(u.id);
-                  return (
-                    <button type="button" key={u.id} className={"kb-member" + (on ? " on" : "")} onClick={() => toggleMember(u.id)}>
-                      <Avatar user={u} size={22} /> {u.name}
-                    </button>
-                  );
-                })}
-                {!users.length && <span className="kb-hint">Add team members in the Users page.</span>}
-              </div>
-            </div>
-
-            {/* Labels */}
-            <div className="adm-field"><label>Labels</label>
-              <div className="kb-picker">
-                {labels.map((l) => {
-                  const on = (editing.labelIds || []).includes(l.id);
-                  return (
-                    <button type="button" key={l.id} className={"kb-labelchip" + (on ? " on" : "")} style={{ background: l.color }} onClick={() => toggleLabel(l.id)}>
-                      {l.name} {on && "✓"}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="field row" style={{ gap: 12 }}>
-              <div className="adm-field" style={{ flex: 1 }}><label>Priority</label>
-                <Select value={editing.priority || "medium"} onChange={(v) => setEditing({ ...editing, priority: v })}
-                  ariaLabel="Priority"
-                  options={[{ value: "low", label: "Low" }, { value: "medium", label: "Medium" }, { value: "high", label: "High" }]} /></div>
-              <div className="adm-field" style={{ flex: 1 }}><label>Column</label>
-                <Select value={String(editing.column ?? "")} onChange={(v) => setEditing({ ...editing, column: v })}
-                  ariaLabel="Column"
-                  options={cols.map((c) => ({ value: String(c.id), label: c.title }))} /></div>
-            </div>
-
-            <div className="field row" style={{ gap: 12 }}>
-              <div className="adm-field" style={{ flex: 1 }}><label>Start date</label>
-                <DatePicker value={String(editing.startDate || "").slice(0, 10)} onChange={(v) => setEditing({ ...editing, startDate: v })} placeholder="Start date" /></div>
-              <div className="adm-field" style={{ flex: 1 }}><label>Due date</label>
-                <DatePicker value={String(editing.dueDate || "").slice(0, 10)} onChange={(v) => setEditing({ ...editing, dueDate: v })} placeholder="Due date" /></div>
-            </div>
-            <div className="adm-field"><label>Renewal date</label>
-              <DatePicker value={String(editing.renewalDate || "").slice(0, 10)} onChange={(v) => setEditing({ ...editing, renewalDate: v })} placeholder="Renewal date" />
-              <span className="adm-hint">We'll remind you as the renewal date approaches and on the day.</span>
-            </div>
-            <label className="kb-complete">
-              <input type="checkbox" checked={!!editing.completed} onChange={(e) => setEditing({ ...editing, completed: e.target.checked })} /> Mark complete
-            </label>
-
-            {/* Cover */}
-            <div className="adm-field"><label>Cover color</label>
-              <div className="kb-covers">
-                {COVER_SWATCHES.map((s) => (
-                  <button type="button" key={s || "none"} className={"kb-cover-sw" + (editing.cover === s || (!editing.cover && !s) ? " on" : "")}
-                    style={{ background: s || "transparent" }} onClick={() => setEditing({ ...editing, cover: s })} title={s || "None"}>
-                    {!s && "∅"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Attachments */}
-            <div className="adm-field"><label>Attachments</label>
-              <div className="kb-attachments">
-                {(editing.attachments || []).map((a) => (
-                  <div key={a.id} className="kb-attach">
-                    <a href={a.url} target="_blank" rel="noopener noreferrer" className="kb-attach-link">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg>
-                      <span>{a.name}</span>
-                    </a>
-                    <button type="button" onClick={() => removeAttachment(a.id)} aria-label="Remove">×</button>
-                  </div>
-                ))}
-                <label className="kb-attach-add">
-                  <input type="file" hidden onChange={(e) => { uploadAttachment(e.target.files?.[0]); e.currentTarget.value = ""; }} />
-                  + Add attachment
-                </label>
-              </div>
-            </div>
-
-            {/* Checklist */}
-            <div className="adm-field">
-              <label>Checklist{(editing.checklist || []).length > 0 && <span className="kb-ck-pct">{editProgress()}%</span>}</label>
-              {(editing.checklist || []).length > 0 && (
-                <div className="kb-ck-progress"><span style={{ width: `${editProgress()}%` }} /></div>
-              )}
-              <div className="kb-checklist">
-                {(editing.checklist || []).map((c) => (
-                  <div key={c.id} className="kb-ck-item">
-                    <input type="checkbox" checked={c.done} onChange={() => toggleChecklist(c.id)} />
-                    <span className={c.done ? "done" : ""}>{c.text}</span>
-                    <button type="button" onClick={() => removeChecklist(c.id)} aria-label="Remove">×</button>
-                  </div>
-                ))}
-                <ChecklistAdd onAdd={addChecklistItem} />
-              </div>
-            </div>
-
-            {/* Comments (only for saved cards) */}
-            {editing.id && (
-              <div className="adm-field"><label>Comments</label>
-                <div className="kb-comments">
-                  {comments.map((c) => (
-                    <div key={c.id} className="kb-comment">
-                      <Avatar user={c.author as User} size={26} />
-                      <div className="body">
-                        <b>{c.author?.name || "Someone"}</b>
-                        <p>{c.body}</p>
-                      </div>
-                      <button type="button" onClick={() => removeComment(c.id)} aria-label="Delete comment">×</button>
-                    </div>
-                  ))}
-                  <div className="kb-comment-add">
-                    <input value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Write a comment…"
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); postComment(); } }} />
-                    <button type="button" className="adm-btn ghost" onClick={postComment}>Post</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {editing.id && <HistoryList entity="task" id={editing.id} />}
-
-            <div className="adm-drawer-actions">
-              <button className="adm-btn primary" type="submit">Save</button>
-              <button className="adm-btn ghost" type="button" onClick={() => setEditing(null)}>Cancel</button>
-              {editing.id && <button className="adm-btn ghost" type="button" onClick={deleteCard} style={{ marginLeft: "auto" }}>Delete</button>}
-            </div>
-          </form>
-        </div>
+      {drawer && (
+        <CardDrawer key={drawer.key} board={board} card={drawer.card} defaults={drawer.defaults} users={users} clients={clients} endPos={endPos}
+          onClose={() => setDrawer(null)} onSaved={saved} onDeleted={deleted} onComments={setCommentCount}
+          onManage={() => { const id = drawer.card?.id ?? null; setDrawer(null); setSettings({ focus: "labels", back: id }); }} />
       )}
+      {settings && <BoardSettings board={board} cards={cards || []} focus={settings.focus}
+        onClose={() => {
+          // Came from a card's "Edit labels" → back to that card.
+          const back = settings.back != null ? cardsRef.current.find((t) => t.id === settings.back) : null;
+          setSettings(null);
+          if (back) setDrawer({ card: back, key: Date.now() });
+        }} onSave={saveSettings} onDeleteBoard={deleteBoard} />}
     </>
   );
 }
 
-function ChecklistAdd({ onAdd }: { onAdd: (t: string) => void }) {
-  const [v, setV] = useState("");
+function Hello({ title, sub, eyebrow = "Projects", action }: { title: string; sub: string; eyebrow?: string; action?: React.ReactNode }) {
   return (
-    <div className="kb-ck-add">
-      <input value={v} onChange={(e) => setV(e.target.value)} placeholder="Add an item…"
-        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onAdd(v); setV(""); } }} />
-      <button type="button" className="adm-btn ghost" onClick={() => { onAdd(v); setV(""); }}>Add</button>
+    <div className="td-hello">
+      <div className="td-hello-tx"><div className="td-eyebrow">{eyebrow}</div><h1>{title}</h1><p>{sub}</p></div>
+      {action && <div className="td-acts">{action}</div>}
     </div>
   );
+}
+
+export default function KanbanPage() {
+  return <Suspense fallback={null}><ProjectBoard /></Suspense>;
 }

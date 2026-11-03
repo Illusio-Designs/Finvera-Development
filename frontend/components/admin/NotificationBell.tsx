@@ -13,7 +13,9 @@ import {
   Alert02Icon, CheckmarkCircle02Icon, VolumeHighIcon, VolumeOffIcon,
 } from "@hugeicons/core-free-icons";
 
-type Notif = { id: number; type: string; title: string; body?: string | null; link?: string | null; isRead: boolean; createdAt: string };
+type Notif = { id: number; type: string; title: string; body?: string | null; link?: string | null; isRead: boolean; createdAt: string; meta?: { taskId?: number } | null };
+/* Older project-board alerts link to the board page only; their meta names the card → open it. */
+const hrefOf = (n: Notif) => (n.link === "/dashboard/kanban" && n.meta?.taskId ? `/dashboard/kanban?task=${n.meta.taskId}` : n.link || "");
 
 /* Per-type icon and tint. */
 type K = { icon: typeof Mail01Icon; cls: string };
@@ -86,7 +88,7 @@ export default function NotificationBell({ announce: _announce = false }: { anno
       const fresh = list.filter((n) => !n.isRead && n.id > (seen.current as number)).sort((a, b) => a.id - b.id);
       fresh.slice(0, 3).forEach((n) => toast(split(n.title).label || n.title, "info", {
         description: [split(n.title).label ? split(n.title).subject : "", n.body].filter(Boolean).join(" · ") || "New in your notifications",
-        action: n.link ? { label: "Open", onClick: () => router.push(n.link as string) } : undefined,
+        action: n.link ? { label: "Open", onClick: () => router.push(hrefOf(n)) } : undefined,
         sound: false, duration: 7000,
       }));
       if (fresh.length > 3) toast(`${fresh.length - 3} more notifications`, "info", { description: "Open the bell to see them all.", sound: false });
@@ -137,7 +139,7 @@ export default function NotificationBell({ announce: _announce = false }: { anno
       setUnread((u) => Math.max(0, u - 1));
       api.markNotifRead(n.id).catch(() => {});
     }
-    if (n.link) router.push(n.link);
+    if (n.link) router.push(hrefOf(n));
   };
 
   /* Turn on phone / desktop notifications for this device, then send one
