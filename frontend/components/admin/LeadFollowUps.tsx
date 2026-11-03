@@ -74,8 +74,15 @@ const ICON_OF: Record<string, typeof Call02Icon> = Object.fromEntries(TYPES.map(
 type Pick = "keep" | "tomorrow" | "3d" | "week" | "date" | "none";
 const fmtDay = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
 
-export function LeadTouchPanel({ lead, patch, reload }: { lead: Record<string, any>; patch: (v: Record<string, any>) => void; reload: () => Promise<void> }) {
-  const [type, setType] = useState<TouchType>("call");
+export function LeadTouchPanel({ lead, patch, reload, showContact = true, preset }: {
+  lead: Record<string, any>; patch: (v: Record<string, any>) => void; reload: () => Promise<void>;
+  /* The Call / WhatsApp / Email row (off when the page shows those itself). */
+  showContact?: boolean;
+  /* Pre-pick the touch type, e.g. after the Call button elsewhere was used; `at` makes a repeat count. */
+  preset?: { type: TouchType; at: number } | null;
+}) {
+  const [type, setType] = useState<TouchType>(preset?.type || "call");
+  useEffect(() => { if (preset) setType(preset.type); }, [preset]);
   const [note, setNote] = useState("");
   const [pick, setPick] = useState<Pick>("keep");
   const [date, setDate] = useState("");
@@ -138,7 +145,7 @@ export function LeadTouchPanel({ lead, patch, reload }: { lead: Record<string, a
 
   return (
     <section className="fu-panel" aria-label="Follow-up">
-      <div className="fu-contact">
+      {showContact && <div className="fu-contact">
         {tel ? <a className="fu-cbtn" href={`tel:${tel}`} onClick={() => setType("call")}><HugeiconsIcon icon={Call02Icon} size={16} />Call</a>
           : <span className="fu-cbtn off" title="Add a phone number first"><HugeiconsIcon icon={Call02Icon} size={16} />Call</span>}
         {wa ? <a className="fu-cbtn wa" href={`https://wa.me/${wa}`} target="_blank" rel="noopener noreferrer" onClick={() => setType("whatsapp")}><HugeiconsIcon icon={WhatsappIcon} size={16} />WhatsApp</a>
@@ -146,7 +153,7 @@ export function LeadTouchPanel({ lead, patch, reload }: { lead: Record<string, a
         {lead.email ? <a className="fu-cbtn" href={`mailto:${lead.email}`} onClick={() => setType("email")}><HugeiconsIcon icon={Mail01Icon} size={16} />Email</a>
           : <span className="fu-cbtn off" title="Add an email first"><HugeiconsIcon icon={Mail01Icon} size={16} />Email</span>}
         {/^https?:\/\//i.test(String(lead.meetingUrl || "")) && <a className="fu-cbtn" href={String(lead.meetingUrl)} target="_blank" rel="noopener noreferrer"><HugeiconsIcon icon={Link04Icon} size={16} />Join meeting</a>}
-      </div>
+      </div>}
 
       <div className="fu-log">
         <div className="fu-log-head"><b>Log a touch</b>{lead.lastContactedAt && <span>Last contacted {relative(lead.lastContactedAt)}</span>}</div>

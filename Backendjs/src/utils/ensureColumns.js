@@ -46,6 +46,12 @@ const WANTED = [
   { table: "leads", column: "meetingAt", def: "DATETIME NULL" },
   { table: "leads", column: "lastContactedAt", def: "DATETIME NULL" },
   { table: "leads", column: "lostReason", def: "VARCHAR(500) NULL" },
+  // Leads page: purpose and progress (were shown but never stored) and when a lead was won.
+  { table: "leads", column: "purpose", def: "VARCHAR(255) NULL" },
+  { table: "leads", column: "progress", def: "INT NULL",
+    after: "UPDATE `leads` SET `progress` = CASE `stage` WHEN 'new' THEN 10 WHEN 'contacted' THEN 35 WHEN 'qualified' THEN 60 WHEN 'proposal' THEN 85 WHEN 'won' THEN 100 ELSE 0 END WHERE `progress` IS NULL" },
+  { table: "leads", column: "wonAt", def: "DATETIME NULL",
+    after: "UPDATE `leads` SET `wonAt` = `updatedAt` WHERE `stage` = 'won' AND `wonAt` IS NULL" },
   { table: "users", column: "emailPrefs", def: "JSON NULL" },
   { table: "contact_submissions", column: "isSpam", def: "TINYINT(1) NOT NULL DEFAULT 0" },
   { table: "contact_submissions", column: "spamReason", def: "VARCHAR(120) NULL" },
