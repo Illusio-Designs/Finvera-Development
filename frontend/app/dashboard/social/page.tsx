@@ -400,6 +400,25 @@ export default function SocialCalendar() {
       return full;
     } catch { return null; }
   }
+  /* ?post=ID (links from the home page and notifications) opens that post's
+     details once the board has loaded, even if it's outside the loaded dates. */
+  const deepLinked = useRef(false);
+  useEffect(() => {
+    if (loading || deepLinked.current || typeof window === "undefined") return;
+    deepLinked.current = true;
+    const url = new URL(window.location.href);
+    const id = Number(url.searchParams.get("post"));
+    if (!id) return;
+    url.searchParams.delete("post");
+    window.history.replaceState(null, "", url.pathname + (url.search || "") + url.hash);
+    if (posts.some((x) => x.id === id)) { setViewId(id); return; }
+    fetchFull(id).then((full) => {
+      if (!full) { toast("That post isn't available", "info", { description: "It may have been deleted, or it belongs to a brand you can't see." }); return; }
+      setPosts((ps) => (ps.some((x) => x.id === id) ? ps : [...ps, full]));
+      setViewId(id);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
   const viewedFull = viewId != null ? !!posts.find((x) => x.id === viewId)?._full : true;
   const editingFull = editing?.id ? !!editing._full : true;
   useEffect(() => {
