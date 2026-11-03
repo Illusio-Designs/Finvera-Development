@@ -344,3 +344,23 @@ export const trackApi = {
     req(`/uploads/optimize-existing?limit=${limit}`, { method: "POST" }),
 };
 /* ═════════════════ end of activity / follow-ups / export block ═════════ */
+
+/* ═════════════════ Leads page (pipeline board, list, drawer) ═══════════ */
+export type LeadStage = "new" | "contacted" | "qualified" | "proposal" | "won" | "lost";
+export type LeadRow = {
+  id: number; name: string; company?: string | null; purpose?: string | null; email?: string | null; phone?: string | null;
+  source?: string | null; stage: LeadStage; value?: number | null; owner?: string | null; ownerId?: number | null;
+  priority?: "low" | "medium" | "high" | null; notes?: string | null; position?: number | null;
+  nextFollowUp?: string | null; nextFollowUpAt?: string | null; followUpNote?: string | null;
+  meetingUrl?: string | null; meetingAt?: string | null; lastContactedAt?: string | null; lostReason?: string | null;
+  progress?: number | null; wonAt?: string | null; createdAt?: string; updatedAt?: string;
+};
+export const leadsApi = {
+  list: (): Promise<LeadRow[]> => req(`/leads`),
+  create: (body: Partial<LeadRow>): Promise<LeadRow> => req(`/leads`, { method: "POST", body: JSON.stringify(body) }),
+  update: (id: number, body: Partial<LeadRow>): Promise<LeadRow> => req(`/leads/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  remove: (id: number): Promise<{ id: number }> => req(`/leads/${id}`, { method: "DELETE" }),
+  /* One board column's card order after a drag (404 on older backends). */
+  reorder: (stage: LeadStage, ids: number[]): Promise<{ ok: boolean }> => req(`/leads/reorder`, { method: "POST", body: JSON.stringify({ stage, ids }) }),
+};
+/* ═════════════════ end of leads page block ═════════════════════════════ */

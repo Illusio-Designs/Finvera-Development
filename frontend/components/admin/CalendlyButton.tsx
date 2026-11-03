@@ -2,7 +2,11 @@
 import { useEffect } from "react";
 
 /* Opens a Calendly scheduling popup (loads the official widget on demand). */
-export default function CalendlyButton({ url, name, email }: { url?: string; name?: string; email?: string }) {
+export default function CalendlyButton({ url, name, email, className, label = "Schedule meeting", icon }: {
+  url?: string; name?: string; email?: string;
+  /* Optional look for other layouts (default: the primary admin button). */
+  className?: string; label?: string; icon?: React.ReactNode;
+}) {
   useEffect(() => {
     if (document.getElementById("calendly-widget-js")) return;
     const s = document.createElement("script");
@@ -31,9 +35,9 @@ export default function CalendlyButton({ url, name, email }: { url?: string; nam
   };
 
   return (
-    <button type="button" className="adm-btn primary" onClick={open} style={{ width: "fit-content" }}>
-      <svg viewBox="0 0 24 24" width={16} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M8 15h.01M12 15h.01M16 15h.01" /></svg>
-      Schedule meeting
+    <button type="button" className={className || "adm-btn primary"} onClick={open} style={className ? undefined : { width: "fit-content" }}>
+      {icon || <svg viewBox="0 0 24 24" width={16} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M8 15h.01M12 15h.01M16 15h.01" /></svg>}
+      {label}
     </button>
   );
 }
