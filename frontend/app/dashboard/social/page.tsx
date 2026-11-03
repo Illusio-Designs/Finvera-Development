@@ -833,16 +833,18 @@ export default function SocialCalendar() {
     if (!(await dialog.confirm({ title: `Import ${parsed.length} posts for ${name}?`, message: "Rows already on the board (same date + post theme) are updated, keeping their stage and person. Next you'll pick who does each step for these posts.", confirmText: "Next" }))) return;
     // Who does each step for these posts — chosen now, nothing is assigned automatically.
     const last = posts.filter((x) => x.client === name && x.team && Object.values(x.team).some(Boolean)).sort((x, y) => y.id - x.id)[0];
-    setImportTeam({ name, parsed, team: { ...(last?.team || {}) }, busy: false });
+    // The person uploading the sheet is the marketer for these posts, so that step isn't asked.
+    setImportTeam({ name, parsed, team: { ...(last?.team || {}), marketer: meId }, busy: false });
   }
   async function finishImport() {
     if (!importTeam) return;
     const { name, parsed, team } = importTeam;
     setImportTeam({ ...importTeam, busy: true });
     try {
-      const r = await api.importSocialPosts(parsed.map((row) => ({ ...row, team, assigneeId: team.marketer || null })));
+      const t = { ...team, marketer: meId ?? team.marketer ?? null };
+      const r = await api.importSocialPosts(parsed.map((row) => ({ ...row, team: t, assigneeId: t.marketer || null })));
       const parts = [r.created ? `${r.created} added to Planned` : "", r.updated ? `${r.updated} updated` : ""].filter(Boolean).join(", ");
-      const first = users.find((u) => u.id === team.marketer);
+      const first = users.find((u) => u.id === t.marketer);
       toast(`Sheet uploaded · ${name}`, "ok", { description: `${parts || "Nothing new"}.${first ? ` New posts start with ${first.name}.` : ""}${limited ? " You'll see the ones assigned to you." : ""}` });
       setImportTeam(null); setClient(name); load();
     } catch (e: any) { setImportTeam((t) => (t ? { ...t, busy: false } : t)); toast("Import failed", "err", { description: e.message || "Check the file is the media calendar sheet (.xlsx or .csv)." }); }
@@ -1529,13 +1531,13 @@ export default function SocialCalendar() {
       {importTeam && (
         <div className="adm-overlay center" onMouseDown={(e) => { if (e.target === e.currentTarget) setImportTeam(null); }}>
           <div className="cal-pick wide" role="dialog" aria-modal="true" aria-label="Who works on these posts">
-            <div className="cal-pick-h"><div><h3>Who works on these posts?</h3><small>{importTeam.parsed.length} posts for {importTeam.name}. Each person clicks Done and it moves to the next.</small></div>
+            <div className="cal-pick-h"><div><h3>Who works on these posts?</h3><small>{importTeam.parsed.length} posts for {importTeam.name}. They start with you (you uploaded the sheet); each Done moves the post to the next person.</small></div>
               <button type="button" className="cal-x" onClick={() => setImportTeam(null)} aria-label="Close">×</button></div>
             <div className="cal-pick-team">
-              {CHAIN.map((r, i) => (
+              {CHAIN.filter((r) => r !== "marketer").map((r, i) => (
                 <div key={r} className="cal-pick-row">
                   <span className="n" style={{ background: ROLE_META[r].bg, color: ROLE_META[r].fg }}>{i + 1}</span>
-                  <span className="lbl"><b>{ROLE_META[r].label}</b><small>{ROLE_META[r].does}{i === 0 ? " · gets the posts now" : ""}</small></span>
+                  <span className="lbl"><b>{ROLE_META[r].label}</b><small>{ROLE_META[r].does}</small></span>
                   <Select value={importTeam.team[r] ? String(importTeam.team[r]) : ""} ariaLabel={ROLE_META[r].label}
                     onChange={(v) => setImportTeam({ ...importTeam, team: { ...importTeam.team, [r]: v ? Number(v) : null } })}
                     options={[{ value: "", label: r === "graphic" || r === "video" ? "Not needed (skip)" : "Pick later" }, ...peopleFor(r).map((u) => ({ value: String(u.id), label: u.name }))]} />
