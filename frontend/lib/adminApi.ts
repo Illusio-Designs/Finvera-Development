@@ -344,3 +344,26 @@ export const trackApi = {
     req(`/uploads/optimize-existing?limit=${limit}`, { method: "POST" }),
 };
 /* ═════════════════ end of activity / follow-ups / export block ═════════ */
+
+/* ═══ Contact inbox block: paged list, counts, one message, email replies,
+   convert to lead. Kept as one block (merged separately). ═══ */
+export type ContactMsg = {
+  id: number; name: string; email: string; phone?: string | null; company?: string | null; projectType?: string | null;
+  message: string; isRead: boolean | null; isSpam?: boolean; spamReason?: string | null; leadId?: number | null; createdAt: string;
+};
+export type ContactReply = { id: number; contactId: number; userId?: number | null; userName?: string | null; subject?: string | null; message: string; sent: boolean; error?: string | null; createdAt: string };
+export type InboxCounts = { all: number; unread: number; spam: number };
+export const inboxApi = {
+  list: (q: { page?: number; limit?: number; q?: string; unread?: boolean; spam?: boolean } = {}): Promise<Paged<ContactMsg>> =>
+    req(`/contact${qsT({ page: q.page || 1, limit: q.limit || 50, q: q.q?.trim(), unread: q.unread ? 1 : "", spam: q.spam ? 1 : "" })}`),
+  counts: (): Promise<InboxCounts> => req(`/contact/counts`),
+  get: (id: number): Promise<ContactMsg> => req(`/contact/${id}`),
+  setRead: (id: number, isRead: boolean): Promise<ContactMsg> => req(`/contact/${id}/read`, { method: "PATCH", body: JSON.stringify({ isRead }) }),
+  remove: (id: number) => req(`/contact/${id}`, { method: "DELETE" }),
+  replies: (id: number): Promise<ContactReply[]> => req(`/contact/${id}/replies`),
+  reply: (id: number, body: { subject?: string; message: string }): Promise<{ reply: ContactReply; emailed: boolean }> =>
+    req(`/contact/${id}/reply`, { method: "POST", body: JSON.stringify(body) }),
+  toLead: (id: number): Promise<{ lead: { id: number; name: string }; created: boolean; contact: ContactMsg }> =>
+    req(`/contact/${id}/to-lead`, { method: "POST" }),
+};
+/* ═════════════════ end of Contact inbox block ═════════ */
