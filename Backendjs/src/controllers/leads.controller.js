@@ -92,6 +92,23 @@ async function followUpCounts(user, isAdmin) {
   return { leadsFollowUpToday: today, leadsFollowUpOverdue: overdue };
 }
 
+/* For the dashboard home (GET /api/overview): the most urgent open leads to
+   follow up (due today or overdue, oldest first) and the newest leads still
+   in "new" from the last 7 days. Admins see every lead; others their own
+   (follow-ups) — new leads are shown to anyone with the leads area. */
+const DUE_ATTRS = ["id", "name", "company", "stage", "value", "owner", "nextFollowUpAt", "followUpNote", "source"];
+async function homeLeads(user, isAdmin, limit = 5) {
+  const t = todayIst();
+  const base = { ...OPEN, ...(isAdmin ? {} : mineWhere(user)) };
+  const since = new Date(Date.now() - 7 * 864e5);
+  const [due, fresh, counts] = await Promise.all([
+    Lead.findAll({ where: { ...base, nextFollowUpAt: { [Op.lte]: t } }, attributes: DUE_ATTRS, order: [["nextFollowUpAt", "ASC"], ["priority", "DESC"], ["id", "ASC"]], limit, raw: true }),
+    Lead.findAll({ where: { stage: "new", createdAt: { [Op.gte]: since } }, attributes: [...DUE_ATTRS, "createdAt"], order: [["createdAt", "DESC"]], limit: 3, raw: true }),
+    followUpCounts(user, isAdmin),
+  ]);
+  return { due, fresh, followUpToday: counts.leadsFollowUpToday, followUpOverdue: counts.leadsFollowUpOverdue };
+}
+
 /* Daily reminder rows (type "lead_followup") for the 10:15 IST run:
    "Follow up today" / "Follow-up overdue" / "Meeting today" → the lead's owner
    (by ownerId, else by name); leads nobody owns → admins. */
@@ -145,4 +162,4 @@ async function forgetLead(id) {
   try { await LeadActivity.destroy({ where: { leadId: id } }); } catch (e) { console.warn("lead touches:", e.message); }
 }
 
-module.exports = { touch, touches, followUps, followUpCounts, reminderRows, forgetLead, todayIst, TOUCH_TYPES, LIST_ATTRS };
+module.exports = { touch, touches, followUps, followUpCounts, homeLeads, reminderRows, forgetLead, todayIst, TOUCH_TYPES, LIST_ATTRS };
