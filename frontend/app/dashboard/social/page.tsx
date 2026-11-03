@@ -2,6 +2,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
+import { instagramSafeAll } from "@/lib/igImage";
 import { dialog } from "@/lib/dialog";
 import Select from "@/components/Select";
 import DatePicker from "@/components/ui/DatePicker";
@@ -73,13 +74,18 @@ const ROLE_META: Record<Role, { label: string; fg: string; bg: string; does: str
   video: { label: "Video editor", fg: "#b0185a", bg: "#fbe6ef", does: "Edits the video" },
   graphic: { label: "Graphic designer", fg: "#0f6b62", bg: "#dff3f0", does: "Designs it" },
   admin: { label: "Approver", fg: "#0e5f74", bg: "#e0f2f7", does: "Approves it" },
-  social: { label: "Social media", fg: "#2f55a4", bg: "#e6ecf8", does: "Posts it" },
+  social: { label: "Social media manager", fg: "#2f55a4", bg: "#e6ecf8", does: "Approves & posts it" },
 };
-/* Every post passes the same four people, in this order. Each clicks Done
-   and it goes to the next one (the server picks who). */
-const CHAIN: Role[] = ["marketer", "graphic", "video", "admin", "social"];
-const roleFor = (status: Stage, _format?: string, step?: string | null): Role =>
-  (status === "ready" || status === "posted") ? "social" : status === "approval" ? "admin" : status === "production" ? (step === "video" ? "video" : "graphic") : "marketer";
+/* Two people per post, picked at sheet upload: the maker (Video editor for
+   reels / videos, Graphic designer for everything else) uploads the finished
+   work and clicks Done → the Social media manager approves it and it's
+   scheduled. Same rule as the server. */
+const CHAIN: Role[] = ["graphic", "video", "social"];
+const isVideoFormat = (format?: string | null) => /reel|video/i.test(format || "");
+const makerFor = (format?: string | null): Role => (isVideoFormat(format) ? "video" : "graphic");
+const roleFor = (status: Stage, format?: string | null, step?: string | null): Role =>
+  (status === "ready" || status === "posted" || status === "approval") ? "social"
+    : status === "production" ? (step === "video" || step === "graphic" ? step : makerFor(format)) : makerFor(format);
 /* What "Done" does from here: the next person in the chain. */
 /* Where each person's step starts. */
 const STEP_AT: Record<Role, { status: Stage; step?: string }> = {
@@ -89,14 +95,13 @@ const STEP_AT: Record<Role, { status: Stage; step?: string }> = {
 /* What "Done" does from here: the next step in the chain. Steps nobody was
    picked for at upload (designer / video editor) are skipped — e.g. a post
    with no video editor goes from the designer straight to approval. */
-function nextHop(p: Pick<Post, "status" | "step" | "team">): { role: Role; patch: { status?: Stage; step?: string } } | null {
+function nextHop(p: Pick<Post, "status" | "step" | "team" | "format">): { role: Role; patch: { status?: Stage; step?: string } } | null {
   if (p.status === "posted" || p.status === "ready") return null; // Ready to post → posts itself (or Mark as posted)
-  const hasTeam = !!p.team && Object.values(p.team).some(Boolean);
-  for (let k = CHAIN.indexOf(roleFor(p.status, undefined, p.step)) + 1; k < CHAIN.length; k++) {
-    const role = CHAIN[k];
-    if (hasTeam && (role === "graphic" || role === "video") && !p.team?.[role]) continue;
-    return { role, patch: STEP_AT[role] };
-  }
+  // Planned / Need from client → the maker starts work.
+  if (p.status === "planned" || p.status === "client") { const m = makerFor(p.format); return { role: m, patch: STEP_AT[m] }; }
+  // Maker done → Social media manager checks it (Pending approval); approving schedules it.
+  if (p.status === "production") return { role: "social", patch: { status: "approval" } };
+  if (p.status === "approval") return { role: "social", patch: STEP_AT.social };
   return null;
 }
 const CLIENT_COLORS = ["#3e60ab", "#0f766e", "#be185d", "#a16207", "#7c5cff", "#0369a1", "#c2410c", "#15803d"];
@@ -573,8 +578,10 @@ export default function SocialCalendar() {
     if (!files?.length || !editing) return;
     setMediaBusy(true);
     try {
-      const r = await api.uploadSocialMedia(Array.from(files).slice(0, 10));
+      const ig = await instagramSafeAll(Array.from(files).slice(0, 10));
+      const r = await api.uploadSocialMedia(ig.files);
       setEditing((e) => (e ? { ...e, media: [...(e.media || []), ...r.items].slice(0, 10) } : e));
+      if (ig.summary) toast("Ready for Instagram", "ok", { description: ig.summary });
     } catch (e: any) { toast("Upload failed", "err", { description: e.message || "Use JPG/PNG images or MP4/MOV videos." }); }
     finally { setMediaBusy(false); }
   }
@@ -597,6 +604,8 @@ export default function SocialCalendar() {
      already limited to those brands); deleting stays with the assignee. */
   const canEdit = (p?: Partial<Post> | null) => !!p;
   const canDelete = (p?: Partial<Post> | null) => !limited || (!!p && p.assigneeId === meId);
+  /* Approving: admins, or the Social media manager the post is waiting with. */
+  const canApprove = (p?: Partial<Post> | null) => !limited || (!!p && p.assigneeId === meId);
   const notYours = (p: Partial<Post>) => toast("This post isn't yours to delete", "warn", {
     description: `It's assigned to ${userById(p.assigneeId ?? null)?.name || "nobody yet"} — only they or an admin can delete it.`,
   });
@@ -626,7 +635,8 @@ export default function SocialCalendar() {
   }
   /* Done → the next person in the chain gets it (picked by the server). */
   /* Approver: send it back to the video editor with a note. */
-  function sendBack(p: Post) { askHandoff(p, "video", { status: "production", step: "video" }, "back"); }
+  /* Send back → to the maker who made it (Video editor for reels, Graphic designer otherwise). */
+  function sendBack(p: Post) { const m = makerFor(p.format); askHandoff(p, m, STEP_AT[m], "back"); }
 
   /* Hand-off picker: every move asks who takes the post next. The person
      picked at upload (the post's team) is pre-selected. */
@@ -700,11 +710,12 @@ export default function SocialCalendar() {
     if (!files?.length) return;
     setWorkBusy(p.id);
     try {
-      const r = await api.uploadSocialMedia(Array.from(files).slice(0, 10));
+      const ig = await instagramSafeAll(Array.from(files).slice(0, 10));
+      const r = await api.uploadSocialMedia(ig.files);
       const media = [...(p.media || []), ...r.items].slice(0, 10);
       const saved = await api.update("social-posts", p.id, { media });
       if (!applySaved(saved)) patchLocal(p.id, { media });
-      toast(`${r.items.length} file${r.items.length === 1 ? "" : "s"} added`, "ok", { description: `“${p.theme}” · finished work` });
+      toast(`${r.items.length} file${r.items.length === 1 ? "" : "s"} added`, "ok", { description: `“${p.theme}” · finished work${ig.summary ? ` · ${ig.summary}` : ""}` });
     } catch (e: any) { toast("Upload failed", "err", { description: e.message || "Use JPG/PNG images or MP4/MOV videos." }); }
     finally { setWorkBusy(null); }
   }
@@ -718,6 +729,10 @@ export default function SocialCalendar() {
   function advance(p: Post) {
     const hop = nextHop(p);
     if (!hop) return moveTo(p.id, "posted");
+    // The maker must upload the finished work before handing it on.
+    if (p.status === "production" && !(p.media || []).length) {
+      return toast("Upload the finished work first", "warn", { description: isVideoFormat(p.format) ? "Add the edited video, then click Done." : "Add the final design (JPG), then click Done." });
+    }
     const kind = p.status === "approval" ? "approve" : "next";
     const picked = p.team?.[hop.role];
     // Overdue approval always asks when it should go live.
@@ -727,9 +742,9 @@ export default function SocialCalendar() {
   const doneLabel = (p: Post) => {
     const hop = nextHop(p);
     if (!hop) return p.status === "ready" ? "Mark as posted" : "";
-    if (p.status === "approval") return limited ? "" : "Approve & schedule";
+    if (p.status === "approval") return canApprove(p) ? "Approve & schedule" : "";
     const picked = users.find((u) => u.id === p.team?.[hop.role]);
-    const where = hop.role === "admin" ? "approval" : picked ? picked.name.split(" ")[0] : ROLE_META[hop.role].label;
+    const where = picked ? picked.name.split(" ")[0] : ROLE_META[hop.role].label;
     return `Done → ${where}`;
   };
   async function savePost(e: React.FormEvent) {
@@ -833,19 +848,19 @@ export default function SocialCalendar() {
     if (!(await dialog.confirm({ title: `Import ${parsed.length} posts for ${name}?`, message: "Rows already on the board (same date + post theme) are updated, keeping their stage and person. Next you'll pick who does each step for these posts.", confirmText: "Next" }))) return;
     // Who does each step for these posts — chosen now, nothing is assigned automatically.
     const last = posts.filter((x) => x.client === name && x.team && Object.values(x.team).some(Boolean)).sort((x, y) => y.id - x.id)[0];
-    // The person uploading the sheet is the marketer for these posts, so that step isn't asked.
-    setImportTeam({ name, parsed, team: { ...(last?.team || {}), marketer: meId }, busy: false });
+    setImportTeam({ name, parsed, team: { graphic: last?.team?.graphic ?? null, video: last?.team?.video ?? null, social: last?.team?.social ?? null }, busy: false });
   }
   async function finishImport() {
     if (!importTeam) return;
     const { name, parsed, team } = importTeam;
     setImportTeam({ ...importTeam, busy: true });
     try {
-      const t = { ...team, marketer: meId ?? team.marketer ?? null };
-      const r = await api.importSocialPosts(parsed.map((row) => ({ ...row, team: t, assigneeId: t.marketer || null })));
+      const t = { graphic: team.graphic ?? null, video: team.video ?? null, social: team.social ?? null };
+      // Each post starts with its maker: reels / videos → Video editor, everything else → Graphic designer.
+      const r = await api.importSocialPosts(parsed.map((row) => ({ ...row, team: t, assigneeId: t[makerFor(row.format) as "graphic" | "video"] || null })));
       const parts = [r.created ? `${r.created} added to Planned` : "", r.updated ? `${r.updated} updated` : ""].filter(Boolean).join(", ");
-      const first = users.find((u) => u.id === t.marketer);
-      toast(`Sheet uploaded · ${name}`, "ok", { description: `${parts || "Nothing new"}.${first ? ` New posts start with ${first.name}.` : ""}${limited ? " You'll see the ones assigned to you." : ""}` });
+      const who = [t.graphic && `posts → ${users.find((u) => u.id === t.graphic)?.name}`, t.video && `reels → ${users.find((u) => u.id === t.video)?.name}`].filter(Boolean).join(", ");
+      toast(`Sheet uploaded · ${name}`, "ok", { description: `${parts || "Nothing new"}.${who ? ` New ${who}.` : ""}${limited ? " You'll see the ones assigned to you." : ""}` });
       setImportTeam(null); setClient(name); load();
     } catch (e: any) { setImportTeam((t) => (t ? { ...t, busy: false } : t)); toast("Import failed", "err", { description: e.message || "Check the file is the media calendar sheet (.xlsx or .csv)." }); }
   }
@@ -1175,7 +1190,7 @@ export default function SocialCalendar() {
               ))}
               {canEdit(p) && p.status !== "posted" && (p.media || []).length < 10 && (
                 <label className={"cal-media-add" + (workBusy === p.id ? " busy" : "")}>
-                  <input type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" disabled={workBusy === p.id}
+                  <input type="file" multiple accept="image/*,video/mp4,video/quicktime" disabled={workBusy === p.id}
                     onChange={(e) => { uploadWork(p, e.target.files); e.target.value = ""; }} />
                   {workBusy === p.id ? "Uploading…" : "+ Upload"}
                 </label>
@@ -1204,9 +1219,9 @@ export default function SocialCalendar() {
 
           {canEdit(p) ? (
             <div className="adm-drawer-actions cal-actions">
-              {p.status === "approval" && limited && <div className="cal-readonly">Waiting for an admin to approve. Once approved it's scheduled for {fmtDay(p.postDate)}{p.postTime ? ` · ${fmtTime(p.postTime)}` : ""}.</div>}
+              {p.status === "approval" && !canApprove(p) && <div className="cal-readonly">Waiting for the Social media manager to approve. Once approved it's scheduled for {fmtDay(p.postDate)}{p.postTime ? ` · ${fmtTime(p.postTime)}` : ""}.</div>}
               {nextLabel && <button type="button" className="cal-primary wide" onClick={() => advance(p)}>{nextLabel}</button>}
-              {p.status === "approval" && !limited && <button type="button" className="cal-btn lg" onClick={() => sendBack(p)}>Send back for changes</button>}
+              {p.status === "approval" && canApprove(p) && <button type="button" className="cal-btn lg" onClick={() => sendBack(p)}>Send back for changes</button>}
               <div className="cal-row">
                 <button type="button" className="cal-btn lg grow" onClick={() => { dirty.current = new Set(); setEditing({ ...p }); setViewId(null); }}>Edit post</button>
               </div>
@@ -1531,20 +1546,20 @@ export default function SocialCalendar() {
       {importTeam && (
         <div className="adm-overlay center" onMouseDown={(e) => { if (e.target === e.currentTarget) setImportTeam(null); }}>
           <div className="cal-pick wide" role="dialog" aria-modal="true" aria-label="Who works on these posts">
-            <div className="cal-pick-h"><div><h3>Who works on these posts?</h3><small>{importTeam.parsed.length} posts for {importTeam.name}. They start with you (you uploaded the sheet); each Done moves the post to the next person.</small></div>
+            <div className="cal-pick-h"><div><h3>Who works on these posts?</h3><small>{importTeam.parsed.length} posts for {importTeam.name}. Posts go to the Graphic designer, reels to the Video editor; when they upload the finished work and click Done it goes to the Social media manager.</small></div>
               <button type="button" className="cal-x" onClick={() => setImportTeam(null)} aria-label="Close">×</button></div>
             <div className="cal-pick-team">
-              {CHAIN.filter((r) => r !== "marketer").map((r, i) => (
+              {CHAIN.map((r, i) => (
                 <div key={r} className="cal-pick-row">
                   <span className="n" style={{ background: ROLE_META[r].bg, color: ROLE_META[r].fg }}>{i + 1}</span>
                   <span className="lbl"><b>{ROLE_META[r].label}</b><small>{ROLE_META[r].does}</small></span>
                   <Select value={importTeam.team[r] ? String(importTeam.team[r]) : ""} ariaLabel={ROLE_META[r].label}
                     onChange={(v) => setImportTeam({ ...importTeam, team: { ...importTeam.team, [r]: v ? Number(v) : null } })}
-                    options={[{ value: "", label: r === "graphic" || r === "video" ? "Not needed (skip)" : "Pick later" }, ...peopleFor(r).map((u) => ({ value: String(u.id), label: u.name }))]} />
+                    options={[{ value: "", label: "Pick later" }, ...peopleFor(r).map((u) => ({ value: String(u.id), label: u.name }))]} />
                 </div>
               ))}
             </div>
-            <p className="adm-hint" style={{ margin: 0 }}>Each Done moves the post to the next person here automatically. Leave Graphic designer or Video editor empty to skip that step (e.g. no video editor: design → approval). People picked get access to {importTeam.name}.</p>
+            <p className="adm-hint" style={{ margin: 0 }}>Graphic designer makes posts and carousels, Video editor makes reels and videos. Each uploads the finished work and clicks Done → the Social media manager approves it and it's scheduled; once it's live it moves to Posted and the files are removed from our server. People picked get access to {importTeam.name}.</p>
             <div className="cal-pick-f">
               <button type="button" className="cal-btn" onClick={() => setImportTeam(null)}>Cancel</button>
               <button type="button" className="cal-primary" disabled={importTeam.busy} onClick={finishImport}>{importTeam.busy ? "Importing…" : `Import ${importTeam.parsed.length} posts`}</button>
@@ -1730,7 +1745,7 @@ export default function SocialCalendar() {
                       ))}
                       {media.length < 10 && (
                         <label className={"cal-media-add" + (mediaBusy ? " busy" : "")}>
-                          <input type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" disabled={mediaBusy}
+                          <input type="file" multiple accept="image/*,video/mp4,video/quicktime" disabled={mediaBusy}
                             onChange={(e) => { addMedia(e.target.files); e.target.value = ""; }} />
                           {mediaBusy ? "Uploading…" : "+ Add"}
                         </label>
