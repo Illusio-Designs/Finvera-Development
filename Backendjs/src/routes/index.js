@@ -150,7 +150,7 @@ router.delete("/comments/:id", ...canBoard, tasksCustom.deleteComment);
 const leadCtrl = crudController(Lead, {
   entity: "lead",
   onRemove: (lead) => leadsCtrl.forgetLead(lead.id), // its touches go with it
-  order: [["position", "ASC"], ["createdAt", "DESC"]], searchable: ["name", "company", "email", "source", "owner"],
+  order: [["position", "ASC"], ["createdAt", "DESC"]], searchable: ["name", "company", "email", "source", "owner", "purpose"],
   onCreate: async (lead, req) => {
     await notifyRoles(["leads"], { type: "lead", title: `New lead: ${lead.name}`, body: lead.company || undefined, link: "/dashboard/leads", meta: { leadId: lead.id } }, req.user?.id);
     if (lead.owner) await notifyByName(lead.owner, { type: "assigned", title: `Lead assigned to you: ${lead.name}`, link: "/dashboard/leads", meta: { leadId: lead.id } }, req.user?.id);
@@ -166,6 +166,7 @@ leadRouter.get("/", ...canLeads, leadCtrl.list);
 leadRouter.get("/follow-ups", ...canLeads, leadsCtrl.followUps);
 leadRouter.get("/:id/touches", ...canLeads, leadsCtrl.touches);
 leadRouter.post("/:id/touch", ...canLeads, leadsCtrl.touch);
+leadRouter.post("/reorder", ...canLeads, leadsCtrl.reorder); // one board column's card order after a drag
 leadRouter.get("/:id", ...canLeads, leadCtrl.getOne);
 leadRouter.post("/", ...canLeads, leadCtrl.create);
 leadRouter.put("/:id", ...canLeads, leadCtrl.update);
@@ -442,6 +443,15 @@ contactRouter.get("/", ...canContact, contactCtrl.list);
 contactRouter.patch("/:id/read", ...canContact, contactCtrl.setRead);
 contactRouter.delete("/:id", ...canContact, audit.track("contact", { load: (req) => require("../models").ContactSubmission.findByPk(req.params.id), label: (m) => m?.name }), contactCtrl.remove);
 router.use("/contact", contactRouter);
+/* ═══ Contact inbox block: counts, one message, email replies, convert to lead ═══ */
+const inboxCtrl = require("../controllers/contactInbox.controller");
+const replyLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
+router.get("/contact/counts", ...canContact, inboxCtrl.counts);
+router.get("/contact/:id(\\d+)", ...canContact, inboxCtrl.getOne);
+router.get("/contact/:id(\\d+)/replies", ...canContact, inboxCtrl.replies);
+router.post("/contact/:id(\\d+)/reply", ...canContact, replyLimiter, inboxCtrl.reply);
+router.post("/contact/:id(\\d+)/to-lead", ...canContact, inboxCtrl.toLead);
+/* ═══ end of Contact inbox block ═══ */
 
 /* ── SEO ─────────────────────────────────────────────── */
 const seoRouter = express.Router();

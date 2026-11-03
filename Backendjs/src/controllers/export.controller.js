@@ -4,7 +4,7 @@
    GET /api/export/:entity?format=json  (+ the entity's filters, below)
      → { entity, columns: ["ID", "Name", …], rows: [{ "ID": 1, "Name": "…" }], total, truncated, generatedAt }
    Entities and who may export them:
-     leads        leads area     ?q &stage &owner &source &from &to (created, YYYY-MM-DD)
+     leads        leads area     ?q &stage &owner &source &priority &from &to (created, YYYY-MM-DD)
      renewals     renewals area  ?q &status &owner &from &to (renewal date)
      contact      contact area   ?q &unread=1 &from &to (received)
      activity     admin          same filters as GET /api/activity
@@ -55,19 +55,20 @@ const EXPORTS = {
     async rows(req) {
       const q = req.query, where = {};
       const and = [];
-      if (q.q) and.push(like(["name", "company", "email", "source", "owner"], q.q));
+      if (q.q) and.push(like(["name", "company", "email", "source", "owner", "purpose"], q.q));
       if (q.stage) where.stage = String(q.stage).split(",");
       if (q.owner) where.owner = q.owner;
       if (q.source) where.source = q.source;
+      if (q.priority) where.priority = String(q.priority).split(",");
       const c = createdRange(q); if (c) where.createdAt = c;
       if (and.length) where[Op.and] = and;
       const rows = await Lead.findAll({ where, order: [["createdAt", "DESC"]], limit: MAX_ROWS + 1, raw: true });
       return rows.map((l) => [
-        ["ID", l.id], ["Name", l.name], ["Company", l.company || ""], ["Email", l.email || ""], ["Phone", l.phone || ""],
-        ["Source", l.source || ""], ["Stage", STAGES[l.stage] || l.stage || ""], ["Value (₹)", Number(l.value) || 0],
+        ["ID", l.id], ["Name", l.name], ["Company", l.company || ""], ["Purpose", l.purpose || ""], ["Email", l.email || ""], ["Phone", l.phone || ""],
+        ["Source", l.source || ""], ["Stage", STAGES[l.stage] || l.stage || ""], ["Progress (%)", l.progress ?? ""], ["Value (₹)", Number(l.value) || 0],
         ["Owner", l.owner || ""], ["Priority", l.priority || ""], ["Next follow-up", d10(l.nextFollowUpAt || l.nextFollowUp)],
         ["Follow-up note", l.followUpNote || ""], ["Meeting at", dt(l.meetingAt)], ["Meeting link", l.meetingUrl || ""],
-        ["Last contacted", dt(l.lastContactedAt)], ["Lost reason", l.lostReason || ""], ["Notes", l.notes || ""],
+        ["Last contacted", dt(l.lastContactedAt)], ["Won at", dt(l.wonAt)], ["Lost reason", l.lostReason || ""], ["Notes", l.notes || ""],
         ["Created", dt(l.createdAt)], ["Updated", dt(l.updatedAt)],
       ]);
     },

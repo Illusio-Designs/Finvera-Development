@@ -165,7 +165,19 @@ const ContactSubmission = sequelize.define("ContactSubmission", {
   isRead: { type: DataTypes.BOOLEAN, defaultValue: false },
   isSpam: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }, // suspected spam (kept, hidden from the inbox)
   spamReason: { type: DataTypes.STRING(120) },
+  leadId: { type: DataTypes.INTEGER },                     // set when converted to a lead (see ensureColumns)
 }, { tableName: "contact_submissions" });
+
+/* An email reply sent from the contact inbox (POST /api/contact/:id/reply). */
+const ContactReply = sequelize.define("ContactReply", {
+  contactId: { type: DataTypes.INTEGER, allowNull: false },
+  userId: { type: DataTypes.INTEGER },
+  userName: { type: DataTypes.STRING },
+  subject: { type: DataTypes.STRING(300) },
+  message: { type: DataTypes.TEXT, allowNull: false },
+  sent: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  error: { type: DataTypes.STRING(500) },
+}, { tableName: "contact_replies", updatedAt: false, indexes: [{ name: "idx_contact_replies_contact", fields: ["contactId", "createdAt"] }] });
 
 /* ── Kanban board (Trello-style) ─────────────────────── */
 const Board = sequelize.define("Board", {
@@ -250,6 +262,7 @@ const Page = sequelize.define("Page", {
 }, { tableName: "pages" });
 
 /* ── Business-development leads (private CRM pipeline) ── */
+const LEAD_STAGE_PROGRESS = { new: 10, contacted: 35, qualified: 60, proposal: 85, won: 100, lost: 0 };
 const Lead = sequelize.define("Lead", {
   name: { type: DataTypes.STRING, allowNull: false },
   company: { type: DataTypes.STRING },
@@ -271,6 +284,10 @@ const Lead = sequelize.define("Lead", {
   meetingAt: { type: DataTypes.DATE },
   lastContactedAt: { type: DataTypes.DATE },
   lostReason: { type: DataTypes.STRING(500) },
+  // ── Leads page ──
+  purpose: { type: DataTypes.STRING(255) },                     // what they want built, e.g. "CRM build"
+  progress: { type: DataTypes.INTEGER },                        // 0–100, follows the stage (see LEAD_STAGE_PROGRESS)
+  wonAt: { type: DataTypes.DATE },                              // set when the stage becomes "won" (for "won this month")
 }, {
   tableName: "leads",
   hooks: {
@@ -289,6 +306,10 @@ const Lead = sequelize.define("Lead", {
         const u = name ? await User.findOne({ where: { name }, attributes: ["id"] }) : null;
         lead.ownerId = u ? u.id : null;
       }
+      // wonAt follows the stage: stamped when it becomes "won", cleared when it leaves.
+      if (ch("stage") && !ch("wonAt")) lead.wonAt = lead.stage === "won" ? (lead.wonAt || new Date()) : null;
+      // progress is the stage's score (the stage picker sets it); a new lead always gets one.
+      if (ch("stage") || lead.progress == null) lead.progress = LEAD_STAGE_PROGRESS[lead.stage || "new"] ?? 0;
     },
   },
 });
@@ -538,4 +559,5 @@ module.exports = {
   BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page, Lead, Notification, PushSubscription,
   Renewal, SocialClient, SocialPost, LeadActivity, ActivityLog, SocialPostEvent, SocialAccount, SocialPublishJob, SocialStat,
   Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature,
+  ContactReply,
 };
