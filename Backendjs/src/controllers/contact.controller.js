@@ -167,6 +167,7 @@ const remove = asyncHandler(async (req, res) => {
   const row = await ContactSubmission.findByPk(req.params.id);
   if (!row) return res.status(404).json({ message: "Submission not found." });
   await row.destroy();
+  try { await require("../models").ContactReply.destroy({ where: { contactId: row.id } }); } catch { /* table not there yet */ }
   res.json({ message: "Deleted.", id: Number(req.params.id) });
 });
 

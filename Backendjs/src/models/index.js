@@ -165,7 +165,19 @@ const ContactSubmission = sequelize.define("ContactSubmission", {
   isRead: { type: DataTypes.BOOLEAN, defaultValue: false },
   isSpam: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }, // suspected spam (kept, hidden from the inbox)
   spamReason: { type: DataTypes.STRING(120) },
+  leadId: { type: DataTypes.INTEGER },                     // set when converted to a lead (see ensureColumns)
 }, { tableName: "contact_submissions" });
+
+/* An email reply sent from the contact inbox (POST /api/contact/:id/reply). */
+const ContactReply = sequelize.define("ContactReply", {
+  contactId: { type: DataTypes.INTEGER, allowNull: false },
+  userId: { type: DataTypes.INTEGER },
+  userName: { type: DataTypes.STRING },
+  subject: { type: DataTypes.STRING(300) },
+  message: { type: DataTypes.TEXT, allowNull: false },
+  sent: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  error: { type: DataTypes.STRING(500) },
+}, { tableName: "contact_replies", updatedAt: false, indexes: [{ name: "idx_contact_replies_contact", fields: ["contactId", "createdAt"] }] });
 
 /* ── Kanban board (Trello-style) ─────────────────────── */
 const Board = sequelize.define("Board", {
@@ -538,4 +550,5 @@ module.exports = {
   BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page, Lead, Notification, PushSubscription,
   Renewal, SocialClient, SocialPost, LeadActivity, ActivityLog, SocialPostEvent, SocialAccount, SocialPublishJob, SocialStat,
   Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature,
+  ContactReply,
 };

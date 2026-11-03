@@ -442,6 +442,15 @@ contactRouter.get("/", ...canContact, contactCtrl.list);
 contactRouter.patch("/:id/read", ...canContact, contactCtrl.setRead);
 contactRouter.delete("/:id", ...canContact, audit.track("contact", { load: (req) => require("../models").ContactSubmission.findByPk(req.params.id), label: (m) => m?.name }), contactCtrl.remove);
 router.use("/contact", contactRouter);
+/* ═══ Contact inbox block: counts, one message, email replies, convert to lead ═══ */
+const inboxCtrl = require("../controllers/contactInbox.controller");
+const replyLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
+router.get("/contact/counts", ...canContact, inboxCtrl.counts);
+router.get("/contact/:id(\\d+)", ...canContact, inboxCtrl.getOne);
+router.get("/contact/:id(\\d+)/replies", ...canContact, inboxCtrl.replies);
+router.post("/contact/:id(\\d+)/reply", ...canContact, replyLimiter, inboxCtrl.reply);
+router.post("/contact/:id(\\d+)/to-lead", ...canContact, inboxCtrl.toLead);
+/* ═══ end of Contact inbox block ═══ */
 
 /* ── SEO ─────────────────────────────────────────────── */
 const seoRouter = express.Router();

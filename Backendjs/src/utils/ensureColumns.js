@@ -51,6 +51,7 @@ const WANTED = [
   { table: "contact_submissions", column: "spamReason", def: "VARCHAR(120) NULL" },
   { table: "social_accounts", column: "tokenExpiresAt", def: "DATETIME NULL" },
   { table: "social_accounts", column: "lastCheckedAt", def: "DATETIME NULL" },
+  { table: "contact_submissions", column: "leadId", def: "INT NULL" }, // contact inbox → "Convert to lead"
 ];
 
 /* ENUM columns whose allowed values grew (sync() never ALTERs an existing
