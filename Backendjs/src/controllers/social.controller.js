@@ -162,22 +162,23 @@ const listPosts = () => asyncHandler(async (req, res) => {
 });
 
 /* ── Stage-based assignment ─────────────────────────────
-   Every post (post, carousel, reel) passes through the same four people:
-     Planned                     → Marketer (plans it)
-     In production, step graphic → Graphic designer (designs)
-     In production, step video   → Video editor (edits)
-     Pending approval            → an admin approves it (or sends it back)
-     Ready to post, Posted       → Social media (it's scheduled and posted)
-   Each person clicks Done and it goes to the next one automatically. */
-const STEPS = ["marketer", "graphic", "video", "social"];
+   Two people per post, picked when the sheet is uploaded:
+     Planned / In production → the maker: Video editor for reels and videos,
+                               Graphic designer for everything else
+     Pending approval        → Social media manager checks the finished work
+     Ready to post, Posted   → Social media manager (scheduled and posted)
+   The maker uploads the finished work and clicks Done; it goes to the
+   Social media manager, who approves it and it's scheduled. */
+const STEPS = ["graphic", "video", "social"];
+const isVideoFormat = (format) => /reel|video/i.test(String(format || ""));
+const makerFor = (format) => (isVideoFormat(format) ? "video" : "graphic");
 function stageRole(status, format, step) {
-  if (status === "ready" || status === "posted") return "social";
-  if (status === "approval") return "admin";
-  if (status === "production") return step === "video" ? "video" : "graphic";
-  return "marketer";
+  if (status === "ready" || status === "posted" || status === "approval") return "social";
+  if (status === "production") return step === "video" || step === "graphic" ? step : makerFor(format);
+  return makerFor(format);
 }
-/* The step a post is on inside In production. */
-const stepFor = (status, step) => (status === "production" ? (step === "video" ? "video" : "graphic") : null);
+/* The step a post is on inside In production: the maker for its format. */
+const stepFor = (status, step, format) => (status === "production" ? (step === "video" || step === "graphic" ? step : makerFor(format)) : null);
 
 /* Least-loaded active user holding `role` who can see `client`, or null.
    `ctx` caches users / brand ids / open-post counts across a bulk import. */
@@ -249,7 +250,7 @@ async function fillDeadlines() {
 /* New post with nobody picked → assign by its stage + format. */
 const assignOnCreate = asyncHandler(async (req, _res, next) => {
   const b = req.body || {};
-  b.step = stepFor(b.status || "planned", b.step);
+  b.step = stepFor(b.status || "planned", b.step, b.format);
   // No automatic pick: the person chosen, or whoever the post's team has for this step.
   if (!b.assigneeId && b.client) b.assigneeId = pickedFor(b, stageRole(b.status || "planned", b.format, b.step));
   next();
@@ -268,7 +269,7 @@ const assignOnStageChange = asyncHandler(async (req, _res, next) => {
   if (!post) return next();
   const status = b.status !== undefined ? b.status : post.status;
   // Entering In production starts at the design step; any other stage has no step.
-  b.step = stepFor(status, b.step !== undefined ? b.step : (status === post.status ? post.step : null));
+  b.step = stepFor(status, b.step !== undefined ? b.step : (status === post.status ? post.step : null), b.format !== undefined ? b.format : post.format);
   if (status === post.status && (b.step || null) === (post.step || null)) return next();
   if (b.assigneeId !== undefined && Number(b.assigneeId || 0) !== Number(post.assigneeId || 0)) return next();
   if (status === "posted") return next(); // whoever posted it keeps it
@@ -344,8 +345,22 @@ async function moveUploadedToPlannedOnce() {
 /* Background upkeep that used to run on every post-list read: the one-time
    uploaded→Planned fix and the unassigned-post sweep (+ default deadlines).
    Runs once at boot, every 5 minutes, and from /api/cron/tick. Never throws. */
+/* Safety net: a Ready post whose every channel is already published (e.g.
+   the app restarted between publishing and moving it) → Posted, and its
+   uploaded files are removed from the server. */
+async function settlePublished() {
+  const { SocialPublishJob } = require("../models");
+  const since = new Date(Date.now() - 14 * 24 * 3600 * 1000);
+  const ids = (await SocialPublishJob.findAll({ attributes: ["postId"], where: { status: "published", publishedAt: { [Op.gte]: since } }, raw: true })).map((j) => j.postId);
+  if (!ids.length) return;
+  const ready = await SocialPost.findAll({ where: { id: [...new Set(ids)], status: "ready" } });
+  const auto = require("../utils/autoPublish");
+  for (const p of ready) { try { await auto.afterPublished(p); } catch (e) { console.warn("settle published:", e.message); } }
+}
+
 async function maintenance({ force = false } = {}) {
   try { await moveUploadedToPlannedOnce(); } catch (e) { console.warn("uploaded→Planned fix:", e.message); }
+  try { await settlePublished(); } catch (e) { console.warn("settle published:", e.message); }
   try { await assignUnassigned({ force }); } catch (e) { console.warn("assignUnassigned:", e.message); }
 }
 
