@@ -30,6 +30,10 @@ export const ENTITY_GROUPS: { value: string; label: string; entity: string }[] =
 export function itemHref(r: Pick<ActivityRow, "entity" | "entityId" | "action">): string | null {
   if (r.action === "delete" || !r.entityId) return null;
   if (r.entity === "lead") return `/dashboard/leads?lead=${r.entityId}`;
+  if (r.entity === "renewal") return `/dashboard/renewals?renewal=${r.entityId}`;
+  if (r.entity === "task") return `/dashboard/kanban?task=${r.entityId}`;
+  if (r.entity === "contact") return `/dashboard/contact?msg=${r.entityId}`;
+  if (r.entity === "social-post") return `/dashboard/social?post=${r.entityId}`;
   return null;
 }
 

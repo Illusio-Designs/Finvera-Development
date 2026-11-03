@@ -108,7 +108,7 @@ async function runDaily(today) {
     add([...adminIds, ...(owner ? [owner] : [])], {
       type: "renewal", title: `${head}: ${r.project ? `${r.client} — ${r.project}` : r.client}`,
       body: `Renewal date ${fmtDate(r.renewalDate)}${r.amount ? ` · ₹${Number(r.amount).toLocaleString("en-IN")}` : ""}`,
-      link: "/dashboard/renewals", meta: { renewalId: r.id, day: today },
+      link: `/dashboard/renewals?renewal=${r.id}`, meta: { renewalId: r.id, day: today },
     });
   }
 
