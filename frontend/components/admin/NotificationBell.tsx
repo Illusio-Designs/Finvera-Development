@@ -7,18 +7,28 @@ import { playSound, isSoundOn, setSoundOn } from "@/lib/sound";
 import { pushState, enablePush, disablePush, type PushState } from "@/lib/push";
 import { dialog } from "@/lib/dialog";
 import { visibleInterval } from "@/lib/visibleInterval";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  Mail01Icon, Target02Icon, UserAdd01Icon, Comment01Icon, Clock01Icon, RepeatIcon, Notification03Icon,
+  Alert02Icon, CheckmarkCircle02Icon, VolumeHighIcon, VolumeOffIcon,
+} from "@hugeicons/core-free-icons";
 
 type Notif = { id: number; type: string; title: string; body?: string | null; link?: string | null; isRead: boolean; createdAt: string };
 
-/* Per-type icon (stroke path) and tint. */
-const KINDS: Record<string, { d: string; cls: string }> = {
-  enquiry: { d: "M3 6h18v12H3zM3 7l9 6 9-6", cls: "blue" },
-  lead: { d: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 12h.01", cls: "violet" },
-  assigned: { d: "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 3.6-7 8-7s8 3 8 7", cls: "blue" },
-  comment: { d: "M4 5h16v11H9l-5 4z", cls: "teal" },
-  due: { d: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2", cls: "orange" },
-  renewal: { d: "M20 11a8 8 0 0 0-14.9-3M4 4v4h4M4 13a8 8 0 0 0 14.9 3M20 20v-4h-4", cls: "green" },
-  info: { d: "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0", cls: "grey" },
+/* Per-type icon and tint. */
+type K = { icon: typeof Mail01Icon; cls: string };
+const KINDS: Record<string, K> = {
+  enquiry: { icon: Mail01Icon, cls: "blue" },
+  lead: { icon: Target02Icon, cls: "green" },
+  lead_followup: { icon: Target02Icon, cls: "amber" },
+  assigned: { icon: UserAdd01Icon, cls: "blue" },
+  comment: { icon: Comment01Icon, cls: "violet" },
+  due: { icon: Clock01Icon, cls: "amber" },
+  renewal: { icon: RepeatIcon, cls: "amber" },
+  approval: { icon: CheckmarkCircle02Icon, cls: "violet" },
+  publish: { icon: Alert02Icon, cls: "red" },
+  failed: { icon: Alert02Icon, cls: "red" },
+  info: { icon: Notification03Icon, cls: "grey" },
 };
 const kindOf = (t: string) => KINDS[t] || KINDS.info;
 
@@ -51,7 +61,6 @@ export default function NotificationBell({ announce: _announce = false }: { anno
   const [open, setOpen] = useState(false);
   const [sound, setSound] = useState(true);
   const ref = useRef<HTMLDivElement>(null);
-  const openRef = useRef(false);
   const [push, setPush] = useState<PushState | null>(null);
   const [pushBusy, setPushBusy] = useState(false);
   // Highest notification id already seen — anything newer pops up as a toast.
@@ -64,9 +73,7 @@ export default function NotificationBell({ announce: _announce = false }: { anno
     try {
       const r = await api.listNotifications();
       const list: Notif[] = Array.isArray(r) ? r : (r?.items || []);
-      // While the panel is open, keep the "new" highlight on items the
-      // server has already marked read (opening the panel marks them).
-      setItems((prev) => (openRef.current ? list.map((n) => (prev.some((p) => p.id === n.id && !p.isRead) ? { ...n, isRead: false } : n)) : list));
+      setItems(list);
       setUnread(typeof r?.unread === "number" ? r.unread : list.filter((n) => !n.isRead).length);
       announce(list);
     } catch { /* ignore */ }
@@ -110,21 +117,28 @@ export default function NotificationBell({ announce: _announce = false }: { anno
     return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
   }, [open]);
 
-  /* Opening marks everything read on the server, but the new ones keep
-     their highlight until the panel closes so you can see what's new. */
-  useEffect(() => { openRef.current = open; }, [open]);
-  const close = () => { setOpen(false); setItems((xs) => xs.map((n) => ({ ...n, isRead: true }))); };
-  const toggle = async () => {
+  /* Opening shows what's new; "Mark all read" clears it, and opening one
+     item marks that one read and goes to its page. */
+  const close = () => setOpen(false);
+  const toggle = () => {
     if (open) { close(); return; }
     setOpen(true);
     pushState().then(setPush).catch(() => setPush("unsupported"));
-    if (unread > 0) {
-      setUnread(0);
-      try { await api.markAllNotifRead(); } catch { /* ignore */ }
-    }
+  };
+  const markAll = async () => {
+    setItems((xs) => xs.map((n) => ({ ...n, isRead: true }))); setUnread(0);
+    try { await api.markAllNotifRead(); } catch { /* ignore */ }
   };
 
-  const openItem = (n: Notif) => { close(); if (n.link) router.push(n.link); };
+  const openItem = (n: Notif) => {
+    close();
+    if (!n.isRead) {
+      setItems((xs) => xs.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)));
+      setUnread((u) => Math.max(0, u - 1));
+      api.markNotifRead(n.id).catch(() => {});
+    }
+    if (n.link) router.push(n.link);
+  };
 
   /* Turn on phone / desktop notifications for this device, then send one
      test notification so the person sees it working straight away. */
@@ -159,21 +173,21 @@ export default function NotificationBell({ announce: _announce = false }: { anno
   ].filter((g) => g.list.length);
 
   return (
-    <div className="adm-notif" ref={ref}>
-      <button className="adm-notif-btn" onClick={toggle} aria-label="Notifications" aria-expanded={open}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" /></svg>
-        {unread > 0 && <span className="adm-notif-badge">{unread > 9 ? "9+" : unread}</span>}
+    <div className="adm-notif sh-bell" ref={ref}>
+      <button type="button" className="sh-icb" onClick={toggle} aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"} aria-haspopup="dialog" aria-expanded={open}>
+        <HugeiconsIcon icon={Notification03Icon} size={19} strokeWidth={1.8} className="hgi" />
+        {unread > 0 && <span className="sh-ping">{unread > 9 ? "9+" : unread}</span>}
       </button>
       {open && (
-        <div className="adm-notif-pop" role="dialog" aria-label="Notifications">
-          <div className="adm-notif-head">
+        <div className="sh-pop sh-bellpop" role="dialog" aria-label="Notifications">
+          <div className="sh-pop-h">
             <b>Notifications</b>
-            {fresh > 0 && <span className="adm-notif-new">{fresh} new</span>}
-            <button className={"adm-notif-sound" + (sound ? " on" : "")} onClick={toggleSound} aria-pressed={sound}
+            {fresh > 0
+              ? <button type="button" className="sh-link" onClick={markAll}>Mark all read</button>
+              : <span className="sh-pill green">All caught up</span>}
+            <button type="button" className="sh-icb sm plain" onClick={toggleSound} aria-pressed={sound}
               aria-label={sound ? "Turn notification sounds off" : "Turn notification sounds on"} title={sound ? "Sound on" : "Sound off"}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M11 5L6 9H3v6h3l5 4z" />{sound ? <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" /> : <path d="M16 9l5 6M21 9l-5 6" />}
-              </svg>
+              <HugeiconsIcon icon={sound ? VolumeHighIcon : VolumeOffIcon} size={17} strokeWidth={1.8} className="hgi" />
             </button>
           </div>
           {push && push !== "unsupported" && (
@@ -198,30 +212,28 @@ export default function NotificationBell({ announce: _announce = false }: { anno
               </div>
             )
           )}
-          <div className="adm-notif-list">
+          <div className="sh-nlist">
             {items.length === 0 ? (
-              <div className="adm-notif-empty">
-                <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d={KINDS.info.d} /></svg></span>
+              <div className="sh-empty" style={{ margin: 14 }}>
+                <HugeiconsIcon icon={Notification03Icon} size={20} strokeWidth={1.8} className="hgi" />
                 <b>You&apos;re all caught up</b>
-                <small>New assignments, enquiries and comments will show up here.</small>
+                <span>New assignments, enquiries and comments will show up here.</span>
               </div>
             ) : groups.map((g) => (
               <div key={g.label}>
-                <div className="adm-notif-group">{g.label}</div>
+                <div className="sh-ngroup">{g.label}</div>
                 {g.list.map((n) => {
                   const k = kindOf(n.type), t = split(n.title);
                   return (
-                    <button key={n.id} className={"adm-notif-item" + (n.isRead ? "" : " unread")} onClick={() => openItem(n)}>
-                      <span className={"adm-notif-ic " + k.cls}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d={k.d} /></svg>
-                      </span>
-                      <span className="adm-notif-txt">
-                        {t.label && <small className="adm-notif-kind">{t.label}</small>}
+                    <button type="button" key={n.id} className={"sh-ni" + (n.isRead ? " read" : "")} onClick={() => openItem(n)}>
+                      <span className={"sh-ni-ic " + k.cls}><HugeiconsIcon icon={k.icon} size={17} strokeWidth={1.8} className="hgi" /></span>
+                      <span className="sh-ni-tx">
+                        {t.label && <small className="sh-ni-kind">{t.label}</small>}
                         <b>{t.subject}</b>
-                        {n.body && <span className="adm-notif-body">{n.body}</span>}
+                        {n.body && <span className="sh-ni-body">{n.body}</span>}
+                        <small>{ago(n.createdAt)}</small>
                       </span>
-                      <span className="adm-notif-time">{ago(n.createdAt)}</span>
-                      {!n.isRead && <span className="adm-notif-dot" aria-label="New" />}
+                      <i className="sh-ni-u" aria-hidden="true" />
                     </button>
                   );
                 })}
@@ -229,8 +241,8 @@ export default function NotificationBell({ announce: _announce = false }: { anno
             ))}
           </div>
           {items.length > 0 && (
-            <div className="adm-notif-foot">
-              <button onClick={clearAll}>Clear all</button>
+            <div className="sh-pop-f">
+              <button type="button" className="sh-link muted" onClick={clearAll}>Clear all</button>
             </div>
           )}
         </div>

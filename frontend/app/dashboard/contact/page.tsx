@@ -24,6 +24,16 @@ export default function AdminContact() {
   }
   useEffect(() => { setSpam(new URLSearchParams(window.location.search).get("spam") === "1"); }, []);
   useEffect(() => { load(spam); }, [spam]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* Deep link from the dashboard home: /dashboard/contact?msg=ID opens that message once. */
+  const [wantMsg, setWantMsg] = useState<number | null>(null);
+  useEffect(() => { const id = Number(new URLSearchParams(window.location.search).get("msg")); if (id) setWantMsg(id); }, []);
+  useEffect(() => {
+    if (!wantMsg || loading) return;
+    const m = rows.find((r) => Number(r.id) === wantMsg);
+    setWantMsg(null);
+    window.history.replaceState(null, "", window.location.pathname + (spam ? "?spam=1" : ""));
+    if (m) setOpen(m); else toast("That message isn't in the inbox any more", "warn", { description: "It may have been deleted or moved to spam." });
+  }, [wantMsg, loading, rows, spam]);
   function showSpam(on: boolean) {
     if (on === spam) return;
     setRows([]); setOpen(null); setSpam(on);

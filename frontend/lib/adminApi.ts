@@ -79,6 +79,31 @@ const qs = (q: Record<string, unknown>) => {
 const post = (path: string, body?: unknown, auth = true) =>
   req(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }, auth);
 
+/* GET /api/overview and GET /api/today (dashboard home). */
+export type HomeLead = { id: number; name: string; company?: string | null; stage: string; value?: number | null; owner?: string | null; nextFollowUpAt?: string | null; followUpNote?: string | null; source?: string | null; createdAt?: string };
+export type Overview = {
+  counts: Record<string, number>;
+  contact: { total: number; unread: number; recent: { id: number; name: string; email: string; projectType?: string; message?: string; createdAt: string; isRead: boolean }[] } | null;
+  leads: {
+    total: number; byStage: Record<string, { count: number; value: number }>;
+    due?: HomeLead[]; fresh?: HomeLead[]; followUpToday?: number; followUpOverdue?: number;
+  } | null;
+};
+export type TodayNeed = {
+  kind: "failed" | "approval" | "atRisk" | "renewal"; id: number; postId?: number; client?: string; platform?: string;
+  status?: string; title: string; sub: string; link: string; goLiveAt?: string; renewalDate?: string;
+};
+export type Today = {
+  today: string; weekFrom: string; weekTo: string;
+  counts: {
+    overdue: number; approvals: number; goingLiveWeek: number; scheduledWeek: number; onTimeMonthPct: number | null;
+    leadsFollowUpToday: number | null; leadsFollowUpOverdue: number | null;
+  };
+  needsYou: TodayNeed[]; needsYouTotal: number;
+  week: { day: string; total: number; ready: number }[];
+  team: { id: number; name: string; avatar?: string | null; role: string; onTimePct: number | null; delivered: number; open: number; overdue: number }[];
+};
+
 export const api = {
   login: (email: string, password: string): Promise<LoginResult> => {
     memo.clear(); // a different person may be signing in
@@ -185,13 +210,11 @@ export const api = {
   deleteComment: (id: number) => req(`/comments/${id}`, { method: "DELETE" }),
 
   /* Sidebar counts in one small call (scoped to the signed-in user). */
-  badges: (): Promise<{ socialOverdue: number; approvals: number; inboxUnread: number }> => req(`/badges`),
-  /* Admin Overview page in one call (counts, recent messages, lead stages). */
-  overview: (): Promise<{
-    counts: Record<string, number>;
-    contact: { total: number; unread: number; recent: { id: number; name: string; email: string; projectType?: string; createdAt: string; isRead: boolean }[] } | null;
-    leads: { total: number; byStage: Record<string, { count: number; value: number }> } | null;
-  }> => req(`/overview`),
+  badges: (): Promise<{ socialOverdue: number; approvals: number; inboxUnread: number; leadsFollowUpToday?: number; leadsFollowUpOverdue?: number }> => req(`/badges`),
+  /* Dashboard home in one call (counts, recent messages, lead stages and follow-ups). */
+  overview: (): Promise<Overview> => req(`/overview`),
+  /* Dashboard home, social part ("Today"): counts, needs-you list, this week, team on-time. */
+  today: (): Promise<Today> => req(`/today`),
 
   /* Social media calendar — `fields: "card"` drops the heavy text fields
      (caption, requirements…); `from`/`to` (YYYY-MM-DD) limit dated posts to a
