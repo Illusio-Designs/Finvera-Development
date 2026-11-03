@@ -157,9 +157,28 @@ async function reminderRows(today, users, adminIds) {
   return rows;
 }
 
+/* POST /leads/reorder { stage, ids: [leadId, …] } — one pipeline column's
+   card order after a drag on the Leads board, in a single UPDATE (same idea
+   as /tasks/reorder). Only `position` is written, and only for leads that
+   are in that stage — a stage change itself goes through PUT /leads/:id so
+   it keeps its history, notifications and wonAt. */
+const STAGES = ["new", "contacted", "qualified", "proposal", "won", "lost"];
+const reorder = asyncHandler(async (req, res) => {
+  const stage = String(req.body?.stage || "");
+  const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number).filter((n) => Number.isInteger(n) && n > 0).slice(0, 2000);
+  if (!STAGES.includes(stage) || !ids.length) return res.status(400).json({ message: "Send the stage and the lead ids in order." });
+  const { sequelize } = require("../models");
+  const cases = ids.map((id, i) => `WHEN ${id} THEN ${i}`).join(" ");
+  await sequelize.query(
+    `UPDATE \`leads\` SET \`position\` = CASE \`id\` ${cases} END WHERE \`id\` IN (${ids.join(",")}) AND \`stage\` = ?`,
+    { replacements: [stage] },
+  );
+  res.json({ ok: true, stage, count: ids.length });
+});
+
 /* A lead was deleted → its touches go too. */
 async function forgetLead(id) {
   try { await LeadActivity.destroy({ where: { leadId: id } }); } catch (e) { console.warn("lead touches:", e.message); }
 }
 
-module.exports = { touch, touches, followUps, followUpCounts, homeLeads, reminderRows, forgetLead, todayIst, TOUCH_TYPES, LIST_ATTRS };
+module.exports = { touch, touches, reorder, followUps, followUpCounts, homeLeads, reminderRows, forgetLead, todayIst, TOUCH_TYPES, LIST_ATTRS };

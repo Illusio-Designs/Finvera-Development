@@ -150,7 +150,7 @@ router.delete("/comments/:id", ...canBoard, tasksCustom.deleteComment);
 const leadCtrl = crudController(Lead, {
   entity: "lead",
   onRemove: (lead) => leadsCtrl.forgetLead(lead.id), // its touches go with it
-  order: [["position", "ASC"], ["createdAt", "DESC"]], searchable: ["name", "company", "email", "source", "owner"],
+  order: [["position", "ASC"], ["createdAt", "DESC"]], searchable: ["name", "company", "email", "source", "owner", "purpose"],
   onCreate: async (lead, req) => {
     await notifyRoles(["leads"], { type: "lead", title: `New lead: ${lead.name}`, body: lead.company || undefined, link: "/dashboard/leads", meta: { leadId: lead.id } }, req.user?.id);
     if (lead.owner) await notifyByName(lead.owner, { type: "assigned", title: `Lead assigned to you: ${lead.name}`, link: "/dashboard/leads", meta: { leadId: lead.id } }, req.user?.id);
@@ -166,6 +166,7 @@ leadRouter.get("/", ...canLeads, leadCtrl.list);
 leadRouter.get("/follow-ups", ...canLeads, leadsCtrl.followUps);
 leadRouter.get("/:id/touches", ...canLeads, leadsCtrl.touches);
 leadRouter.post("/:id/touch", ...canLeads, leadsCtrl.touch);
+leadRouter.post("/reorder", ...canLeads, leadsCtrl.reorder); // one board column's card order after a drag
 leadRouter.get("/:id", ...canLeads, leadCtrl.getOne);
 leadRouter.post("/", ...canLeads, leadCtrl.create);
 leadRouter.put("/:id", ...canLeads, leadCtrl.update);
