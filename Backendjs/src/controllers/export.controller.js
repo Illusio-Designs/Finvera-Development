@@ -5,7 +5,7 @@
      → { entity, columns: ["ID", "Name", …], rows: [{ "ID": 1, "Name": "…" }], total, truncated, generatedAt }
    Entities and who may export them:
      leads        leads area     ?q &stage &owner &source &priority &from &to (created, YYYY-MM-DD)
-     renewals     renewals area  ?q &status &owner &from &to (renewal date)
+     renewals     renewals area  ?q &status &owner (__none = unassigned) &cycle &from &to (renewal date)
      contact      contact area   ?q &unread=1 &from &to (received)
      activity     admin          same filters as GET /api/activity
      social-posts social area    ?from &to (go-live date) &client &status &assigneeId &q — only the caller's brands
@@ -79,7 +79,8 @@ const EXPORTS = {
       const q = req.query, where = {};
       if (q.q) Object.assign(where, like(["client", "project", "owner", "email"], q.q));
       if (q.status) where.status = String(q.status).split(",");
-      if (q.owner) where.owner = q.owner;
+      if (q.owner) where.owner = q.owner === "__none" ? { [Op.or]: [null, ""] } : q.owner;
+      if (q.cycle) where.cycle = String(q.cycle).split(",");
       const r = dayRange(q); if (r) where.renewalDate = r;
       const rows = await Renewal.findAll({ where, order: [["renewalDate", "ASC"], ["id", "ASC"]], limit: MAX_ROWS + 1, raw: true });
       return rows.map((x) => [
@@ -157,7 +158,7 @@ const EXPORTS = {
         const b = byId.get(t.boardId);
         const checklist = asArr(t.checklist);
         return [
-          ["ID", t.id], ["Board", b?.name || ""], ["Title", t.title], ["Column", b?.columns.find((c) => c.id === t.column)?.title || t.column || ""],
+          ["ID", t.id], ["Board", b?.name || ""], ["Title", t.title], ["Client", t.client || ""], ["Column", b?.columns.find((c) => c.id === t.column)?.title || t.column || ""],
           ["Priority", t.priority || ""], ["Start", d10(t.startDate)], ["Due", d10(t.dueDate)], ["Renewal", d10(t.renewalDate)], ["Completed", yes(t.completed)],
           ["Members", asArr(t.memberIds).map((id) => names.get(Number(id)) || id).join(", ")],
           ["Labels", asArr(t.labelIds).map((id) => b?.labels.find((l) => l.id === id)?.name).filter(Boolean).join(", ")],

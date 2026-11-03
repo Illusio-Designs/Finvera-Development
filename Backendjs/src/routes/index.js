@@ -109,11 +109,11 @@ const taskCtrl = crudController(Task, {
   entity: "task",
   order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["title", "assignee", "label"],
   onCreate: async (t, req) => {
-    await notifyUsers(asArr(t.memberIds), { type: "assigned", title: `You were assigned: ${t.title}`, link: "/dashboard/kanban", meta: { taskId: t.id } }, req.user?.id);
+    await notifyUsers(asArr(t.memberIds), { type: "assigned", title: `You were assigned: ${t.title}`, link: `/dashboard/kanban?task=${t.id}`, meta: { taskId: t.id } }, req.user?.id);
   },
   onUpdate: async (t, req, before) => {
     const added = asArr(t.memberIds).filter((id) => !asArr(before.memberIds).includes(id));
-    await notifyUsers(added, { type: "assigned", title: `You were assigned: ${t.title}`, link: "/dashboard/kanban", meta: { taskId: t.id } }, req.user?.id);
+    await notifyUsers(added, { type: "assigned", title: `You were assigned: ${t.title}`, link: `/dashboard/kanban?task=${t.id}`, meta: { taskId: t.id } }, req.user?.id);
     // Changes by someone else → the card's other members (one merged alert per burst of edits).
     const board = t.boardId ? await Board.findByPk(t.boardId) : null;
     const cols = asArr(board?.columns);
@@ -123,13 +123,13 @@ const taskCtrl = crudController(Task, {
     if (kind && stay.length) {
       const head = kind === "stage" ? `Moved to ${colTitle(t.column)}` : kind === "date" ? "Dates changed" : "Card updated";
       const render = (ns) => `${ns.join("; ")} · by ${req.user?.name || "someone"}`;
-      await notifyUsers(stay, { type: "update", title: `${head}: ${t.title}`, body: render(notes), link: "/dashboard/kanban", meta: { taskId: t.id } },
+      await notifyUsers(stay, { type: "update", title: `${head}: ${t.title}`, body: render(notes), link: `/dashboard/kanban?task=${t.id}`, meta: { taskId: t.id } },
         req.user?.id, kind === "edit" ? { merge: { key: `task-${t.id}`, minutes: 15, notes, render } } : undefined); // only plain edits merge
     }
     // Reached Done → admins.
     const isDone = (col, completed) => completed || /done|complete|shipped/i.test(colTitle(col));
     if (isDone(t.column, t.completed) && !isDone(before.column, before.completed)) {
-      await notifyAdmins({ type: "done", title: `Done: ${t.title}`, body: board ? `${board.name} · by ${req.user?.name || "someone"}` : undefined, link: "/dashboard/kanban", meta: { taskId: t.id } }, req.user?.id);
+      await notifyAdmins({ type: "done", title: `Done: ${t.title}`, body: board ? `${board.name} · by ${req.user?.name || "someone"}` : undefined, link: `/dashboard/kanban?task=${t.id}`, meta: { taskId: t.id } }, req.user?.id);
     }
   },
 });
@@ -180,10 +180,10 @@ const renewalCtrl = crudController(Renewal, {
   order: [["renewalDate", "ASC"], ["position", "ASC"], ["createdAt", "DESC"]],
   searchable: ["client", "project", "owner", "email"],
   onCreate: async (rec, req) => {
-    if (rec.owner) await notifyByName(rec.owner, { type: "renewal", title: `Renewal assigned to you: ${rec.client}`, body: rec.project || undefined, link: "/dashboard/renewals", meta: { renewalId: rec.id } }, req.user?.id);
+    if (rec.owner) await notifyByName(rec.owner, { type: "renewal", title: `Renewal assigned to you: ${rec.client}`, body: rec.project || undefined, link: `/dashboard/renewals?renewal=${rec.id}`, meta: { renewalId: rec.id } }, req.user?.id);
   },
   onUpdate: async (rec, req, before) => {
-    if (rec.owner && rec.owner !== before.owner) await notifyByName(rec.owner, { type: "renewal", title: `Renewal assigned to you: ${rec.client}`, body: rec.project || undefined, link: "/dashboard/renewals", meta: { renewalId: rec.id } }, req.user?.id);
+    if (rec.owner && rec.owner !== before.owner) await notifyByName(rec.owner, { type: "renewal", title: `Renewal assigned to you: ${rec.client}`, body: rec.project || undefined, link: `/dashboard/renewals?renewal=${rec.id}`, meta: { renewalId: rec.id } }, req.user?.id);
   },
 });
 const renewalRouter = express.Router();
@@ -196,7 +196,10 @@ renewalRouter.patch("/:id", ...canRenewals, renewalCtrl.update);
 renewalRouter.delete("/:id", ...canRenewals, renewalCtrl.remove);
 /* Renewed → the next date moves on by one billing cycle (from the date it was
    due, so paying late doesn't shift the cycle); Terminate → cancelled, no more
-   reminders. Either way the remark goes on top of the remarks log. */
+   reminders. Either way the remark goes on top of the remarks log.
+   POST /:id/renew also takes (both optional, older clients send neither):
+     renewalDate "YYYY-MM-DD" — a next date picked by hand instead of +1 cycle
+     invoiced false            — keep "last renewed on" as it was (default: today) */
 const CYCLE_MONTHS = { monthly: 1, quarterly: 3, "half-yearly": 6, yearly: 12 };
 const ymd = (d) => d.toISOString().slice(0, 10);
 const addMonthsIso = (iso, n) => {
@@ -215,10 +218,15 @@ renewalRouter.post("/:id/renew", ...canRenewals, async (req, res) => {
   if (!rec) return res.status(404).json({ message: "Renewal not found." });
   const remark = String(req.body?.remark || "").trim().slice(0, 1000);
   const from = rec.renewalDate ? String(rec.renewalDate).slice(0, 10) : todayIstIso();
-  const next = addMonthsIso(from, CYCLE_MONTHS[rec.cycle] || 12);
+  const picked = String(req.body?.renewalDate || "").slice(0, 10);
+  const realDay = (iso) => { const t = Date.parse(`${iso}T00:00:00Z`); return !isNaN(t) && ymd(new Date(t)) === iso; }; // no 31 Feb
+  if (picked && (!/^\d{4}-\d{2}-\d{2}$/.test(picked) || !realDay(picked))) {
+    return res.status(400).json({ message: "The next renewal date isn't a valid date.", field: "renewalDate" });
+  }
+  const next = picked || addMonthsIso(from, CYCLE_MONTHS[rec.cycle] || 12);
   const before = rec.toJSON();
   await rec.update({
-    renewalDate: next, lastInvoiced: todayIstIso(), status: "active",
+    renewalDate: next, ...(req.body?.invoiced === false ? {} : { lastInvoiced: todayIstIso() }), status: "active",
     notes: logRemark(rec, `Renewed till ${fmtIn(next)} · ${req.user?.name || "someone"}`, remark),
   });
   audit.record(req, { action: "other", entity: "renewal", before, after: rec, diffOpts: { skip: ["notes"] }, summary: `Renewed till ${fmtIn(next)}${remark ? ` — ${remark}` : ""}` });

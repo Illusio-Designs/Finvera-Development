@@ -108,7 +108,7 @@ async function runDaily(today) {
     add([...adminIds, ...(owner ? [owner] : [])], {
       type: "renewal", title: `${head}: ${r.project ? `${r.client} — ${r.project}` : r.client}`,
       body: `Renewal date ${fmtDate(r.renewalDate)}${r.amount ? ` · ₹${Number(r.amount).toLocaleString("en-IN")}` : ""}`,
-      link: "/dashboard/renewals", meta: { renewalId: r.id, day: today },
+      link: `/dashboard/renewals?renewal=${r.id}`, meta: { renewalId: r.id, day: today },
     });
   }
 
@@ -120,7 +120,7 @@ async function runDaily(today) {
   for (const t of cards) {
     const head = t.renewalDate ? label(daysBetween(today, day(t.renewalDate))) : null;
     if (head) dig([...adminIds, ...asArr(t.memberIds)], "renewals", { head, title: t.title, sub: `Project board · renewal date ${fmtDate(t.renewalDate)}` });
-    if (head) add([...adminIds, ...asArr(t.memberIds)], { type: "renewal", title: `${head}: ${t.title}`, body: `Renewal date ${fmtDate(t.renewalDate)}`, link: "/dashboard/kanban", meta: { taskId: t.id, day: today } });
+    if (head) add([...adminIds, ...asArr(t.memberIds)], { type: "renewal", title: `${head}: ${t.title}`, body: `Renewal date ${fmtDate(t.renewalDate)}`, link: `/dashboard/kanban?task=${t.id}`, meta: { taskId: t.id, day: today } });
   }
   const tomorrow = addDays(today, 1);
   const dueTomorrow = cards.filter((t) => day(t.dueDate) === tomorrow);
