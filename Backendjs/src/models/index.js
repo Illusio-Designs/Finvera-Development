@@ -202,6 +202,7 @@ const Task = sequelize.define("Task", {
   startDate: { type: DataTypes.DATEONLY },
   dueDate: { type: DataTypes.DATEONLY },
   renewalDate: { type: DataTypes.DATEONLY },                   // reminder fires as this approaches / on the day
+  client: { type: DataTypes.STRING(160) },                     // client tag on the card (free text, e.g. "Morbix")
   completed: { type: DataTypes.BOOLEAN, defaultValue: false },
   cover: { type: DataTypes.STRING },                          // hex color or image URL
   memberIds: { type: DataTypes.JSON, defaultValue: [] },      // assigned user ids

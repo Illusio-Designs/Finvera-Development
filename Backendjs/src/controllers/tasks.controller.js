@@ -7,10 +7,12 @@ const asArr = (v) => (Array.isArray(v) ? v : (typeof v === "string" && v.trim().
 const authorSafe = (u) => (u ? { id: u.id, name: u.name, avatar: u.avatar } : null);
 
 /* List cards, optionally scoped to a board via ?boardId= */
-/* ?fields=summary → only { id, boardId, column, completed, memberIds } — what
-   the boards overview needs for its counts and member avatars, without every
-   card's description / checklist / attachments. */
-const SUMMARY = ["id", "boardId", "column", "completed", "memberIds"];
+/* ?fields=summary → only { id, boardId, column, completed, memberIds, dueDate }
+   — what the boards overview needs for its counts, overdue numbers and member
+   avatars, without every card's description / checklist / attachments.
+   Full cards also carry `commentCount` (one grouped COUNT for the whole
+   list), so a board shows comment numbers without a request per card. */
+const SUMMARY = ["id", "boardId", "column", "completed", "memberIds", "dueDate"];
 const list = asyncHandler(async (req, res) => {
   const where = {};
   if (req.query.boardId) where.boardId = req.query.boardId;
@@ -19,8 +21,16 @@ const list = asyncHandler(async (req, res) => {
     where, order: [["position", "ASC"], ["createdAt", "ASC"]],
     ...(summary ? { attributes: SUMMARY, raw: true } : {}),
   });
-  if (summary) for (const t of tasks) t.completed = !!t.completed;
-  res.json(tasks);
+  if (summary) { for (const t of tasks) t.completed = !!t.completed; return res.json(tasks); }
+  const counts = new Map();
+  if (tasks.length) {
+    const rows = await Comment.findAll({
+      attributes: ["taskId", [Comment.sequelize.fn("COUNT", Comment.sequelize.col("id")), "n"]],
+      where: { taskId: tasks.map((t) => t.id) }, group: ["taskId"], raw: true,
+    });
+    for (const r of rows) counts.set(Number(r.taskId), Number(r.n) || 0);
+  }
+  res.json(tasks.map((t) => ({ ...t.toJSON(), commentCount: counts.get(t.id) || 0 })));
 });
 
 /* POST /tasks/reorder { column, ids: [taskId, …] } — one column's new card
@@ -60,7 +70,7 @@ const addComment = asyncHandler(async (req, res) => {
       type: "comment",
       title: `New comment on "${task.title}"`,
       body: body.slice(0, 120),
-      link: "/dashboard/kanban",
+      link: `/dashboard/kanban?task=${task.id}`,
       meta: { taskId: task.id },
     }, req.user.id);
   }

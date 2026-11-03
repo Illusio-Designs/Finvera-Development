@@ -157,7 +157,7 @@ const EXPORTS = {
         const b = byId.get(t.boardId);
         const checklist = asArr(t.checklist);
         return [
-          ["ID", t.id], ["Board", b?.name || ""], ["Title", t.title], ["Column", b?.columns.find((c) => c.id === t.column)?.title || t.column || ""],
+          ["ID", t.id], ["Board", b?.name || ""], ["Title", t.title], ["Client", t.client || ""], ["Column", b?.columns.find((c) => c.id === t.column)?.title || t.column || ""],
           ["Priority", t.priority || ""], ["Start", d10(t.startDate)], ["Due", d10(t.dueDate)], ["Renewal", d10(t.renewalDate)], ["Completed", yes(t.completed)],
           ["Members", asArr(t.memberIds).map((id) => names.get(Number(id)) || id).join(", ")],
           ["Labels", asArr(t.labelIds).map((id) => b?.labels.find((l) => l.id === id)?.name).filter(Boolean).join(", ")],

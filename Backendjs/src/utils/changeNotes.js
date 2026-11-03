@@ -25,7 +25,7 @@ const POST_FIELDS = {
 };
 const TASK_FIELDS = {
   title: "title", description: "description", priority: "priority", checklist: "checklist",
-  labelIds: "labels", attachments: "attachments", cover: "cover",
+  labelIds: "labels", attachments: "attachments", cover: "cover", client: "client",
 };
 
 /* → { kind: "stage"|"date"|"edit"|null, notes: [..], stage } */

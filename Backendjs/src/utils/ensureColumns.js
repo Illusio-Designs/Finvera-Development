@@ -10,6 +10,7 @@
 const WANTED = [
   { table: "tasks", column: "startDate", def: "DATE NULL" },
   { table: "tasks", column: "renewalDate", def: "DATE NULL" },
+  { table: "tasks", column: "client", def: "VARCHAR(160) NULL" }, // project board: client tag + filter
   { table: "users", column: "roles", def: "JSON NULL" },
   { table: "users", column: "socialClients", def: "JSON NULL" },
   { table: "users", column: "mustChangePassword", def: "TINYINT(1) NOT NULL DEFAULT 0" },

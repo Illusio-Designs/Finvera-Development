@@ -109,11 +109,11 @@ const taskCtrl = crudController(Task, {
   entity: "task",
   order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["title", "assignee", "label"],
   onCreate: async (t, req) => {
-    await notifyUsers(asArr(t.memberIds), { type: "assigned", title: `You were assigned: ${t.title}`, link: "/dashboard/kanban", meta: { taskId: t.id } }, req.user?.id);
+    await notifyUsers(asArr(t.memberIds), { type: "assigned", title: `You were assigned: ${t.title}`, link: `/dashboard/kanban?task=${t.id}`, meta: { taskId: t.id } }, req.user?.id);
   },
   onUpdate: async (t, req, before) => {
     const added = asArr(t.memberIds).filter((id) => !asArr(before.memberIds).includes(id));
-    await notifyUsers(added, { type: "assigned", title: `You were assigned: ${t.title}`, link: "/dashboard/kanban", meta: { taskId: t.id } }, req.user?.id);
+    await notifyUsers(added, { type: "assigned", title: `You were assigned: ${t.title}`, link: `/dashboard/kanban?task=${t.id}`, meta: { taskId: t.id } }, req.user?.id);
     // Changes by someone else → the card's other members (one merged alert per burst of edits).
     const board = t.boardId ? await Board.findByPk(t.boardId) : null;
     const cols = asArr(board?.columns);
@@ -123,13 +123,13 @@ const taskCtrl = crudController(Task, {
     if (kind && stay.length) {
       const head = kind === "stage" ? `Moved to ${colTitle(t.column)}` : kind === "date" ? "Dates changed" : "Card updated";
       const render = (ns) => `${ns.join("; ")} · by ${req.user?.name || "someone"}`;
-      await notifyUsers(stay, { type: "update", title: `${head}: ${t.title}`, body: render(notes), link: "/dashboard/kanban", meta: { taskId: t.id } },
+      await notifyUsers(stay, { type: "update", title: `${head}: ${t.title}`, body: render(notes), link: `/dashboard/kanban?task=${t.id}`, meta: { taskId: t.id } },
         req.user?.id, kind === "edit" ? { merge: { key: `task-${t.id}`, minutes: 15, notes, render } } : undefined); // only plain edits merge
     }
     // Reached Done → admins.
     const isDone = (col, completed) => completed || /done|complete|shipped/i.test(colTitle(col));
     if (isDone(t.column, t.completed) && !isDone(before.column, before.completed)) {
-      await notifyAdmins({ type: "done", title: `Done: ${t.title}`, body: board ? `${board.name} · by ${req.user?.name || "someone"}` : undefined, link: "/dashboard/kanban", meta: { taskId: t.id } }, req.user?.id);
+      await notifyAdmins({ type: "done", title: `Done: ${t.title}`, body: board ? `${board.name} · by ${req.user?.name || "someone"}` : undefined, link: `/dashboard/kanban?task=${t.id}`, meta: { taskId: t.id } }, req.user?.id);
     }
   },
 });
