@@ -11,16 +11,23 @@
 
 let transport = null, loadError = null;
 
-function configured() { return !!process.env.SMTP_HOST; }
+/* cPanel's environment screen keeps quote marks as part of a value
+   (MAIL_FROM="Finvera <x@y>" arrives with the quotes) — drop them. */
+const env = (k) => String(process.env[k] || "").trim().replace(/^(["'])(.*)\1$/, "$2").trim();
+function configured() { return !!env("SMTP_HOST"); }
 
 function getTransport() {
   if (transport || loadError) return transport;
   try {
     const nodemailer = require("nodemailer");
-    const port = Number(process.env.SMTP_PORT || 465);
+    const port = Number(env("SMTP_PORT") || 465);
     transport = nodemailer.createTransport({
-      host: process.env.SMTP_HOST, port, secure: port === 465,
-      auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS || "" } : undefined,
+      host: env("SMTP_HOST"), port, secure: port === 465,
+      auth: env("SMTP_USER") ? { user: env("SMTP_USER"), pass: env("SMTP_PASS") } : undefined,
+      connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 30000,
+      // Shared hosting often serves the mail server's own hostname certificate;
+      // SMTP_TLS_INSECURE=true accepts it (only set this for your own host).
+      tls: /^(1|true|yes)$/i.test(env("SMTP_TLS_INSECURE")) ? { rejectUnauthorized: false } : undefined,
     });
   } catch (e) { loadError = e; console.warn("mailer: nodemailer not available —", e.message); }
   return transport;
@@ -38,16 +45,27 @@ function layout({ title, body = "", button = null, footer = "Finvera Solutions L
 </div><p style="font-size:12px;color:#8a93aa;text-align:center;margin-top:14px">${esc(footer)}</p></div></body></html>`;
 }
 
+/* Plain-English reason + fix for the usual SMTP errors. */
+function explain(e) {
+  const m = `${e.code || ""} ${e.responseCode || ""} ${e.message || ""}`;
+  if (/EAUTH|535|534|Invalid login|authentication/i.test(m)) return "the mail server rejected the login — check SMTP_USER is the full email address and SMTP_PASS is that mailbox's password.";
+  if (/certificate|self[- ]signed|altnames|hostname\/IP|UNABLE_TO_VERIFY|CERT_/i.test(m)) return "the mail server's security certificate doesn't match SMTP_HOST — use the 'Outgoing Server' name from cPanel → Email Accounts → Connect Devices, or add SMTP_TLS_INSECURE=true.";
+  if (/wrong version number|SSL routines|EPROTO/i.test(m)) return "port and encryption don't match — use SMTP_PORT=465 (SSL) or 587 (STARTTLS).";
+  if (/ETIMEDOUT|ECONNREFUSED|ECONNRESET|ESOCKET|EDNS|ENOTFOUND|timeout/i.test(m)) return `couldn't reach ${env("SMTP_HOST")}:${env("SMTP_PORT") || 465} — check the host name, or try SMTP_PORT=587.`;
+  if (/sender|not owned|550|553/i.test(m)) return "the server refused the sender — MAIL_FROM must use the same address as SMTP_USER (no quote marks).";
+  return e.message || "unknown mail error";
+}
+
 async function sendMail({ to, subject, html, text, replyTo }) {
   if (!to || !configured()) return { sent: false, reason: "not-configured" };
   const t = getTransport();
   if (!t) return { sent: false, reason: "nodemailer-missing" };
   try {
-    const info = await t.sendMail({ from: process.env.MAIL_FROM || process.env.SMTP_USER, to, subject, html, text, replyTo });
+    const info = await t.sendMail({ from: env("MAIL_FROM") || env("SMTP_USER"), to, subject, html, text, replyTo });
     return { sent: true, id: info.messageId };
   } catch (e) {
     console.warn("mailer:", e.message);
-    return { sent: false, reason: e.message };
+    return { sent: false, reason: `${explain(e)} (${String(e.message || "").slice(0, 160)})` };
   }
 }
 
