@@ -6,7 +6,7 @@ import type { IconSvgElement } from "@hugeicons/react";
 import {
   ChartLineData01Icon, Building06Icon, Link04Icon, Facebook01Icon, GoogleIcon, Tag01Icon,
   NewTwitterIcon, Linkedin01Icon, Github01Icon,
-} from "@hugeicons/core-free-icons";
+InstagramIcon, } from "@hugeicons/core-free-icons";
 
 export type Kind = "id" | "text" | "email" | "phone" | "textarea" | "url";
 export type Issue = { level: "err" | "warn"; text: string };
@@ -83,6 +83,7 @@ export const SECTIONS: Section[] = [
     fields: [
       { key: "social_x", label: "X (Twitter)", kind: "url", host: /(^|\.)(x|twitter)\.com$/i, site: "x.com", example: "https://x.com/yourcompany", logo: { icon: NewTwitterIcon, tone: "ink" } },
       { key: "social_linkedin", label: "LinkedIn", kind: "url", host: /(^|\.)linkedin\.com$/i, site: "linkedin.com", example: "https://www.linkedin.com/company/yourcompany", logo: { icon: Linkedin01Icon, tone: "li" } },
+      { key: "social_instagram", label: "Instagram", kind: "url", host: /(^|\.)instagram\.com$/i, site: "instagram.com", example: "https://www.instagram.com/yourcompany", logo: { icon: InstagramIcon, tone: "ink" } },
       { key: "social_github", label: "GitHub", kind: "url", host: /(^|\.)github\.com$/i, site: "github.com", example: "https://github.com/yourcompany", logo: { icon: Github01Icon, tone: "ink" } },
     ],
   },

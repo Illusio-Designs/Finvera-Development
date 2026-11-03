@@ -1,9 +1,18 @@
 "use client";
 import Link from "next/link";
-import { Mark, XIcon, LinkedIn, GitHub } from "./icons";
+import { Mark, XIcon, LinkedIn, GitHub, Instagram } from "./icons";
 import { toast } from "@/lib/toast";
 
-export default function Footer() {
+type FooterSettings = Partial<Record<"social_x" | "social_linkedin" | "social_instagram" | "social_github" | "contact_email" | "contact_phone" | "site_tagline", string>>;
+const okUrl = (u?: string) => !!u && /^https?:\/\/\S+$/i.test(u.trim());
+
+/* Contact details and social links come from Settings & pixels in the admin. */
+export default function Footer({ settings = {} }: { settings?: FooterSettings }) {
+  const email = settings.contact_email?.trim() || "finvetasolutionsllp@gmail.com";
+  const phone = settings.contact_phone?.trim() || "+91 84900 09684";
+  const social = ([
+    ["social_x", "X (Twitter)", "X", XIcon], ["social_linkedin", "LinkedIn", "LinkedIn", LinkedIn], ["social_instagram", "Instagram", "Instagram", Instagram], ["social_github", "GitHub", "GitHub", GitHub],
+  ] as const).filter(([k]) => okUrl(settings[k]));
   return (
     <footer className="footer">
       <div className="container">
@@ -13,19 +22,21 @@ export default function Footer() {
           {/* Blue brand panel */}
           <div className="foot-card-left">
             <Link href="/" className="brand"><Mark /> Finvera</Link>
-            <p className="tag">Future-driven SaaS &amp; CRM development, powered by a team that ships.</p>
+            <p className="tag">{settings.site_tagline?.trim() || <>Future-driven SaaS &amp; CRM development, powered by a team that ships.</>}</p>
             <div className="foot-contact">
-              <a href="mailto:finvetasolutionsllp@gmail.com">finvetasolutionsllp@gmail.com</a>
-              <a href="tel:+918490009684">+91 84900 09684</a>
+              <a href={`mailto:${email}`}>{email}</a>
+              <a href={`tel:${phone.replace(/[^\d+]/g, "")}`}>{phone}</a>
             </div>
-            <div className="foot-stay">
-              <span>Stay in touch!</span>
-              <div className="foot-social">
-                <a href="#" data-cursor data-tip="X (Twitter)" aria-label="X"><XIcon /></a>
-                <a href="#" data-cursor data-tip="LinkedIn" aria-label="LinkedIn"><LinkedIn /></a>
-                <a href="#" data-cursor data-tip="GitHub" aria-label="GitHub"><GitHub /></a>
+            {social.length > 0 && (
+              <div className="foot-stay">
+                <span>Stay in touch!</span>
+                <div className="foot-social">
+                  {social.map(([k, tip, label, Ico]) => (
+                    <a key={k} href={settings[k]!.trim()} target="_blank" rel="noopener noreferrer" data-cursor data-tip={tip} aria-label={label}><Ico /></a>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Light nav + newsletter panel */}

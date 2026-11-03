@@ -140,6 +140,7 @@ const SETTINGS = [
   { key: "social_x", value: "https://x.com/", group: "social", isPublic: true },
   { key: "social_linkedin", value: "https://linkedin.com/", group: "social", isPublic: true },
   { key: "social_github", value: "https://github.com/", group: "social", isPublic: true },
+  { key: "social_instagram", value: "", group: "social", isPublic: true },
   { key: "google_analytics_id", value: "", group: "analytics", isPublic: true },   // e.g. G-XXXXXXX
   { key: "google_tag_manager_id", value: "", group: "analytics", isPublic: true }, // e.g. GTM-XXXXXX
   { key: "facebook_pixel_id", value: "", group: "analytics", isPublic: true },

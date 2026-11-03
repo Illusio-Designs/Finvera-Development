@@ -91,6 +91,7 @@ const SETTING_RULES = {
   social_x: [/^https?:\/\/[^\s<>"']+$/i, "Use a full link that starts with https://"],
   social_linkedin: [/^https?:\/\/[^\s<>"']+$/i, "Use a full link that starts with https://"],
   social_github: [/^https?:\/\/[^\s<>"']+$/i, "Use a full link that starts with https://"],
+  social_instagram: [/^https?:\/\/[^\s<>"']+$/i, "Use a full link that starts with https://"],
 };
 function checkSetting(key, value) {
   const rule = SETTING_RULES[key];

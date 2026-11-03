@@ -8,7 +8,7 @@ import Manifesto from "@/components/Manifesto";
 import LogoMark from "@/components/LogoMark";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AnalyticsUpIcon } from "@hugeicons/core-free-icons";
-import { getServices, getProjects, getTestimonials, getSeo, getFaqs, getLogos, getStats, getFeatures } from "@/lib/api";
+import { getServices, getProjects, getTestimonials, getSeo, getFaqs, getLogos, getStats, getFeatures, getSettings } from "@/lib/api";
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSeo("home");
@@ -66,17 +66,21 @@ export default async function Home() {
   const logos = logosRes.length ? logosRes : FB_LOGOS.map((l, id) => ({ id, ...l }));
   const stats = statsRes.length ? statsRes : FB_STATS;
   const features = featuresRes.length ? featuresRes : FB_FEATURES;
+  // Social links from Settings & pixels; icons without a link are hidden.
+  const site = await getSettings();
+  const heroSocial = ([[site.social_x, "X", XIcon], [site.social_linkedin, "LinkedIn", LinkedIn], [site.social_instagram, "Instagram", Instagram]] as const)
+    .filter(([u]) => !!u && /^https?:\/\/\S+$/i.test(String(u).trim())).map(([u, l, I]) => [String(u).trim(), l, I] as const);
 
   return (
     <>
       {/* Hero */}
       <section className="hero" id="home">
-        <div className="hero-social">
-          <span>Follow</span>
-          <a href="#" data-cursor aria-label="X"><XIcon width={15} /></a>
-          <a href="#" data-cursor aria-label="LinkedIn"><LinkedIn width={15} /></a>
-          <a href="#" data-cursor aria-label="Instagram"><Instagram width={15} /></a>
-        </div>
+        {heroSocial.length > 0 && (
+          <div className="hero-social">
+            <span>Follow</span>
+            {heroSocial.map(([href, label, Ico]) => <a key={label} href={href} target="_blank" rel="noopener noreferrer" data-cursor aria-label={label}><Ico width={15} /></a>)}
+          </div>
+        )}
         <div className="container">
           <div className="hero-grid">
             <div className="hero-copy">
