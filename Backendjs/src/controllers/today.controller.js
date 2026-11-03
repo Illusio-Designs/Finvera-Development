@@ -154,7 +154,7 @@ const today = asyncHandler(async (req, res) => {
       kind: "renewal", id: r.id, client: r.client, renewalDate: d,
       title: `${late ? "Renewal overdue" : d === todayIso ? "Renewal due today" : "Renewal due"}: ${r.client}`,
       sub: [r.project, r.amount ? `₹${Number(r.amount).toLocaleString("en-IN")}` : "", `${late ? "was due" : "due"} ${fmt(d)}`].filter(Boolean).join(" · "),
-      link: "/dashboard/renewals",
+      link: `/dashboard/renewals?renewal=${r.id}`,
     });
   }
 
