@@ -76,11 +76,42 @@ const getSettingsDetailed = asyncHandler(async (_req, res) => {
   res.json(await Setting.findAll({ where: NOT_SYSTEM, order: [["group", "ASC"], ["key", "ASC"]] }));
 });
 
+/* Values of these keys are written into every public page — the tracking IDs
+   straight into inline <script> tags, the links into href attributes — so
+   they are checked before anything is saved. The rules are deliberately
+   loose (the admin page checks the exact formats); they only refuse values
+   that could break out of the script or link. Empty always clears. */
+const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const SETTING_RULES = {
+  google_analytics_id: [ID_RE, "Google Analytics ID can only use letters, numbers and dashes, like G-7QK2M4X9TL."],
+  google_tag_manager_id: [ID_RE, "Google Tag Manager ID can only use letters, numbers and dashes, like GTM-ABC123."],
+  facebook_pixel_id: [ID_RE, "Facebook Pixel ID should be the number from Events Manager."],
+  google_site_verification: [/^[A-Za-z0-9_\-+=/.]{1,200}$/, "Paste only the content value from Search Console, not the whole tag."],
+  contact_email: [/^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/, "That doesn't look like an email address."],
+  social_x: [/^https?:\/\/[^\s<>"']+$/i, "Use a full link that starts with https://"],
+  social_linkedin: [/^https?:\/\/[^\s<>"']+$/i, "Use a full link that starts with https://"],
+  social_github: [/^https?:\/\/[^\s<>"']+$/i, "Use a full link that starts with https://"],
+};
+function checkSetting(key, value) {
+  const rule = SETTING_RULES[key];
+  if (!rule || value == null) return { ok: true, value };
+  const v = String(value).trim();
+  if (v === "" || rule[0].test(v)) return { ok: true, value: v };
+  return { ok: false, message: rule[1] };
+}
+
 /* Bulk upsert settings (admin): body = { key: value, ... } or [{key,value,group,isPublic}] */
 const updateSettings = asyncHandler(async (req, res) => {
   const entries = Array.isArray(req.body)
     ? req.body
     : Object.entries(req.body).map(([key, value]) => ({ key, value }));
+  // Check every value first, so a bad one saves nothing.
+  for (const e of entries) {
+    if (!e || !e.key) continue;
+    const c = checkSetting(e.key, e.value);
+    if (!c.ok) return res.status(400).json({ message: c.message, field: e.key });
+    e.value = c.value;
+  }
   const results = [];
   const skipped = [];
   for (const e of entries) {
