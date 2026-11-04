@@ -74,11 +74,17 @@ async function sendMail({ to, subject, html, text, replyTo }) {
    it has spaces at the ends, and where the value came from. */
 function diag() {
   const raw = String(process.env.SMTP_PASS || "");
-  let fileHas = false, fileSame = false;
+  let fileHas = false, fileSame = false, cutAtHash = false;
   try {
-    const parsed = require("dotenv").parse(require("fs").readFileSync(require("path").join(__dirname, "..", "..", ".env")));
+    const text = require("fs").readFileSync(require("path").join(__dirname, "..", "..", ".env"), "utf8");
+    const parsed = require("dotenv").parse(text);
     fileHas = "SMTP_PASS" in parsed;
     fileSame = fileHas && parsed.SMTP_PASS === raw;
+    // An unquoted value stops at "#" (dotenv reads the rest as a comment), so
+    // SMTP_PASS=ab#cd is loaded as "ab". Quoting it fixes that: SMTP_PASS="ab#cd".
+    const line = text.split(/\r?\n/).find((l) => /^\s*(export\s+)?SMTP_PASS\s*=/.test(l));
+    const val = line ? line.slice(line.indexOf("=") + 1).trim() : "";
+    cutAtHash = !!val && !/^["'`]/.test(val) && val.includes("#");
   } catch { /* no .env file */ }
   return {
     user: env("SMTP_USER"), host: env("SMTP_HOST"), port: Number(env("SMTP_PORT") || 465),
@@ -87,6 +93,7 @@ function diag() {
     passHadQuotes: /^(["']).*\1$/.test(raw.trim()),
     passFrom: !raw ? "not set" : fileSame ? ".env file in the app folder" : "cPanel environment variables",
     envFileHasPass: fileHas,
+    passCutAtHash: cutAtHash,
   };
 }
 

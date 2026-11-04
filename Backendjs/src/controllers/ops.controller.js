@@ -106,6 +106,7 @@ const testEmail = asyncHandler(async (req, res) => {
     const d = mailer.diag();
     why += ` Server used: user “${d.user}”, password of ${d.passLength} characters from the ${d.passFrom}` +
       `${d.passHasEdgeSpaces ? " (it has spaces at the start or end — remove them)" : ""}` +
+      `${d.passCutAtHash ? ". The password in .env contains # and isn't in quotes, so everything from the # on is ignored — write it as SMTP_PASS=\"your#password\" and restart the app" : ""}` +
       `${d.envFileHasPass && d.passFrom !== ".env file in the app folder" ? "; a .env file in the app folder also has an SMTP_PASS — delete that line to avoid confusion" : ""}.`;
   }
   res.status(422).json({ ok: false, message: `Couldn't send: ${why}`, error: why });

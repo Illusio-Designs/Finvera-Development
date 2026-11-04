@@ -333,7 +333,7 @@ export default function AdminUsers() {
           <div className="ss-modal" role="dialog" aria-modal="true" aria-label={share.kind === "invite" ? "Invite link" : "Reset link"}>
             <div className="ss-modal-h"><h3>{share.kind === "invite" ? `New invite for ${share.name}` : `Reset link for ${share.name}`}</h3><button type="button" className="ss-btn" onClick={() => setShare(null)} aria-label="Close">×</button></div>
             {share.kind === "invite" && <p className="ss-note" style={{ margin: 0 }}>Any older invite link for them has stopped working.</p>}
-            <ShareLinkBox link={share.link} expiresAt={share.expiresAt} emailed={share.emailed} email={share.email} name={share.name} kind={share.kind} />
+            <ShareLinkBox link={share.link} expiresAt={share.expiresAt} emailed={share.emailed} emailError={share.emailError} email={share.email} name={share.name} kind={share.kind} />
             <div className="ss-modal-f"><button type="button" className="ss-chip dark" onClick={() => setShare(null)}>Done</button></div>
           </div>
         </div>
@@ -374,7 +374,7 @@ function InviteDrawer({ brands, onClose, onInvited }: { brands: Brand[]; onClose
     return (
       <Drawer title="Invite ready" sub={<>{done.user.name} · {done.user.email}</>} onClose={onClose}>
         <Note kind="ok" title={`${done.user.name} is invited.`}>They set their own password with this link, then sign in.</Note>
-        <ShareLinkBox link={done.link} expiresAt={done.expiresAt} emailed={done.emailed} email={done.user.email} name={done.user.name} kind="invite" />
+        <ShareLinkBox link={done.link} expiresAt={done.expiresAt} emailed={done.emailed} emailError={done.emailError} email={done.user.email} name={done.user.name} kind="invite" />
         <div className="adm-drawer-actions">
           <button type="button" className="adm-btn primary" onClick={onClose}>Done</button>
           <button type="button" className="adm-btn ghost" onClick={() => { setDone(null); setF(blank); }}>Invite another</button>

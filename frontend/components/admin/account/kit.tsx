@@ -121,8 +121,8 @@ export async function copyText(text: string, what = "Copied"): Promise<boolean> 
 export const whatsappUrl = (text: string) => `https://wa.me/?text=${encodeURIComponent(text)}`;
 
 /* A link to hand to someone: copy, WhatsApp, and whether email went out. */
-export function ShareLinkBox({ link, expiresAt, emailed, email, name, kind }: {
-  link: string; expiresAt: string; emailed: boolean; email?: string; name?: string; kind: "invite" | "reset";
+export function ShareLinkBox({ link, expiresAt, emailed, emailError, email, name, kind }: {
+  link: string; expiresAt: string; emailed: boolean; emailError?: string | null; email?: string; name?: string; kind: "invite" | "reset";
 }) {
   const first = (name || "").split(/\s+/)[0] || "there";
   const msg = kind === "invite"
@@ -132,7 +132,8 @@ export function ShareLinkBox({ link, expiresAt, emailed, email, name, kind }: {
     <div className="acc-share">
       <div className={"acc-mailst " + (emailed ? "ok" : "no")}>
         <Icon i={Mail01Icon} size={16} />
-        {emailed ? <span>Email sent{email ? <> to <b>{email}</b></> : ""}.</span> : <span>Email isn&apos;t set up, so nothing was emailed. Share the link yourself.</span>}
+        {emailed ? <span>Email sent{email ? <> to <b>{email}</b></> : ""}.</span> : emailError ? <span>{emailError} Share the link below yourself.</span>
+          : <span>Nothing was emailed. Share the link yourself.</span>}
       </div>
       <label className="acc-lbl" htmlFor="acc-share-link">{kind === "invite" ? "Invite link" : "Reset link"}</label>
       <div className="acc-linkrow">

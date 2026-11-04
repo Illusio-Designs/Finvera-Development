@@ -185,8 +185,8 @@ const resetLink = asyncHandler(async (req, res) => {
     : kind === "invite" ? await sec.mailInvite(user, link, req.user.name) : await sec.mailResetLink(user, link, ttl);
   sec.logEvent(req, { userId: user.id, email: user.email, type: kind === "invite" ? "invite_sent" : "reset_link_created", actorId: req.user.id, meta: { emailed: !!mail.sent } });
   res.json({
-    link, expiresAt, kind, emailed: !!mail.sent,
-    message: mail.sent ? `Reset link emailed to ${user.email}. You can also copy it below.` : "Email isn't set up, so nothing was sent — copy the link and share it with them.",
+    link, expiresAt, kind, emailed: !!mail.sent, emailError: mailError(mail),
+    message: mail.sent ? `Reset link emailed to ${user.email}. You can also copy it below.` : `${notEmailed(mail)} — copy the link and share it with them.`,
   });
 });
 
@@ -200,6 +200,12 @@ const requirePasswordChange = asyncHandler(async (req, res) => {
   sec.logEvent(req, { userId: user.id, email: user.email, type: "must_change_password", actorId: req.user.id, meta: { required } });
   res.json({ message: required ? "They'll be asked to choose a new password next time they sign in." : "Password change no longer required.", user: safe(user) });
 });
+
+/* Why an invite/reset email wasn't sent, for the admin (null = sent or not asked for). */
+const mailError = (m) => (m.sent || m.reason === "skipped" ? null
+  : m.reason === "not-configured" ? "Email isn't set up on the server."
+  : m.reason === "nodemailer-missing" ? "The server is missing the nodemailer package." : `The email couldn't be sent: ${m.reason}`);
+const notEmailed = (m) => (m.reason === "skipped" ? "Nothing was emailed" : m.reason === "not-configured" ? "Email isn't set up, so nothing was sent" : "The email couldn't be sent, but the user was saved");
 
 /* POST /users/invite {name, email, role|roles, title?, socialClients|brands?} */
 const invite = asyncHandler(async (req, res) => {
@@ -220,13 +226,13 @@ const invite = asyncHandler(async (req, res) => {
     invitePending: true, invitedAt: new Date(),
   });
   const { link, expiresAt } = await sec.issueLink(user.id, "invite", sec.INVITE_TTL_MS, req.user.id);
-  const mail = req.body.sendEmail === false ? { sent: false } : await sec.mailInvite(user, link, req.user.name);
+  const mail = req.body.sendEmail === false ? { sent: false, reason: "skipped" } : await sec.mailInvite(user, link, req.user.name);
   sec.logEvent(req, { userId: user.id, email: addr, type: "invite_sent", actorId: req.user.id, meta: { roles: list, emailed: !!mail.sent } });
   await announceBrands(user, [], req.user.id);
   await sweepSocial();
   res.status(201).json({
-    user: safe(user), link, expiresAt, emailed: !!mail.sent,
-    message: mail.sent ? `Invite emailed to ${addr}.` : "Email isn't set up, so nothing was sent — copy the invite link and share it with them.",
+    user: safe(user), link, expiresAt, emailed: !!mail.sent, emailError: mailError(mail),
+    message: mail.sent ? `Invite emailed to ${addr}.` : `${notEmailed(mail)} — copy the invite link and share it with them.`,
   });
 });
 
@@ -236,12 +242,12 @@ const resendInvite = asyncHandler(async (req, res) => {
   if (!user.invitePending) return res.status(400).json({ message: "This user has already set a password. Send a reset link instead." });
   if (!user.active) return res.status(400).json({ message: "This account is deactivated. Reactivate it first." });
   const { link, expiresAt } = await sec.issueLink(user.id, "invite", sec.INVITE_TTL_MS, req.user.id);
-  const mail = req.body?.sendEmail === false ? { sent: false } : await sec.mailInvite(user, link, req.user.name);
+  const mail = req.body?.sendEmail === false ? { sent: false, reason: "skipped" } : await sec.mailInvite(user, link, req.user.name);
   user.invitedAt = new Date(); await user.save({ fields: ["invitedAt"] });
   sec.logEvent(req, { userId: user.id, email: user.email, type: "invite_sent", actorId: req.user.id, meta: { resend: true, emailed: !!mail.sent } });
   res.json({
-    user: safe(user), link, expiresAt, emailed: !!mail.sent,
-    message: mail.sent ? `Invite emailed again to ${user.email}.` : "Email isn't set up, so nothing was sent — copy the invite link and share it with them.",
+    user: safe(user), link, expiresAt, emailed: !!mail.sent, emailError: mailError(mail),
+    message: mail.sent ? `Invite emailed again to ${user.email}.` : `${notEmailed(mail)} — copy the invite link and share it with them.`,
   });
 });
 

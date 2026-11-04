@@ -69,7 +69,7 @@ export type SecEvent = {
 };
 export type SecPage = { items: SecEvent[]; total: number; page: number; limit: number; pages: number; types: string[] };
 export type LogQuery = { page?: number; limit?: number; type?: string; from?: string; to?: string; userId?: number | string; q?: string };
-export type ShareLink = { link: string; expiresAt: string; emailed: boolean; message: string; kind?: "reset" | "invite"; user?: AdminUser };
+export type ShareLink = { link: string; expiresAt: string; emailed: boolean; emailError?: string | null; message: string; kind?: "reset" | "invite"; user?: AdminUser };
 export type InviteBody = { name: string; email: string; roles: string[]; title?: string; avatar?: string; socialClients?: number[]; sendEmail?: boolean };
 
 const qs = (q: Record<string, unknown>) => {
