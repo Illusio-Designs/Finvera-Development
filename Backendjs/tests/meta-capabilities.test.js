@@ -19,10 +19,10 @@ test("missing scopes are explicit", async () => {
   const data = await checkCapabilities(acc, "facebook", adapter([]));
   assert.equal(action(data, "edit").state, "missing_permission");
 });
-test("Instagram edit opens the platform and media tags are not implemented", async () => {
+test("Instagram edit opens the platform and image tagging still needs platform verification", async () => {
   const data = await checkCapabilities(acc, "instagram", adapter(["instagram_basic", "instagram_content_publish"]));
   assert.equal(action(data, "edit").state, "external");
-  assert.equal(action(data, "mediaTags").state, "not_implemented");
+  assert.equal(action(data, "mediaTags").state, "needs_test");
   assert.equal(action(data, "open").url, "https://www.instagram.com/demo/");
 });
 test("network failures remain unknown rather than claiming missing permission", async () => {

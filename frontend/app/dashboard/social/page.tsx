@@ -10,6 +10,9 @@ import DatePicker from "@/components/ui/DatePicker";
 import { BoardSkeleton } from "@/components/admin/Skeleton";
 import { readXlsx } from "@/lib/xlsx";
 import { visibleInterval } from "@/lib/visibleInterval";
+import type { ImageTag } from "@/components/admin/InstagramImageTags";
+import SocialReviewPanel from "@/components/admin/SocialReviewPanel";
+import SocialUploadWork from "@/components/admin/SocialUploadWork";
 import HistoryList from "@/components/admin/HistoryList";
 import ExportButton from "@/components/admin/ExportButton";
 
@@ -31,7 +34,7 @@ type Post = {
   _full?: boolean; // client-only: the heavy fields (HEAVY) are loaded — the board loads light "card" posts
 };
 /* Auto-publishing */
-type Media = { url: string; type: "image" | "video"; name?: string; thumbUrl?: string | null }; // thumbUrl: small preview (newer uploads)
+type Media = { userTags?: ImageTag[]; url: string; type: "image" | "video"; name?: string; thumbUrl?: string | null }; // thumbUrl: small preview (newer uploads)
 type PubJob = { id: number; postId: number; client: string; platform: "instagram" | "facebook"; status: string; runAt: string | null; attempts: number;
   error: string | null; url: string | null; publishedAt: string | null; account: string | null; theme: string; format: string | null; postStatus: string | null };
 type SocialAcc = { client: string; pageName: string; igUsername: string | null; igAvatar: string | null; status: string; lastError: string | null };
@@ -346,6 +349,12 @@ export default function SocialCalendar() {
   const [metaOk, setMetaOk] = useState<boolean | null>(null);
   const [jobs, setJobs] = useState<PubJob[]>([]);
   const [metaPick, setMetaPick] = useState<{ sel: string; brand: string; pages: { pageId: string; pageName: string; igUsername: string | null }[]; chosen: string } | null>(null);
+  const [mediaCheck, setMediaCheck] = useState<{ post: Post; data: { files: { name: string; url: string; localStatus: string; jpeg: boolean | null; bytes: number | null; problems: string[] }[]; note: string } | null; error: string } | null>(null);
+  async function inspectArtwork(post: Post) {
+    setMediaCheck({ post, data: null, error: "" });
+    try { const data = await api.checkSocialMedia(post.id); setMediaCheck((current) => current?.post.id === post.id ? { ...current, data } : current); }
+    catch (error: any) { setMediaCheck((current) => current?.post.id === post.id ? { ...current, error: error.message } : current); }
+  }
   const [mediaBusy, setMediaBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -606,13 +615,15 @@ export default function SocialCalendar() {
     try { await api.publishNow(p.id); toast("Publishing…", "info", { description: `${p.theme} · ${where}` }); setTimeout(() => { loadPublishing(); refreshPost(p.id); }, 5000); }
     catch (e: any) { toast("Couldn't publish", "err", { description: e.message }); }
   }
-  async function addMedia(files: FileList | null) {
+  async function addMedia(files: FileList | File[] | null) {
     if (!files?.length || !editing) return;
     setMediaBusy(true);
     try {
-      const ig = await instagramSafeAll(Array.from(files).slice(0, 10));
+      if (files.length + (editing.media || []).length > 10) throw new Error("Use at most 10 files per post.");
+      const ig = await instagramSafeAll(Array.from(files));
       const r = await api.uploadSocialMedia(ig.files);
-      setEditing((e) => (e ? { ...e, media: [...(e.media || []), ...r.items].slice(0, 10) } : e));
+      dirty.current.add("media");
+      setEditing((e) => (e ? { ...e, media: [...(e.media || []), ...r.items] } : e));
       if (ig.summary) toast("Ready for Instagram", "ok", { description: ig.summary });
     } catch (e: any) { toast("Upload failed", "err", { description: e.message || "Use JPG/PNG images or MP4/MOV videos." }); }
     finally { setMediaBusy(false); }
@@ -637,7 +648,7 @@ export default function SocialCalendar() {
   const canEdit = (p?: Partial<Post> | null) => !!p;
   const canDelete = (p?: Partial<Post> | null) => !limited || (!!p && p.assigneeId === meId);
   /* Approving: admins, or the Social media manager the post is waiting with. */
-  const canApprove = (p?: Partial<Post> | null) => !limited || (!!p && p.assigneeId === meId);
+  const canApprove = (p?: Partial<Post> | null) => !limited || (!!p && p.assigneeId === meId && !!users.find((u) => u.id === meId)?.roles?.some((role) => role === "social" || role === "admin"));
   const notYours = (p: Partial<Post>) => toast("This post isn't yours to delete", "warn", {
     description: `It's assigned to ${userById(p.assigneeId ?? null)?.name || "nobody yet"} — only they or an admin can delete it.`,
   });
@@ -646,6 +657,7 @@ export default function SocialCalendar() {
     const p = posts.find((x) => x.id === id);
     if (!p || p.status === status) return;
     if (status === "client") { await needFromClient(p); return; }
+    if (status === "ready" && p.status === "approval") { setViewId(p.id); return; }
     if (!canEdit(p)) return notYours(p);
     if (status !== "posted") {
       const step = status === "production" ? makerFor(p.format) : null;
@@ -718,7 +730,7 @@ export default function SocialCalendar() {
   /* Hand the post over: save stage + person, then tell everyone what happened. */
   async function applyHandoff(p: Post, role: Role, patch: Partial<Post>, kind: Handoff["kind"], chosen: number | null, note = ""): Promise<boolean> {
     const team = { ...(p.team || {}), [role]: chosen };
-    const body: Record<string, unknown> = { ...patch, assigneeId: chosen, team };
+    const body: Record<string, unknown> = { ...patch, assigneeId: chosen, team, ...(p.updatedAt ? { _expectedUpdatedAt: p.updatedAt } : {}) };
     try {
       if (kind === "back" && note.trim()) {
         // The note goes on top of the existing remarks — load them first if the board only has the card.
@@ -744,11 +756,22 @@ export default function SocialCalendar() {
     } catch (e: any) { toast("Couldn't hand it over", "err", { description: e.message }); return false; }
   }
   /* Finished work: upload the final design / video straight onto the post. */
+  const [tagSaving, setTagSaving] = useState<number | null>(null);
+  async function saveImageTags(p: Post, index: number, tags: ImageTag[]): Promise<boolean> {
+    setTagSaving(p.id);
+    try { const media = (p.media || []).map((item, i) => i === index ? { ...item, userTags: tags } : item);
+      const saved = await api.update("social-posts", p.id, { media, ...(p.updatedAt ? { _expectedUpdatedAt: p.updatedAt } : {}) });
+      applySaved(saved); toast("Instagram image tags saved", "ok"); return true;
+    } catch (error: any) { toast("Couldn’t save image tags", "err", { description: error.message }); return false; }
+    finally { setTagSaving(null); }
+  }
   const [reviewSending, setReviewSending] = useState(false);
+  const [workError, setWorkError] = useState<{ postId: number; message: string } | null>(null);
   const [workBusy, setWorkBusy] = useState<number | null>(null);
-  async function uploadWork(p: Post, files: FileList | null) {
+  async function uploadWork(p: Post, files: FileList | File[] | null) {
     if (!files?.length) return;
     setWorkBusy(p.id);
+    setWorkError(null);
     try {
       const remaining = 10 - (p.media || []).length;
       if (files.length > remaining) throw new Error(`You can add ${remaining} more file${remaining === 1 ? "" : "s"}. Remove an existing file or choose fewer files.`);
@@ -758,7 +781,11 @@ export default function SocialCalendar() {
       const saved = await api.update("social-posts", p.id, { media });
       if (!applySaved(saved)) patchLocal(p.id, { media });
       toast(`${r.items.length} file${r.items.length === 1 ? "" : "s"} added`, "ok", { description: `“${p.theme}” · finished work${ig.summary ? ` · ${ig.summary}` : ""}` });
-    } catch (e: any) { toast("Upload failed", "err", { description: e.message || "Use JPG/PNG images or MP4/MOV videos." }); }
+    } catch (e: any) {
+      const message = e.message || "Use JPG/PNG images or MP4/MOV videos.";
+      setWorkError({ postId: p.id, message });
+      toast("Upload failed", "err", { description: message });
+    }
     finally { setWorkBusy(null); }
   }
   async function removeWork(p: Post, i: number) {
@@ -821,6 +848,7 @@ export default function SocialCalendar() {
     // unless typed into, so a save never wipes them on the server.
     const partial = !!editing.id && !editing._full;
     for (const k of EDITABLE) {
+      if (editing.id && !dirty.current.has(k)) continue;
       if (partial && HEAVY.includes(k) && !dirty.current.has(k)) continue;
       body[k] = editing[k] === "" ? null : editing[k] ?? null;
     }
@@ -1185,7 +1213,7 @@ export default function SocialCalendar() {
                       {p.postDate && progress(p)}
                     </div>
                     <div className="cal-task-actions">
-                      {doneLabel(p) && <button type="button" className="cal-primary" onClick={() => p.status === "production" ? setUploadId(p.id) : advance(p)}>{p.status === "production" ? "Upload" : doneLabel(p)}</button>}
+                      {doneLabel(p) && <button type="button" className="cal-primary" onClick={() => p.status === "production" ? setUploadId(p.id) : p.status === "approval" ? setViewId(p.id) : advance(p)}>{p.status === "production" ? "Upload" : p.status === "approval" ? "Review" : doneLabel(p)}</button>}
                       {p.status === "planned" && <button type="button" className="cal-btn" title="Need from client" onClick={() => needFromClient(p)}>Need</button>}
                     </div>
                   </article>
@@ -1199,49 +1227,51 @@ export default function SocialCalendar() {
   }
 
   function renderWork(p: Post) {
-    return (
-          <div className="cal-vsec cal-work">
-            <h4>Finished work</h4>
-            <div className="cal-media">
-              {(p.media || []).map((m, i) => (
-                <a key={m.url + i} className="cal-media-item" href={m.url} target="_blank" rel="noopener noreferrer" title={m.name || "Open"}>
-                  {isVideoMedia(m) ? <video src={m.url} muted playsInline preload="metadata" /> : <img src={m.thumbUrl || m.url} alt={m.name || `File ${i + 1}`} />}
-                  {canEdit(p) && p.status !== "posted" && <button type="button" disabled={workBusy === p.id || !p._full} aria-label="Remove" onClick={(e) => { e.preventDefault(); removeWork(p, i); }}>×</button>}
-                </a>
-              ))}
-              {canEdit(p) && p.status !== "posted" && (p.media || []).length < 10 && (
-                <label className={"cal-media-add" + (workBusy === p.id ? " busy" : "")}>
-                  <input type="file" multiple accept="image/*,video/mp4,video/quicktime" disabled={workBusy === p.id || !p._full}
-                    onChange={(e) => { uploadWork(p, e.target.files); e.target.value = ""; }} />
-                  {workBusy === p.id ? "Uploading…" : "Upload"}
-                </label>
-              )}
-            </div>
-            <span className="adm-hint">{p.status === "posted"
-              ? "Live now — artwork is retained with this post’s history."
-              : "Upload the final design or video here. This artwork stays with the post after publishing."}</span>
-          </div>
-    );
+    return <SocialUploadWork key={p.id} media={p.media || []} busy={workBusy === p.id} disabled={!p._full || reviewSending || tagSaving === p.id}
+      editable={canEdit(p)} posted={p.status === "posted"} error={workError?.postId === p.id ? workError.message : undefined}
+      onFiles={(files) => uploadWork(p, files)} onRemove={(index) => removeWork(p, index)} onTags={(index, tags) => saveImageTags(p, index, tags)} />;
   }
 
   function renderUpload(p: Post) {
     return (
       <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget && workBusy !== p.id) setUploadId(null); }}>
-        <div className="adm-drawer kb-drawer cal-view" role="dialog" aria-modal="true" aria-label="Upload finished work">
+        <div className="adm-drawer kb-drawer cal-view sw-upload-drawer" role="dialog" aria-modal="true" aria-label="Upload finished work">
           <div className="cal-vtop"><h2>Upload</h2><button type="button" className="cal-x" disabled={workBusy === p.id} onClick={() => setUploadId(null)} aria-label="Close">×</button></div>
           <p className="cal-lead">{p.theme} · {p.client}</p>
           {!p._full && <p role="status">Loading uploaded files…</p>}
           {renderWork(p)}
           <div className="adm-drawer-actions cal-actions">
-            <button type="button" className="cal-primary wide" disabled={reviewSending || workBusy === p.id || !p._full || !(p.media || []).length} onClick={async () => { setReviewSending(true); try { if (await advance(p)) setUploadId(null); } finally { setReviewSending(false); } }}>{reviewSending ? "Sending…" : "Send for review"}</button>
+            <button type="button" className="cal-primary wide" disabled={reviewSending || workBusy === p.id || tagSaving === p.id || !p._full || !(p.media || []).length} onClick={async () => { setReviewSending(true); try { if (await advance(p)) setUploadId(null); } finally { setReviewSending(false); } }}>{reviewSending ? "Sending…" : "Send for review"}</button>
           </div>
         </div>
       </div>
     );
   }
 
+  function renderReview(p: Post) {
+    return <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setViewId(null); }}>
+      <SocialReviewPanel post={{ ...p, caption: composeCaption(p).text }} loaded={!!p._full} canReview={canApprove(p)} reviewer={userById(p.assigneeId)?.name || "Unassigned"}
+        channels={platformsFor(p).map((platform) => PLATFORM_NAME[platform])} onClose={() => setViewId(null)}
+        onEdit={() => { dirty.current = new Set(); setEditing({ ...p }); setViewId(null); }}
+        onApprove={async () => { if (await advance(p)) setViewId(null); }}
+        onChanges={async (note) => {
+          const maker = makerFor(p.format), picked = p.team?.[maker];
+          if (picked && users.some((user) => user.id === picked)) { if (await applyHandoff(p, maker, STEP_AT[maker], "back", picked, note)) setViewId(null); }
+          else { askHandoff(p, maker, STEP_AT[maker], "back"); setHandoff((h) => h ? { ...h, note } : h); setViewId(null); }
+        }} />
+    </div>;
+  }
+
+  async function editForStage(p: Post) {
+    if (p.status === "client") { await needFromClient(p); return; }
+    if (p.status === "production") { setViewId(null); setUploadId(p.id); return; }
+    if (p.status === "approval" || p.status === "posted") { setViewId(p.id); return; }
+    dirty.current = new Set(); setEditing({ ...p }); setViewId(null);
+  }
+
   /* Read-only details card — what someone sees when they open a post. */
   function renderDetails(p: Post) {
+    if (p.status === "approval") return renderReview(p);
     const urls = (t?: string) => (t || "").match(/https?:\/\/[^\s]+/g) || [];
     const linkChips = (t?: string) => urls(t).map((u) => (
       <a key={u} className="cal-linkchip" href={u} target="_blank" rel="noopener noreferrer">{u.replace(/^https?:\/\/(www\.)?/, "").split(/[/?#]/)[0]} ↗</a>
@@ -1317,12 +1347,10 @@ export default function SocialCalendar() {
 
           {canEdit(p) ? (
             <div className="adm-drawer-actions cal-actions">
-              {p.status === "approval" && !canApprove(p) && <div className="cal-readonly">Waiting for the Social media manager to approve. Once approved it's scheduled for {fmtDay(p.postDate)}{p.postTime ? ` · ${fmtTime(p.postTime)}` : ""}.</div>}
               {nextLabel && <button type="button" className="cal-primary wide" onClick={() => advance(p)}>{nextLabel}</button>}
               {p.status === "planned" && <button type="button" className="cal-btn lg" title="Need from client" onClick={async () => { if (await needFromClient(p)) setViewId(null); }}>Need</button>}
-              {p.status === "approval" && canApprove(p) && <button type="button" className="cal-btn lg" onClick={() => sendBack(p)}>Send back for changes</button>}
               <div className="cal-row">
-                <button type="button" className="cal-btn lg grow" onClick={() => { dirty.current = new Set(); setEditing({ ...p }); setViewId(null); }}>Edit post</button>
+                {p.status !== "posted" && <button type="button" className="cal-btn lg grow" onClick={() => editForStage(p)}>Edit post</button>}
               </div>
             </div>
           ) : (
@@ -1353,6 +1381,7 @@ export default function SocialCalendar() {
     return (
       <div className="cal-vsec cal-pub">
         <h4>Auto-publishing</h4>
+        <button type="button" className="cal-btn sm" onClick={() => inspectArtwork(p)}>Check media</button>
         {!js.length && <p className="adm-hint" style={{ margin: 0 }}>
           {p.status === "posted" ? "Already posted." : `Goes out on ${platformsFor(p).map((x) => PLATFORM_NAME[x]).join(" and ") || "—"} by itself at ${when} once it's in Ready to post.`}
           {!media.length && p.status !== "posted" && platformsFor(p).includes("instagram") && " Add the image or video in Edit post — Instagram needs it."}
@@ -1493,6 +1522,9 @@ export default function SocialCalendar() {
   // Editor: who the post goes to at its stage, and whether the start date is automatic.
   const edRole = editing ? roleFor((editing.status || "planned") as Stage, editing.format, editing.step) : "graphic";
   const edAssignee = editing ? userById(editing.assigneeId) : undefined;
+  const edPlanning = !editing?.id || editing.status === "planned";
+  const edScheduled = editing?.status === "ready";
+  const edTitle = !editing?.id ? "New post" : edPlanning ? "Edit planning details" : edScheduled ? "Edit scheduled content" : "Edit review content";
   const edAutoStart = editing ? !editing.dueDate || String(editing.dueDate).slice(0, 10) === weekBefore(editing.postDate) : true;
   const edCands = editing && !limited && editing.client ? candidates(edRole, editing.client) : [];
 
@@ -1565,6 +1597,20 @@ export default function SocialCalendar() {
           : "No posts yet. Import a brand's media calendar sheet (Excel or CSV). A new brand is added automatically from the upload."}</div>
       ) : activeView === "mine" ? renderMine() : activeView === "calendar" ? renderCalendar() : renderBoard()}
 
+      {mediaCheck && <div className="adm-overlay center" onMouseDown={(e) => { if (e.target === e.currentTarget) setMediaCheck(null); }}>
+        <div className="cal-pick wide" role="dialog" aria-modal="true" aria-label="Media download checks">
+          <div className="cal-pick-h"><h3>Media download checks</h3><button type="button" className="cal-x" aria-label="Close" onClick={() => setMediaCheck(null)}>×</button></div>
+          <p>{mediaCheck.post.theme}</p>
+          {!mediaCheck.data && !mediaCheck.error && <p role="status">Checking the uploaded files…</p>}
+          {mediaCheck.error && <p role="alert">{mediaCheck.error}</p>}
+          {mediaCheck.data && <><p className="adm-hint">{mediaCheck.data.note}</p>{!mediaCheck.data.files.length && <p>No artwork is attached. Upload the final file first.</p>}{mediaCheck.data.files.map((file, index) => <div className="cal-vsec" key={index}>
+            <h4>{file.name}</h4><p>Local file: {file.localStatus.replace(/_/g, " ")}{file.bytes != null ? ` · ${Math.round(file.bytes / 1024)} KB` : ""}</p>
+            {file.jpeg != null && <p>JPEG image: {file.jpeg ? "Yes" : "No — Instagram images must be JPEG"}</p>}
+            {file.problems.map((problem) => <p className="cal-warn" key={problem}>{problem}</p>)}
+            {/^https?:\/\//i.test(file.url) && <a className="cal-link" href={file.url} target="_blank" rel="noopener noreferrer">Open artwork URL ↗</a>}
+          </div>)}</>}
+        </div>
+      </div>}
       {clientNeed && (
         <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget && !clientNeed.busy) setClientNeed(null); }}>
           <div className="adm-drawer kb-drawer cal-view" role="dialog" aria-modal="true" aria-label="Need from client">
@@ -1724,13 +1770,13 @@ export default function SocialCalendar() {
 
       {editing && (
         <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditing(null); }}>
-          <form className="adm-drawer kb-drawer cal-view cal-edit" onSubmit={savePost}>
+          <form className="adm-drawer kb-drawer cal-view cal-edit" role="dialog" aria-modal="true" aria-label={edTitle} onSubmit={savePost}>
             <div className="cal-vtop">
-              <h2 style={{ margin: 0 }}>{editing.id ? "Edit post" : "New post"}</h2>
+              <h2 style={{ margin: 0 }}>{edTitle}</h2>
               <button type="button" className="cal-x" onClick={() => { if (editing.id) setViewId(editing.id); setEditing(null); }} aria-label="Close">×</button>
             </div>
 
-            <fieldset className="cal-fs">
+            {edPlanning && (<fieldset className="cal-fs">
               <legend>The post</legend>
               <div className="field row" style={{ gap: 12 }}>
                 <div className="adm-field" style={{ flex: 1 }}><label>Brand</label>
@@ -1757,21 +1803,20 @@ export default function SocialCalendar() {
               </div>
               <div className="adm-field"><label>Post topic</label>
                 <textarea value={txt("topic")} onChange={(e) => set({ topic: e.target.value })} /></div>
-            </fieldset>
+            </fieldset>)}
 
-            <fieldset className="cal-fs">
+            {edPlanning || edScheduled && (<fieldset className="cal-fs">
               <legend>When</legend>
               <div className="field row" style={{ gap: 12 }}>
                 <div className="adm-field" style={{ flex: 1 }}><label>Goes live on</label>
-                  <DatePicker value={txt("postDate").slice(0, 10)} onChange={(v) => setEditing((e) => {
-                    // An empty or automatic start date follows the post date; a hand-set one stays.
-                    const auto = !e?.dueDate || String(e.dueDate).slice(0, 10) === weekBefore(e?.postDate);
-                    return { ...e, postDate: v, ...(auto && v ? { dueDate: weekBefore(v) } : {}) };
-                  })} placeholder="Goes live on" /></div>
+                  <DatePicker value={txt("postDate").slice(0, 10)} onChange={(v) => {
+                    const auto = !editing.dueDate || String(editing.dueDate).slice(0, 10) === weekBefore(editing.postDate);
+                    set({ postDate: v, ...(auto && v ? { dueDate: weekBefore(v) } : {}) });
+                  }} placeholder="Goes live on" /></div>
                 <div className="adm-field" style={{ flex: 1 }}><label>At</label>
                   <input type="time" value={txt("postTime")} onChange={(e) => set({ postTime: e.target.value })} /></div>
               </div>
-              <div className="field row" style={{ gap: 12 }}>
+              {edPlanning && <>              <div className="field row" style={{ gap: 12 }}>
                 <div className="adm-field" style={{ flex: 1 }}><label>Start work on</label>
                   <DatePicker value={txt("dueDate").slice(0, 10)} onChange={(v) => set({ dueDate: v })} placeholder="Start date" /></div>
               </div>
@@ -1782,16 +1827,11 @@ export default function SocialCalendar() {
                   : "Start date set by hand — it stays put if the post date moves."}</span>
                 {!edAutoStart && editing.postDate && <button type="button" className="cal-btn sm" onClick={() => set({ dueDate: weekBefore(editing.postDate) })}>Use 7 days before</button>}
               </div>
-            </fieldset>
+</>}
+            </fieldset>)}
 
-            <fieldset className="cal-fs">
+            {edPlanning && (<fieldset className="cal-fs">
               <legend>Stage &amp; who has it</legend>
-              <div className="cal-stagepick" role="radiogroup" aria-label="Stage">
-                {STAGES.map((s) => (
-                  <button type="button" key={s.id} role="radio" aria-checked={(editing.status || "planned") === s.id}
-                    className={(editing.status || "planned") === s.id ? "on" : ""} onClick={() => set({ status: s.id })}>{s.title}</button>
-                ))}
-              </div>
               <div className="cal-goes">
                 <span className="cal-muted">At this stage it's for the <b style={{ color: ROLE_META[edRole].fg }}>{ROLE_META[edRole].label}</b>.</span>
               </div>
@@ -1807,28 +1847,25 @@ export default function SocialCalendar() {
                       options={[{ value: "", label: "Not picked" }, ...users.filter((u) => (u.roles || []).includes(r)).map((u) => ({ value: String(u.id), label: u.name }))]} /></div>
                 ))}
               </div>
-            </fieldset>
+            </fieldset>)}
 
             <fieldset className="cal-fs">
               <legend>Content &amp; links</legend>
               <div className="adm-field"><label>Caption &amp; hashtags</label>
-                <textarea rows={6} value={txt("caption")} onChange={(e) => set({ caption: e.target.value })} /></div>
-              <div className="field row" style={{ gap: 12 }}>
+                <textarea aria-label="Caption & hashtags" rows={6} value={txt("caption")} onChange={(e) => set({ caption: e.target.value })} /></div>
+              {edPlanning && <>              <div className="field row" style={{ gap: 12 }}>
                 <div className="adm-field" style={{ flex: 1 }}><label>Reference link</label>
                   <input value={txt("reference")} onChange={(e) => set({ reference: e.target.value })} placeholder="https://" /></div>
-              </div>
-              <div className="adm-field"><label>Live post links</label>
-                <textarea value={txt("channels")} onChange={(e) => set({ channels: e.target.value })} placeholder={"Instagram https://…\nFacebook https://…"} />
-                <span className="adm-hint">Save links here as reference. Use Mark as posted or the publishing job’s verification action to confirm publication.</span></div>
-              <div className="field row" style={{ gap: 12 }}>
+              </div></>}
+              {edPlanning && <>              <div className="field row" style={{ gap: 12 }}>
                 <div className="adm-field" style={{ flex: 1 }}><label>Client requirements</label>
                   <textarea value={txt("requirements")} onChange={(e) => set({ requirements: e.target.value })} /></div>
                 <div className="adm-field" style={{ flex: 1 }}><label>Data status</label>
                   <textarea value={txt("dataStatus")} onChange={(e) => set({ dataStatus: e.target.value })} placeholder="We have / Required from client" /></div>
-              </div>
+              </div></>}
               <div className="field row" style={{ gap: 12 }}>
-                <div className="adm-field" style={{ flex: 1 }}><label>People to tag</label>
-                  <input value={txt("tags")} onChange={(e) => set({ tags: e.target.value })} /></div>
+                <div className="adm-field" style={{ flex: 1 }}><label>Instagram profiles to tag</label>
+                  <input aria-label="Instagram profiles to tag" value={txt("tags")} onChange={(e) => set({ tags: e.target.value })} /><span className="adm-hint">Use @usernames separated by commas. These apply to Instagram images at the center; use Tag profiles on artwork to adjust positions. Caption @mentions are separate.</span></div>
                 <div className="adm-field" style={{ flex: 1 }}><label>Keywords</label>
                   <input value={txt("keywords")} onChange={(e) => set({ keywords: e.target.value })} /></div>
               </div>
@@ -1836,7 +1873,7 @@ export default function SocialCalendar() {
                 <textarea value={txt("remarks")} onChange={(e) => set({ remarks: e.target.value })} /></div>
             </fieldset>
 
-            {(() => {
+            {!edPlanning && (() => {
               const acc = accFor(editing.client);
               const media = editing.media || [];
               const cap = composeCaption(editing);
@@ -1866,22 +1903,9 @@ export default function SocialCalendar() {
                     {!chosen.length && <span className="adm-hint">Nothing ticked — this post won't publish by itself.</span>}
                   </div>}
                   <div className="adm-field"><label>Image or video to post</label>
-                    <div className="cal-media">
-                      {media.map((m, i) => (
-                        <div key={m.url + i} className="cal-media-item">
-                          {isVideoMedia(m) ? <video src={m.url} muted playsInline preload="metadata" /> : <img src={m.thumbUrl || m.url} alt={m.name || `Image ${i + 1}`} />}
-                          {media.length > 1 && <span className="cal-media-n">{i + 1}</span>}
-                          <button type="button" aria-label="Remove" onClick={() => set({ media: media.filter((_, k) => k !== i) })}>×</button>
-                        </div>
-                      ))}
-                      {media.length < 10 && (
-                        <label className={"cal-media-add" + (mediaBusy ? " busy" : "")}>
-                          <input type="file" multiple accept="image/*,video/mp4,video/quicktime" disabled={mediaBusy}
-                            onChange={(e) => { addMedia(e.target.files); e.target.value = ""; }} />
-                          {mediaBusy ? "Uploading…" : "+ Add"}
-                        </label>
-                      )}
-                    </div>
+                    <SocialUploadWork media={media} busy={mediaBusy} disabled={mediaBusy} editable posted={false} staged
+                      onFiles={(files) => addMedia(files)} onRemove={(index) => set({ media: media.filter((_, i) => i !== index) })}
+                      onTags={async (index, tags) => { set({ media: media.map((item, i) => i === index ? { ...item, userTags: tags } : item) }); return true; }} />
                     <span className="adm-hint">One image or video, or up to 10 for a carousel. JPG images and MP4 videos work everywhere.</span>
                     {nonJpg.length > 0 && chosen.includes("instagram") && <span className="cal-warn">Instagram only accepts JPG images — {nonJpg.length === 1 ? "one image isn't" : `${nonJpg.length} images aren't`} JPG. Export as JPG, or untick Instagram.</span>}
                     {/reel/i.test(editing.format || "") && media.length > 0 && !media.some(isVideoMedia) && <span className="cal-warn">This is a Reel — add the video.</span>}
@@ -1898,7 +1922,7 @@ export default function SocialCalendar() {
 
 
             <div className="adm-drawer-actions">
-              <button className="cal-primary" type="submit">Save post</button>
+              <button className="cal-primary" type="submit" disabled={mediaBusy}>Save post</button>
               <button className="cal-btn" type="button" onClick={() => { if (editing.id) setViewId(editing.id); setEditing(null); }}>Cancel</button>
               {editing.id && canDelete(editing) && <button className="cal-btn danger" type="button" onClick={deletePost} style={{ marginLeft: "auto" }}>Delete</button>}
             </div>

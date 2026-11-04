@@ -106,8 +106,17 @@ async function syncJobs(post) {
   } catch (e) { console.warn("autoPublish sync:", e.message); }
 }
 
+const isMediaFetchError = (error) => /media could not be fetched from this URI/i.test(typeof error === "string" ? error : error?.message || "");
+function retryCheckpoint(checkpoint, error) {
+  if (!checkpoint.publishCalled && isMediaFetchError(error)) {
+    const next = { ...checkpoint };
+    delete next.creationId; // a failed media container cannot recover; no post was published
+    return next;
+  }
+  return checkpoint;
+}
 const isRetryable = (e) => !!(e.meta?.is_transient || [1, 2, 4, 17, 32, 341, 613, -1, -2].includes(Number(e.meta?.code))
-  || /timeout|ECONN|socket|did not answer|EAI_AGAIN|ENOTFOUND/i.test(e.message || ""));
+  || isMediaFetchError(e) || /timeout|ECONN|socket|did not answer|EAI_AGAIN|ENOTFOUND/i.test(e.message || ""));
 
 /* Problems we can spot before calling Meta, worded for the team. */
 function precheck(p, platform) {
@@ -115,6 +124,7 @@ function precheck(p, platform) {
   if (platform === "facebook" && media.some(meta.isVideo) && media.length > 1) return "Facebook video posts must contain one video. Split mixed or multiple-video artwork into separate posts.";
   if (!media.length && platform === "instagram") return "Add the image or video to the post — Instagram needs media.";
   if (platform === "instagram") {
+    try { for (const item of require("./instagramTags").postMediaWithTags(media, p.tags)) { const tags = require("./instagramTags").imageTags(item); if (meta.isVideo(item) && tags.length) return "Image profile tags are not supported on videos in Finvera."; } } catch (error) { return error.message; }
     const bad = media.filter((m) => !meta.isVideo(m) && !/\.(jpe?g)(\?|$)/i.test(m.url) && /\.(png|webp|gif|avif|svg)(\?|$)/i.test(m.url));
     if (bad.length) return `Instagram only accepts JPG images (${bad.length} of ${media.length} ${bad.length === 1 ? "is" : "are"} not JPG).`;
     if (/reel/i.test(p.format || "") && !media.some(meta.isVideo)) return "This is a Reel — add the video.";
@@ -187,7 +197,7 @@ async function runJob(job) {
   const p = await SocialPost.findByPk(j.postId);
   const cp = asObj(j.checkpoint);
   const finish = (fields) => SocialPublishJob.update({ ...fields, leaseToken: null, leaseUntil: null }, { where: { id: j.id, leaseToken: token } });
-  const problem = precheck(p, j.platform);
+  const problem = precheck(p, j.platform) || await require("./socialMediaHealth").mediaProblem(p, j.platform);
   const acc = await SocialAccount.findOne({ where: { client: p.client } });
   const fail = async (status, error) => {
     await finish({ status, error });
@@ -197,14 +207,14 @@ async function runJob(job) {
     });
     emailPublishProblem(p, { title: status === "check" ? `Check ${NAMES[j.platform]}: ${p.theme}` : `Auto-post failed: ${p.theme}`, detail: `${NAMES[j.platform]}: ${error}` });
   };
-  if (problem) return fail("failed", problem);
+  if (problem) return fail(cp.publishCalled ? "check" : "failed", problem);
   if (!acc || acc.status !== "connected") return fail("failed", `${p.client} isn't connected to ${NAMES[j.platform]} any more — reconnect it in Team & uploads.`);
   const save = (c) => SocialPublishJob.update({ checkpoint: c, leaseUntil: new Date(Date.now() + LEASE_MS) }, { where: { id: j.id, leaseToken: token } });
   try {
     const media = asArr(p.media).filter((m) => m && m.url);
     const caption = composeCaption(p);
     const res = j.platform === "instagram"
-      ? await meta.publishInstagram(acc, media, caption, cp, save)
+      ? await meta.publishInstagram(acc, media, caption, cp, save, p.tags)
       : await meta.publishFacebook(acc, media, caption, cp, save);
     await finish({ status: "published", remoteId: res.id, url: res.url, error: null, publishedAt: new Date() });
     try { await afterPublished(await SocialPost.findByPk(p.id)); } catch (e) { console.warn("Post-publish settlement:", e.message); }
@@ -217,7 +227,7 @@ async function runJob(job) {
     }
     if (cp.publishCalled) return fail("check", `No clear answer from ${NAMES[j.platform]} after publishing started (${msg}). Check the account before retrying.`);
     if (isRetryable(e) && j.attempts < MAX_ATTEMPTS) {
-      await finish({ status: "scheduled", error: msg, runAt: new Date(Date.now() + Math.min(15 * 60000, 30000 * 2 ** j.attempts)) });
+      await finish({ status: "scheduled", error: msg, checkpoint: retryCheckpoint(cp, e), runAt: new Date(Date.now() + Math.min(15 * 60000, 30000 * 2 ** j.attempts)) });
       return;
     }
     return fail("failed", msg);
@@ -253,4 +263,4 @@ async function syncBrand(client) {
   for (const p of posts) await syncJobs(p);
 }
 
-module.exports = { syncJobs, syncBrand, runDue, runJob, composeCaption, goLiveAt, targetsFor, afterPublished, PLATFORMS };
+module.exports = { retryCheckpoint, isRetryable, syncJobs, syncBrand, runDue, runJob, composeCaption, goLiveAt, targetsFor, afterPublished, PLATFORMS };

@@ -26,7 +26,7 @@ This check is read-only. It distinguishes:
 - **External:** open the platform to perform the action.
 - **Not implemented:** Finvera has no publishing/editing payload for that feature.
 
-Available actions include opening the profile, viewing details, editing supported Facebook Page fields, and opening Instagram for profile edits. Page name and picture edits open the platform. Stories, dedicated Facebook Reels, media tags and edits/deletes of already-live posts are explicitly marked as not implemented. Caption handles are text; clickable mentions need a platform test.
+Available actions include opening the profile, viewing details, editing supported Facebook Page fields, and opening Instagram for profile edits. Page name and picture edits open the platform. Positioned profile tags are implemented for Instagram images and carousel images. Enter post-wide @usernames in Instagram profiles to tag (center placement), or use Tag profiles on an uploaded image to choose positions. Meta determines account eligibility. Video tags, Stories, dedicated Facebook Reels and edits/deletes of already-live posts are marked as not implemented. Caption handles are text; clickable mentions need a platform test.
 
 App review, production mode, granular asset grants, token/data-access expiry and the selected Graph API version must still be appropriate for the deployed app. Adding a permission to `META_EXTRA_SCOPES` does not grant approval; update the Meta app and reconnect after approved permission changes. Never paste tokens or app secrets into a report.
 

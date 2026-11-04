@@ -39,6 +39,15 @@ function prepareUpdate(post, incoming, user, jobs = []) {
   if (expected && +new Date(expected) !== +new Date(post.updatedAt)) fail(409, "This post changed since you opened it. Reload before saving.");
   if (data.status && !["planned", "client", "production", "approval", "ready", "posted"].includes(data.status)) fail(400, "Choose a valid workflow stage.");
   if (post.status === "posted" && data.status && data.status !== "posted") fail(409, "Create a new post for revised work after publication.");
+  if (data.media != null) {
+    if (!Array.isArray(data.media) || data.media.length > 10) fail(400, "Use up to 10 artwork files per post.");
+    for (const media of data.media) {
+      let url; try { url = new URL(media?.url); } catch { fail(400, "Use a valid artwork URL."); }
+      if (!["http:", "https:"].includes(url.protocol)) fail(400, "Artwork URLs must use HTTP or HTTPS.");
+      try { require("./instagramTags").imageTags(media); } catch (error) { fail(400, error.message); }
+    }
+  }
+  if (data.tags != null) { try { require("./instagramTags").profileNames(data.tags); } catch (error) { fail(400, error.message); } }
   const changed = contentHash(post) !== contentHash({ ...post, ...data });
   if (jobs.some((j) => j.status === "publishing")) fail(409, "Publishing is in progress. Wait for the platform result before changing this post.");
   if (changed && (post.status === "posted" || jobs.some((j) => ["published", "check"].includes(j.status)))) fail(409, "This post may already be live on a platform. Resolve its publishing result before creating a revised post.");

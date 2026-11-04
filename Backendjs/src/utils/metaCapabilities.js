@@ -48,7 +48,7 @@ async function checkCapabilities(acc, platform, adapter = meta) {
   add("stories", "Publish Stories", "not_implemented", "Finvera’s publisher does not send a Story-specific publishing payload.");
   if (!instagram) add("reels", "Publish Facebook Reels", "not_implemented", "The current Facebook publisher sends video posts, not a dedicated Reels workflow.");
   add("liveEdits", "Edit or delete already-live posts", "not_implemented", "Scheduled edits are supported before publishing; changes to live platform posts are a separate workflow.");
-  add("mediaTags", "Tag people on media", "not_implemented", "The current publisher does not send media-tag payloads. Do not treat the calendar’s People to tag field as a published tag.");
+  add("mediaTags", "Tag profiles on images", instagram ? "needs_test" : "not_implemented", instagram ? "Finvera sends positioned tags on images and carousel images. Account eligibility and actual results must be verified with an authorized test post. Video tags are not implemented." : "Facebook person tagging is not implemented. Instagram image tags are not forwarded to Facebook.");
   add("mentions", "Caption mentions", "needs_test", "Caption handles are sent as text. Clickable mentions depend on platform behavior and must be checked separately.");
   add("review", "App review and production access", "needs_test", "Verify the app’s mode, approved access level, business requirements and production assets in the Meta dashboard. This token check does not certify app review.");
   add("schedule", "Schedule and edit before publishing", "available", "Scheduling is managed by Finvera. Content changes require review again; editing locks when publishing starts.");

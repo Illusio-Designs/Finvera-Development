@@ -13,6 +13,7 @@
 
 const crypto = require("crypto");
 const https = require("https");
+const { imageParams, imageTags, postMediaWithTags } = require("./instagramTags");
 const { URL, URLSearchParams } = require("url");
 
 const VERSION = process.env.META_GRAPH_VERSION || "v26.0"; // match the app's API version in the Meta dashboard
@@ -129,11 +130,13 @@ async function waitForContainer(id, token, maxMs = 5 * 60 * 1000) {
    `cp` is the job's checkpoint: the container id is saved as soon as it
    exists so a retry resumes instead of uploading again, and `publishCalled`
    marks the moment after which the outcome is uncertain on failure. */
-async function publishInstagram(acc, media, caption, cp = {}, save = async () => {}) {
+async function publishInstagram(acc, media, caption, cp = {}, save = async () => {}, profiles = "") {
+  media = postMediaWithTags(media, profiles);
   const token = decrypt(acc.pageToken);
   const ig = acc.igUserId;
   if (!ig) throw new Error("This brand has no Instagram Business account linked to its Facebook Page.");
   if (!media.length) throw new Error("Add the image or video to publish.");
+  for (const item of media) { if (isVideo(item) && imageTags(item).length) throw new Error("Positioned profile tags are supported on images in Finvera. Remove image tags from this video before publishing."); }
   let creation = cp.creationId || null;
   if (creation) {
     // resume: already uploaded on an earlier attempt
@@ -141,14 +144,14 @@ async function publishInstagram(acc, media, caption, cp = {}, save = async () =>
     const m = media[0];
     const c = await graph("POST", `/${ig}/media`, isVideo(m)
       ? { media_type: "REELS", video_url: m.url, caption, share_to_feed: "true", access_token: token }
-      : { image_url: m.url, caption, access_token: token });
+      : imageParams(m, { caption, access_token: token }));
     creation = c.id;
   } else {
     const children = [];
     for (const m of media.slice(0, 10)) {
       const c = await graph("POST", `/${ig}/media`, isVideo(m)
         ? { media_type: "VIDEO", video_url: m.url, is_carousel_item: "true", access_token: token }
-        : { image_url: m.url, is_carousel_item: "true", access_token: token });
+        : imageParams(m, { is_carousel_item: "true", access_token: token }));
       children.push(c.id);
     }
     for (const id of children) await waitForContainer(id, token);

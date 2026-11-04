@@ -202,6 +202,7 @@ export const api = {
     const qs = new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][]).toString();
     return req(`/social-posts${qs ? `?${qs}` : ""}`);
   },
+  checkSocialMedia: (id: number) => req(`/social-posts/${id}/media-check`),
   getSocialPost: (id: number) => req(`/social-posts/${id}`),
 
   /* Social media calendar — bulk import rows parsed from a client's sheet */
