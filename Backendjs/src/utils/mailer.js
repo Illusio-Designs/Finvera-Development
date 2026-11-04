@@ -14,7 +14,10 @@ let transport = null, loadError = null;
 /* cPanel's environment screen keeps quote marks as part of a value
    (MAIL_FROM="Finvera <x@y>" arrives with the quotes) — drop them. */
 const env = (k) => String(process.env[k] || "").trim().replace(/^(["'])(.*)\1$/, "$2").trim();
-function configured() { return !!env("SMTP_HOST"); }
+/* SMTP_HOST must be a bare host name; people often paste a URL
+   ("https://webmail.example.com/") — keep just the host part. */
+const smtpHost = () => env("SMTP_HOST").replace(/^[a-z]+:\/\//i, "").replace(/[/?#].*$/, "").replace(/:\d+$/, "").trim();
+function configured() { return !!smtpHost(); }
 
 function getTransport() {
   if (transport || loadError) return transport;
@@ -22,7 +25,7 @@ function getTransport() {
     const nodemailer = require("nodemailer");
     const port = Number(env("SMTP_PORT") || 465);
     transport = nodemailer.createTransport({
-      host: env("SMTP_HOST"), port, secure: port === 465,
+      host: smtpHost(), port, secure: port === 465,
       auth: env("SMTP_USER") ? { user: env("SMTP_USER"), pass: env("SMTP_PASS") } : undefined,
       connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 30000,
       // Shared hosting often serves the mail server's own hostname certificate;
@@ -49,9 +52,10 @@ function layout({ title, body = "", button = null, footer = "Finvera Solutions L
 function explain(e) {
   const m = `${e.code || ""} ${e.responseCode || ""} ${e.message || ""}`;
   if (/EAUTH|535|534|Invalid login|authentication/i.test(m)) return "the mail server rejected the login — check SMTP_USER is the full email address and SMTP_PASS is that mailbox's password.";
+  if (/EBADNAME|ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(m)) return `the mail server name "${smtpHost()}" can't be found — SMTP_HOST must be just the server name (no https://), e.g. mail.yourdomain.com, as shown under cPanel → Email Accounts → Connect Devices → Outgoing Server.`;
   if (/certificate|self[- ]signed|altnames|hostname\/IP|UNABLE_TO_VERIFY|CERT_/i.test(m)) return "the mail server's security certificate doesn't match SMTP_HOST — use the 'Outgoing Server' name from cPanel → Email Accounts → Connect Devices, or add SMTP_TLS_INSECURE=true.";
   if (/wrong version number|SSL routines|EPROTO/i.test(m)) return "port and encryption don't match — use SMTP_PORT=465 (SSL) or 587 (STARTTLS).";
-  if (/ETIMEDOUT|ECONNREFUSED|ECONNRESET|ESOCKET|EDNS|ENOTFOUND|timeout/i.test(m)) return `couldn't reach ${env("SMTP_HOST")}:${env("SMTP_PORT") || 465} — check the host name, or try SMTP_PORT=587.`;
+  if (/ETIMEDOUT|ECONNREFUSED|ECONNRESET|ESOCKET|EDNS|ENOTFOUND|timeout/i.test(m)) return `couldn't reach ${smtpHost()}:${env("SMTP_PORT") || 465} — check the host name, or try SMTP_PORT=587.`;
   if (/sender|not owned|550|553/i.test(m)) return "the server refused the sender — MAIL_FROM must use the same address as SMTP_USER (no quote marks).";
   return e.message || "unknown mail error";
 }
@@ -98,7 +102,7 @@ function diag() {
     cutAtHash = !!val && !/^["'`]/.test(val) && val.includes("#");
   } catch { /* no .env file */ }
   return {
-    user: env("SMTP_USER"), host: env("SMTP_HOST"), port: Number(env("SMTP_PORT") || 465),
+    user: env("SMTP_USER"), host: smtpHost(), port: Number(env("SMTP_PORT") || 465),
     passLength: env("SMTP_PASS").length,
     passHasEdgeSpaces: raw !== raw.trim(),
     passHadQuotes: /^(["']).*\1$/.test(raw.trim()),
