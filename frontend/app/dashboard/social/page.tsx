@@ -711,10 +711,10 @@ export default function SocialCalendar() {
       if (!applySaved(saved)) patchLocal(p.id, { ...(patch as Partial<Post>), team, assigneeId: saved?.assigneeId ?? chosen, step: saved?.step ?? null, ...(body.remarks ? { remarks: body.remarks as string } : {}) });
       window.dispatchEvent(new Event("fv-badges"));
       loadPublishing();
-      if (patch.status === "production" && (p.status === "planned" || p.status === "client")) {
+      if ((patch.status === "production" || patch.status === "client") && (p.status === "planned" || p.status === "client")) {
         setView("board");
         requestAnimationFrame(() => requestAnimationFrame(() => {
-          document.querySelector('[aria-label="In production"]')?.scrollIntoView({ block: "nearest", inline: "center", behavior: "auto" });
+          document.querySelector(patch.status === "client" ? '[aria-label="Need from client"]' : '[aria-label="In production"]')?.scrollIntoView({ block: "nearest", inline: "center", behavior: "auto" });
         }));
       }
       const who = users.find((u) => u.id === chosen);
@@ -762,6 +762,10 @@ export default function SocialCalendar() {
     if (picked && users.some((u) => u.id === picked) && !(kind === "approve" && liveTimePassed(p))) { return applyHandoff(p, hop.role, hop.patch, kind, picked); }
     askHandoff(p, hop.role, hop.patch, kind);
     return true;
+  }
+  function needFromClient(p: Post) {
+    const maker = makerFor(p.format);
+    return applyHandoff(p, maker, { status: "client" }, "move", p.assigneeId ?? p.team?.[maker] ?? null);
   }
   const doneLabel = (p: Post) => {
     const hop = nextHop(p);
@@ -985,6 +989,7 @@ export default function SocialCalendar() {
         {canEdit(p) && (p.status === "planned" || p.status === "client" || p.status === "production") && (
           <span className="cal-task-actions" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <button type="button" className="cal-primary" draggable={false} onClick={() => p.status === "production" ? setUploadId(p.id) : advance(p)}>{p.status === "production" ? "Upload" : "Start work"}</button>
+            {p.status === "planned" && <button type="button" className="cal-btn" draggable={false} title="Need from client" onClick={() => needFromClient(p)}>Need</button>}
           </span>
         )}
       </div>
@@ -1144,6 +1149,7 @@ export default function SocialCalendar() {
                     </div>
                     <div className="cal-task-actions">
                       {doneLabel(p) && <button type="button" className="cal-primary" onClick={() => p.status === "production" ? setUploadId(p.id) : advance(p)}>{p.status === "production" ? "Upload" : doneLabel(p)}</button>}
+                      {p.status === "planned" && <button type="button" className="cal-btn" title="Need from client" onClick={() => needFromClient(p)}>Need</button>}
                     </div>
                   </article>
                 );
@@ -1275,6 +1281,7 @@ export default function SocialCalendar() {
             <div className="adm-drawer-actions cal-actions">
               {p.status === "approval" && !canApprove(p) && <div className="cal-readonly">Waiting for the Social media manager to approve. Once approved it's scheduled for {fmtDay(p.postDate)}{p.postTime ? ` · ${fmtTime(p.postTime)}` : ""}.</div>}
               {nextLabel && <button type="button" className="cal-primary wide" onClick={() => advance(p)}>{nextLabel}</button>}
+              {p.status === "planned" && <button type="button" className="cal-btn lg" title="Need from client" onClick={async () => { if (await needFromClient(p)) setViewId(null); }}>Need</button>}
               {p.status === "approval" && canApprove(p) && <button type="button" className="cal-btn lg" onClick={() => sendBack(p)}>Send back for changes</button>}
               <div className="cal-row">
                 <button type="button" className="cal-btn lg grow" onClick={() => { dirty.current = new Set(); setEditing({ ...p }); setViewId(null); }}>Edit post</button>
