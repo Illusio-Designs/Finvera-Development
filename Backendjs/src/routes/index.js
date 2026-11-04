@@ -292,7 +292,7 @@ const socialPostCtrl = crudController(SocialPost, {
     await autoPublish.syncJobs(p); // Ready → scheduled at go-live; date moves follow; leaving Ready cancels
     // Stage history: who had it before the move delivered that stage.
     // A step hand-off inside In production (designer → video editor) counts too.
-    if (before.status !== p.status || ((before.step || null) !== (p.step || null) && p.status === "production" && before.status === "production"))
+    if (before.status !== p.status || before.assigneeId !== p.assigneeId || ((before.step || null) !== (p.step || null) && p.status === "production" && before.status === "production"))
       await social.recordEvents([social.eventOf(p, { from: before.status, fromAssigneeId: before.assigneeId, byUserId: req.user?.id })]);
     // KPIs read stages, assignees and go-live dates → recompute after any of them changes.
     if (before.status !== p.status || (before.step || null) !== (p.step || null) || before.assigneeId !== p.assigneeId || day(before.postDate) !== day(p.postDate))
