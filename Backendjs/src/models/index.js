@@ -454,6 +454,7 @@ const SocialPostEvent = sequelize.define("SocialPostEvent", {
   toAssigneeId: { type: DataTypes.INTEGER },
   byUserId: { type: DataTypes.INTEGER },
   postDate: { type: DataTypes.DATEONLY },              // go-live at the time of the move
+  postTime: { type: DataTypes.STRING(5) },             // IST deadline snapshot; null on legacy events
   at: { type: DataTypes.DATE, allowNull: false },
 }, { tableName: "social_post_events", indexes: [{ fields: ["postId"] }, { fields: ["at"] }] });
 

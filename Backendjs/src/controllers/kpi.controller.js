@@ -218,8 +218,8 @@ const kpis = asyncHandler(async (req, res) => {
   res.json(await getKpis({ period: req.query.period, brand: req.query.brand, scope: req.socialScope, userId: req.user.id }));
 });
 
-const KPI_POST_ATTRS = ["id", "client", "status", "postDate", "dueDate", "assigneeId", "theme", "format", "estimateHours", "timeLog"];
-const KPI_EVENT_ATTRS = ["id", "postId", "client", "format", "fromStatus", "toStatus", "fromAssigneeId", "toAssigneeId", "postDate", "at"];
+const KPI_POST_ATTRS = ["id", "client", "status", "postDate", "postTime", "dueDate", "assigneeId", "theme", "format", "estimateHours", "timeLog"];
+const KPI_EVENT_ATTRS = ["id", "postId", "client", "format", "fromStatus", "toStatus", "fromAssigneeId", "toAssigneeId", "postDate", "postTime", "at"];
 
 async function computeKpis({ period, brand, scope, userId }) {
   await backfillOnce();
@@ -256,7 +256,10 @@ async function computeKpis({ period, brand, scope, userId }) {
     const goLive = day(e.postDate) || day(postById.get(e.postId)?.postDate);
     moves.push({
       postId: e.postId, client: e.client, format: e.format, from: e.fromStatus, to: e.toStatus,
-      who: e.fromAssigneeId, day: d, onTime: goLive ? d <= goLive : null,
+      who: e.fromAssigneeId, day: d, // Legacy events have only a date: retain their original day-level result.
+      // New events snapshot the time and support an exact IST deadline.
+      onTime: goLive ? e.postTime ? +new Date(e.at) <= +require("../utils/socialDeadline").goLiveAt({ postDate: goLive, postTime: e.postTime }) : d <= goLive : null,
+      deadlinePrecision: e.postTime ? "minute" : "day",
       days: prev && prev.toStatus === e.fromStatus && Number(prev.toAssigneeId) === Number(e.fromAssigneeId) ? (new Date(e.at) - new Date(prev.at)) / 86400000 : null,
     });
   }
@@ -310,7 +313,7 @@ async function computeKpis({ period, brand, scope, userId }) {
   }
 
   const open = posts.filter((p) => p.status !== "posted" && p.assigneeId);
-  const overdueOf = (ps) => ps.filter((p) => p.postDate && day(p.postDate) < today);
+  const overdueOf = (ps) => ps.filter((p) => require("../utils/socialDeadline").isOverdue(p));
 
   /* ── People ── */
   const isTeam = (u) => rolesOf(u).some((r) => TEAM_ROLES.includes(r));
@@ -327,7 +330,7 @@ async function computeKpis({ period, brand, scope, userId }) {
     const recent = s.del.slice(-8).reverse().map((m) => {
       const p = postById.get(m.postId);
       const minutes = logMinutes.get(`${m.postId}|${u.id}`) || 0;
-      return { postId: m.postId, theme: p?.theme || "(deleted post)", client: m.client, format: m.format, day: m.day, to: STAGE_NAMES[m.to] || m.to, onTime: m.onTime, minutes };
+      return { postId: m.postId, theme: p?.theme || "(deleted post)", client: m.client, format: m.format, day: m.day, to: STAGE_NAMES[m.to] || m.to, onTime: m.onTime, deadlinePrecision: m.deadlinePrecision, minutes };
     });
     return {
       id: u.id, name: u.name, avatar: u.avatar || null,

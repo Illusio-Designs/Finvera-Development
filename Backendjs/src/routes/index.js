@@ -3,7 +3,7 @@ const rateLimit = require("express-rate-limit");
 
 const { Project, Service, Testimonial, TeamMember, BlogPost, Task, Board, Page, Lead, Renewal,
   SocialClient, SocialPost, Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature } = require("../models");
-const { crudController } = require("../utils/crud");
+const { crudController, asyncHandler } = require("../utils/crud");
 const { requireAuth, requireRole, requireArea, optionalAuth } = require("../middleware/auth");
 const { upload } = require("../middleware/upload");
 
@@ -273,6 +273,7 @@ const socialAssigned = (p) => ({ type: "assigned", title: p.status === "approval
 const socialPostCtrl = crudController(SocialPost, {
   entity: "social-post",
   updateRecord: require("../utils/socialUpdate").updateRecord,
+  removeRecord: (req) => require("../utils/socialDelete").deletePosts({ id: req.params.id }, req.socialScope),
   order: [["postDate", "ASC"], ["postTime", "ASC"], ["position", "ASC"]],
   searchable: ["client", "theme", "topic", "caption", "festive"],
   load: social.postOf, // the guards already loaded it — don't read it a second/third time
@@ -325,6 +326,19 @@ socialPostRouter.delete("/uploads/:batch", ...canSocial, social.requireAllBrands
 socialPostRouter.post("/delete-brand", ...canSocial, social.requireAllBrands, kpiBump,
   audit.track("social-post", { action: "delete", idFrom: () => null, label: (_r, req) => req.body?.client, summary: (req, b) => `Deleted every post of ${req.body?.client} (${b?.deleted ?? 0})` }), social.deleteBrandPosts);
 socialPostRouter.post("/reassign-pending", ...canSocial, social.requireAllBrands, require("../controllers/socialReassign.controller").reassignPending);
+socialPostRouter.get("/:id/preflight", ...canSocial, social.guardPost, asyncHandler(async (req, res) => {
+  const post = await SocialPost.findByPk(req.params.id);
+  const { SocialAccount, SocialPublishJob } = require("../models");
+  const account = await SocialAccount.findOne({ where: { client: post.client } });
+  const jobs = await SocialPublishJob.findAll({ where: { postId: post.id } });
+  const platforms = autoPublish.targetsFor(post, account).filter((platform) => !jobs.some((job) => job.platform === platform && job.status === "published"));
+  const issues = require("../utils/socialPreflight").preflight(post, platforms);
+  for (const platform of platforms) {
+    const problem = await require("../utils/socialMediaHealth").mediaProblem(post, platform);
+    if (problem && !issues.some((issue) => issue.message === problem)) issues.push({ field: "media", message: problem, platform });
+  }
+  res.json({ issues, platforms, updatedAt: post.updatedAt });
+}));
 socialPostRouter.get("/:id", ...canSocial, social.guardPost, socialPostCtrl.getOne);
 socialPostRouter.post("/", ...canSocial, social.guardBody, social.deadlineDefaults, social.assignOnCreate, (req, res, next) => { if (req.body.status && req.body.status !== "planned") return res.status(400).json({ message: "New posts start in Planned and must go through review." }); next(); }, socialPostCtrl.create);
 // Bulk import (rows parsed from a client's media-calendar sheet).
@@ -338,12 +352,24 @@ socialPostRouter.post("/bulk", ...canSocial, social.guardBody, kpiBump, async (r
       }))
       .filter((r) => r.client && r.theme);
     if (!clean.length) return res.status(400).json({ message: "No rows with a client and a post theme to import." });
+    if (req.query.preview === "1") {
+      const existing = await SocialPost.findAll({ where: { client: [...new Set(clean.map((row) => row.client))] }, attributes: ["id", "client", "theme", "postDate", "status", "importBatch"], raw: true });
+      const key = (row, theme = row.theme) => `${row.client}|${String(row.postDate || "").slice(0, 10)}|${String(theme || "").trim().toLowerCase().replace(/\s+/g, " ")}`;
+      const used = new Set();
+      const preview = clean.map((row) => {
+        const hit = existing.find((post) => !used.has(post.id) && (key(post) === key(row) || row.altTheme && post.importBatch && key(post) === key(row, row.altTheme)));
+        if (!hit) return { theme: row.theme, action: "create" };
+        used.add(hit.id);
+        return { id: hit.id, theme: row.theme, action: ["planned", "client"].includes(hit.status) ? "update" : "skip", reason: ["planned", "client"].includes(hit.status) ? "Planning fields only; current version checked when importing." : "Work has started. Existing content and publishing results are protected." };
+      });
+      return res.json({ preview, created: preview.filter((row) => row.action === "create").length, updated: preview.filter((row) => row.action === "update").length, skipped: preview.filter((row) => row.action === "skip").length });
+    }
     const brands = [...new Set(clean.map((r) => r.client))];
     for (const name of brands) {
       const [, made] = await SocialClient.findOrCreate({ where: { name } });
       if (made) await notifyAdmins({ type: "info", title: `New brand added: ${name}`, body: `From a sheet upload · by ${req.user?.name || "someone"}`, link: "/dashboard/social" }, req.user?.id);
     }
-    const result = await social.importRows(clean); // { created, updated, batch }
+    const result = await social.importRows(clean, req); // { created, updated, batch }
     res.status(201).json(result);
     audit.record(req, { action: "other", entity: "social-post", entityId: null, entityLabel: brands.join(", ").slice(0, 250), changes: null,
       summary: `Sheet upload: ${result.created ?? 0} new, ${result.updated ?? 0} updated` });

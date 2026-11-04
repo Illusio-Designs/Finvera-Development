@@ -8,7 +8,7 @@ async function recordEvents(rows) {
 }
 const eventOf = (p, { from = null, fromAssigneeId = null, byUserId = null } = {}) => ({
   postId: p.id, client: p.client, format: p.format || null, fromStatus: from, toStatus: p.status,
-  fromAssigneeId, toAssigneeId: p.assigneeId || null, byUserId, postDate: p.postDate || null, at: new Date(),
+  fromAssigneeId, toAssigneeId: p.assigneeId || null, byUserId, postDate: p.postDate || null, postTime: p.postTime || "10:00", at: new Date(),
 });
 const { asyncHandler } = require("../utils/crud");
 const { rolesOf } = require("../utils/permissions");
@@ -291,13 +291,16 @@ async function assignUnassigned({ force = false } = {}) {
   lastSweep = Date.now();
   try { await fillDeadlines(); } catch (e) { console.warn("fillDeadlines:", e.message); }
   // Only fills a post from the people picked for it (its team); never picks anyone by itself.
-  const posts = await SocialPost.findAll({ where: { assigneeId: null, team: { [Op.ne]: null } }, order: [["postDate", "ASC"]] });
+  const posts = await SocialPost.findAll({ where: { assigneeId: null, status: ["planned", "client", "production", "approval"], team: { [Op.ne]: null } }, order: [["postDate", "ASC"]] });
   if (!posts.length) return;
   const gained = {};
   for (const p of posts) {
     const who = pickedFor(p, stageRole(p.status, p.format, p.step));
     if (!who) continue;
-    await p.update({ assigneeId: who });
+    try {
+      const result = await require("../utils/socialUpdate").updateRecord({ params: { id: p.id }, body: { assigneeId: who, _expectedUpdatedAt: p.updatedAt }, user: { roles: ["admin"] } });
+      Object.assign(p, result.item.toJSON());
+    } catch (error) { if ([400, 409].includes(error.status)) continue; throw error; }
     if (p.status !== "posted") (gained[who] = gained[who] || []).push(p);
   }
   for (const [uid, ps] of Object.entries(gained)) {
@@ -375,10 +378,10 @@ const SHEET_FIELDS = ["festive", "topic", "format", "requirements", "reference",
   "driveLink", "tags", "keywords", "channels", "remarks", "team"];
 const matchKey = (r) => `${String(r.postDate || "").slice(0, 10)}|${String(r.theme || "").trim().toLowerCase().replace(/\s+/g, " ")}`;
 
-async function importRows(rows) {
+async function importRows(rows, req = {}) {
   const batch = `up-${Date.now()}`;
   const toCreate = [];
-  const fixCtx = {};
+  const skipped = [];
   let updated = 0;
   const updatedBy = {};
   for (const client of [...new Set(rows.map((r) => r.client))]) {
@@ -394,14 +397,22 @@ async function importRows(rows) {
       if (!hit && altTheme) {
         const list = byKey.get(matchKey({ postDate: r.postDate, theme: altTheme })) || [];
         const i = list.findIndex((p) => p.importBatch);
-        if (i >= 0) { hit = list.splice(i, 1)[0]; await hit.update({ theme: r.theme }); }
+        if (i >= 0) { hit = list.splice(i, 1)[0]; }
       }
       // An uploaded sheet is a plan: new rows always start in Planned.
       if (!hit) { toCreate.push({ ...r, status: "planned", assigneeId: null, dueDate: r.dueDate || weekBefore(r.postDate), importBatch: batch }); continue; }
-      const patch = { importBatch: batch };
+      const patch = { importBatch: batch, theme: r.theme };
       for (const f of SHEET_FIELDS) if (r[f] !== undefined && r[f] !== null && r[f] !== "") patch[f] = r[f];
-      await hit.update(patch);
-      if (hit.status === "posted" && !isLive(hit)) await backToPlanned(hit, fixCtx);
+      // Re-import only changes unfinished planning. Reviewed, active and live
+      // work must be edited through its stage panel, never overwritten by a sheet.
+      if (!["planned", "client"].includes(hit.status)) { skipped.push({ id: hit.id, theme: hit.theme, reason: "Work has started; use the task panel to preserve artwork, review and publishing results." }); continue; }
+      try {
+        const { item, before } = await require("../utils/socialUpdate").updateRecord({ ...req, params: { id: hit.id }, body: { ...patch, _importPlanningOnly: true, _expectedUpdatedAt: hit.updatedAt } });
+        await recordEvents([eventOf(item, { from: before.status, fromAssigneeId: before.assigneeId, byUserId: req.user?.id || null })]);
+      } catch (error) {
+        if (![400, 403, 409].includes(error.status)) throw error;
+        skipped.push({ id: hit.id, theme: hit.theme, reason: error.message }); continue;
+      }
       updated++;
       updatedBy[client] = (updatedBy[client] || 0) + 1;
     }
@@ -411,7 +422,7 @@ async function importRows(rows) {
   await recordEvents(made.filter((p) => p.id).map((p) => eventOf(p)));
   const createdBy = {};
   for (const r of toCreate) createdBy[r.client] = (createdBy[r.client] || 0) + 1;
-  return { created: toCreate.length, updated, batch, createdBy, updatedBy };
+  return { created: toCreate.length, updated, batch, createdBy, updatedBy, skipped };
 }
 
 /* Admin: uploads (batches) with their brand, size and date range. */
@@ -427,7 +438,7 @@ const listUploads = asyncHandler(async (_req, res) => {
 
 /* Admin: delete one upload's posts. */
 const deleteUpload = asyncHandler(async (req, res) => {
-  const n = await SocialPost.destroy({ where: { importBatch: req.params.batch } });
+  const n = await require("../utils/socialDelete").deletePosts({ importBatch: req.params.batch }, req.socialScope);
   res.json({ deleted: n });
 });
 
@@ -435,7 +446,7 @@ const deleteUpload = asyncHandler(async (req, res) => {
 const deleteBrandPosts = asyncHandler(async (req, res) => {
   const client = String(req.body?.client || "");
   if (!client) return res.status(400).json({ message: "Choose a brand." });
-  const n = await SocialPost.destroy({ where: { client } });
+  const n = await require("../utils/socialDelete").deletePosts({ client }, req.socialScope);
   res.json({ deleted: n });
 });
 

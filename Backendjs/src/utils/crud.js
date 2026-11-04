@@ -20,6 +20,7 @@ function crudController(Model, options = {}) {
     searchable = [],
     onCreate = null,   // async (item, req) => {}  — side effects (e.g. notifications)
     onUpdate = null,   // async (item, req, before) => {}
+    removeRecord = null,
     updateRecord = null, // optional atomic write: (req) => { item, before }
     load = null,       // (req) => Promise<item> — reuse a row an earlier middleware already loaded
     publicCache = false, // serve signed-out reads from the shared public cache (marketing site)
@@ -165,7 +166,8 @@ function crudController(Model, options = {}) {
     remove: asyncHandler(async (req, res) => {
       const item = await Model.findByPk(req.params.id);
       if (!item) return res.status(404).json({ message: `${Model.name} not found.` });
-      await item.destroy();
+      if (removeRecord) await removeRecord(req);
+      else await item.destroy();
       clearPub();
       if (entity) audit.record(req, { action: "delete", entity, before: item, after: null });
       if (onRemove) { try { await onRemove(item, req); } catch (e) { console.warn("onRemove hook:", e.message); } }
