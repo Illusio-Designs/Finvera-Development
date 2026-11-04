@@ -1399,11 +1399,11 @@ export default function SocialCalendar() {
               {j.error && j.status !== "published" && <p className={"cal-puberr" + (j.status === "scheduled" ? " soft" : "")}>{j.status === "scheduled" ? `Will try again: ${j.error}` : j.error}</p>}
               <div className="cal-row">
                 {j.url && <a className="cal-btn sm" href={j.url} target="_blank" rel="noopener noreferrer">View post ↗</a>}
-                {j.status === "failed" && p.status !== "posted" && canEdit(p) && !js.some((job) => ["publishing", "published", "check"].includes(job.status)) && <button type="button" className="cal-btn sm" onClick={async () => {
+                {j.status === "failed" && p.status !== "posted" && canEdit(p) && !js.some((job) => job.status === "publishing" || job.status === "check" || (job.status === "published" && job.platform !== "facebook")) && <button type="button" className="cal-btn sm" onClick={async () => {
                   const full = p._full ? p : await fetchFull(p.id);
                   if (!full) return;
                   dirty.current = new Set(); setEditing({ ...full }); setViewId(null);
-                }}>Edit tags &amp; content</button>}
+                }}>{js.some((job) => job.status === "published") ? "Correct Instagram tags" : "Edit tags & content"}</button>}
                 {(["failed", "missed"].includes(j.status) || (j.status === "check" && !limited)) && <button type="button" className="cal-btn sm" onClick={() => retryJob(j)}>{j.status === "check" ? "Confirm absent & retry" : j.status === "missed" ? "Post now" : "Retry"}</button>}
                 {["failed", "check", "missed"].includes(j.status) && <button type="button" className="cal-btn sm" onClick={() => markJobPosted(j)}>I posted it myself</button>}
               </div>

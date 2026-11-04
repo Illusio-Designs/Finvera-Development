@@ -31,3 +31,12 @@ test("hash is stable for database JSON serialization", () => {
 test("Need requires a description of missing client input", () => assert.throws(() => prepareUpdate({ ...post, status: "planned" }, { status: "client" }, reviewer), { status: 400 }));
 test("artwork edits cannot store executable URLs", () => assert.throws(() => prepareUpdate(post, { media: [{ url: "javascript:alert(1)", type: "image" }] }, reviewer), { status: 400 }));
 test("profile tagging rejects full names rather than guessing handles", () => assert.throws(() => prepareUpdate(post, { tags: "John Smith" }, reviewer), { status: 400 }));
+
+test("Facebook live permits Instagram-only tag corrections and requires review", () => {
+  const jobs = [{ platform: "facebook", status: "published" }, { platform: "instagram", status: "failed", checkpoint: {} }];
+  assert.equal(prepareUpdate(post, { tags: "@creator" }, reviewer, jobs).status, "approval");
+  assert.equal(prepareUpdate(post, { media: [{ ...post.media[0], userTags: [{ username: "creator", x: 0.5, y: 0.5 }] }] }, reviewer, jobs).status, "approval");
+  assert.throws(() => prepareUpdate(post, { tags: "creator", caption: "Changed" }, reviewer, jobs), { status: 409 });
+  assert.throws(() => prepareUpdate(post, { tags: "creator" }, reviewer, [...jobs.slice(0, 1), { platform: "instagram", status: "failed", checkpoint: { publishCalled: true } }]), { status: 409 });
+  assert.throws(() => prepareUpdate(post, { tags: "creator" }, reviewer, [{ platform: "instagram", status: "published" }]), { status: 409 });
+});
