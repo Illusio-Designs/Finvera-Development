@@ -1,5 +1,6 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { GooeyToaster, gooeyToast } from "goey-toast";
 import "goey-toast/styles.css";
 import type { ToastDetail } from "@/lib/toast";
@@ -8,7 +9,9 @@ import { playSound } from "@/lib/sound";
 /* Dashboard toaster: shows every toast() as a gooey toast, with a sound.
    (The public site keeps the plain <Toaster/>.) */
 export default function GooeyNotifier() {
+  const [mounted, setMounted] = useState(false);
   useEffect(() => {
+    setMounted(true);
     const onToast = (e: Event) => {
       const d = (e as CustomEvent<ToastDetail>).detail;
       const show = d.type === "err" ? gooeyToast.error : d.type === "warn" ? gooeyToast.warning : d.type === "info" ? gooeyToast.info : gooeyToast.success;
@@ -23,5 +26,11 @@ export default function GooeyNotifier() {
     return () => window.removeEventListener("fv-toast", onToast);
   }, []);
 
-  return <GooeyToaster position="bottom-right" preset="smooth" closeButton="top-right" showProgress visibleToasts={4} />;
+  if (!mounted) return null;
+  // Escape dashboard stacking contexts so drawer overlays cannot cover errors.
+  return createPortal(
+    <div data-dashboard-notifications style={{ position: "fixed", inset: 0, zIndex: 10000, pointerEvents: "none" }}>
+      <GooeyToaster position="bottom-right" preset="smooth" closeButton="top-right" showProgress visibleToasts={4} />
+    </div>, document.body,
+  );
 }
