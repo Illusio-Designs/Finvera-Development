@@ -9,6 +9,12 @@ import { changeLines, prettySummary, whenOf, relative, initials, avatarColor } f
 
 const VERB: Record<string, string> = { create: "Created", update: "Updated", delete: "Deleted", other: "" };
 
+function mediaLinks(value: unknown): { url: string; name?: string }[] {
+  if (typeof value === "string") { try { value = JSON.parse(value); } catch { return []; } }
+  if (!Array.isArray(value)) return [];
+  return value.filter((m) => m && typeof m.url === "string" && /^https?:\/\//i.test(m.url));
+}
+
 export default function HistoryList({ entity, id, open: startOpen = false, refreshKey = 0, title = "History" }: {
   entity: string; id: string | number | null | undefined; open?: boolean; refreshKey?: number | string; title?: string;
 }) {
@@ -57,6 +63,13 @@ export default function HistoryList({ entity, id, open: startOpen = false, refre
                           <b>{r.userName || "Someone"}</b> <span>{head}{r.action !== "other" && r.summary ? ` · ${r.summary}` : ""}</span>
                         </div>
                         <time dateTime={r.createdAt} title={whenOf(r.createdAt)}>{relative(r.createdAt)} · {whenOf(r.createdAt)}</time>
+                        {entity === "social-post" && r.changes?.media && <details>
+                          <summary>Artwork versions</summary>
+                          {([0, 1] as const).map((index) => <div key={index}>
+                            <small>{index === 0 ? "Previous artwork" : "Updated artwork"}</small>
+                            <ul>{mediaLinks(r.changes!.media[index]).map((media, i) => <li key={media.url + i}><a href={media.url} target="_blank" rel="noopener noreferrer">{media.name || `Open file ${i + 1}`} ↗</a></li>)}</ul>
+                          </div>)}
+                        </details>}
                         {lines.length > 0 && r.action !== "delete" && (
                           <ul className="act-changes">
                             {lines.map((l) => (

@@ -8,6 +8,9 @@
    columns whose allowed values grew (e.g. the `social` user role). */
 
 const WANTED = [
+  { table: "social_posts", column: "clientRequest", def: "TEXT NULL" },
+  { table: "social_posts", column: "clientFollowUpDate", def: "DATE NULL" },
+  { table: "social_posts", column: "clientContactOwnerId", def: "INTEGER NULL" },
   { table: "tasks", column: "startDate", def: "DATE NULL" },
   { table: "tasks", column: "renewalDate", def: "DATE NULL" },
   { table: "tasks", column: "client", def: "VARCHAR(160) NULL" }, // project board: client tag + filter

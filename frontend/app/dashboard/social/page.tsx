@@ -18,6 +18,8 @@ type LogEntry = { id: string; userId?: number | null; minutes: number; note?: st
 type Post = {
   id: number; client: string; status: Stage;
   postDate?: string | null; postTime?: string | null; dueDate?: string | null;
+  clientRequest?: string | null; clientFollowUpDate?: string | null; clientContactOwnerId?: number | null;
+  updatedAt?: string;
   assigneeId?: number | null; estimateHours?: number | null;
   timeLog?: LogEntry[]; timerStart?: string | null; timerBy?: number | null;
   festive?: string; theme: string; topic?: string; format?: string; requirements?: string; reference?: string;
@@ -309,6 +311,7 @@ export default function SocialCalendar() {
   const [showStarts, setShowStarts] = useState(true);
   const [editing, setEditing] = useState<Partial<Post> | null>(null);
   const [uploadId, setUploadId] = useState<number | null>(null);
+  const [clientNeed, setClientNeed] = useState<{ post: Post; request: string; date: string; owner: string; busy: boolean } | null>(null);
   const [viewId, setViewId] = useState<number | null>(null); // read-only details card
   type TeamUser = { id: number; name: string; roles: string[]; socialClients: string[]; active: boolean };
   const [team, setTeam] = useState<TeamUser[]>([]);           // admin only: who holds which role / brands
@@ -587,11 +590,12 @@ export default function SocialCalendar() {
     catch (e: any) { toast("Couldn't disconnect", "err", { description: e.message }); }
   }
   async function retryJob(j: PubJob) {
-    try { await api.retryJob(j.id); toast(`Retrying ${PLATFORM_NAME[j.platform]}`, "info", { description: j.theme }); setTimeout(() => { loadPublishing(); refreshPost(j.postId); }, 4000); }
+    if (j.status === "check" && !(await dialog.confirm({ title: "Confirm this post is not live", message: `Open ${PLATFORM_NAME[j.platform]} and inspect the brand’s posts first. Retrying a post that is already live can create a duplicate. Confirm only if you checked and it is absent.`, confirmText: "I checked — it is not live" }))) return;
+    try { await api.retryJob(j.id, j.status === "check"); toast(`Retrying ${PLATFORM_NAME[j.platform]}`, "info", { description: j.theme }); setTimeout(() => { loadPublishing(); refreshPost(j.postId); }, 4000); }
     catch (e: any) { toast("Couldn't retry", "err", { description: e.message }); }
   }
   async function markJobPosted(j: PubJob) {
-    const url = await dialog.prompt({ title: `Posted on ${PLATFORM_NAME[j.platform]}?`, message: "Paste the post's link (optional). It then counts as published.", placeholder: "https://…", confirmText: "Mark as posted" });
+    const url = await dialog.prompt({ title: `Posted on ${PLATFORM_NAME[j.platform]}?`, message: "Paste the live post link from this platform. It is required to confirm publication.", placeholder: "https://…", confirmText: "Mark as posted" });
     if (url === null) return;
     try { await api.markJobPosted(j.id, url.trim()); toast("Marked as posted", "ok", { description: j.theme }); loadPublishing(); refreshPost(j.postId); window.dispatchEvent(new Event("fv-badges")); }
     catch (e: any) { toast("Couldn't update", "err", { description: e.message }); }
@@ -641,6 +645,7 @@ export default function SocialCalendar() {
   async function moveTo(id: number, status: Stage) {
     const p = posts.find((x) => x.id === id);
     if (!p || p.status === status) return;
+    if (status === "client") { await needFromClient(p); return; }
     if (!canEdit(p)) return notYours(p);
     if (status !== "posted") {
       const step = status === "production" ? makerFor(p.format) : null;
@@ -733,7 +738,7 @@ export default function SocialCalendar() {
         }));
       }
       const who = users.find((u) => u.id === chosen);
-      const head = kind === "approve" ? "Approved — scheduled" : kind === "back" ? "Sent back for changes" : kind === "move" ? `Moved to ${STAGES.find((x) => x.id === patch.status)?.title || "the next stage"}` : `Sent to ${ROLE_META[role].label}`;
+      const head = kind === "approve" ? "Approved — check publishing status below" : kind === "back" ? "Sent back for changes" : kind === "move" ? `Moved to ${STAGES.find((x) => x.id === patch.status)?.title || "the next stage"}` : `Sent to ${ROLE_META[role].label}`;
       toast(head, "ok", { description: who ? `“${p.theme}” is now with ${who.name}.` : `“${p.theme}” waits until someone is picked.` });
       return true;
     } catch (e: any) { toast("Couldn't hand it over", "err", { description: e.message }); return false; }
@@ -764,6 +769,12 @@ export default function SocialCalendar() {
 
   /* Done: goes straight to the person picked at upload; asks only when nobody was picked. */
   async function advance(p: Post): Promise<boolean> {
+    if (p.status === "ready") {
+      const links = await dialog.prompt({ title: "Confirm live post links", message: "Paste the Instagram/Facebook post links, separated by spaces. This confirms manual publication; it does not publish anything.", placeholder: "https://www.instagram.com/p/…", confirmText: "Confirm posted" });
+      if (!links?.trim()) return false;
+      try { const saved = await api.update("social-posts", p.id, { status: "posted", channels: links.trim(), _manualPosted: true }); applySaved(saved); loadPublishing(); return true; }
+      catch (e: any) { toast("Couldn't confirm publication", "err", { description: e.message }); return false; }
+    }
     const hop = nextHop(p);
     if (!hop) { await moveTo(p.id, "posted"); return true; }
     // The maker must upload the finished work before handing it on.
@@ -778,9 +789,20 @@ export default function SocialCalendar() {
     askHandoff(p, hop.role, hop.patch, kind);
     return true;
   }
-  function needFromClient(p: Post) {
-    const maker = makerFor(p.format);
-    return applyHandoff(p, maker, { status: "client" }, "move", p.assigneeId ?? p.team?.[maker] ?? null);
+  async function needFromClient(p: Post) {
+    const full = p._full ? p : await fetchFull(p.id);
+    if (!full) { toast("Couldn't load the client request", "err"); return false; }
+    setViewId(null);
+    setClientNeed({ post: full, request: full.clientRequest || "", date: full.clientFollowUpDate || addDays(todayIso(), 1), owner: String(full.clientContactOwnerId || full.assigneeId || ""), busy: false });
+    return true;
+  }
+  async function saveClientNeed() {
+    if (!clientNeed || !clientNeed.request.trim() || !clientNeed.date || !clientNeed.owner) return;
+    const need = clientNeed;
+    setClientNeed({ ...need, busy: true });
+    const maker = makerFor(need.post.format);
+    const ok = await applyHandoff(need.post, maker, { status: "client", clientRequest: need.request.trim(), clientFollowUpDate: need.date, clientContactOwnerId: Number(need.owner) }, "move", need.post.assigneeId ?? need.post.team?.[maker] ?? null);
+    if (ok) setClientNeed(null); else setClientNeed({ ...need, busy: false });
   }
   const doneLabel = (p: Post) => {
     const hop = nextHop(p);
@@ -802,8 +824,7 @@ export default function SocialCalendar() {
       if (partial && HEAVY.includes(k) && !dirty.current.has(k)) continue;
       body[k] = editing[k] === "" ? null : editing[k] ?? null;
     }
-    // A real post link on a post whose date has come means it's published.
-    if (hasLiveLink(editing) && editing.postDate && String(editing.postDate).slice(0, 10) <= todayIso()) body.status = "posted";
+    if (editing.updatedAt) body._expectedUpdatedAt = editing.updatedAt;
     try {
       const saved = editing.id ? await api.update("social-posts", editing.id, body) : await api.create("social-posts", { ...body, timeLog: [] });
       let reload = false;
@@ -814,7 +835,7 @@ export default function SocialCalendar() {
       if (editing.id) setViewId(editing.id);
       // The response is the saved row (with server-set assignee / dates) — patch it in instead of reloading everything.
       if (reload || !applySaved(saved)) load();
-      setEditing(null); toast(editing.id ? "Post updated" : "Post added", "ok", { description: `“${editing.theme}” · ${editing.client}` }); loadPublishing(); window.dispatchEvent(new Event("fv-badges"));
+      setEditing(null); toast(saved.status === "approval" && editing.status === "ready" ? "Saved — publishing paused for review" : editing.id ? "Post updated" : "Post added", "ok", { description: `“${editing.theme}” · ${editing.client}` }); loadPublishing(); window.dispatchEvent(new Event("fv-badges"));
     } catch (err: any) { toast("Couldn't save the post", "err", { description: err.message || "Your changes are still in the form — try again." }); }
   }
   async function deletePost() {
@@ -974,6 +995,7 @@ export default function SocialCalendar() {
         onClick={() => setViewId(p.id)} aria-label={`${p.theme}, ${p.client}, ${dueInfo(p)?.text || ""}`}>
         <span className="fvc-tags"><span>#{p.client.replace(/\s+/g, "")}</span>{p.format && <span>#{p.format.replace(/\s+/g, "")}</span>}</span>
         <span className="fvc-title">{p.theme || "Untitled post"}</span>
+        {p.status === "client" && p.clientFollowUpDate && <span className="fvc-note">Follow up {fmtShort(p.clientFollowUpDate)}{p.clientFollowUpDate < todayIso() ? " · overdue" : ""}</span>}
         {flag ? <span className="fvc-flag">⚠ {flag}</span> : (p.festive || p.topic) ? <span className="fvc-note">{p.festive || p.topic}</span> : null}
         {(p.status === "production" || p.status === "approval") && first && (
           <span className="fvc-shot">
@@ -1196,8 +1218,8 @@ export default function SocialCalendar() {
               )}
             </div>
             <span className="adm-hint">{p.status === "posted"
-              ? "Live now — the uploaded files were removed from our server to save space."
-              : "Upload the final design or video here. It's what gets posted, and it's deleted from our server once the post is live."}</span>
+              ? "Live now — artwork is retained with this post’s history."
+              : "Upload the final design or video here. This artwork stays with the post after publishing."}</span>
           </div>
     );
   }
@@ -1286,10 +1308,11 @@ export default function SocialCalendar() {
             {linkChips(p.driveLink)}{linkChips(p.reference)}{linkChips(p.channels)}
           </div>)}
           {section("Client requirements", text(p.requirements))}
+          {section("Need from client", p.clientRequest && <><p className="cal-pre">{p.clientRequest}</p><p>Follow up: {fmtDay(p.clientFollowUpDate)} · {userById(p.clientContactOwnerId)?.name || "Unassigned"}</p>{p.status !== "posted" && <button type="button" className="cal-btn" onClick={() => needFromClient(p)}>Edit client request</button>}</>)}
           {section("People to tag", text(p.tags))}
           {section("Keywords", text(p.keywords))}
           {section("Remarks", text(p.remarks))}
-          <HistoryList entity="social-post" id={p.id} refreshKey={`${p.status}|${p.assigneeId ?? ""}`} />
+          <HistoryList entity="social-post" id={p.id} refreshKey={`${p.updatedAt || ""}|${p.status}|${p.assigneeId ?? ""}`} />
 
 
           {canEdit(p) ? (
@@ -1347,7 +1370,7 @@ export default function SocialCalendar() {
               {j.error && j.status !== "published" && <p className={"cal-puberr" + (j.status === "scheduled" ? " soft" : "")}>{j.status === "scheduled" ? `Will try again: ${j.error}` : j.error}</p>}
               <div className="cal-row">
                 {j.url && <a className="cal-btn sm" href={j.url} target="_blank" rel="noopener noreferrer">View post ↗</a>}
-                {["failed", "check", "missed"].includes(j.status) && <button type="button" className="cal-btn sm" onClick={() => retryJob(j)}>{j.status === "missed" ? "Post now" : "Retry"}</button>}
+                {(["failed", "missed"].includes(j.status) || (j.status === "check" && !limited)) && <button type="button" className="cal-btn sm" onClick={() => retryJob(j)}>{j.status === "check" ? "Confirm absent & retry" : j.status === "missed" ? "Post now" : "Retry"}</button>}
                 {["failed", "check", "missed"].includes(j.status) && <button type="button" className="cal-btn sm" onClick={() => markJobPosted(j)}>I posted it myself</button>}
               </div>
             </div>
@@ -1542,6 +1565,18 @@ export default function SocialCalendar() {
           : "No posts yet. Import a brand's media calendar sheet (Excel or CSV). A new brand is added automatically from the upload."}</div>
       ) : activeView === "mine" ? renderMine() : activeView === "calendar" ? renderCalendar() : renderBoard()}
 
+      {clientNeed && (
+        <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget && !clientNeed.busy) setClientNeed(null); }}>
+          <div className="adm-drawer kb-drawer cal-view" role="dialog" aria-modal="true" aria-label="Need from client">
+            <div className="cal-vtop"><h2>Need from client</h2><button type="button" className="cal-x" disabled={clientNeed.busy} onClick={() => setClientNeed(null)} aria-label="Close">×</button></div>
+            <p>{clientNeed.post.theme} · {clientNeed.post.client}</p>
+            <div className="adm-field"><label htmlFor="client-request">What is missing?</label><textarea id="client-request" disabled={clientNeed.busy} value={clientNeed.request} onChange={(e) => setClientNeed({ ...clientNeed, request: e.target.value })} placeholder="Logo, product images, approved offer, access…" /></div>
+            <div className="adm-field"><label htmlFor="client-follow-up">Follow-up date</label><input id="client-follow-up" type="date" disabled={clientNeed.busy} value={clientNeed.date} onChange={(e) => setClientNeed({ ...clientNeed, date: e.target.value })} /></div>
+            <div className="adm-field"><label>Who follows up?</label><Select disabled={clientNeed.busy} ariaLabel="Client follow-up owner" value={clientNeed.owner} onChange={(owner) => setClientNeed({ ...clientNeed, owner })} options={[{ value: "", label: "Choose person" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]} /></div>
+            <button type="button" className="cal-primary" disabled={clientNeed.busy || !clientNeed.request.trim() || !clientNeed.date || !clientNeed.owner} onClick={saveClientNeed}>{clientNeed.busy ? "Saving…" : "Save client request"}</button>
+          </div>
+        </div>
+      )}
       {bulkMove && !limited && (
         <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget && !bulkMove.busy) setBulkMove(null); }}>
           <div className="adm-drawer kb-drawer cal-view" role="dialog" aria-modal="true" aria-label="Reassign pending work">
@@ -1657,7 +1692,7 @@ export default function SocialCalendar() {
                 </div>
               ))}
             </div>
-            <p className="adm-hint" style={{ margin: 0 }}>Graphic designer makes posts and carousels, Video editor makes reels and videos. Each uploads the finished work and clicks Done → the Social media manager approves it and it's scheduled; once it's live it moves to Posted and the files are removed from our server. People picked get access to {importTeam.name}.</p>
+            <p className="adm-hint" style={{ margin: 0 }}>Graphic designer makes posts and carousels, Video editor makes reels and videos. Each uploads the finished work and clicks Done → the Social media manager approves it and it's scheduled; once it's live it moves to Posted and the artwork stays in its history. People picked get access to {importTeam.name}.</p>
             <div className="cal-pick-f">
               <button type="button" className="cal-btn" onClick={() => setImportTeam(null)}>Cancel</button>
               <button type="button" className="cal-primary" disabled={importTeam.busy} onClick={finishImport}>{importTeam.busy ? "Importing…" : `Import ${importTeam.parsed.length} posts`}</button>

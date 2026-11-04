@@ -165,9 +165,16 @@ const updateProfile = asyncHandler(async (req, res) => {
   } catch (e) {
     const perm = [200, 10, 3].includes(Number(e.meta?.code)) || /permission/i.test(e.message);
     res.status(perm ? 403 : 502).json({ message: perm
-      ? "Facebook needs one more permission to change Page details: add “pages_manage_metadata” to the Meta app, set META_EXTRA_SCOPES=pages_manage_metadata on the server, then reconnect this brand."
+      ? "Meta denied this Page update. Check Readiness & actions for granted permissions and verify the current endpoint and field requirements in the Meta dashboard; reconnect after changing permissions."
       : e.message });
   }
 });
 
-module.exports = { overview, pause, profile, updateProfile, refreshAllStudio };
+const capabilities = asyncHandler(async (req, res) => {
+  const acc = await SocialAccount.findOne({ where: { client: req.params.client } });
+  if (!acc || (req.socialScope && !req.socialScope.has(acc.client))) return res.status(404).json({ message: "This brand isn't connected." });
+  const platform = req.query.platform === "instagram" ? "instagram" : "facebook";
+  res.json(await require("../utils/metaCapabilities").checkCapabilities(acc, platform));
+});
+
+module.exports = { overview, pause, profile, updateProfile, capabilities, refreshAllStudio };

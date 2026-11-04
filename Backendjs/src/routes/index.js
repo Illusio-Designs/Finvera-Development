@@ -218,11 +218,12 @@ router.use("/social-clients", socialClientRouter);
 const socialAssigned = (p) => ({ type: "assigned", title: p.status === "approval" ? `Approval needed: ${p.theme}` : `Social post assigned to you: ${p.theme}`, body: p.client, link: "/dashboard/social", meta: { socialPostId: p.id } });
 const socialPostCtrl = crudController(SocialPost, {
   entity: "social-post",
+  updateRecord: require("../utils/socialUpdate").updateRecord,
   order: [["postDate", "ASC"], ["postTime", "ASC"], ["position", "ASC"]],
   searchable: ["client", "theme", "topic", "caption", "festive"],
   load: social.postOf, // the guards already loaded it — don't read it a second/third time
   onCreate: async (p, req) => {
-    await social.grantBrand([p.assigneeId, ...Object.values(social.teamOf(p))], p.client);
+    await social.grantBrand([p.assigneeId, p.clientContactOwnerId, ...Object.values(social.teamOf(p))], p.client);
     await social.recordEvents([social.eventOf(p, { byUserId: req.user?.id })]);
     kpiCtrl.bumpKpiCache();
     await autoPublish.syncJobs(p);
@@ -233,8 +234,8 @@ const socialPostCtrl = crudController(SocialPost, {
   },
   onUpdate: async (p, req, before) => {
     // Brand access only changes when who works on it (or the brand) changes.
-    if (before.assigneeId !== p.assigneeId || before.client !== p.client || JSON.stringify(social.teamOf(before)) !== JSON.stringify(social.teamOf(p)))
-      await social.grantBrand([p.assigneeId, ...Object.values(social.teamOf(p))], p.client);
+    if (before.assigneeId !== p.assigneeId || before.clientContactOwnerId !== p.clientContactOwnerId || before.client !== p.client || JSON.stringify(social.teamOf(before)) !== JSON.stringify(social.teamOf(p)))
+      await social.grantBrand([p.assigneeId, p.clientContactOwnerId, ...Object.values(social.teamOf(p))], p.client);
     await autoPublish.syncJobs(p); // Ready → scheduled at go-live; date moves follow; leaving Ready cancels
     // Stage history: who had it before the move delivered that stage.
     // A step hand-off inside In production (designer → video editor) counts too.
@@ -271,7 +272,7 @@ socialPostRouter.post("/delete-brand", ...canSocial, social.requireAllBrands, kp
   audit.track("social-post", { action: "delete", idFrom: () => null, label: (_r, req) => req.body?.client, summary: (req, b) => `Deleted every post of ${req.body?.client} (${b?.deleted ?? 0})` }), social.deleteBrandPosts);
 socialPostRouter.post("/reassign-pending", ...canSocial, social.requireAllBrands, require("../controllers/socialReassign.controller").reassignPending);
 socialPostRouter.get("/:id", ...canSocial, social.guardPost, socialPostCtrl.getOne);
-socialPostRouter.post("/", ...canSocial, social.guardBody, social.deadlineDefaults, social.assignOnCreate, socialPostCtrl.create);
+socialPostRouter.post("/", ...canSocial, social.guardBody, social.deadlineDefaults, social.assignOnCreate, (req, res, next) => { if (req.body.status && req.body.status !== "planned") return res.status(400).json({ message: "New posts start in Planned and must go through review." }); next(); }, socialPostCtrl.create);
 // Bulk import (rows parsed from a client's media-calendar sheet).
 socialPostRouter.post("/bulk", ...canSocial, social.guardBody, kpiBump, async (req, res, next) => {
   try {
@@ -319,6 +320,7 @@ router.get("/social-studio", ...canSocial, studio.overview);
 router.get("/today", ...canSocial, require("../controllers/today.controller").today);
 router.post("/social-accounts/:client/pause", ...canSocial, social.requireAllBrands, studio.pause);
 router.get("/social-accounts/:client/profile", ...canSocial, studio.profile);
+router.get("/social-accounts/:client/capabilities", ...canSocial, studio.capabilities);
 router.put("/social-accounts/:client/profile", ...canSocial, social.requireAllBrands, studio.updateProfile);
 router.get("/social-connect/meta/status", ...canSocial, pub.status);
 router.get("/social-connect/meta/start", ...canSocial, social.requireAllBrands, pub.start);

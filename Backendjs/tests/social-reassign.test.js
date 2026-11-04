@@ -18,6 +18,7 @@ async function run(body, { changed = false } = {}) {
   rows.forEach((p) => { p.update = async (fields) => { writes++; Object.assign(p, fields); }; });
   const patch = (obj, key, value, originals) => { originals.push([obj, key, obj[key]]); obj[key] = value; };
   const originals = [];
+  patch(require("../src/utils/audit"), "record", () => {}, originals);
   patch(models.User, "findByPk", async () => target, originals);
   patch(models.SocialPost, "findAll", async ({ where }) => {
     assert.equal(where.assigneeId, 11);

@@ -113,6 +113,14 @@ export default function SocialStudio() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [checking, setChecking] = useState(false);
   const ddRef = useRef<HTMLDivElement | null>(null);
+  type Capability = { id: string; label: string; state: string; detail: string; url?: string };
+  type Readiness = { checkedAt: string; expiresAt: string | null; scopes: string[] | null; actions: Capability[] };
+  const [readiness, setReadiness] = useState<{ client: string; platform: Platform; data: Readiness | null; error: string | null } | null>(null);
+  async function checkReadiness(client: string, platform: Platform) {
+    setReadiness({ client, platform, data: null, error: null });
+    try { const data = await api.channelCapabilities(client, platform); setReadiness((r) => r?.client === client && r.platform === platform ? { ...r, data } : r); }
+    catch (e: any) { setReadiness((r) => r?.client === client && r.platform === platform ? { ...r, error: e.message } : r); }
+  }
   const [prof, setProf] = useState<{ client: string; platform: Platform; data: Profile | null; error: string | null; form: Record<string, string>; saving: boolean } | null>(null);
   async function openProfile(client: string, platform: Platform) {
     setProf({ client, platform, data: null, error: null, form: {}, saving: false });
@@ -443,7 +451,7 @@ export default function SocialStudio() {
                           <span className={"badge " + c.platform}><Icon i={c.platform === "instagram" ? InstagramIcon : Facebook01Icon} size={12} /></span>
                         </span>
                         <div><b>{c.handle}</b><small>{c.platform === "instagram" ? "Instagram Business" : "Facebook Page"}</small></div>
-                        <span className={"ss-st " + c.state}>{c.state === "live" ? "● Live" : c.state === "paused" ? "Paused" : "● Reconnect"}</span>
+                        <span className={"ss-st " + c.state}>{c.state === "live" ? "● Connected" : c.state === "paused" ? "Paused" : "● Reconnect"}</span>
                       </div>
                       <ConnHealth acc={c.acc} />
                       {c.state === "reconnect" && <p className="ss-hold">The Facebook login expired{c.scheduled.length ? `, so ${c.scheduled.length} scheduled post${c.scheduled.length === 1 ? " is" : "s are"} on hold` : ""}. {c.acc.lastError && <small>{c.acc.lastError}</small>}</p>}
@@ -467,10 +475,10 @@ export default function SocialStudio() {
                           {c.state === "reconnect"
                             ? <button type="button" className="ss-chip dark" onClick={() => connect(b)}><Icon i={Refresh01Icon} size={14} />Reconnect now</button>
                             : <button type="button" className={"ss-chip" + (c.state === "paused" ? " dark" : "")} onClick={() => togglePause(c)}><Icon i={c.state === "paused" ? PlayIcon : PauseIcon} size={14} />{c.state === "paused" ? "Resume" : "Pause"}</button>}
-                          <button type="button" className="ss-chip" onClick={() => openProfile(b, c.platform)}><Icon i={UserCircleIcon} size={14} />Profile</button>
+                          <button type="button" className="ss-chip" onClick={() => openProfile(b, c.platform)}><Icon i={UserCircleIcon} size={14} />Profile</button><button type="button" className="ss-chip" onClick={() => checkReadiness(b, c.platform)}>Readiness & actions</button>
                         </div>
                       )}
-                      {limited && c.state !== "reconnect" && <div className="ss-ch-f"><button type="button" className="ss-chip" onClick={() => openProfile(b, c.platform)}><Icon i={UserCircleIcon} size={14} />Profile</button></div>}
+                      {limited && c.state !== "reconnect" && <div className="ss-ch-f"><button type="button" className="ss-chip" onClick={() => openProfile(b, c.platform)}><Icon i={UserCircleIcon} size={14} />Profile</button><button type="button" className="ss-chip" onClick={() => checkReadiness(b, c.platform)}>Readiness & actions</button></div>}
                     </article>
                   ))}
                   {missing.map((p) => (
@@ -556,6 +564,29 @@ export default function SocialStudio() {
         </div>
       )}
 
+      {readiness && (
+        <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setReadiness(null); }}>
+          <aside className="adm-drawer ss-prof" role="dialog" aria-modal="true" aria-label="Meta readiness and actions">
+            <div className="ss-modal-h"><h3>{PNAME[readiness.platform]} readiness & actions</h3><button type="button" className="ss-btn" onClick={() => setReadiness(null)} aria-label="Close">×</button></div>
+            <p>{readiness.client}</p>
+            {!readiness.data && !readiness.error && <p role="status">Checking account access…</p>}
+            {readiness.error && <p className="ss-attn">{readiness.error}</p>}
+            {readiness.data && <>
+              <p className="ss-note">Checked {fmtWhen(readiness.data.checkedAt)}. This check reads account access; it does not edit a profile or publish a test post.</p>
+              {readiness.data.expiresAt && <p>Token expires {fmtWhen(readiness.data.expiresAt)}</p>}
+              {readiness.data.actions.map((action) => <div className="ss-prof-sec" key={action.id}>
+                <strong>{action.label}</strong><p><b>{action.state.replace(/_/g, " ")}</b> · {action.detail}</p>
+                {action.url && <a className="ss-chip" href={action.url} target="_blank" rel="noopener noreferrer">{action.id === "edit" ? "Edit on platform" : "Open profile"} ↗</a>}
+                {action.id === "view" && <button type="button" className="ss-chip" onClick={() => { openProfile(readiness.client, readiness.platform); setReadiness(null); }}>View profile details</button>}
+                {action.id === "edit" && readiness.platform === "facebook" && !limited && action.state === "permission_granted" && <button type="button" className="ss-chip" onClick={() => { openProfile(readiness.client, "facebook"); setReadiness(null); }}>Edit supported details</button>}
+              </div>)}
+              <details><summary>Granted scopes</summary><p className="ss-note">{readiness.data.scopes?.join(", ") || "Unknown — not verified"}</p></details>
+            </>}
+            <button type="button" className="ss-chip" disabled={!readiness.data && !readiness.error} onClick={() => checkReadiness(readiness.client, readiness.platform)}>Check again</button>
+          </aside>
+        </div>
+      )}
+
       {prof && (
         <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setProf(null); }}>
           <aside className="adm-drawer ss-prof" role="dialog" aria-modal="true" aria-label={`${prof.client} ${PNAME[prof.platform]} profile`}>
@@ -572,6 +603,7 @@ export default function SocialStudio() {
                     <span className={"ss-ava big" + (ig ? " ig" : "")} style={{ background: color(prof.client), backgroundImage: d.picture ? `url(${d.picture})` : undefined }}>{!d.picture && prof.client[0]}</span>
                   </div>
                   <div className="ss-prof-id">
+                    {d.link && <a className="ss-chip" href={d.link} target="_blank" rel="noopener noreferrer">Open profile ↗</a>}
                     <b>{ig ? d.name || `@${d.username}` : d.name}</b>
                     <small>{ig ? `@${d.username}` : d.category || "Facebook Page"}</small>
                   </div>
@@ -584,7 +616,7 @@ export default function SocialStudio() {
                     <>
                       <div className="ss-prof-sec"><span>Bio</span><p>{d.biography || "No bio yet."}</p></div>
                       {d.website && <div className="ss-prof-sec"><span>Website</span><a href={d.website} target="_blank" rel="noopener noreferrer">{d.website}</a></div>}
-                      <p className="ss-note">Instagram doesn't let other apps change the name, bio, website or profile picture. Edit them in the Instagram app; changes show here within an hour.</p>
+                      <p className="ss-note">Profile edits for Instagram are not implemented in Finvera. Use Instagram to change the name, bio, website or picture, then refresh this profile.</p>
                       <a className="ss-chip dark" href="https://www.instagram.com/accounts/edit/" target="_blank" rel="noopener noreferrer"><Icon i={PencilEdit02Icon} size={14} />Edit on Instagram</a>
                     </>
                   ) : canEdit ? (
