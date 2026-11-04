@@ -4,7 +4,7 @@ function imageTags(media) {
   const usernames = new Set();
   return media.userTags.map((tag) => {
     const username = String(tag?.username || "").trim().replace(/^@/, "");
-    if (!/^[a-zA-Z0-9_.]{1,30}$/.test(username) || username.startsWith(".") || username.endsWith(".") || username.includes("..")) throw new Error("Enter an exact Instagram username for each image tag.");
+    if (!/^[a-zA-Z0-9_.]{1,30}$/.test(username) || username.startsWith(".") || username.endsWith(".") || username.includes("..")) throw new Error(`Invalid Instagram tag ${JSON.stringify(username.slice(0, 80))}. Use an exact @username, not a display name, hashtag or email address. Edit Instagram profiles to tag or the image’s Tag profiles list, or remove the tag.`);
     if (!Number.isFinite(tag.x) || !Number.isFinite(tag.y) || tag.x < 0 || tag.x > 1 || tag.y < 0 || tag.y > 1) throw new Error("Choose a position inside the image for each Instagram tag.");
     if (usernames.has(username.toLowerCase())) throw new Error("Tag an Instagram username only once per image.");
     usernames.add(username.toLowerCase());
