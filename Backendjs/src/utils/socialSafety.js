@@ -50,7 +50,16 @@ function prepareUpdate(post, incoming, user, jobs = []) {
   if (data.tags != null) { try { require("./instagramTags").profileNames(data.tags); } catch (error) { fail(400, error.message); } }
   const changed = contentHash(post) !== contentHash({ ...post, ...data });
   if (jobs.some((j) => j.status === "publishing")) fail(409, "Publishing is in progress. Wait for the platform result before changing this post.");
-  if (changed && (post.status === "posted" || jobs.some((j) => ["published", "check"].includes(j.status)))) fail(409, "This post may already be live on a platform. Resolve its publishing result before creating a revised post.");
+  // Instagram tags are never sent to Facebook. They may be corrected after
+  // Facebook succeeds, provided Instagram has definitely not published.
+  const withoutInstagramTags = (value) => ({ ...value, tags: null, media: (asJSON(value.media) || []).map(({ userTags, ...item }) => item) });
+  const instagramJobs = jobs.filter((j) => j.platform === "instagram");
+  const safeTagCorrection = post.status !== "posted" && jobs.some((j) => j.platform === "facebook" && j.status === "published") &&
+    jobs.filter((j) => j.status === "published").every((j) => j.platform === "facebook") &&
+    !jobs.some((j) => j.status === "check" || asJSON(j.checkpoint)?.publishCalled && j.status !== "published") &&
+    instagramJobs.length > 0 && instagramJobs.every((j) => ["failed", "cancelled", "missed", "scheduled"].includes(j.status)) &&
+    contentHash(withoutInstagramTags(post)) === contentHash(withoutInstagramTags({ ...post, ...data }));
+  if (changed && (post.status === "posted" || jobs.some((j) => ["published", "check"].includes(j.status))) && !safeTagCorrection) fail(409, "This post may already be live on a platform. After Facebook publishes, only Instagram profile tags can be corrected here; other content changes require a revised post.");
   if (data.status === "ready" && post.status !== "ready") {
     if (post.status !== "approval" || !canApprove(post, user)) fail(403, "Only the assigned social reviewer or an admin can approve a post in Pending approval.");
     const reviewContentChanged = contentHash({ ...post, postDate: null, postTime: null }) !== contentHash({ ...post, ...data, postDate: null, postTime: null });
