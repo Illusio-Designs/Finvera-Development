@@ -98,7 +98,7 @@ export default function MonthlyReport({ onClose }: { onClose: () => void }) {
             <>
               {t && (
                 <div className="exp-cards">
-                  <div className="exp-card"><span>Posts delivered</span><b>{t.delivered}</b><Change now={t.delivered} prev={t.deliveredPrev} /></div>
+                  <div className="exp-card"><span>Completed assignments</span><b>{t.delivered}</b><Change now={t.delivered} prev={t.deliveredPrev} /></div>
                   <div className="exp-card"><span>On time</span><b>{t.onTime == null ? "—" : `${t.onTime}%`}</b><Change now={t.onTime} prev={t.onTimePrev} unit=" pts" /></div>
                   <div className="exp-card"><span>Hours logged</span><b>{t.hours ?? 0}</b><small>{t.estHours != null ? `Estimated ${t.estHours} h` : "No estimates"}</small></div>
                   <div className="exp-card"><span>Avg days per stage</span><b>{t.avgStageDays ?? "—"}</b><small>{t.overdue ? `${t.overdue} overdue now` : "Nothing overdue now"}</small></div>

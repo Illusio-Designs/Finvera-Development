@@ -174,11 +174,11 @@ const isVideoFormat = (format) => /reel|video/i.test(String(format || ""));
 const makerFor = (format) => (isVideoFormat(format) ? "video" : "graphic");
 function stageRole(status, format, step) {
   if (status === "ready" || status === "posted" || status === "approval") return "social";
-  if (status === "production") return step === "video" || step === "graphic" ? step : makerFor(format);
+  if (status === "production") return makerFor(format);
   return makerFor(format);
 }
 /* The step a post is on inside In production: the maker for its format. */
-const stepFor = (status, step, format) => (status === "production" ? (step === "video" || step === "graphic" ? step : makerFor(format)) : null);
+const stepFor = (status, step, format) => (status === "production" ? makerFor(format) : null);
 
 /* Least-loaded active user holding `role` who can see `client`, or null.
    `ctx` caches users / brand ids / open-post counts across a bulk import. */
@@ -264,13 +264,13 @@ const assignOnCreate = asyncHandler(async (req, _res, next) => {
    keeps it only when no other Social media person has the brand. */
 const assignOnStageChange = asyncHandler(async (req, _res, next) => {
   const b = req.body || {};
-  if (b.status === undefined && b.step === undefined) return next();
+  if (b.status === undefined && b.step === undefined && b.format === undefined) return next();
   const post = await postOf(req);
   if (!post) return next();
   const status = b.status !== undefined ? b.status : post.status;
-  // Entering In production starts at the design step; any other stage has no step.
+  // Production uses the maker for the selected format, including legacy steps.
   b.step = stepFor(status, b.step !== undefined ? b.step : (status === post.status ? post.step : null), b.format !== undefined ? b.format : post.format);
-  if (status === post.status && (b.step || null) === (post.step || null)) return next();
+  if (status === post.status && (b.step || null) === (post.step || null) && makerFor(b.format !== undefined ? b.format : post.format) === makerFor(post.format)) return next();
   if (b.assigneeId !== undefined && Number(b.assigneeId || 0) !== Number(post.assigneeId || 0)) return next();
   if (status === "posted") return next(); // whoever posted it keeps it
   // No automatic pick: the person the post's team has for the new step, else unassigned until someone is chosen.

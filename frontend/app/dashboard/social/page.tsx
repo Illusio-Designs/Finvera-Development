@@ -1,5 +1,6 @@
 "use client";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { chainFor, isVideoFormat, makerFor, roleFor, type SocialRole as Role } from "@/lib/socialWorkflow";
 import { api } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
 import { instagramSafeAll } from "@/lib/igImage";
@@ -23,7 +24,7 @@ type Post = {
   dataStatus?: string; poc?: string; caption?: string; driveLink?: string; tags?: string; keywords?: string;
   channels?: string; remarks?: string; position?: number;
   media?: Media[]; publishTo?: string[] | null; keywordHashtags?: boolean;
-  step?: string | null; // In production: "graphic" (design) then "video" (edit)
+  step?: string | null; // In production: the maker for this format
   team?: Partial<Record<string, number | null>> | null; // who does each step, picked by hand
   _full?: boolean; // client-only: the heavy fields (HEAVY) are loaded — the board loads light "card" posts
 };
@@ -60,15 +61,14 @@ type User = { id: number; name: string; avatar?: string | null; roles?: string[]
 type View = "board" | "schedule" | "calendar" | "mine";
 
 const STAGES: { id: Stage; title: string; owner: string; color: string; bg: string; fg: string }[] = [
-  { id: "planned", title: "Planned", owner: "Marketer", color: "#6b7590", bg: "#eef0f4", fg: "#4b5466" },
-  { id: "client", title: "Need from client", owner: "Marketer", color: "#d97706", bg: "#fdf0dc", fg: "#9a4b06" },
-  { id: "production", title: "In production", owner: "Graphic designer → Video editor", color: "#3e60ab", bg: "#e6ecf8", fg: "#2f55a4" },
-  { id: "approval", title: "Pending approval", owner: "Admin approves", color: "#0e7490", bg: "#e0f2f7", fg: "#0e5f74" },
+  { id: "planned", title: "Planned", owner: "Assigned maker", color: "#6b7590", bg: "#eef0f4", fg: "#4b5466" },
+  { id: "client", title: "Need from client", owner: "Assigned maker", color: "#d97706", bg: "#fdf0dc", fg: "#9a4b06" },
+  { id: "production", title: "In production", owner: "Designer or video editor", color: "#3e60ab", bg: "#e6ecf8", fg: "#2f55a4" },
+  { id: "approval", title: "Pending approval", owner: "Social media manager reviews", color: "#0e7490", bg: "#e0f2f7", fg: "#0e5f74" },
   { id: "ready", title: "Ready to post", owner: "Social media", color: "#7c5cff", bg: "#efeaff", fg: "#5b35c9" },
   { id: "posted", title: "Posted", owner: "Social media", color: "#16a34a", bg: "#e4f5ea", fg: "#15703a" },
 ];
 /* Who works on a post at each stage — same rule as the server. */
-type Role = "marketer" | "video" | "graphic" | "admin" | "social";
 const ROLE_META: Record<Role, { label: string; fg: string; bg: string; does: string }> = {
   marketer: { label: "Marketer", fg: "#9a4b06", bg: "#fdf0dc", does: "Plans & shoots" },
   video: { label: "Video editor", fg: "#b0185a", bg: "#fbe6ef", does: "Edits the video" },
@@ -81,20 +81,13 @@ const ROLE_META: Record<Role, { label: string; fg: string; bg: string; does: str
    work and clicks Done → the Social media manager approves it and it's
    scheduled. Same rule as the server. */
 const CHAIN: Role[] = ["graphic", "video", "social"];
-const isVideoFormat = (format?: string | null) => /reel|video/i.test(format || "");
-const makerFor = (format?: string | null): Role => (isVideoFormat(format) ? "video" : "graphic");
-const roleFor = (status: Stage, format?: string | null, step?: string | null): Role =>
-  (status === "ready" || status === "posted" || status === "approval") ? "social"
-    : status === "production" ? (step === "video" || step === "graphic" ? step : makerFor(format)) : makerFor(format);
 /* What "Done" does from here: the next person in the chain. */
 /* Where each person's step starts. */
 const STEP_AT: Record<Role, { status: Stage; step?: string }> = {
   marketer: { status: "planned" }, graphic: { status: "production", step: "graphic" }, video: { status: "production", step: "video" },
   admin: { status: "approval" }, social: { status: "ready" },
 };
-/* What "Done" does from here: the next step in the chain. Steps nobody was
-   picked for at upload (designer / video editor) are skipped — e.g. a post
-   with no video editor goes from the designer straight to approval. */
+/* The format-specific maker hands finished work to the social reviewer. */
 function nextHop(p: Pick<Post, "status" | "step" | "team" | "format">): { role: Role; patch: { status?: Stage; step?: string } } | null {
   if (p.status === "posted" || p.status === "ready") return null; // Ready to post → posts itself (or Mark as posted)
   // Planned / Need from client → the maker starts work.
@@ -315,6 +308,7 @@ export default function SocialCalendar() {
   const [calDay, setCalDay] = useState(todayIso());
   const [showStarts, setShowStarts] = useState(true);
   const [editing, setEditing] = useState<Partial<Post> | null>(null);
+  const [uploadId, setUploadId] = useState<number | null>(null);
   const [viewId, setViewId] = useState<number | null>(null); // read-only details card
   type TeamUser = { id: number; name: string; roles: string[]; socialClients: string[]; active: boolean };
   const [team, setTeam] = useState<TeamUser[]>([]);           // admin only: who holds which role / brands
@@ -425,14 +419,15 @@ export default function SocialCalendar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
   const viewedFull = viewId != null ? !!posts.find((x) => x.id === viewId)?._full : true;
+  const uploadFull = uploadId != null ? !!posts.find((p) => p.id === uploadId)?._full : true;
   const editingFull = editing?.id ? !!editing._full : true;
   useEffect(() => {
-    const id = editing?.id ?? viewId;
-    if (id == null || (editing?.id ? editingFull : viewedFull) || fullBusy.current.has(id)) return;
+    const id = editing?.id ?? uploadId ?? viewId;
+    if (id == null || (editing?.id ? editingFull : uploadId != null ? uploadFull : viewedFull) || fullBusy.current.has(id)) return;
     fullBusy.current.add(id);
     fetchFull(id).finally(() => fullBusy.current.delete(id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewId, editing?.id, viewedFull, editingFull]);
+  }, [viewId, uploadId, editing?.id, viewedFull, uploadFull, editingFull]);
   /* Saved post from a PUT/POST response (always the full row) → the board. */
   function applySaved(saved: Post | null | undefined) {
     if (!saved?.id) return false;
@@ -448,6 +443,24 @@ export default function SocialCalendar() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [viewId, editing]);
+  useEffect(() => {
+    if (uploadId == null) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const drawer = document.querySelector<HTMLElement>('[aria-label="Upload finished work"]');
+    const beforeOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    drawer?.querySelector<HTMLElement>("button")?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setUploadId(null);
+      if (e.key !== "Tab" || !drawer) return;
+      const nodes = Array.from(drawer.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), a[href]')).filter((n) => n.getClientRects().length);
+      const first = nodes[0], last = nodes[nodes.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+      if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => { document.body.style.overflow = beforeOverflow; document.removeEventListener("keydown", onKey); previous?.focus(); };
+  }, [uploadId]);
   useEffect(() => { try { localStorage.setItem("fv_social_view", view); localStorage.setItem("fv_social_client", client); } catch { /* ignore */ } }, [view, client]);
 
   const clientNames = useMemo(
@@ -615,7 +628,7 @@ export default function SocialCalendar() {
     if (!p || p.status === status) return;
     if (!canEdit(p)) return notYours(p);
     if (status !== "posted") {
-      const step = status === "production" ? "graphic" : null;
+      const step = status === "production" ? makerFor(p.format) : null;
       return askHandoff(p, roleFor(status, p.format, step), { status, ...(step ? { step } : {}) }, "move");
     }
     patchLocal(id, { status });
@@ -698,6 +711,12 @@ export default function SocialCalendar() {
       if (!applySaved(saved)) patchLocal(p.id, { ...(patch as Partial<Post>), team, assigneeId: saved?.assigneeId ?? chosen, step: saved?.step ?? null, ...(body.remarks ? { remarks: body.remarks as string } : {}) });
       window.dispatchEvent(new Event("fv-badges"));
       loadPublishing();
+      if (patch.status === "production" && (p.status === "planned" || p.status === "client")) {
+        setView("board");
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          document.querySelector('[aria-label="In production"]')?.scrollIntoView({ block: "nearest", inline: "center", behavior: "auto" });
+        }));
+      }
       const who = users.find((u) => u.id === chosen);
       const head = kind === "approve" ? "Approved — scheduled" : kind === "back" ? "Sent back for changes" : kind === "move" ? `Moved to ${STAGES.find((x) => x.id === patch.status)?.title || "the next stage"}` : `Sent to ${ROLE_META[role].label}`;
       toast(head, "ok", { description: who ? `“${p.theme}” is now with ${who.name}.` : `“${p.theme}” waits until someone is picked.` });
@@ -705,14 +724,17 @@ export default function SocialCalendar() {
     } catch (e: any) { toast("Couldn't hand it over", "err", { description: e.message }); return false; }
   }
   /* Finished work: upload the final design / video straight onto the post. */
+  const [reviewSending, setReviewSending] = useState(false);
   const [workBusy, setWorkBusy] = useState<number | null>(null);
   async function uploadWork(p: Post, files: FileList | null) {
     if (!files?.length) return;
     setWorkBusy(p.id);
     try {
-      const ig = await instagramSafeAll(Array.from(files).slice(0, 10));
+      const remaining = 10 - (p.media || []).length;
+      if (files.length > remaining) throw new Error(`You can add ${remaining} more file${remaining === 1 ? "" : "s"}. Remove an existing file or choose fewer files.`);
+      const ig = await instagramSafeAll(Array.from(files));
       const r = await api.uploadSocialMedia(ig.files);
-      const media = [...(p.media || []), ...r.items].slice(0, 10);
+      const media = [...(p.media || []), ...r.items];
       const saved = await api.update("social-posts", p.id, { media });
       if (!applySaved(saved)) patchLocal(p.id, { media });
       toast(`${r.items.length} file${r.items.length === 1 ? "" : "s"} added`, "ok", { description: `“${p.theme}” · finished work${ig.summary ? ` · ${ig.summary}` : ""}` });
@@ -726,22 +748,25 @@ export default function SocialCalendar() {
   }
 
   /* Done: goes straight to the person picked at upload; asks only when nobody was picked. */
-  function advance(p: Post) {
+  async function advance(p: Post): Promise<boolean> {
     const hop = nextHop(p);
-    if (!hop) return moveTo(p.id, "posted");
+    if (!hop) { await moveTo(p.id, "posted"); return true; }
     // The maker must upload the finished work before handing it on.
     if (p.status === "production" && !(p.media || []).length) {
-      return toast("Upload the finished work first", "warn", { description: isVideoFormat(p.format) ? "Add the edited video, then click Done." : "Add the final design (JPG), then click Done." });
+      toast("Upload the finished work first", "warn", { description: isVideoFormat(p.format) ? "Add the edited video, then click Done." : "Add the final design (JPG), then click Done." });
+      return false;
     }
     const kind = p.status === "approval" ? "approve" : "next";
     const picked = p.team?.[hop.role];
     // Overdue approval always asks when it should go live.
-    if (picked && users.some((u) => u.id === picked) && !(kind === "approve" && liveTimePassed(p))) { applyHandoff(p, hop.role, hop.patch, kind, picked); return; }
+    if (picked && users.some((u) => u.id === picked) && !(kind === "approve" && liveTimePassed(p))) { return applyHandoff(p, hop.role, hop.patch, kind, picked); }
     askHandoff(p, hop.role, hop.patch, kind);
+    return true;
   }
   const doneLabel = (p: Post) => {
     const hop = nextHop(p);
     if (!hop) return p.status === "ready" ? "Mark as posted" : "";
+    if (p.status === "planned" || p.status === "client") return "Start work";
     if (p.status === "approval") return canApprove(p) ? "Approve & schedule" : "";
     const picked = users.find((u) => u.id === p.team?.[hop.role]);
     const where = picked ? picked.name.split(" ")[0] : ROLE_META[hop.role].label;
@@ -890,8 +915,9 @@ export default function SocialCalendar() {
   /* The team picked for this post, in order, for the avatar row. */
   const teamRow = (p: Post) => {
     const cur = roleFor(p.status, p.format, p.step);
-    const ci = CHAIN.indexOf(cur);
-    const rows = CHAIN.map((r, i) => ({ r, i, id: (p.team?.[r] ?? (r === cur ? p.assigneeId : null)) as number | null | undefined })).filter((x) => x.id);
+    const chain = chainFor(p.format);
+    const ci = chain.indexOf(cur);
+    const rows = chain.map((r, i) => ({ r, i, id: (p.team?.[r] ?? (r === cur ? p.assigneeId : null)) as number | null | undefined })).filter((x) => x.id);
     if (!rows.length && p.assigneeId) rows.push({ r: cur, i: ci, id: p.assigneeId });
     return rows.map((x) => ({ ...x, u: userById(x.id ?? null), state: isDone(p) || x.i < ci ? "done" : x.i === ci ? "now" : "next" }));
   };
@@ -922,9 +948,10 @@ export default function SocialCalendar() {
     const first = media[0];
     const flag = p.dataStatus && !/^(planning|ok|done|ready|we have)$/i.test(p.dataStatus.trim()) ? p.dataStatus : "";
     return (
-      <button type="button" key={p.id} className={"fvc-card " + tintOf(p.status) + (canEdit(p) ? "" : " ro")} draggable={canEdit(p)}
+      <div role="button" tabIndex={0} key={p.id} className={"fvc-card " + tintOf(p.status) + (canEdit(p) ? "" : " ro")} draggable={canEdit(p)}
         onDragStart={(e) => { dragId.current = p.id; e.currentTarget.classList.add("dragging"); }}
         onDragEnd={(e) => e.currentTarget.classList.remove("dragging")}
+        onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setViewId(p.id); } }}
         onClick={() => setViewId(p.id)} aria-label={`${p.theme}, ${p.client}, ${dueInfo(p)?.text || ""}`}>
         <span className="fvc-tags"><span>#{p.client.replace(/\s+/g, "")}</span>{p.format && <span>#{p.format.replace(/\s+/g, "")}</span>}</span>
         <span className="fvc-title">{p.theme || "Untitled post"}</span>
@@ -955,7 +982,12 @@ export default function SocialCalendar() {
             {p.postDate && <span>📅 {p.postDate === todayIso() ? "Today" : fmtShort(p.postDate)}</span>}
           </span>
         </span>
-      </button>
+        {canEdit(p) && (p.status === "planned" || p.status === "client" || p.status === "production") && (
+          <span className="cal-task-actions" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+            <button type="button" className="cal-primary" draggable={false} onClick={() => p.status === "production" ? setUploadId(p.id) : advance(p)}>{p.status === "production" ? "Upload" : "Start work"}</button>
+          </span>
+        )}
+      </div>
     );
   }
 
@@ -1111,7 +1143,7 @@ export default function SocialCalendar() {
                       {p.postDate && progress(p)}
                     </div>
                     <div className="cal-task-actions">
-                      {doneLabel(p) && <button type="button" className="cal-primary" onClick={() => advance(p)}>{doneLabel(p)}</button>}
+                      {doneLabel(p) && <button type="button" className="cal-primary" onClick={() => p.status === "production" ? setUploadId(p.id) : advance(p)}>{p.status === "production" ? "Upload" : doneLabel(p)}</button>}
                     </div>
                   </article>
                 );
@@ -1119,6 +1151,48 @@ export default function SocialCalendar() {
             </div>
           </section>
         ))}
+      </div>
+    );
+  }
+
+  function renderWork(p: Post) {
+    return (
+          <div className="cal-vsec cal-work">
+            <h4>Finished work</h4>
+            <div className="cal-media">
+              {(p.media || []).map((m, i) => (
+                <a key={m.url + i} className="cal-media-item" href={m.url} target="_blank" rel="noopener noreferrer" title={m.name || "Open"}>
+                  {isVideoMedia(m) ? <video src={m.url} muted playsInline preload="metadata" /> : <img src={m.thumbUrl || m.url} alt={m.name || `File ${i + 1}`} />}
+                  {canEdit(p) && p.status !== "posted" && <button type="button" disabled={workBusy === p.id || !p._full} aria-label="Remove" onClick={(e) => { e.preventDefault(); removeWork(p, i); }}>×</button>}
+                </a>
+              ))}
+              {canEdit(p) && p.status !== "posted" && (p.media || []).length < 10 && (
+                <label className={"cal-media-add" + (workBusy === p.id ? " busy" : "")}>
+                  <input type="file" multiple accept="image/*,video/mp4,video/quicktime" disabled={workBusy === p.id || !p._full}
+                    onChange={(e) => { uploadWork(p, e.target.files); e.target.value = ""; }} />
+                  {workBusy === p.id ? "Uploading…" : "Upload"}
+                </label>
+              )}
+            </div>
+            <span className="adm-hint">{p.status === "posted"
+              ? "Live now — the uploaded files were removed from our server to save space."
+              : "Upload the final design or video here. It's what gets posted, and it's deleted from our server once the post is live."}</span>
+          </div>
+    );
+  }
+
+  function renderUpload(p: Post) {
+    return (
+      <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget && workBusy !== p.id) setUploadId(null); }}>
+        <div className="adm-drawer kb-drawer cal-view" role="dialog" aria-modal="true" aria-label="Upload finished work">
+          <div className="cal-vtop"><h2>Upload</h2><button type="button" className="cal-x" disabled={workBusy === p.id} onClick={() => setUploadId(null)} aria-label="Close">×</button></div>
+          <p className="cal-lead">{p.theme} · {p.client}</p>
+          {!p._full && <p role="status">Loading uploaded files…</p>}
+          {renderWork(p)}
+          <div className="adm-drawer-actions cal-actions">
+            <button type="button" className="cal-primary wide" disabled={reviewSending || workBusy === p.id || !p._full || !(p.media || []).length} onClick={async () => { setReviewSending(true); try { if (await advance(p)) setUploadId(null); } finally { setReviewSending(false); } }}>{reviewSending ? "Sending…" : "Send for review"}</button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -1136,7 +1210,7 @@ export default function SocialCalendar() {
       catch { toast("Couldn't copy the caption", "err", { description: "Select the caption text and copy it by hand." }); }
     };
     // Hand-off track: the roles this format passes through, and where it is now.
-    const chain: Role[] = CHAIN;
+    const chain = chainFor(p.format);
     const cur = chain.indexOf(roleFor(p.status, p.format, p.step));
     const assignee = userById(p.assigneeId);
     const nextLabel = doneLabel(p);
@@ -1179,27 +1253,7 @@ export default function SocialCalendar() {
             {p.dataStatus && <div><span>Data status</span><b>{p.dataStatus}</b></div>}
           </div>
 
-          <div className="cal-vsec cal-work">
-            <h4>Finished work</h4>
-            <div className="cal-media">
-              {(p.media || []).map((m, i) => (
-                <a key={m.url + i} className="cal-media-item" href={m.url} target="_blank" rel="noopener noreferrer" title={m.name || "Open"}>
-                  {isVideoMedia(m) ? <video src={m.url} muted playsInline preload="metadata" /> : <img src={m.thumbUrl || m.url} alt={m.name || `File ${i + 1}`} />}
-                  {canEdit(p) && p.status !== "posted" && <button type="button" aria-label="Remove" onClick={(e) => { e.preventDefault(); removeWork(p, i); }}>×</button>}
-                </a>
-              ))}
-              {canEdit(p) && p.status !== "posted" && (p.media || []).length < 10 && (
-                <label className={"cal-media-add" + (workBusy === p.id ? " busy" : "")}>
-                  <input type="file" multiple accept="image/*,video/mp4,video/quicktime" disabled={workBusy === p.id}
-                    onChange={(e) => { uploadWork(p, e.target.files); e.target.value = ""; }} />
-                  {workBusy === p.id ? "Uploading…" : "+ Upload"}
-                </label>
-              )}
-            </div>
-            <span className="adm-hint">{p.status === "posted"
-              ? "Live now — the uploaded files were removed from our server to save space."
-              : "Upload the final design or video here. It's what gets posted, and it's deleted from our server once the post is live."}</span>
-          </div>
+          {renderWork(p)}
 
           {renderPublishing(p)}
 
@@ -1325,7 +1379,7 @@ export default function SocialCalendar() {
   }
 
   function renderTeamPanel(ups: Upload[]) {
-    const roles: Role[] = ["marketer", "video", "graphic", "social"];
+    const roles: Role[] = ["graphic", "video", "social"];
     return (
       <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setUploads(null); }}>
         <div className="adm-drawer kb-drawer cal-view cal-wide" role="dialog" aria-modal="true" aria-label="Upload history">
@@ -1466,6 +1520,7 @@ export default function SocialCalendar() {
       ) : activeView === "mine" ? renderMine() : activeView === "calendar" ? renderCalendar() : renderBoard()}
 
       {viewed && !editing && renderDetails(viewed)}
+      {uploadId != null && posts.find((p) => p.id === uploadId) && renderUpload(posts.find((p) => p.id === uploadId)!)}
       {uploads && renderTeamPanel(uploads)}
       {handoff && (() => {
         const h = handoff, list = peopleFor(h.role), meta = ROLE_META[h.role];
@@ -1549,7 +1604,7 @@ export default function SocialCalendar() {
             <div className="cal-pick-h"><div><h3>Who works on these posts?</h3><small>{importTeam.parsed.length} posts for {importTeam.name}. Posts go to the Graphic designer, reels to the Video editor; when they upload the finished work and click Done it goes to the Social media manager.</small></div>
               <button type="button" className="cal-x" onClick={() => setImportTeam(null)} aria-label="Close">×</button></div>
             <div className="cal-pick-team">
-              {CHAIN.map((r, i) => (
+              {CHAIN.filter((r) => r === "social" || importTeam.parsed.some((p) => makerFor(p.format) === r)).map((r, i) => (
                 <div key={r} className="cal-pick-row">
                   <span className="n" style={{ background: ROLE_META[r].bg, color: ROLE_META[r].fg }}>{i + 1}</span>
                   <span className="lbl"><b>{ROLE_META[r].label}</b><small>{ROLE_META[r].does}</small></span>
@@ -1667,7 +1722,7 @@ export default function SocialCalendar() {
                   options={[{ value: "", label: "Nobody yet" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]} />
                 <span className="adm-hint">Nothing is assigned automatically. When someone clicks Done they pick who's next; the people below are pre-selected.</span></div>
               <div className="cal-teamgrid">
-                {CHAIN.map((r) => (
+                {chainFor(editing.format).map((r) => (
                   <div key={r} className="adm-field"><label style={{ color: ROLE_META[r].fg }}>{ROLE_META[r].label}</label>
                     <Select value={editing.team?.[r] ? String(editing.team[r]) : ""} ariaLabel={ROLE_META[r].label}
                       onChange={(v) => set({ team: { ...(editing.team || {}), [r]: v ? Number(v) : null } })}

@@ -5,9 +5,9 @@
    plus team averages (both limited to their brands).
 
    Definitions (dates are India time):
-     • Delivered   — a post moved forward a stage while it was assigned to the
-                     person (makers hand on to the next stage; Social media
-                     delivers by marking Posted). From the stage history.
+     • Delivered   — completed maker handoff or Ready → Posted, credited to
+                     the outgoing assignee once per post/person. Starting work,
+                     scheduling and reassignment do not count as completion.
      • On time     — delivered on or before the post's go-live date.
      • Days in stage — time from when the post entered a stage to when it
                      moved on (needs both moves in the history).
@@ -20,6 +20,7 @@ const { Op } = require("sequelize");
 const { SocialPost, SocialPostEvent, User, Setting, Notification } = require("../models");
 const { asyncHandler } = require("../utils/crud");
 const { rolesOf } = require("../utils/permissions");
+const { completedAssignments } = require("../utils/socialPerformance");
 
 const ORDER = ["planned", "client", "production", "approval", "ready", "posted"];
 const STAGE_NAMES = { planned: "Planned", client: "Need from client", production: "In production", approval: "Pending approval", ready: "Ready to post", posted: "Posted" };
@@ -218,7 +219,7 @@ const kpis = asyncHandler(async (req, res) => {
 });
 
 const KPI_POST_ATTRS = ["id", "client", "status", "postDate", "dueDate", "assigneeId", "theme", "format", "estimateHours", "timeLog"];
-const KPI_EVENT_ATTRS = ["id", "postId", "client", "format", "fromStatus", "toStatus", "fromAssigneeId", "postDate", "at"];
+const KPI_EVENT_ATTRS = ["id", "postId", "client", "format", "fromStatus", "toStatus", "fromAssigneeId", "toAssigneeId", "postDate", "at"];
 
 async function computeKpis({ period, brand, scope, userId }) {
   await backfillOnce();
@@ -250,18 +251,17 @@ async function computeKpis({ period, brand, scope, userId }) {
     const prev = lastByPost.get(e.postId);
     lastByPost.set(e.postId, e);
     if (!e.fromStatus) continue;
-    // Forward = a later stage, or the design → video hand-off inside In production.
-    const forward = ORDER.indexOf(e.toStatus) > ORDER.indexOf(e.fromStatus) || e.toStatus === e.fromStatus;
+
     const d = istDay(e.at);
     const goLive = day(e.postDate) || day(postById.get(e.postId)?.postDate);
     moves.push({
-      postId: e.postId, client: e.client, format: e.format, from: e.fromStatus, to: e.toStatus, forward,
-      who: e.fromAssigneeId, day: d, onTime: !goLive || d <= goLive,
-      days: prev && prev.toStatus === e.fromStatus ? (new Date(e.at) - new Date(prev.at)) / 86400000 : null,
+      postId: e.postId, client: e.client, format: e.format, from: e.fromStatus, to: e.toStatus,
+      who: e.fromAssigneeId, day: d, onTime: goLive ? d <= goLive : null,
+      days: prev && prev.toStatus === e.fromStatus && Number(prev.toAssigneeId) === Number(e.fromAssigneeId) ? (new Date(e.at) - new Date(prev.at)) / 86400000 : null,
     });
   }
   const inRange = (d, a, b) => d >= a && d <= b;
-  const delivered = moves.filter((m) => m.forward); // people only get the ones they had; team totals get all
+  const delivered = completedAssignments(moves);
 
   // Time log entries (minutes) in a date range, by user.
   const logs = [];
@@ -290,18 +290,18 @@ async function computeKpis({ period, brand, scope, userId }) {
     const prev = moves.filter((m) => inRange(m.day, P.prevFrom, P.prevTo) && filterUser(m.who));
     const stageDays = del.filter((m) => m.days != null).map((m) => m.days);
     const myLogs = logList.filter((l) => inRange(l.day, P.from, P.to) && filterUser(l.userId));
-    const wk = weeks.map((w) => ({ label: w.label, onTime: 0, late: 0 }));
+    const wk = weeks.map((w) => ({ label: w.label, onTime: 0, late: 0, undated: 0 }));
     for (const m of moves) {
       if (!filterUser(m.who)) continue;
       const i = weekOf(m.day);
-      if (i >= 0) { if (m.onTime) wk[i].onTime++; else wk[i].late++; }
+      if (i >= 0) { if (m.onTime == null) wk[i].undated++; else if (m.onTime) wk[i].onTime++; else wk[i].late++; }
     }
     const minutes = myLogs.reduce((s, l) => s + l.minutes, 0);
     const estPosts = new Map(myLogs.map((l) => [`${l.userId}|${l.postId}`, l.est]));
     const est = [...estPosts.values()].reduce((s, v) => s + v, 0);
     return {
       delivered: del.length, deliveredPrev: prev.length,
-      onTime: pct(del.filter((m) => m.onTime).length, del.length), onTimePrev: pct(prev.filter((m) => m.onTime).length, prev.length),
+      onTime: pct(del.filter((m) => m.onTime === true).length, del.filter((m) => m.onTime != null).length), onTimePrev: pct(prev.filter((m) => m.onTime === true).length, prev.filter((m) => m.onTime != null).length),
       avgStageDays: stageDays.length ? round1(stageDays.reduce((a, b) => a + b, 0) / stageDays.length) : null,
       hours: round1(minutes / 60), estHours: est ? round1(est) : null,
       weeks: wk,

@@ -11,8 +11,8 @@ import { MonthlyReportButton } from "@/components/admin/MonthlyReport";
    where work waits, and planned vs posted by brand.
    mode "me": a team member — their own numbers against the team average. */
 
-type Week = { label: string; onTime: number; late: number };
-type Recent = { postId: number; theme: string; client: string; format?: string; day: string; to: string; onTime: boolean; minutes: number };
+type Week = { label: string; onTime: number; late: number; undated?: number };
+type Recent = { postId: number; theme: string; client: string; format?: string; day: string; to: string; onTime: boolean | null; minutes: number };
 type Person = {
   id: number; name: string; avatar?: string | null; role: string; open: number; overdue: number; startsToday: number;
   delivered: number; deliveredPrev: number; onTime: number | null; onTimePrev: number | null; avgStageDays: number | null;
@@ -42,12 +42,13 @@ function Delta({ now, prev, unit = "", better = "up" }: { now: number | null; pr
 }
 
 function Bars({ weeks, height = 120 }: { weeks: Week[]; height?: number }) {
-  const max = Math.max(1, ...weeks.map((w) => w.onTime + w.late));
+  const max = Math.max(1, ...weeks.map((w) => w.onTime + w.late + (w.undated || 0)));
   return (
     <div className="kp-bars" style={{ height: height + 34 }}>
       {weeks.map((w, i) => (
-        <div key={i} className="kp-bar" title={`${w.label}: ${w.onTime} on time, ${w.late} late`}>
-          <span className="n">{w.onTime + w.late || ""}</span>
+        <div key={i} className="kp-bar" title={`${w.label}: ${w.onTime} on time, ${w.late} late, ${w.undated || 0} without a deadline`}>
+          <span className="n">{w.onTime + w.late + (w.undated || 0) || ""}</span>
+          {!!w.undated && <i style={{ height: (height * w.undated) / max, background: "#8791a5" }} />}
           {w.late > 0 && <i className="late" style={{ height: (height * w.late) / max }} />}
           <i className="on" style={{ height: Math.max(w.onTime ? 3 : 0, (height * w.onTime) / max) }} />
           <small>{w.label}</small>
@@ -101,6 +102,7 @@ export default function SocialKpis({ mode }: { mode: "team" | "me" }) {
   if (!data || !data.team) return <section className="kp">{head}<div className="kp-empty">Loading…</div></section>;
 
   const t = data.team;
+  const completionNote = "Completed assignments credit the outgoing assignee once per post. Starting work and scheduling are not completion. Deadlines use the go-live date in India time; undated work is excluded from the on-time rate.";
   const historyNote = data.historySince
     ? `Each stage counts for the person who did it. Work finished before ${fmtDay(data.historySince)} is included from what was recorded then; days in stage count from ${fmtDay(data.historySince)}.`
     : "Each stage counts for the person who did it. Days in stage start counting from the next stage move.";
@@ -113,7 +115,7 @@ export default function SocialKpis({ mode }: { mode: "team" | "me" }) {
       <section className="kp">
         {head}
         <div className="kp-cards four">
-          <div className="kp-card"><span>Delivered</span><b>{me.delivered}</b><Delta now={me.delivered} prev={me.deliveredPrev} /></div>
+          <div className="kp-card"><span>Completed assignments</span><b>{me.delivered}</b><Delta now={me.delivered} prev={me.deliveredPrev} /></div>
           <div className="kp-card"><span>On-time rate</span><b className={tone(me.onTime)}>{me.onTime == null ? "—" : `${me.onTime}%`}</b><span className="kp-delta">Team {t.onTime == null ? "—" : `${t.onTime}%`}</span></div>
           <div className="kp-card"><span>Open now</span><b className="blue">{me.open}</b><span className="kp-delta">{me.overdue ? `${me.overdue} overdue` : me.startsToday ? `${me.startsToday} start today` : "Nothing overdue"}</span></div>
           <div className="kp-card"><span>Days per stage</span><b className="blue">{days(me.avgStageDays)}</b><span className="kp-delta">Team {days(t.avgStageDays)}</span></div>
@@ -123,10 +125,10 @@ export default function SocialKpis({ mode }: { mode: "team" | "me" }) {
           <div className="kp-panel">
             <h3>Compared with the team</h3>
             <div className="kp-kv"><span>Days in my stage</span><b>{days(me.avgStageDays)} <small>· team {days(t.avgStageDays)}</small></b></div>
-            <div className="kp-kv"><span>On-time rate</span><b>{me.onTime ?? "—"}% <small>· team {t.onTime ?? "—"}%</small></b></div>
+            <div className="kp-kv"><span>On-time rate</span><b>{me.onTime == null ? "—" : `${me.onTime}%`} <small>· team {t.onTime == null ? "—" : `${t.onTime}%`}</small></b></div>
           </div>
         </div>
-        <p className="kp-note">{historyNote}</p>
+        <p className="kp-note">{completionNote} {historyNote}</p>
       </section>
     );
   }
@@ -138,7 +140,7 @@ export default function SocialKpis({ mode }: { mode: "team" | "me" }) {
     <section className="kp">
       {head}
       <div className="kp-cards four">
-        <div className="kp-card"><span>Posts delivered</span><b>{t.delivered}</b><Delta now={t.delivered} prev={t.deliveredPrev} /></div>
+        <div className="kp-card"><span>Completed assignments</span><b>{t.delivered}</b><Delta now={t.delivered} prev={t.deliveredPrev} /></div>
         <div className="kp-card"><span>On-time rate</span><b className={tone(t.onTime)}>{t.onTime == null ? "—" : `${t.onTime}%`}</b><Delta now={t.onTime} prev={t.onTimePrev} unit=" pts" /></div>
         <div className="kp-card"><span>Overdue now</span><b className={t.overdue ? "bad" : "good"}>{t.overdue}</b><span className="kp-delta">{t.open} posts open</span></div>
         <div className="kp-card"><span>Avg days per stage</span><b className="blue">{days(t.avgStageDays)}</b><span className="kp-delta">From stage moves</span></div>
@@ -151,7 +153,7 @@ export default function SocialKpis({ mode }: { mode: "team" | "me" }) {
             <thead><tr><th>Person</th><th>Open now</th><th>Delivered</th><th>On time</th><th>Overdue</th><th>Avg days in stage</th><th>Recent weeks</th></tr></thead>
             <tbody>
               {data.people.map((p, i) => {
-                const max = Math.max(1, ...p.weeks.map((w) => w.onTime + w.late));
+                const max = Math.max(1, ...p.weeks.map((w) => w.onTime + w.late + (w.undated || 0)));
                 return (
                   <tr key={p.id}>
                     <td data-label="Person">
@@ -173,8 +175,8 @@ export default function SocialKpis({ mode }: { mode: "team" | "me" }) {
                     <td data-label="Overdue">{p.overdue ? <span className="kp-pill bad">{p.overdue}</span> : <span className="kp-muted">0</span>}</td>
                     <td data-label="Avg days in stage">{p.avgStageDays == null ? <span className="kp-muted">—</span> : days(p.avgStageDays)}</td>
                     <td data-label="Recent weeks">
-                      <span className="kp-spark" aria-label={`Delivered per week: ${p.weeks.slice(-6).map((w) => w.onTime + w.late).join(", ")}`}>
-                        {p.weeks.slice(-6).map((w, j, a) => <i key={j} className={j === a.length - 1 ? "last" : ""} style={{ height: Math.max(3, (26 * (w.onTime + w.late)) / max) }} />)}
+                      <span className="kp-spark" aria-label={`Delivered per week: ${p.weeks.slice(-6).map((w) => w.onTime + w.late + (w.undated || 0)).join(", ")}`}>
+                        {p.weeks.slice(-6).map((w, j, a) => <i key={j} className={j === a.length - 1 ? "last" : ""} style={{ height: Math.max(3, (26 * (w.onTime + w.late + (w.undated || 0))) / max) }} />)}
                       </span>
                     </td>
                   </tr>
@@ -212,7 +214,7 @@ export default function SocialKpis({ mode }: { mode: "team" | "me" }) {
           <div className="kp-legend"><span><i className="posted" />Posted</span><span><i className="over" />Overdue</span><span><i />Still to do</span></div>
         </div>
       </div>
-      <p className="kp-note">{historyNote}</p>
+      <p className="kp-note">{completionNote} {historyNote}</p>
 
       {open && createPortal(
         <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(null); }}>
@@ -222,7 +224,7 @@ export default function SocialKpis({ mode }: { mode: "team" | "me" }) {
               <button type="button" className="kp-x" onClick={() => setOpen(null)} aria-label="Close">×</button>
             </div>
             <div className="kp-cards two">
-              <div className="kp-card"><span>Delivered</span><b>{open.delivered}</b><Delta now={open.delivered} prev={open.deliveredPrev} /></div>
+              <div className="kp-card"><span>Completed assignments</span><b>{open.delivered}</b><Delta now={open.delivered} prev={open.deliveredPrev} /></div>
               <div className="kp-card"><span>On-time rate</span><b className={tone(open.onTime)}>{open.onTime == null ? "—" : `${open.onTime}%`}</b><Delta now={open.onTime} prev={open.onTimePrev} unit=" pts" /></div>
               <div className="kp-card"><span>Open now</span><b className="blue">{open.open}</b><span className="kp-delta">{open.overdue ? `${open.overdue} overdue` : "Nothing overdue"}</span></div>
               <div className="kp-card"><span>Days per stage</span><b className="blue">{days(open.avgStageDays)}</b><span className="kp-delta">Team {days(t.avgStageDays)}</span></div>
@@ -234,7 +236,7 @@ export default function SocialKpis({ mode }: { mode: "team" | "me" }) {
               {open.recent.map((r, i) => (
                 <div key={i} className="kp-recent">
                   <span><b>{r.theme}</b><small>{r.client}{r.format ? ` · ${r.format}` : ""} · moved to {r.to} on {fmtDay(r.day)}</small></span>
-                  <span className={"kp-pill " + (r.onTime ? "good" : "bad")}>{r.onTime ? "On time" : "Late"}</span>
+                  <span className={"kp-pill " + (r.onTime == null ? "" : r.onTime ? "good" : "bad")}>{r.onTime == null ? "No deadline" : r.onTime ? "On time" : "Late"}</span>
                 </div>
               ))}
               <Link href="/dashboard/social" className="kp-link">Open content calendar →</Link>
@@ -248,5 +250,5 @@ export default function SocialKpis({ mode }: { mode: "team" | "me" }) {
 }
 
 function Legend() {
-  return <div className="kp-legend"><span><i className="posted" />On time</span><span><i className="over" />Late</span></div>;
+  return <div className="kp-legend"><span><i className="posted" />On time</span><span><i className="over" />Late</span><span><i style={{ background: "#8791a5" }} />No deadline</span></div>;
 }
