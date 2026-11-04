@@ -79,52 +79,6 @@ const latestBackup = asyncHandler(async (req, res) => {
   streamFile(res, items[0].name);
 });
 
-/* ── Email ───────────────────────────────────────────── */
-const emailStatus = (_req, res) => {
-  res.json({
-    configured: mailer.configured(),
-    from: process.env.MAIL_FROM || process.env.SMTP_USER || null,
-    host: process.env.SMTP_HOST || null,
-    port: process.env.SMTP_HOST ? Number(process.env.SMTP_PORT || 465) : null,
-    user: process.env.SMTP_USER || null,
-  });
-};
-
-/* Login refused → say exactly what the server used (never the password itself). */
-function loginHelp() {
-  const d = mailer.diag();
-  return ` Server used: user “${d.user}”, password of ${d.passLength} characters from the ${d.passFrom}` +
-    `${d.passHasEdgeSpaces ? " (it has spaces at the start or end — remove them)" : ""}` +
-    `${d.passCutAtHash ? ". The password in .env contains # and isn't in quotes, so everything from the # on is ignored — write it as SMTP_PASS=\"your#password\" and restart the app" : ""}` +
-    `${d.envFileHasPass && d.passFrom !== ".env file in the app folder" ? "; a .env file in the app folder also has an SMTP_PASS — delete that line to avoid confusion" : ""}.`;
-}
-
-/* POST /settings/test-email-connection — log in to the mail server, send nothing. */
-const testEmailConnection = asyncHandler(async (_req, res) => {
-  if (!mailer.configured()) return res.status(400).json({ ok: false, message: "Email isn't set up on the server (SMTP_HOST is empty)." });
-  const r = await mailer.verify();
-  const d = mailer.diag();
-  const server = `${d.host}:${d.port} as “${d.user}”`;
-  if (r.ok) return res.json({ ok: true, message: `Connected and logged in to ${server} (${r.ms} ms). Email is working.` });
-  let why = r.reason === "nodemailer-missing" ? "The server is missing the nodemailer package — run NPM Install in cPanel." : `${r.reason}${r.raw ? ` (${r.raw})` : ""}`;
-  if (/rejected the login|535|EAUTH/i.test(why)) why += loginHelp();
-  res.status(422).json({ ok: false, message: `Connection to ${server} failed: ${why}`, error: why });
-});
-
-const testEmail = asyncHandler(async (req, res) => {
-  const to = String(req.body?.to || req.userRow?.email || "").trim();
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return res.status(400).json({ ok: false, message: "Enter a valid email address to send the test to." });
-  if (!mailer.configured()) return res.status(400).json({ ok: false, message: "Email isn't set up on the server (SMTP_HOST is empty)." });
-  const r = await mailer.sendMail({
-    to, subject: "Finvera test email",
-    html: mailer.layout({ title: "Email works", body: `<p>This is a test email from the Finvera admin, sent by ${mailer.esc(req.user?.name || "an admin")} at ${new Date().toUTCString()}.</p>` }),
-    text: "Email works — test from the Finvera admin.",
-  });
-  if (r.sent) return res.json({ ok: true, message: `Test email sent to ${to}.`, id: r.id || null });
-  let why = r.reason === "nodemailer-missing" ? "The server is missing the nodemailer package — run NPM Install in cPanel." : r.reason;
-  if (/rejected the login|535|EAUTH/i.test(String(why))) why += loginHelp();
-  res.status(422).json({ ok: false, message: `Couldn't send: ${why}`, error: why });
-});
 
 const getEmailPrefs = asyncHandler(async (req, res) => {
   const u = await User.findByPk(req.user.id, { attributes: ["id", "email", "emailPrefs"] });
@@ -220,5 +174,5 @@ function runDailyOps() {
 
 module.exports = {
   listBackups, createBackup, downloadBackup, deleteBackup, verifyBackup, latestBackup,
-  emailStatus, testEmail, testEmailConnection, getEmailPrefs, putEmailPrefs, checkSocialAccounts, systemStatus, onCronTick, runDailyOps,
+  getEmailPrefs, putEmailPrefs, checkSocialAccounts, systemStatus, onCronTick, runDailyOps,
 };

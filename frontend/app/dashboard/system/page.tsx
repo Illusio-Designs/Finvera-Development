@@ -14,7 +14,6 @@ import { api, opsApi } from "@/lib/adminApi";
 import { visibleInterval } from "@/lib/visibleInterval";
 import { fmtBytes, hoursSince, timeAgo, uptime } from "@/lib/opsFormat";
 import SystemBackups from "@/components/admin/SystemBackups";
-import EmailSetup from "@/components/admin/EmailSetup";
 
 type Tone = "ok" | "warn" | "bad" | "off";
 type Status = {
@@ -51,8 +50,7 @@ export default function SystemPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [at, setAt] = useState<number | null>(null);
-  const [myEmail, setMyEmail] = useState("");
-  const [tick, setTick] = useState(0); // bumps the Backups / Email cards on a manual refresh
+  const [tick, setTick] = useState(0); // bumps the Backups card on a manual refresh
   const [, rerender] = useState(0);
 
   const load = useCallback(async () => {
@@ -63,7 +61,6 @@ export default function SystemPage() {
   }, []);
   useEffect(() => {
     load();
-    api.me().then((r) => setMyEmail((r?.user ?? r)?.email || "")).catch(() => {});
     const stop = visibleInterval(load, 60000);
     const t = setInterval(() => rerender((n) => n + 1), 30000); // keep "x min ago" fresh
     return () => { stop(); clearInterval(t); };
@@ -93,7 +90,6 @@ export default function SystemPage() {
       {cards && <div className="sys-grid">{cards}</div>}
 
       <SystemBackups offsiteEnabled={s ? s.backups.offsiteEnabled : null} onChange={load} refreshKey={tick} />
-      <EmailSetup myEmail={myEmail} refreshKey={tick} />
     </>
   );
 }

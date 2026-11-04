@@ -1485,7 +1485,7 @@ export default function SocialCalendar() {
                     <span><b>{u.name}</b><small>{h.post.team?.[h.role] === u.id ? "Picked for this post" : (u.roles || []).map((r) => ROLE_META[r as Role]?.label || r).join(", ")}</small></span>
                   </label>
                 ))}
-                {!list.length && <p className="adm-hint">Nobody has the {meta.label} role yet. Give someone the role on the Users page.</p>}
+                {!list.length && <p className="adm-hint">Nobody has the {meta.label} role yet, so it moves on without a person. To pick someone next time, give a team member the role on the Users page.</p>}
               </div>
               {h.kind === "back" && <label className="adm-field" style={{ margin: 0 }}><span>What needs changing</span>
                 <textarea rows={3} value={h.note} onChange={(e) => setHandoff({ ...h, note: e.target.value })} placeholder="e.g. Use the new price card, shorten the intro" /></label>}
@@ -1508,7 +1508,7 @@ export default function SocialCalendar() {
               )}
               <div className="cal-pick-f">
                 <button type="button" className="cal-btn" onClick={() => setHandoff(null)}>Cancel</button>
-                <button type="button" className="cal-primary" disabled={h.busy || (!h.chosen && h.kind !== "move")} onClick={confirmHandoff}>{h.busy ? "Saving…" : btn}</button>
+                <button type="button" className="cal-primary" disabled={h.busy || (!h.chosen && h.kind !== "move" && list.length > 0)} onClick={confirmHandoff}>{h.busy ? "Saving…" : btn}</button>
               </div>
             </div>
           </div>

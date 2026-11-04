@@ -333,7 +333,7 @@ export default function AdminUsers() {
           <div className="ss-modal" role="dialog" aria-modal="true" aria-label={share.kind === "invite" ? "Invite link" : "Reset link"}>
             <div className="ss-modal-h"><h3>{share.kind === "invite" ? `New invite for ${share.name}` : `Reset link for ${share.name}`}</h3><button type="button" className="ss-btn" onClick={() => setShare(null)} aria-label="Close">×</button></div>
             {share.kind === "invite" && <p className="ss-note" style={{ margin: 0 }}>Any older invite link for them has stopped working.</p>}
-            <ShareLinkBox link={share.link} expiresAt={share.expiresAt} emailed={share.emailed} emailError={share.emailError} email={share.email} name={share.name} kind={share.kind} />
+            <ShareLinkBox link={share.link} expiresAt={share.expiresAt} email={share.email} name={share.name} kind={share.kind} />
             <div className="ss-modal-f"><button type="button" className="ss-chip dark" onClick={() => setShare(null)}>Done</button></div>
           </div>
         </div>
@@ -346,7 +346,7 @@ export default function AdminUsers() {
 
 /* ── Invite ── */
 function InviteDrawer({ brands, onClose, onInvited }: { brands: Brand[]; onClose: () => void; onInvited: (u: AdminUser) => void }) {
-  const blank = { name: "", email: "", title: "", roles: ["marketer"] as string[], brands: [] as string[], sendEmail: true };
+  const blank = { name: "", email: "", title: "", roles: ["marketer"] as string[], brands: [] as string[] };
   const [f, setF] = useState(blank);
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -362,7 +362,7 @@ function InviteDrawer({ brands, onClose, onInvited }: { brands: Brand[]; onClose
     if (Object.keys(er).length) { setErrs(er); return; }
     setBusy(true);
     try {
-      const r = await api.inviteUser({ name: f.name.trim(), email: f.email.trim(), title: f.title.trim() || undefined, roles: f.roles, socialClients: f.brands.map(Number), sendEmail: f.sendEmail });
+      const r = await api.inviteUser({ name: f.name.trim(), email: f.email.trim(), title: f.title.trim() || undefined, roles: f.roles, socialClients: f.brands.map(Number) });
       setDone(r); onInvited(r.user);
     } catch (ex) {
       const x = apiErr(ex);
@@ -374,7 +374,7 @@ function InviteDrawer({ brands, onClose, onInvited }: { brands: Brand[]; onClose
     return (
       <Drawer title="Invite ready" sub={<>{done.user.name} · {done.user.email}</>} onClose={onClose}>
         <Note kind="ok" title={`${done.user.name} is invited.`}>They set their own password with this link, then sign in.</Note>
-        <ShareLinkBox link={done.link} expiresAt={done.expiresAt} emailed={done.emailed} emailError={done.emailError} email={done.user.email} name={done.user.name} kind="invite" />
+        <ShareLinkBox link={done.link} expiresAt={done.expiresAt} email={done.user.email} name={done.user.name} kind="invite" />
         <div className="adm-drawer-actions">
           <button type="button" className="adm-btn primary" onClick={onClose}>Done</button>
           <button type="button" className="adm-btn ghost" onClick={() => { setDone(null); setF(blank); }}>Invite another</button>
@@ -416,12 +416,9 @@ function InviteDrawer({ brands, onClose, onInvited }: { brands: Brand[]; onClose
               : <p className="acc-hint">No brands yet.</p>}
           </div>
         )}
-        <div className="adm-field">
-          <Toggle checked={f.sendEmail} onChange={(v) => set("sendEmail", v)} label="Email the invite to them" />
-          <p className="acc-hint">You&apos;ll also get the link to copy or send on WhatsApp.</p>
-        </div>
+        <p className="acc-hint">You&apos;ll get a link to copy or send on WhatsApp. They open it, set their own password and sign in.</p>
         <div className="adm-drawer-actions">
-          <button className="adm-btn primary" type="submit" disabled={busy}>{busy ? <><span className="spin" /> Inviting…</> : <><Icon i={UserAdd01Icon} size={16} />Send invite</>}</button>
+          <button className="adm-btn primary" type="submit" disabled={busy}>{busy ? <><span className="spin" /> Inviting…</> : <><Icon i={UserAdd01Icon} size={16} />Create invite link</>}</button>
           <button className="adm-btn ghost" type="button" onClick={onClose}>Cancel</button>
         </div>
       </form>

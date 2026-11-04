@@ -69,8 +69,8 @@ export type SecEvent = {
 };
 export type SecPage = { items: SecEvent[]; total: number; page: number; limit: number; pages: number; types: string[] };
 export type LogQuery = { page?: number; limit?: number; type?: string; from?: string; to?: string; userId?: number | string; q?: string };
-export type ShareLink = { link: string; expiresAt: string; emailed: boolean; emailError?: string | null; message: string; kind?: "reset" | "invite"; user?: AdminUser };
-export type InviteBody = { name: string; email: string; roles: string[]; title?: string; avatar?: string; socialClients?: number[]; sendEmail?: boolean };
+export type ShareLink = { link: string; expiresAt: string; message: string; kind?: "reset" | "invite"; user?: AdminUser };
+export type InviteBody = { name: string; email: string; roles: string[]; title?: string; avatar?: string; socialClients?: number[] };
 
 const qs = (q: Record<string, unknown>) => {
   const s = new URLSearchParams(Object.entries(q).filter(([, v]) => v !== undefined && v !== null && v !== "").map(([k, v]) => [k, String(v)])).toString();
@@ -141,8 +141,8 @@ export const api = {
   updateUser: (id: number, body: Record<string, unknown>): Promise<AdminUser> => req(`/users/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteUser: (id: number): Promise<{ message: string; id: number }> => req(`/users/${id}`, { method: "DELETE" }),
   inviteUser: (body: InviteBody): Promise<ShareLink & { user: AdminUser }> => post("/users/invite", body),
-  resendInvite: (id: number, sendEmail = true): Promise<ShareLink & { user: AdminUser }> => post(`/users/${id}/resend-invite`, { sendEmail }),
-  userResetLink: (id: number, sendEmail = true): Promise<ShareLink> => post(`/users/${id}/reset-link`, { sendEmail }),
+  resendInvite: (id: number): Promise<ShareLink & { user: AdminUser }> => post(`/users/${id}/resend-invite`, {}),
+  userResetLink: (id: number): Promise<ShareLink> => post(`/users/${id}/reset-link`, {}),
   requirePasswordChange: (id: number, required = true): Promise<{ message: string; user: AdminUser }> => post(`/users/${id}/require-password-change`, { required }),
   unlockUser: (id: number): Promise<{ message: string; user: AdminUser }> => post(`/users/${id}/unlock`),
   resetUser2fa: (id: number): Promise<{ message: string; user: AdminUser }> => post(`/users/${id}/2fa/reset`),
@@ -266,9 +266,6 @@ export const opsApi = {
     return blob.size;
   },
   systemStatus: () => req(`/system/status`),
-  emailStatus: (): Promise<{ configured: boolean; from: string | null; host: string | null; port: number | null; user: string | null }> => req(`/settings/email-status`),
-  testEmailConnection: (): Promise<{ ok: boolean; message: string }> => req(`/settings/test-email-connection`, { method: "POST", body: "{}" }),
-  testEmail: (to?: string): Promise<{ ok: boolean; message: string }> => req(`/settings/test-email`, { method: "POST", body: JSON.stringify(to ? { to } : {}) }),
   getEmailPrefs: (): Promise<EmailPrefs> => req(`/auth/me/email-prefs`),
   saveEmailPrefs: (prefs: Partial<Record<EmailPrefKind, boolean>>): Promise<EmailPrefs> => req(`/auth/me/email-prefs`, { method: "PUT", body: JSON.stringify({ prefs }) }),
   checkSocialAccounts: (): Promise<MetaCheck> => req(`/social-accounts/check`, { method: "POST" }),

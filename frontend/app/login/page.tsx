@@ -20,7 +20,6 @@ export default function Login() {
   const [locked, setLocked] = useState<{ minutes: number; message: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<null | { mustChange: boolean; note?: string }>(null);
-  const [forgotDone, setForgotDone] = useState("");
   const [info, setInfo] = useState("");
   const codeRef = useRef<HTMLInputElement>(null);
 
@@ -81,15 +80,9 @@ export default function Login() {
     }
   }
 
-  async function onForgot(e: React.FormEvent) {
-    e.preventDefault();
-    setError(""); setLoading(true);
-    try { const r = await api.forgotPassword(email.trim()); setForgotDone(r.message); }
-    catch (err) { setError(apiErr(err).message); }
-    finally { setLoading(false); }
-  }
 
-  const back = () => { setStep("password"); setError(""); setLocked(null); setForgotDone(""); setCode(""); };
+
+  const back = () => { setStep("password"); setError(""); setLocked(null); setCode(""); };
 
   if (success) {
     return (
@@ -176,32 +169,12 @@ export default function Login() {
       )}
 
       {step === "forgot" && (
-        <form onSubmit={onForgot}>
+        <div>
           <div className="acc-stepic"><Icon i={Mail01Icon} size={26} /></div>
           <h1>Reset your password</h1>
-          <p className="sub">Enter your work email. If it has an account, we&apos;ll email you a link to choose a new password.</p>
-          {forgotDone ? (
-            <>
-              <Note kind="ok" title="Check your email">{forgotDone}</Note>
-              <p className="acc-hint" style={{ textAlign: "center" }}>No email? Ask an admin to send you a reset link on WhatsApp.</p>
-              <button type="button" className="adm-btn ghost acc-wide" onClick={back}>Back to sign in</button>
-            </>
-          ) : (
-            <>
-              {error && <Note kind="err">{error}</Note>}
-              <div className="adm-field">
-                <label htmlFor="femail">Email</label>
-                <input id="femail" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="name@finvera.solutions" autoComplete="username" autoFocus />
-              </div>
-              <button className="adm-btn primary acc-wide" type="submit" disabled={loading || !email}>
-                {loading ? <><span className="spin" /> Sending…</> : "Send reset link"}
-              </button>
-              <div className="acc-formfoot center">
-                <button type="button" className="acc-link muted" onClick={back}><Icon i={ArrowLeft01Icon} size={14} />Back to sign in</button>
-              </div>
-            </>
-          )}
-        </form>
+          <p className="sub">Ask an admin for a reset link. They make it on the Users page and send it to you (for example on WhatsApp). Open it, choose a new password, then sign in.</p>
+          <button type="button" className="adm-btn ghost acc-wide" onClick={back}><Icon i={ArrowLeft01Icon} size={14} />Back to sign in</button>
+        </div>
       )}
     </div>
   );
