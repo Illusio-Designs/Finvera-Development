@@ -1,7 +1,7 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
 
-const { Project, Service, Testimonial, TeamMember, BlogPost, Task, Board, Page, Lead, Renewal,
+const { Project, Service, Testimonial, TeamMember, BlogPost, Page, Lead, Renewal,
   SocialClient, SocialPost, Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature } = require("../models");
 const { crudController } = require("../utils/crud");
 const { requireAuth, requireRole, requireArea, optionalAuth } = require("../middleware/auth");
@@ -91,60 +91,6 @@ resource("/process-steps", ProcessStep, { entity: "process-step", hasStatus: tru
 resource("/stats", Stat, { entity: "stat", hasStatus: true, order: CONTENT_ORDER, searchable: ["label"], bootstrapKey: "stats" });
 resource("/logos", Logo, { entity: "logo", hasStatus: true, order: CONTENT_ORDER, searchable: ["name"], bootstrapKey: "logos" });
 resource("/features", Feature, { entity: "feature", hasStatus: true, order: CONTENT_ORDER, searchable: ["title"], bootstrapKey: "features" });
-
-/* ── Kanban boards (all endpoints require auth) ──────── */
-const boardCtrl = crudController(Board, { entity: "board", order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["name"] });
-const boardRouter = express.Router();
-const canBoard = [requireAuth, requireArea("board")];
-boardRouter.get("/", ...canBoard, boardCtrl.list);
-boardRouter.get("/:id", ...canBoard, boardCtrl.getOne);
-boardRouter.post("/", ...canBoard, boardCtrl.create);
-boardRouter.put("/:id", ...canBoard, boardCtrl.update);
-boardRouter.patch("/:id", ...canBoard, boardCtrl.update);
-boardRouter.delete("/:id", ...canBoard, boardCtrl.remove);
-router.use("/boards", boardRouter);
-
-/* ── Kanban tasks + comments (all require auth) ──────── */
-const taskCtrl = crudController(Task, {
-  entity: "task",
-  order: [["position", "ASC"], ["createdAt", "ASC"]], searchable: ["title", "assignee", "label"],
-  onCreate: async (t, req) => {
-    await notifyUsers(asArr(t.memberIds), { type: "assigned", title: `You were assigned: ${t.title}`, link: `/dashboard/kanban?task=${t.id}`, meta: { taskId: t.id } }, req.user?.id);
-  },
-  onUpdate: async (t, req, before) => {
-    const added = asArr(t.memberIds).filter((id) => !asArr(before.memberIds).includes(id));
-    await notifyUsers(added, { type: "assigned", title: `You were assigned: ${t.title}`, link: `/dashboard/kanban?task=${t.id}`, meta: { taskId: t.id } }, req.user?.id);
-    // Changes by someone else → the card's other members (one merged alert per burst of edits).
-    const board = t.boardId ? await Board.findByPk(t.boardId) : null;
-    const cols = asArr(board?.columns);
-    const colTitle = (id) => cols.find((c) => c.id === id)?.title || id;
-    const { kind, notes } = taskChanges(before, t, colTitle);
-    const stay = asArr(t.memberIds).filter((id) => asArr(before.memberIds).includes(id));
-    if (kind && stay.length) {
-      const head = kind === "stage" ? `Moved to ${colTitle(t.column)}` : kind === "date" ? "Dates changed" : "Card updated";
-      const render = (ns) => `${ns.join("; ")} · by ${req.user?.name || "someone"}`;
-      await notifyUsers(stay, { type: "update", title: `${head}: ${t.title}`, body: render(notes), link: `/dashboard/kanban?task=${t.id}`, meta: { taskId: t.id } },
-        req.user?.id, kind === "edit" ? { merge: { key: `task-${t.id}`, minutes: 15, notes, render } } : undefined); // only plain edits merge
-    }
-    // Reached Done → admins.
-    const isDone = (col, completed) => completed || /done|complete|shipped/i.test(colTitle(col));
-    if (isDone(t.column, t.completed) && !isDone(before.column, before.completed)) {
-      await notifyAdmins({ type: "done", title: `Done: ${t.title}`, body: board ? `${board.name} · by ${req.user?.name || "someone"}` : undefined, link: `/dashboard/kanban?task=${t.id}`, meta: { taskId: t.id } }, req.user?.id);
-    }
-  },
-});
-const tasksCustom = require("../controllers/tasks.controller");
-const taskRouter = express.Router();
-taskRouter.get("/", ...canBoard, tasksCustom.list);          // supports ?boardId=
-taskRouter.post("/", ...canBoard, taskCtrl.create);
-taskRouter.post("/reorder", ...canBoard, tasksCustom.reorder); // one column's card order after a drag
-taskRouter.put("/:id", ...canBoard, taskCtrl.update);
-taskRouter.patch("/:id", ...canBoard, taskCtrl.update);
-taskRouter.delete("/:id", ...canBoard, taskCtrl.remove);
-taskRouter.get("/:taskId/comments", ...canBoard, tasksCustom.listComments);
-taskRouter.post("/:taskId/comments", ...canBoard, tasksCustom.addComment);
-router.use("/tasks", taskRouter);
-router.delete("/comments/:id", ...canBoard, tasksCustom.deleteComment);
 
 /* ── Leads (private BD pipeline — auth on every endpoint) ─ */
 const leadCtrl = crudController(Lead, {
@@ -247,7 +193,7 @@ router.use("/renewals", renewalRouter);
 // Every social route also resolves the caller's brand scope (admin-set per user).
 const social = require("../controllers/social.controller");
 const autoPublish = require("../utils/autoPublish");
-const { postChanges, taskChanges, when, fmtDate, day, STAGES } = require("../utils/changeNotes");
+const { postChanges, when, fmtDate, day, STAGES } = require("../utils/changeNotes");
 const canSocial = [requireAuth, requireArea("social"), social.withScope];
 const kpiCtrl = require("../controllers/kpi.controller");
 // Bulk changes to posts (imports, deletes) → clear the KPI cache once they succeed.

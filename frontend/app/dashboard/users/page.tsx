@@ -24,7 +24,7 @@ import {
 const ROLES: { value: string; label: string }[] = [
   { value: "admin", label: "Admin — full access" },
   { value: "content", label: "Content — site content, blog, projects, team…" },
-  { value: "projects", label: "Project board — kanban only" },
+  { value: "projects", label: "Projects — renewals + content calendar" },
   { value: "leads", label: "Leads — pipeline + contact inbox" },
   { value: "seo", label: "SEO — SEO + settings & pixels" },
   { value: "social", label: "Social media — posts content (gets posts at Ready to post)" },

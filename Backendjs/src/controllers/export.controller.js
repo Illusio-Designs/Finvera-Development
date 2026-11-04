@@ -9,7 +9,6 @@
      contact      contact area   ?q &unread=1 &from &to (received)
      activity     admin          same filters as GET /api/activity
      social-posts social area    ?from &to (go-live date) &client &status &assigneeId &q — only the caller's brands
-     tasks        board area     ?boardId &q
      users        admin          (no passwords or other secrets)
    Dates: "YYYY-MM-DD"; date-times "YYYY-MM-DD HH:mm" India time.
 
@@ -18,7 +17,7 @@
      → { month, label, period, team: { … }, columns, rows (one per person), brandColumns, brandRows, generatedAt } */
 
 const { Op } = require("sequelize");
-const { Lead, Renewal, ContactSubmission, ActivityLog, SocialPost, Task, Board, User, SocialClient } = require("../models");
+const { Lead, Renewal, ContactSubmission, ActivityLog, SocialPost, User, SocialClient } = require("../models");
 const { asyncHandler } = require("../utils/crud");
 const { rolesCan, rolesOf } = require("../utils/permissions");
 
@@ -140,32 +139,6 @@ const EXPORTS = {
         ["Client contact", p.poc || ""], ["Tags", p.tags || ""], ["Drive link", p.driveLink || ""], ["Live links", p.channels || ""],
         ["Remarks", p.remarks || ""], ["Estimate (h)", p.estimateHours ?? ""], ["Created", dt(p.createdAt)], ["Updated", dt(p.updatedAt)],
       ]);
-    },
-  },
-  tasks: {
-    area: "board",
-    async rows(req) {
-      const q = req.query, where = {};
-      if (q.boardId) where.boardId = q.boardId;
-      if (q.q) Object.assign(where, like(["title", "assignee", "label"], q.q));
-      const [rows, boards, names] = await Promise.all([
-        Task.findAll({ where, order: [["boardId", "ASC"], ["position", "ASC"]], limit: MAX_ROWS + 1, raw: true }),
-        Board.findAll({ raw: true }),
-        userNames(),
-      ]);
-      const byId = new Map(boards.map((b) => [b.id, { ...b, columns: asArr(b.columns), labels: asArr(b.labels) }]));
-      return rows.map((t) => {
-        const b = byId.get(t.boardId);
-        const checklist = asArr(t.checklist);
-        return [
-          ["ID", t.id], ["Board", b?.name || ""], ["Title", t.title], ["Client", t.client || ""], ["Column", b?.columns.find((c) => c.id === t.column)?.title || t.column || ""],
-          ["Priority", t.priority || ""], ["Start", d10(t.startDate)], ["Due", d10(t.dueDate)], ["Renewal", d10(t.renewalDate)], ["Completed", yes(t.completed)],
-          ["Members", asArr(t.memberIds).map((id) => names.get(Number(id)) || id).join(", ")],
-          ["Labels", asArr(t.labelIds).map((id) => b?.labels.find((l) => l.id === id)?.name).filter(Boolean).join(", ")],
-          ["Checklist", checklist.length ? `${checklist.filter((c) => c && c.done).length}/${checklist.length}` : ""],
-          ["Description", t.description || ""], ["Created", dt(t.createdAt)], ["Updated", dt(t.updatedAt)],
-        ];
-      });
     },
   },
   users: {

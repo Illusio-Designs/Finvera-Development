@@ -23,10 +23,6 @@ const POST_FIELDS = {
   format: "format", festive: "day/festival", driveLink: "drive link", tags: "tags", keywords: "keywords",
   channels: "post links", remarks: "remarks", poc: "client contact", dataStatus: "data status", estimateHours: "time estimate",
 };
-const TASK_FIELDS = {
-  title: "title", description: "description", priority: "priority", checklist: "checklist",
-  labelIds: "labels", attachments: "attachments", cover: "cover", client: "client",
-};
 
 /* → { kind: "stage"|"date"|"edit"|null, notes: [..], stage } */
 function postChanges(before, p) {
@@ -43,19 +39,4 @@ function postChanges(before, p) {
   return { kind, notes };
 }
 
-function taskChanges(before, t, colTitle) {
-  const notes = [];
-  let kind = null;
-  if (before.column !== t.column) { notes.push(`moved to ${colTitle(t.column)}`); kind = "stage"; }
-  if (day(before.dueDate) !== day(t.dueDate)) { notes.push(t.dueDate ? `due date moved to ${fmtDate(t.dueDate)}` : "due date removed"); kind = kind || "date"; }
-  if (day(before.startDate) !== day(t.startDate)) { notes.push(t.startDate ? `start date moved to ${fmtDate(t.startDate)}` : "start date removed"); kind = kind || "date"; }
-  const edited = Object.keys(TASK_FIELDS).filter((f) => {
-    const a = ["checklist", "labelIds", "attachments"].includes(f) ? asArr(before[f]) : before[f];
-    const b = ["checklist", "labelIds", "attachments"].includes(f) ? asArr(t[f]) : t[f];
-    return !same(a, b);
-  }).map((f) => `${TASK_FIELDS[f]} edited`);
-  if (edited.length) { notes.push(...edited); kind = kind || "edit"; }
-  return { kind, notes };
-}
-
-module.exports = { postChanges, taskChanges, fmtDate, fmtTime, when, STAGES, asArr, day };
+module.exports = { postChanges, fmtDate, fmtTime, when, STAGES, asArr, day };

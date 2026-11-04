@@ -10,15 +10,14 @@
      • Content calendar — "Start work today" (start-work day) and "Overdue"
        (go-live passed, not posted) → the assigned person
      • Renewals — due in 7 days, tomorrow, today, and the day after (overdue)
-       → the owner + admins (invoice records and board-card renewal dates)
-     • Project board — card "Due tomorrow" and "Overdue" → the card's members
+       → the owner + admins (invoice records)
 
    Email: the same run also sends ONE digest email per person (renewals +
    content calendar sections, each only if their email preferences allow it),
    in the background — see sendDigest(). */
 
 const { Op } = require("sequelize");
-const { SocialPost, Renewal, Task, Board, User, Setting } = require("../models");
+const { SocialPost, Renewal, User, Setting } = require("../models");
 const { rolesOf } = require("./permissions");
 const { createRows } = require("./notify");
 const { fmtDate, when, asArr, day } = require("./changeNotes");
@@ -110,30 +109,6 @@ async function runDaily(today) {
       body: `Renewal date ${fmtDate(r.renewalDate)}${r.amount ? ` · ₹${Number(r.amount).toLocaleString("en-IN")}` : ""}`,
       link: `/dashboard/renewals?renewal=${r.id}`, meta: { renewalId: r.id, day: today },
     });
-  }
-
-  /* ── Project board ── */
-  const boards = await Board.findAll();
-  const doneCols = new Map(boards.map((b) => [b.id, new Set(asArr(b.columns).filter((c) => /done|complete|shipped/i.test(c.title || "")).map((c) => c.id))]));
-  const open = (t) => !t.completed && !(doneCols.get(t.boardId)?.has(t.column));
-  const cards = (await Task.findAll({ where: { [Op.or]: [{ dueDate: { [Op.ne]: null } }, { renewalDate: { [Op.ne]: null } }] } })).filter(open);
-  for (const t of cards) {
-    const head = t.renewalDate ? label(daysBetween(today, day(t.renewalDate))) : null;
-    if (head) dig([...adminIds, ...asArr(t.memberIds)], "renewals", { head, title: t.title, sub: `Project board · renewal date ${fmtDate(t.renewalDate)}` });
-    if (head) add([...adminIds, ...asArr(t.memberIds)], { type: "renewal", title: `${head}: ${t.title}`, body: `Renewal date ${fmtDate(t.renewalDate)}`, link: `/dashboard/kanban?task=${t.id}`, meta: { taskId: t.id, day: today } });
-  }
-  const tomorrow = addDays(today, 1);
-  const dueTomorrow = cards.filter((t) => day(t.dueDate) === tomorrow);
-  const late = cards.filter((t) => t.dueDate && day(t.dueDate) < today);
-  for (const [uid, ts] of byUser(dueTomorrow, (t) => asArr(t.memberIds))) {
-    add([uid], ts.length === 1
-      ? { type: "due", title: `Due tomorrow: ${ts[0].title}`, body: `Project board · due ${fmtDate(ts[0].dueDate)}`, link: "/dashboard/kanban", meta: { kind: "card-due", day: today } }
-      : { type: "due", title: `${ts.length} cards are due tomorrow`, body: list(ts, (t) => t.title), link: "/dashboard/kanban", meta: { kind: "card-due", day: today } });
-  }
-  for (const [uid, ts] of byUser(late, (t) => asArr(t.memberIds))) {
-    add([uid], ts.length === 1
-      ? { type: "due", title: `Overdue card: ${ts[0].title}`, body: `Was due ${fmtDate(ts[0].dueDate)}`, link: "/dashboard/kanban", meta: { kind: "card-overdue", day: today } }
-      : { type: "due", title: `${ts.length} cards are overdue`, body: list(ts, (t) => `${t.title} (${fmtDate(t.dueDate)})`), link: "/dashboard/kanban", meta: { kind: "card-overdue", day: today } });
   }
 
   /* ── Lead follow-ups (today / overdue / meeting today) → the lead owner ── */

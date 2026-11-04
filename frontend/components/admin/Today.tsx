@@ -6,7 +6,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Mail01Icon, Alert02Icon, CheckmarkCircle02Icon, RupeeIcon, Clock01Icon, RepeatIcon, UserAdd01Icon, Target02Icon,
   Calendar03Icon, Add01Icon, ArrowRight01Icon, ArrowDown01Icon, Upload01Icon, News01Icon, Briefcase01Icon, Rocket01Icon,
-  Task01Icon, Refresh01Icon, CallIcon, LayoutTable01Icon, Search01Icon, Settings02Icon, KanbanIcon,
+  Task01Icon, Refresh01Icon, CallIcon, LayoutTable01Icon, Search01Icon, Settings02Icon,
 } from "@hugeicons/core-free-icons";
 import { api, type Overview, type Today as TodayData, type TodayNeed } from "@/lib/adminApi";
 import { useShell } from "@/components/admin/shell/ShellContext";
@@ -424,7 +424,6 @@ export default function Today() {
           <div className="td-links">
             {can("seo") && <Link href="/dashboard/seo" className="sh-btn"><Ic i={Search01Icon} size={17} />SEO</Link>}
             {can("settings") && <Link href="/dashboard/settings" className="sh-btn"><Ic i={Settings02Icon} size={17} />Settings &amp; pixels</Link>}
-            {can("board") && <Link href="/dashboard/kanban" className="sh-btn"><Ic i={KanbanIcon} size={17} />Project board</Link>}
             {can("renewals") && <Link href="/dashboard/renewals" className="sh-btn"><Ic i={RepeatIcon} size={17} />Renewals</Link>}
           </div>
         </section>

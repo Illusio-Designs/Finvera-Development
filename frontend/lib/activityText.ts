@@ -8,7 +8,7 @@ const TZ = "Asia/Kolkata";
 /* Item kinds as people say them. */
 export const ENTITY_NOUN: Record<string, string> = {
   lead: "lead", renewal: "renewal", user: "user", setting: "settings", seo: "SEO for", contact: "message from",
-  task: "card", board: "board", "social-client": "brand", "social-post": "post",
+  "social-client": "brand", "social-post": "post",
   project: "project", service: "service", testimonial: "testimonial", "team-member": "team member", blog: "blog post",
   page: "page", faq: "FAQ", value: "value", brand: "brand logo", milestone: "milestone", "process-step": "process step",
   stat: "stat", logo: "logo", feature: "feature",
@@ -21,7 +21,6 @@ export const ENTITY_GROUPS: { value: string; label: string; entity: string }[] =
   { value: "users", label: "Users", entity: "user" },
   { value: "settings", label: "Settings", entity: "setting,seo" },
   { value: "content", label: "Website content", entity: "content-section" },
-  { value: "board", label: "Project board", entity: "task,board" },
   { value: "social", label: "Content calendar", entity: "social-post,social-client" },
   { value: "contact", label: "Contact", entity: "contact" },
 ];
@@ -31,7 +30,6 @@ export function itemHref(r: Pick<ActivityRow, "entity" | "entityId" | "action">)
   if (r.action === "delete" || !r.entityId) return null;
   if (r.entity === "lead") return `/dashboard/leads?lead=${r.entityId}`;
   if (r.entity === "renewal") return `/dashboard/renewals?renewal=${r.entityId}`;
-  if (r.entity === "task") return `/dashboard/kanban?task=${r.entityId}`;
   if (r.entity === "contact") return `/dashboard/contact?msg=${r.entityId}`;
   if (r.entity === "social-post") return `/dashboard/social?post=${r.entityId}`;
   return null;

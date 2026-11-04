@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: "/dashboard",
     name: "Finvera Dashboard",
     short_name: "Finvera",
-    description: "Finvera team dashboard: content calendar, project boards, leads and more.",
+    description: "Finvera team dashboard: content calendar, leads, renewals and more.",
     start_url: "/dashboard",
     scope: "/",
     display: "standalone",

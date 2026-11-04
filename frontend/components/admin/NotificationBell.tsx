@@ -13,9 +13,9 @@ import {
   Alert02Icon, CheckmarkCircle02Icon, VolumeHighIcon, VolumeOffIcon,
 } from "@hugeicons/core-free-icons";
 
-type Notif = { id: number; type: string; title: string; body?: string | null; link?: string | null; isRead: boolean; createdAt: string; meta?: { taskId?: number } | null };
-/* Older project-board alerts link to the board page only; their meta names the card → open it. */
-const hrefOf = (n: Notif) => (n.link === "/dashboard/kanban" && n.meta?.taskId ? `/dashboard/kanban?task=${n.meta.taskId}` : n.link || "");
+type Notif = { id: number; type: string; title: string; body?: string | null; link?: string | null; isRead: boolean; createdAt: string; meta?: Record<string, unknown> | null };
+/* Old project-board alerts point at a page that no longer exists → no link. */
+const hrefOf = (n: Notif) => (n.link && !n.link.startsWith("/dashboard/kanban") ? n.link : "");
 
 /* Per-type icon and tint. */
 type K = { icon: typeof Mail01Icon; cls: string };

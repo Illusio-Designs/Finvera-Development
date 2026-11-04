@@ -40,7 +40,7 @@ export type Column = { name: string; label: string; type?: "image" | "avatar" | 
 const HISTORY_ENTITY: Record<string, string> = {
   projects: "project", services: "service", testimonials: "testimonial", team: "team-member", blog: "blog", pages: "page",
   faqs: "faq", values: "value", brands: "brand", milestones: "milestone", "process-steps": "process-step", stats: "stat",
-  logos: "logo", features: "feature", leads: "lead", renewals: "renewal", users: "user", boards: "board", "social-clients": "social-client",
+  logos: "logo", features: "feature", leads: "lead", renewals: "renewal", users: "user", "social-clients": "social-client",
 };
 const EXPORT_ENTITY: Record<string, string> = { leads: "leads", renewals: "renewals", users: "users" };
 

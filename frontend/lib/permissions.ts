@@ -2,27 +2,26 @@
    Keep in sync with Backendjs/src/utils/permissions.js. The backend is the
    real gate (every write is checked there); this drives nav + route guards. */
 
-export type Area = "content" | "board" | "leads" | "contact" | "seo" | "settings" | "users" | "renewals" | "social";
+export type Area = "content" | "leads" | "contact" | "seo" | "settings" | "users" | "renewals" | "social";
 
-// The project board ("board") is open to every team member.
 export const ROLE_AREAS: Record<string, "*" | Area[]> = {
   admin: "*",
-  content: ["content", "social", "board"],
-  editor: ["content", "social", "board"], // legacy alias
-  projects: ["board", "renewals", "social"],
-  leads: ["leads", "contact", "board"],
-  seo: ["seo", "settings", "board"],
-  social: ["social", "board"],
-  marketer: ["social", "board"],
-  video: ["social", "board"],
-  graphic: ["social", "board"],
+  content: ["content", "social"],
+  editor: ["content", "social"], // legacy alias
+  projects: ["renewals", "social"],
+  leads: ["leads", "contact"],
+  seo: ["seo", "settings"],
+  social: ["social"],
+  marketer: ["social"],
+  video: ["social"],
+  graphic: ["social"],
 };
 
 export const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
   content: "Content editor",
   editor: "Content editor",
-  projects: "Project board",
+  projects: "Projects",
   leads: "Leads",
   seo: "SEO",
   social: "Social media",

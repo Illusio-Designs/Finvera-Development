@@ -1,6 +1,6 @@
 const bcrypt = require("bcryptjs");
 const slugify = require("slugify");
-const { User, Project, Service, Testimonial, TeamMember, BlogPost, Seo, Setting, Board, Task, Page, Lead,
+const { User, Project, Service, Testimonial, TeamMember, BlogPost, Seo, Setting, Page, Lead,
   Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature } = require("../models");
 
 const slug = (s) => slugify(String(s), { lower: true, strict: true });
@@ -253,7 +253,7 @@ async function seed() {
   // 2) Content (only when tables are empty, so we never clobber edits)
   const CONTENT = [[Faq, FAQS], [Value, VALUES], [Brand, BRANDS], [Milestone, MILESTONES],
     [ProcessStep, PROCESS_STEPS], [Stat, STATS], [Logo, LOGOS], [Feature, FEATURES]];
-  const empty = await emptyModels([Project, Service, Testimonial, TeamMember, BlogPost, Lead, Board, ...CONTENT.map(([M]) => M)]);
+  const empty = await emptyModels([Project, Service, Testimonial, TeamMember, BlogPost, Lead, ...CONTENT.map(([M]) => M)]);
   if (empty.has("Project")) {
     await Project.bulkCreate(PROJECTS.map((p, i) => ({ ...p, slug: slug(p.title), position: i, status: "published" })));
     console.log(`\x1b[32m✔ Seeded ${PROJECTS.length} projects\x1b[0m`);
@@ -298,40 +298,6 @@ async function seed() {
   }
   await ensureRows(Seo, "page", SEO_PAGES);
   await ensureRows(Setting, "key", SETTINGS);
-
-  // 3) Default Kanban board (Trello-style). Migrate existing global columns +
-  //    orphan tasks onto it so nothing is lost. Wrapped so that if the boards
-  //    table doesn't exist yet (deployed before DB_SYNC=true), the API still
-  //    boots instead of hard-crashing on startup.
-  try {
-    if (empty.has("Board")) {
-      let columns = [
-        { id: "backlog", title: "Backlog" }, { id: "todo", title: "To Do" },
-        { id: "inprogress", title: "In Progress" }, { id: "review", title: "Review" },
-        { id: "done", title: "Done" },
-      ];
-      const legacy = await Setting.findOne({ where: { key: "kanban_columns" } });
-      if (legacy) { try { const c = JSON.parse(legacy.value); if (Array.isArray(c) && c.length) columns = c; } catch { /* keep defaults */ } }
-      const board = await Board.create({
-        name: "Main Board",
-        description: "Plan and track work across the team.",
-        columns,
-        labels: [
-          { id: "l1", name: "Design", color: "#8b5cf6" },
-          { id: "l2", name: "Development", color: "#3e60ab" },
-          { id: "l3", name: "QA", color: "#f59e0b" },
-          { id: "l4", name: "Urgent", color: "#ef4444" },
-          { id: "l5", name: "Done", color: "#22c55e" },
-        ],
-        position: 0,
-      });
-      // adopt any pre-existing tasks that have no board yet
-      await Task.update({ boardId: board.id }, { where: { boardId: null } });
-      console.log(`\x1b[32m✔ Seeded default Kanban board\x1b[0m`);
-    }
-  } catch (e) {
-    console.warn(`\x1b[33m⚠ Kanban board seed skipped (run once with DB_SYNC=true to create the boards table): ${e.message}\x1b[0m`);
-  }
 
   // 4) Versioned migrations — run pending steps + record the seed version.
   try { await runVersionedSeed(); }

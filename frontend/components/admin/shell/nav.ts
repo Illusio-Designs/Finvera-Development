@@ -3,7 +3,7 @@
    lib/permissions (area null = any signed-in user). */
 import {
   DashboardSquare01Icon, Briefcase01Icon, Layers01Icon, QuoteDownIcon, UserGroupIcon, News01Icon, Note01Icon,
-  TextFontIcon, Target02Icon, Mail01Icon, KanbanIcon, RepeatIcon, Calendar03Icon, AnalyticsUpIcon, Search01Icon,
+  TextFontIcon, Target02Icon, Mail01Icon, RepeatIcon, Calendar03Icon, AnalyticsUpIcon, Search01Icon,
   Settings02Icon, UserMultipleIcon, Activity01Icon, ServerStack01Icon, UserIcon, Upload01Icon, UserAdd01Icon,
   Add01Icon, DatabaseBackupIcon, Shield01Icon,
 } from "@hugeicons/core-free-icons";
@@ -31,7 +31,6 @@ export const NAV_GROUPS: NavGroup[] = [
     { href: "/dashboard/contact", label: "Contact inbox", icon: Mail01Icon, area: "contact" },
   ] },
   { key: "projects", label: "Projects", items: [
-    { href: "/dashboard/kanban", label: "Project board", icon: KanbanIcon, area: "board" },
     { href: "/dashboard/renewals", label: "Renewals", icon: RepeatIcon, area: "renewals" },
   ] },
   { key: "social", label: "Social media", items: [

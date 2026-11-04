@@ -187,28 +187,6 @@ export const api = {
   pushTest: () => req(`/push/test`, { method: "POST" }),
   socialKpis: (period: string, brand = "") => req(`/social-kpis?period=${encodeURIComponent(period)}${brand ? `&brand=${encodeURIComponent(brand)}` : ""}`),
 
-  /* Kanban — boards (Trello-style) */
-  listBoards: () => req(`/boards`),
-  createBoard: (body: any) => req(`/boards`, { method: "POST", body: JSON.stringify(body) }),
-  updateBoard: (id: number, body: any) => req(`/boards/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
-  deleteBoard: (id: number) => req(`/boards/${id}`, { method: "DELETE" }),
-
-  /* Kanban — cards */
-  listTasks: (boardId?: number) => req(`/tasks${boardId ? `?boardId=${boardId}` : ""}`),
-  /* Boards overview: only { id, boardId, column, completed, memberIds } per card
-     (older backends ignore the param and send full cards — still works). */
-  listTaskSummary: () => req(`/tasks?fields=summary`),
-  /* One column's card order after a drag, in one request (404 on older backends). */
-  reorderTasks: (column: string, ids: number[]) => req(`/tasks/reorder`, { method: "POST", body: JSON.stringify({ column, ids }) }),
-  createTask: (body: any) => req(`/tasks`, { method: "POST", body: JSON.stringify(body) }),
-  updateTask: (id: number, body: any) => req(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
-  deleteTask: (id: number) => req(`/tasks/${id}`, { method: "DELETE" }),
-
-  /* Kanban — comments */
-  listComments: (taskId: number) => req(`/tasks/${taskId}/comments`),
-  addComment: (taskId: number, body: string) => req(`/tasks/${taskId}/comments`, { method: "POST", body: JSON.stringify({ body }) }),
-  deleteComment: (id: number) => req(`/comments/${id}`, { method: "DELETE" }),
-
   /* Sidebar counts in one small call (scoped to the signed-in user). */
   badges: (): Promise<{ socialOverdue: number; approvals: number; inboxUnread: number; leadsFollowUpToday?: number; leadsFollowUpOverdue?: number }> => req(`/badges`),
   /* Dashboard home in one call (counts, recent messages, lead stages and follow-ups). */
@@ -386,42 +364,6 @@ export const leadsApi = {
   reorder: (stage: LeadStage, ids: number[]): Promise<{ ok: boolean }> => req(`/leads/reorder`, { method: "POST", body: JSON.stringify({ stage, ids }) }),
 };
 /* ═════════════════ end of leads page block ═════════════════════════════ */
-/* ═════════════════ Project board (boards home, board view, card drawer) ═ */
-export type BoardList = { id: string; title: string };
-export type BoardLabel = { id: string; name: string; color: string };
-export type BoardRow = { id: number; name: string; description?: string | null; color?: string | null; columns: BoardList[]; labels: BoardLabel[]; position?: number };
-export type CheckItem = { id: string; text: string; done: boolean };
-export type CardFile = { id: string; url: string; name: string; thumbUrl?: string | null };
-export type CardRow = {
-  id: number; title: string; description?: string | null; boardId: number; column: string; position: number;
-  priority?: "low" | "medium" | "high" | null; startDate?: string | null; dueDate?: string | null; renewalDate?: string | null;
-  completed?: boolean; cover?: string | null; client?: string | null;
-  memberIds: number[]; labelIds: string[]; checklist: CheckItem[]; attachments: CardFile[];
-  label?: string | null; commentCount?: number; createdAt?: string; updatedAt?: string;
-};
-/* GET /tasks?fields=summary — just enough for the boards home. */
-export type CardSummary = Pick<CardRow, "id" | "boardId" | "column" | "completed" | "memberIds" | "dueDate">;
-export type CardComment = { id: number; taskId?: number; body: string; createdAt: string; author?: { id: number; name: string; avatar?: string | null } | null };
-export type BoardUser = { id: number; name: string; avatar?: string | null; title?: string | null };
-export const boardApi = {
-  boards: (): Promise<BoardRow[]> => req(`/boards`),
-  createBoard: (body: Partial<BoardRow>): Promise<BoardRow> => req(`/boards`, { method: "POST", body: JSON.stringify(body) }),
-  updateBoard: (id: number, body: Partial<BoardRow>): Promise<BoardRow> => req(`/boards/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
-  deleteBoard: (id: number) => req(`/boards/${id}`, { method: "DELETE" }),
-  /* One board's cards in one request (with commentCount on newer backends). */
-  cards: (boardId: number): Promise<CardRow[]> => req(`/tasks?boardId=${boardId}`),
-  summary: (): Promise<CardSummary[]> => req(`/tasks?fields=summary`),
-  createCard: (body: Partial<CardRow>): Promise<CardRow> => req(`/tasks`, { method: "POST", body: JSON.stringify(body) }),
-  updateCard: (id: number, body: Partial<CardRow>): Promise<CardRow> => req(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
-  deleteCard: (id: number) => req(`/tasks/${id}`, { method: "DELETE" }),
-  /* One list's card order after a drag (also moves the cards into that list). 404 on older backends. */
-  reorder: (column: string, ids: number[]): Promise<{ ok: boolean }> => req(`/tasks/reorder`, { method: "POST", body: JSON.stringify({ column, ids }) }),
-  comments: (taskId: number): Promise<CardComment[]> => req(`/tasks/${taskId}/comments`),
-  addComment: (taskId: number, body: string): Promise<CardComment> => req(`/tasks/${taskId}/comments`, { method: "POST", body: JSON.stringify({ body }) }),
-  deleteComment: (id: number) => req(`/comments/${id}`, { method: "DELETE" }),
-  upload: (file: File): Promise<{ url: string; thumbUrl?: string | null }> => { const fd = new FormData(); fd.append("file", file); return req(`/uploads`, { method: "POST", body: fd }); },
-};
-/* ═════════════════ end of project board block ══════════════════════════ */
 /* ═════════════════ Renewals page (timeline, table, drawer) ═════════════ */
 export type RenewalCycle = "monthly" | "quarterly" | "half-yearly" | "yearly";
 export type RenewalStatus = "active" | "paused" | "cancelled";

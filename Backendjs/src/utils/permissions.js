@@ -4,7 +4,6 @@
    Areas map to groups of API resources:
      content  → projects/work, services, testimonials, team, blog, pages,
                 and all site-content collections (faqs, values, brands, …)
-     board    → kanban boards + tasks + comments
      leads    → BD lead pipeline
      social   → social media calendar (clients + posts)
      contact  → website contact inbox
@@ -13,18 +12,17 @@
      users    → admin user accounts
 */
 
-// The project board ("board") is open to every team member.
 const ROLE_AREAS = {
   admin: "*",                       // full access
-  content: ["content", "social", "board"],
-  editor: ["content", "social", "board"],    // legacy alias → content editor
-  projects: ["board", "renewals", "social"],  // project board (kanban) + maintenance renewals + social calendar
-  leads: ["leads", "contact", "board"],
-  seo: ["seo", "settings", "board"],
-  social: ["social", "board"],               // social media team — posts content (Ready to post → Posted)
-  marketer: ["social", "board"],             // plans / shoots reels (Planned, Need from client)
-  video: ["social", "board"],                // video editor — edits reels (In production)
-  graphic: ["social", "board"],              // graphic designer — posts & carousels (auto-assigned)
+  content: ["content", "social"],
+  editor: ["content", "social"],    // legacy alias → content editor
+  projects: ["renewals", "social"],  // maintenance renewals + social calendar
+  leads: ["leads", "contact"],
+  seo: ["seo", "settings"],
+  social: ["social"],               // social media team — posts content (Ready to post → Posted)
+  marketer: ["social"],             // plans / shoots reels (Planned, Need from client)
+  video: ["social"],                // video editor — edits reels (In production)
+  graphic: ["social"],              // graphic designer — posts & carousels (auto-assigned)
 };
 
 /* Roles offered in the UI (legacy "editor" still accepted for existing users). */
