@@ -72,3 +72,9 @@ test("the actual carousel publisher tags each child, not its parent container", 
     assert.equal(calls.find((call) => call.params.get("media_type") === "CAROUSEL").params.has("user_tags"), false);
   });
 });
+
+test("invalid legacy profile text explains which tag needs correction", () => {
+  assert.throws(() => profileNames("Jane Doe"), /Invalid Instagram tag "Jane Doe".*display name/);
+  assert.throws(() => imageTags({ userTags: [{ username: "#brand", x: 0.5, y: 0.5 }] }), /Invalid Instagram tag "#brand"/);
+  assert.deepEqual(profileNames(""), []);
+});

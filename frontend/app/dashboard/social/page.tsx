@@ -1399,6 +1399,11 @@ export default function SocialCalendar() {
               {j.error && j.status !== "published" && <p className={"cal-puberr" + (j.status === "scheduled" ? " soft" : "")}>{j.status === "scheduled" ? `Will try again: ${j.error}` : j.error}</p>}
               <div className="cal-row">
                 {j.url && <a className="cal-btn sm" href={j.url} target="_blank" rel="noopener noreferrer">View post ↗</a>}
+                {j.status === "failed" && p.status !== "posted" && canEdit(p) && !js.some((job) => ["publishing", "published", "check"].includes(job.status)) && <button type="button" className="cal-btn sm" onClick={async () => {
+                  const full = p._full ? p : await fetchFull(p.id);
+                  if (!full) return;
+                  dirty.current = new Set(); setEditing({ ...full }); setViewId(null);
+                }}>Edit tags &amp; content</button>}
                 {(["failed", "missed"].includes(j.status) || (j.status === "check" && !limited)) && <button type="button" className="cal-btn sm" onClick={() => retryJob(j)}>{j.status === "check" ? "Confirm absent & retry" : j.status === "missed" ? "Post now" : "Retry"}</button>}
                 {["failed", "check", "missed"].includes(j.status) && <button type="button" className="cal-btn sm" onClick={() => markJobPosted(j)}>I posted it myself</button>}
               </div>
@@ -1865,7 +1870,7 @@ export default function SocialCalendar() {
               </div></>}
               <div className="field row" style={{ gap: 12 }}>
                 <div className="adm-field" style={{ flex: 1 }}><label>Instagram profiles to tag</label>
-                  <input aria-label="Instagram profiles to tag" value={txt("tags")} onChange={(e) => set({ tags: e.target.value })} /><span className="adm-hint">Use @usernames separated by commas. These apply to Instagram images at the center; use Tag profiles on artwork to adjust positions. Caption @mentions are separate.</span></div>
+                  <input aria-label="Instagram profiles to tag" value={txt("tags")} onChange={(e) => set({ tags: e.target.value })} /><span className="adm-hint">Use exact @usernames separated by commas, not display names, hashtags or emails. Clear this field to publish without post-wide tags; remove image-specific tags under Tag profiles. These apply to Instagram images at the center; use Tag profiles on artwork to adjust positions. Caption @mentions are separate.</span></div>
                 <div className="adm-field" style={{ flex: 1 }}><label>Keywords</label>
                   <input value={txt("keywords")} onChange={(e) => set({ keywords: e.target.value })} /></div>
               </div>
