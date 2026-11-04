@@ -106,7 +106,7 @@ const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const COL_PAGE = 20; // cards per board column before "Show more"
 /* Fields the drawer edits — time log + timer are written separately so a save never clobbers them. */
 const EDITABLE: (keyof Post)[] = ["team", "step", "client", "status", "postDate", "postTime", "dueDate", "assigneeId", "estimateHours", "festive", "theme", "topic",
-  "format", "requirements", "reference", "dataStatus", "poc", "caption", "driveLink", "tags", "keywords", "channels", "remarks",
+  "format", "requirements", "reference", "dataStatus", "poc", "caption", "tags", "keywords", "channels", "remarks",
   "media", "publishTo", "keywordHashtags"];
 
 /* Left out of the board's "card" list (?fields=card) and fetched with the
@@ -220,7 +220,7 @@ type SheetKey = keyof Post | "date" | "day" | "contentTheme" | "concept" | "head
 const HEADERS: [SheetKey, RegExp][] = [
   ["date", /^date/], ["day", /^days?$/], ["festive", /festiv|occasion/], ["contentTheme", /^content theme/], ["theme", /theme/], ["topic", /topic/],
   ["requirements", /requirement/], ["reference", /reference/], ["format", /reel|carousel|format|post type|content type/],
-  ["dataStatus", /data\s*status|content status/], ["poc", /point of contact|^poc/], ["caption", /caption/], ["driveLink", /drive/],
+  ["dataStatus", /data\s*status|content status/], ["poc", /point of contact|^poc/], ["caption", /caption/],
   ["tags", /people|tag/], ["keywords", /keyword/], ["channels", /channel/], ["remarks", /remark/],
   ["concept", /concept/], ["headline", /headline/], ["visual", /visual|design direction/], ["cta", /^cta|engagement/],
 ];
@@ -272,7 +272,7 @@ function sheetToPosts(rows: string[][], client: string): Partial<Post>[] {
     const theme = titleFromTopic ? flat("topic") : flat("theme"), channels = get(r, "channels");
     if (!postDate || (!theme && !flat("topic") && !channels)) continue;
     const ds = flat("dataStatus").replace(/^\((.*)\)$/, "$1");
-    const caption = get(r, "caption"), driveLink = get(r, "driveLink");
+    const caption = get(r, "caption");
     const status: Stage = "planned"; // uploaded sheet rows start at the beginning of the pipeline
     const format = get(r, "format").replace(/caraousel/gi, "carousel").replace(/\s*[\\/]\s*/g, " / ")
       .toLowerCase().replace(/\b\w/g, (x) => x.toUpperCase()).trim();
@@ -283,7 +283,7 @@ function sheetToPosts(rows: string[][], client: string): Partial<Post>[] {
     out.push({
       client, status, postDate, theme: theme || "Untitled post", topic: titleFromTopic ? flat("concept") : (flat("topic") || flat("concept")), festive: flat("festive"), format,
       requirements, reference: get(r, "reference"), dataStatus: ds, poc: get(r, "poc"),
-      caption, driveLink, tags: get(r, "tags"), keywords: get(r, "keywords"), channels, remarks: get(r, "remarks"),
+      caption, tags: get(r, "tags"), keywords: get(r, "keywords"), channels, remarks: get(r, "remarks"),
       ...(titleFromTopic && flat("contentTheme") ? { altTheme: flat("contentTheme") } : {}),
     } as Partial<Post>);
   }
@@ -1304,8 +1304,8 @@ export default function SocialCalendar() {
             {text(p.caption)}
             <button type="button" className="cal-btn sm" onClick={copyCaption}>Copy caption</button>
           </>)}
-          {(urls(p.driveLink).length > 0 || urls(p.reference).length > 0 || urls(p.channels).length > 0) && section("Links", <div className="cal-links">
-            {linkChips(p.driveLink)}{linkChips(p.reference)}{linkChips(p.channels)}
+          {(urls(p.reference).length > 0 || urls(p.channels).length > 0) && section("Links", <div className="cal-links">
+            {linkChips(p.reference)}{linkChips(p.channels)}
           </div>)}
           {section("Client requirements", text(p.requirements))}
           {section("Need from client", p.clientRequest && <><p className="cal-pre">{p.clientRequest}</p><p>Follow up: {fmtDay(p.clientFollowUpDate)} · {userById(p.clientContactOwnerId)?.name || "Unassigned"}</p>{p.status !== "posted" && <button type="button" className="cal-btn" onClick={() => needFromClient(p)}>Edit client request</button>}</>)}
@@ -1814,14 +1814,12 @@ export default function SocialCalendar() {
               <div className="adm-field"><label>Caption &amp; hashtags</label>
                 <textarea rows={6} value={txt("caption")} onChange={(e) => set({ caption: e.target.value })} /></div>
               <div className="field row" style={{ gap: 12 }}>
-                <div className="adm-field" style={{ flex: 1 }}><label>Creative (Drive link)</label>
-                  <input value={txt("driveLink")} onChange={(e) => set({ driveLink: e.target.value })} placeholder="https://drive.google.com/…" /></div>
                 <div className="adm-field" style={{ flex: 1 }}><label>Reference link</label>
                   <input value={txt("reference")} onChange={(e) => set({ reference: e.target.value })} placeholder="https://" /></div>
               </div>
               <div className="adm-field"><label>Live post links</label>
                 <textarea value={txt("channels")} onChange={(e) => set({ channels: e.target.value })} placeholder={"Instagram https://…\nFacebook https://…"} />
-                <span className="adm-hint">Paste the real post links (https://…) once it's published — saving then moves it to Posted. Channel names alone don't count.</span></div>
+                <span className="adm-hint">Save links here as reference. Use Mark as posted or the publishing job’s verification action to confirm publication.</span></div>
               <div className="field row" style={{ gap: 12 }}>
                 <div className="adm-field" style={{ flex: 1 }}><label>Client requirements</label>
                   <textarea value={txt("requirements")} onChange={(e) => set({ requirements: e.target.value })} /></div>
