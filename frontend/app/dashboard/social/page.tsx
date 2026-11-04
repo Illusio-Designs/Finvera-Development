@@ -313,6 +313,21 @@ export default function SocialCalendar() {
   type TeamUser = { id: number; name: string; roles: string[]; socialClients: string[]; active: boolean };
   const [team, setTeam] = useState<TeamUser[]>([]);           // admin only: who holds which role / brands
   type Upload = { importBatch: string; client: string; posts: number; from: string; to: string; uploadedAt: string };
+  type BulkMove = { from: string; to: string; brand: string; role: string; posts: { id: number; theme: string; client: string; status: Stage }[] | null; skipped: number; busy: boolean };
+  const [bulkMove, setBulkMove] = useState<BulkMove | null>(null);
+  async function transferPending(preview: boolean) {
+    if (!bulkMove) return;
+    const move = bulkMove;
+    setBulkMove({ ...move, busy: true });
+    try {
+      const result = await api.create("social-posts/reassign-pending", { fromId: Number(move.from), toId: Number(move.to), brand: move.brand, role: move.role, preview, ...(!preview ? { postIds: move.posts?.map((p) => p.id) } : {}) });
+      if (preview) setBulkMove({ ...move, posts: result.posts, skipped: result.skipped, busy: false });
+      else { setBulkMove(null); await load(); window.dispatchEvent(new Event("fv-badges")); toast(`${result.transferred} pending posts reassigned`, "ok"); }
+    } catch (e: any) {
+      setBulkMove({ ...move, posts: null, busy: false });
+      toast(preview ? "Couldn't preview pending work" : "Transfer not completed", "err", { description: e.message });
+    }
+  }
   const [uploads, setUploads] = useState<Upload[] | null>(null); // admin Team & uploads panel (null = closed)
   const coverScrolled = useRef("");
   const [coverEdit, setCoverEdit] = useState<{ brand: string; role: Role } | null>(null); // "who covers" cell being edited
@@ -1472,6 +1487,7 @@ export default function SocialCalendar() {
           <input ref={fileRef} type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={(e) => { importCsv(e.target.files?.[0]); e.currentTarget.value = ""; }} />
           <button type="button" className="cal-primary" onClick={() => fileRef.current?.click()}>Import sheet</button>
           {!limited && <button type="button" className="cal-btn" onClick={openUploads}>Upload history</button>}
+          {!limited && <button type="button" className="cal-btn" onClick={() => setBulkMove({ from: "", to: "", brand: client, role: "", posts: null, skipped: 0, busy: false })}>Reassign pending</button>}
           <ExportButton entity="social-posts" file={client ? `content-calendar-${client.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}` : "content-calendar"} sheet={client || "Content calendar"}
             params={() => ({
               client, q: query.trim(), assigneeId: /^\d+$/.test(who) ? who : "",
@@ -1526,6 +1542,26 @@ export default function SocialCalendar() {
           : "No posts yet. Import a brand's media calendar sheet (Excel or CSV). A new brand is added automatically from the upload."}</div>
       ) : activeView === "mine" ? renderMine() : activeView === "calendar" ? renderCalendar() : renderBoard()}
 
+      {bulkMove && !limited && (
+        <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget && !bulkMove.busy) setBulkMove(null); }}>
+          <div className="adm-drawer kb-drawer cal-view" role="dialog" aria-modal="true" aria-label="Reassign pending work">
+            <div className="cal-vtop"><h2>Reassign pending</h2><button type="button" className="cal-x" disabled={bulkMove.busy} onClick={() => setBulkMove(null)} aria-label="Close">×</button></div>
+            <p className="cal-lead">Transfer pending work in one shot. Files, content, stage and go-live dates stay with each post.</p>
+            <fieldset disabled={bulkMove.busy} style={{ border: 0, padding: 0 }}>
+              <div className="adm-field"><label>Current person</label><Select ariaLabel="Current person" value={bulkMove.from} onChange={(from) => setBulkMove({ ...bulkMove, from, posts: null })} options={[{ value: "", label: "Choose person" }, ...team.map((u) => ({ value: String(u.id), label: `${u.name}${u.active === false ? " (inactive)" : ""}` }))]} /></div>
+              <div className="adm-field"><label>Replacement</label><Select ariaLabel="Replacement" value={bulkMove.to} onChange={(to) => setBulkMove({ ...bulkMove, to, posts: null })} options={[{ value: "", label: "Choose replacement" }, ...team.filter((u) => u.active !== false && String(u.id) !== bulkMove.from).map((u) => ({ value: String(u.id), label: u.name }))]} /></div>
+              <div className="adm-field"><label>Brand</label><Select ariaLabel="Transfer brand" value={bulkMove.brand} onChange={(brand) => setBulkMove({ ...bulkMove, brand, posts: null })} options={[{ value: "", label: "All brands" }, ...clientNames.map((name) => ({ value: name, label: name }))]} /></div>
+              <div className="adm-field"><label>Work type</label><Select ariaLabel="Transfer work type" value={bulkMove.role} onChange={(role) => setBulkMove({ ...bulkMove, role, posts: null })} options={[{ value: "", label: "All eligible work" }, ...(["graphic", "video", "social"] as Role[]).map((role) => ({ value: role, label: ROLE_META[role].label }))]} /></div>
+            </fieldset>
+            <p className="adm-hint">Only the replacement’s matching work roles are transferred. Posted posts and posts currently publishing are excluded. Other people in the post’s team are retained.</p>
+            {bulkMove.posts && <div className="cal-vsec"><h4>{bulkMove.posts.length} posts to transfer</h4><p>{bulkMove.skipped} excluded by work type, role or publishing state.</p><ul>{bulkMove.posts.map((p) => <li key={p.id}>{p.theme} · {p.client} · {STAGES.find((s) => s.id === p.status)?.title}</li>)}</ul></div>}
+            <div className="adm-drawer-actions cal-actions">
+              <button type="button" className="cal-btn" disabled={bulkMove.busy || !bulkMove.from || !bulkMove.to || bulkMove.from === bulkMove.to} onClick={() => transferPending(true)}>{bulkMove.busy ? "Working…" : "Preview pending posts"}</button>
+              <button type="button" className="cal-primary" disabled={bulkMove.busy || !bulkMove.posts?.length} onClick={() => transferPending(false)}>Transfer {bulkMove.posts?.length || 0} pending posts</button>
+            </div>
+          </div>
+        </div>
+      )}
       {viewed && !editing && renderDetails(viewed)}
       {uploadId != null && posts.find((p) => p.id === uploadId) && renderUpload(posts.find((p) => p.id === uploadId)!)}
       {uploads && renderTeamPanel(uploads)}

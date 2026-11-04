@@ -269,6 +269,7 @@ socialPostRouter.delete("/uploads/:batch", ...canSocial, social.requireAllBrands
   audit.track("social-post", { action: "delete", idFrom: () => null, label: (_r, req) => `Sheet upload ${req.params.batch}`, summary: (_req, b) => `Deleted a sheet upload (${b?.deleted ?? 0} posts)` }), social.deleteUpload);
 socialPostRouter.post("/delete-brand", ...canSocial, social.requireAllBrands, kpiBump,
   audit.track("social-post", { action: "delete", idFrom: () => null, label: (_r, req) => req.body?.client, summary: (req, b) => `Deleted every post of ${req.body?.client} (${b?.deleted ?? 0})` }), social.deleteBrandPosts);
+socialPostRouter.post("/reassign-pending", ...canSocial, social.requireAllBrands, require("../controllers/socialReassign.controller").reassignPending);
 socialPostRouter.get("/:id", ...canSocial, social.guardPost, socialPostCtrl.getOne);
 socialPostRouter.post("/", ...canSocial, social.guardBody, social.deadlineDefaults, social.assignOnCreate, socialPostCtrl.create);
 // Bulk import (rows parsed from a client's media-calendar sheet).
