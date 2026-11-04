@@ -67,6 +67,10 @@ async function start() {
       console.warn("\x1b[33m⚠ Seed skipped (continuing):\x1b[0m", e.message);
     }
 
+    // Reconcile old scheduled data before enabling the worker. No remote writes.
+    const socialRepair = await require("./src/utils/socialReconcile").reconcile();
+    console.log(`Social workflow checked ${socialRepair.checked} ready posts; ${socialRepair.paused} returned to review.`);
+
     const server = app.listen(PORT, () => {
       console.log(`\x1b[36m✔ Finvera API running on http://localhost:${PORT}\x1b[0m`);
     });

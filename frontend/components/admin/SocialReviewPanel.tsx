@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 type Post = { id: number; theme: string; client: string; format?: string | null; caption?: string; tags?: string; keywords?: string; requirements?: string; remarks?: string; postDate?: string | null; postTime?: string | null; updatedAt?: string; publishTo?: string[] | null; media?: { url: string; type: string; name?: string; thumbUrl?: string | null; userTags?: { username: string; x: number; y: number }[] }[] };
 const CHECKS = ["Artwork and media order", "Caption and hashtags", "People to tag and requirements", "Channels and go-live time"];
 
-export default function SocialReviewPanel({ post, loaded, canReview, reviewer, channels, onClose, onApprove, onChanges, onEdit }: {
+export default function SocialReviewPanel({ post, loaded, canReview, reviewer, channels, preflightIssues = [], preflightLoading = false, preflightError, onClose, onApprove, onChanges, onEdit }: {
   post: Post; loaded: boolean; canReview: boolean; reviewer: string; channels: string[];
+  preflightIssues?: { field: string; message: string }[]; preflightLoading?: boolean; preflightError?: string;
   onClose: () => void; onApprove: () => Promise<void>; onChanges: (note: string) => Promise<void>; onEdit: () => void;
 }) {
   const root = useRef<HTMLElement>(null);
@@ -17,7 +18,7 @@ export default function SocialReviewPanel({ post, loaded, canReview, reviewer, c
   const media = post.media || [];
   const active = media[Math.min(selected, Math.max(0, media.length - 1))];
   const video = active?.type === "video" || /\.(mp4|mov|m4v)(\?|$)/i.test(active?.url || "");
-  const ready = loaded && canReview && CHECKS.every((_, index) => checks[index]) && media.length > 0 && !busy;
+  const ready = loaded && canReview && CHECKS.every((_, index) => checks[index]) && media.length > 0 && !preflightLoading && !preflightError && !preflightIssues.length && !busy;
   useEffect(() => { setChecks([]); }, [post.id, post.updatedAt]);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
@@ -54,6 +55,9 @@ export default function SocialReviewPanel({ post, loaded, canReview, reviewer, c
       <span className="sw-upload-kicker">CHECK IT. PASS IT ON.</span><h3>Ready for its moment?</h3>
       <p className="sw-review-sub">Review the saved artwork and content before approving.</p>
       <div className="sw-review-plan"><span>Goes live · India time</span><strong>{post.postDate ? new Date(post.postDate + "T00:00:00+05:30").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" }) : "Date not set"} · {post.postTime || "10:00"} IST</strong><p>{channels.length ? "Connected: " + channels.join(" · ") : "No connected publishing targets — approval alone will not schedule a job."}</p><small>Reviewer: {reviewer}</small><small>Queued jobs depend on channel readiness and pause status.</small></div>
+      {preflightLoading && <p role="status">Checking the saved post…</p>}
+      {preflightError && <p className="sw-upload-error" role="alert">Could not check this post: {preflightError}. Reopen Review to try again.</p>}
+      {preflightIssues.length > 0 && <div className="sw-upload-error" role="alert"><b>Fix before approval</b><ul>{preflightIssues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul><small>Use Edit saved content, then review the saved version again.</small></div>}
       <div className="sw-review-checks">{CHECKS.map((label, index) => <label key={label}><input type="checkbox" checked={!!checks[index]} disabled={!loaded || !canReview || busy} onChange={(e) => setChecks((old) => CHECKS.map((_, i) => i === index ? e.target.checked : !!old[i]))} /><span>{label}</span></label>)}</div>
       <label className="sw-review-note" htmlFor="review-change-note">Feedback for the maker<textarea id="review-change-note" rows={3} placeholder="What should we improve?" value={note} disabled={!canReview || busy} onChange={(e) => setNote(e.target.value)} /></label>
       {error && <p className="sw-upload-error" role="alert">{error}</p>}

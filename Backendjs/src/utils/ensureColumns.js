@@ -29,6 +29,7 @@ const WANTED = [
   { table: "users", column: "twoFactorEnabled", def: "TINYINT(1) NOT NULL DEFAULT 0" },
   { table: "users", column: "twoFactorSecret", def: "VARCHAR(255) NULL" },
   { table: "users", column: "twoFactorBackup", def: "JSON NULL" },
+  { table: "social_post_events", column: "postTime", def: "VARCHAR(5) NULL" },
   { table: "social_posts", column: "importBatch", def: "VARCHAR(40) NULL" },
   { table: "social_posts", column: "media", def: "JSON NULL" },
   { table: "social_posts", column: "publishTo", def: "JSON NULL" },

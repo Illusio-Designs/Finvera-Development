@@ -40,3 +40,17 @@ test('entering production corrects a legacy graphic step on a reel', async () =>
   assert.equal(req.body.step, 'video');
   assert.equal(req.body.assigneeId, 22);
 });
+
+test('overdue uses the exact India go-live time, not local midnight', () => {
+  const post = { status: 'ready', postDate: '2026-11-10', postTime: '10:00' };
+  assert.equal(ui.overdueAt(post, new Date('2026-11-10T04:29:59Z')), false);
+  assert.equal(ui.overdueAt(post, new Date('2026-11-10T04:30:01Z')), true);
+  assert.equal(ui.indiaToday(new Date('2026-11-09T19:00:00Z')), '2026-11-10');
+});
+test('carousel reordering preserves each artwork and its positioned tags', () => {
+  const first = { url: 'a.jpg', userTags: [{ username: 'creator', x: 0.2, y: 0.4 }] };
+  const second = { url: 'b.jpg' };
+  const reordered = ui.moveArtwork([first, second], 1, 0);
+  assert.equal(reordered[0], second); assert.equal(reordered[1], first);
+  assert.equal(first.userTags[0].x, 0.2);
+});

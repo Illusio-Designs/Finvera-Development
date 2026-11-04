@@ -15,9 +15,10 @@ type Props = {
   onFiles: (files: File[]) => Promise<void>;
   onRemove: (index: number) => void;
   onTags: (index: number, tags: ImageTag[]) => Promise<boolean>;
+  onReorder?: (from: number, to: number) => void;
 };
 
-export default function SocialUploadWork({ media, busy, disabled, editable, posted, error, staged = false, onFiles, onRemove, onTags }: Props) {
+export default function SocialUploadWork({ media, busy, disabled, editable, posted, error, staged = false, onFiles, onRemove, onTags, onReorder }: Props) {
   const [tagging, setTagging] = useState<string | null>(null);
   const tagIndex = media.findIndex((item) => item.url === tagging);
   const input = useRef<HTMLInputElement>(null);
@@ -67,7 +68,7 @@ export default function SocialUploadWork({ media, busy, disabled, editable, post
             {video ? <video src={file.url} muted playsInline preload="metadata" /> : <img src={file.thumbUrl || file.url} alt={file.name || `Artwork ${index + 1}`} draggable={false} />}
             <span className="sw-artwork-number">{String(index + 1).padStart(2, "0")}</span><span className="sw-artwork-type">{video ? "▶ Video" : "Image"}</span>
           </a>
-          <div className="sw-artwork-info"><div><strong title={file.name}>{file.name || `Artwork ${index + 1}`}</strong><small>{staged ? "Ready to save with this post" : "✓ Saved to this post"}</small></div>{editable && !posted && !video && <button type="button" disabled={disabled || busy} onClick={() => setTagging(file.url)}>Tag profiles{file.userTags?.length ? ` (${file.userTags.length})` : ""}</button>}{editable && !posted && <button type="button" disabled={disabled || busy} aria-label={`Remove ${file.name || `artwork ${index + 1}`}`} onClick={() => { setLocalError(""); onRemove(index); }}>Remove</button>}</div>
+          <div className="sw-artwork-info"><div><strong title={file.name}>{file.name || `Artwork ${index + 1}`}</strong><small>{staged ? "Ready to save with this post" : "✓ Saved to this post"}</small></div>{editable && !posted && !video && <button type="button" disabled={disabled || busy} onClick={() => setTagging(file.url)}>Tag profiles{file.userTags?.length ? ` (${file.userTags.length})` : ""}</button>}{editable && !posted && onReorder && media.length > 1 && <span className="sw-artwork-order"><button type="button" disabled={disabled || busy || index === 0} aria-label={`Move artwork ${index + 1} earlier`} onClick={() => onReorder(index, index - 1)}>←</button><button type="button" disabled={disabled || busy || index === media.length - 1} aria-label={`Move artwork ${index + 1} later`} onClick={() => onReorder(index, index + 1)}>→</button></span>}{editable && !posted && <button type="button" disabled={disabled || busy} aria-label={`Remove ${file.name || `artwork ${index + 1}`}`} onClick={() => { setLocalError(""); onRemove(index); }}>Remove</button>}</div>
         </article>;
       })}</div>}
       {tagIndex >= 0 && <InstagramImageTags saveLabel={staged ? "Apply image tags" : "Save image tags"} key={tagging} url={media[tagIndex].url} tags={media[tagIndex].userTags || []} onSave={(tags) => onTags(tagIndex, tags)} onClose={() => setTagging(null)} />}

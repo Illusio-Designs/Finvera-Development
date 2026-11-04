@@ -39,12 +39,7 @@ const asArr = (v) => {
 const asObj = (v) => (v && typeof v === "object" ? v : (() => { try { return JSON.parse(v || "{}"); } catch { return {}; } })());
 
 /* Go-live as a Date: the post's date + time in India time. */
-function goLiveAt(p) {
-  const d = p.postDate ? String(p.postDate).slice(0, 10) : null;
-  if (!d) return null;
-  const t = /^\d{1,2}:\d{2}/.test(String(p.postTime || "")) ? String(p.postTime).slice(0, 5).padStart(5, "0") : "10:00";
-  return new Date(`${d}T${t}:00+05:30`);
-}
+const { goLiveAt } = require("./socialDeadline");
 
 /* Caption + hashtags: the post's caption (which may already hold hashtags),
    then its keywords turned into hashtags, without duplicates, at most 30
@@ -120,17 +115,7 @@ const isRetryable = (e) => !!(e.meta?.is_transient || [1, 2, 4, 17, 32, 341, 613
 
 /* Problems we can spot before calling Meta, worded for the team. */
 function precheck(p, platform) {
-  const media = asArr(p.media).filter((m) => m && m.url);
-  if (platform === "facebook" && media.some(meta.isVideo) && media.length > 1) return "Facebook video posts must contain one video. Split mixed or multiple-video artwork into separate posts.";
-  if (!media.length && platform === "instagram") return "Add the image or video to the post — Instagram needs media.";
-  if (platform === "instagram") {
-    try { for (const item of require("./instagramTags").postMediaWithTags(media, p.tags)) { const tags = require("./instagramTags").imageTags(item); if (meta.isVideo(item) && tags.length) return "Image profile tags are not supported on videos in Finvera."; } } catch (error) { return error.message; }
-    const bad = media.filter((m) => !meta.isVideo(m) && !/\.(jpe?g)(\?|$)/i.test(m.url) && /\.(png|webp|gif|avif|svg)(\?|$)/i.test(m.url));
-    if (bad.length) return `Instagram only accepts JPG images (${bad.length} of ${media.length} ${bad.length === 1 ? "is" : "are"} not JPG).`;
-    if (/reel/i.test(p.format || "") && !media.some(meta.isVideo)) return "This is a Reel — add the video.";
-    if (media.length > 10) return "Instagram carousels take at most 10 items.";
-  }
-  return null;
+  return require("./socialPreflight").preflight(p, [platform])[0]?.message || null;
 }
 
 /* Email admins + the social team about a publishing problem — at most one

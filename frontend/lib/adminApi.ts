@@ -202,11 +202,12 @@ export const api = {
     const qs = new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][]).toString();
     return req(`/social-posts${qs ? `?${qs}` : ""}`);
   },
+  socialPreflight: (id: number) => req(`/social-posts/${id}/preflight`),
   checkSocialMedia: (id: number) => req(`/social-posts/${id}/media-check`),
   getSocialPost: (id: number) => req(`/social-posts/${id}`),
 
   /* Social media calendar — bulk import rows parsed from a client's sheet */
-  importSocialPosts: (posts: any[]) => req(`/social-posts/bulk`, { method: "POST", body: JSON.stringify({ posts }) }),
+  importSocialPosts: (posts: any[], preview = false) => req(`/social-posts/bulk${preview ? "?preview=1" : ""}`, { method: "POST", body: JSON.stringify({ posts }) }),
   /* Auto-publishing (Instagram / Facebook) */
   metaStatus: () => req(`/social-connect/meta/status`),
   metaStart: (brand: string) => req(`/social-connect/meta/start?brand=${encodeURIComponent(brand)}`),

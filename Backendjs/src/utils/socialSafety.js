@@ -29,7 +29,7 @@ function liveLink(url, platform) {
   } catch { return false; }
 }
 
-function prepareUpdate(post, incoming, user, jobs = []) {
+function prepareUpdate(post, incoming, user, jobs = [], reviewPlatforms = null) {
   const data = { ...incoming };
   const expected = data._expectedUpdatedAt;
   delete data._expectedUpdatedAt;
@@ -52,7 +52,7 @@ function prepareUpdate(post, incoming, user, jobs = []) {
   if (jobs.some((j) => j.status === "publishing")) fail(409, "Publishing is in progress. Wait for the platform result before changing this post.");
   // Instagram tags are never sent to Facebook. They may be corrected after
   // Facebook succeeds, provided Instagram has definitely not published.
-  const withoutInstagramTags = (value) => ({ ...value, tags: null, media: (asJSON(value.media) || []).map(({ userTags, ...item }) => item) });
+  const withoutInstagramTags = (value) => ({ ...value, tags: null, media: require("./socialPreflight").array(value.media).map((item) => { if (!item || typeof item !== "object") return item; const { userTags, ...rest } = item; return rest; }) });
   const instagramJobs = jobs.filter((j) => j.platform === "instagram");
   const safeTagCorrection = post.status !== "posted" && jobs.some((j) => j.platform === "facebook" && j.status === "published") &&
     jobs.filter((j) => j.status === "published").every((j) => j.platform === "facebook") &&
@@ -60,10 +60,22 @@ function prepareUpdate(post, incoming, user, jobs = []) {
     instagramJobs.length > 0 && instagramJobs.every((j) => ["failed", "cancelled", "missed", "scheduled"].includes(j.status)) &&
     contentHash(withoutInstagramTags(post)) === contentHash(withoutInstagramTags({ ...post, ...data }));
   if (changed && (post.status === "posted" || jobs.some((j) => ["published", "check"].includes(j.status))) && !safeTagCorrection) fail(409, "This post may already be live on a platform. After Facebook publishes, only Instagram profile tags can be corrected here; other content changes require a revised post.");
+  if (data.status && data.status !== post.status && !["ready", "posted"].includes(data.status)) {
+    const allowed = { planned: ["client", "production"], client: ["planned", "production"], production: ["planned", "client", "approval"], approval: ["production"], ready: ["approval"], posted: [] };
+    if (!(allowed[post.status] || []).includes(data.status)) fail(409, "Use Start work, Upload, Review and Schedule in order. This stage cannot be skipped.");
+    const next = { ...post, ...data };
+    if (["production", "approval"].includes(data.status) && !next.assigneeId) fail(400, "Choose the person responsible before moving this work.");
+    if (data.status === "approval" && !require("./socialPreflight").array(next.media).length) fail(400, "Upload the finished work before sending for review.");
+  }
   if (data.status === "ready" && post.status !== "ready") {
     if (post.status !== "approval" || !canApprove(post, user)) fail(403, "Only the assigned social reviewer or an admin can approve a post in Pending approval.");
     const reviewContentChanged = contentHash({ ...post, postDate: null, postTime: null }) !== contentHash({ ...post, ...data, postDate: null, postTime: null });
     if (reviewContentChanged) fail(409, "Save content changes first, then review and approve the saved version.");
+    const next = { ...post, ...data };
+    const targets = reviewPlatforms || (next.publishTo == null ? ["instagram", "facebook"] : require("./socialPreflight").array(next.publishTo));
+    const remaining = targets.filter((platform) => !jobs.some((job) => job.platform === platform && job.status === "published"));
+    const issues = require("./socialPreflight").preflight(next, remaining);
+    if (issues.length) fail(400, issues.map((issue) => issue.message).join(" "));
   }
   if (data.status === "client" && post.status !== "client" && !String(data.clientRequest || post.clientRequest || "").trim()) fail(400, "Describe what is needed from the client.");
   if (data.clientFollowUpDate && (!/^\d{4}-\d{2}-\d{2}$/.test(data.clientFollowUpDate) || !Number.isFinite(Date.parse(data.clientFollowUpDate)))) fail(400, "Choose a valid client follow-up date.");

@@ -1,0 +1,38 @@
+// Opt-in integration checks: use an isolated local MySQL database.
+if (process.env.FINVERA_INTEGRATION_TESTS !== '1') throw new Error('Set FINVERA_INTEGRATION_TESTS=1 with a disposable local database.');
+const root=require('node:path').resolve(__dirname,'../..');require(root+'/node_modules/dotenv').config({path:root+'/.env'});process.env.NODE_ENV='test';if (!['localhost','127.0.0.1','::1'].includes(process.env.DB_HOST || 'localhost')) throw new Error('Integration tests require a local database.');
+const assert=require('node:assert/strict');const m=require(root+'/src/models');const jwt=require(root+'/node_modules/jsonwebtoken');
+(async()=>{let server,user,brand,post,account;try{
+ await m.sequelize.authenticate();await require(root+'/src/utils/ensureColumns')(m.sequelize);
+ const name='Local HTTP test '+Date.now();user=await m.User.create({name,email:`local-test-${Date.now()}@example.test`,password:'local-test-not-a-login',role:'admin',roles:['admin'],active:true});brand=await m.SocialClient.create({name});post=await m.SocialPost.create({client:name,theme:name,status:'planned',assigneeId:user.id,team:{graphic:user.id,social:user.id},format:'Post'});account=await m.SocialAccount.create({client:name,pageId:'local-only',igUserId:'local-only',igUsername:'local_only',pageToken:'local-only',status:'connected'});
+ server=require(root+'/src/app').listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));const base=`http://127.0.0.1:${server.address().port}/api`;const token=jwt.sign({id:user.id},process.env.JWT_SECRET,{expiresIn:'5m'});
+ async function request(path,body,method='PATCH'){const res=await fetch(base+path,{method,headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});return{status:res.status,data:await res.json()};}
+ let r=await request(`/social-posts/${post.id}`,{status:'ready'});assert.equal(r.status,403);
+ r=await request(`/social-posts/${post.id}/publish-now`,{},'POST');assert.equal(r.status,403);
+ r=await request(`/social-posts/${post.id}`,{status:'client'});assert.equal(r.status,400);
+ r=await request(`/social-posts/${post.id}`,{status:'client',clientRequest:'Need client artwork',clientFollowUpDate:'2026-11-10',clientContactOwnerId:user.id});assert.equal(r.status,200);assert.equal(r.data.status,'client');assert.equal(r.data.clientRequest,'Need client artwork');
+ r=await request(`/social-posts/${post.id}`,{tags:'@creator_demo',media:[{url:'https://example.test/art.jpg',type:'image',userTags:[{username:'creator_demo',x:0.25,y:0.75}]}]});assert.equal(r.status,200);assert.equal(r.data.media[0].userTags[0].username,'creator_demo');r=await request(`/social-posts/${post.id}/media-check`,null,'GET');assert.equal(r.status,200);assert.equal(r.data.publicAccess,'not_verified');r=await request(`/social-accounts/${encodeURIComponent(name)}/capabilities?platform=instagram`,null,'GET');assert.equal(r.status,200);assert.equal(r.data.actions.find(a=>a.id==='edit').state,'external');assert.equal(r.data.writeTestsPerformed,false);assert.equal(JSON.stringify(r.data).includes('pageToken'),false);
+
+ const extra = [];
+ try {
+   const fresh = await m.SocialPost.create({client:name,theme:'New plan',status:'planned',postDate:'2026-11-10',format:'Post'}); extra.push(fresh);
+   const partial = await m.SocialPost.create({client:name,theme:'Partial live',status:'ready',postDate:'2026-11-10',format:'Post',assigneeId:user.id,team:{social:user.id},tags:'Illusio Designs',media:[{url:'https://example.test/a.jpg',type:'image'}]}); extra.push(partial);
+   await m.SocialPublishJob.create({postId:partial.id,client:name,platform:'facebook',status:'published',url:'https://www.facebook.com/posts/test',remoteId:'preserve-me'});
+   await m.SocialPublishJob.create({postId:partial.id,client:name,platform:'instagram',status:'failed',error:'Invalid Instagram tag',checkpoint:{creationId:'old-container'}});
+   let check = await request(`/social-posts/${partial.id}/preflight`,null,'GET');assert.equal(check.status,200);assert.ok(check.data.issues.some(issue=>issue.field==='tags'));
+   check=await request('/social-posts/bulk?preview=1',{posts:[{client:name,theme:fresh.theme,postDate:'2026-11-10',caption:'Planning update'},{client:name,theme:partial.theme,postDate:'2026-11-10',caption:'Must not overwrite'}]},'POST');assert.equal(check.status,200);assert.equal(check.data.updated,1);assert.equal(check.data.skipped,1);
+   await fresh.reload();assert.equal(fresh.caption,null);
+   check=await request('/social-posts/bulk',{posts:[{client:name,theme:fresh.theme,postDate:'2026-11-10',caption:'Planning update'},{client:name,theme:partial.theme,postDate:'2026-11-10',caption:'Must not overwrite'}]},'POST');assert.equal(check.status,201,JSON.stringify(check.data));assert.equal(check.data.updated,1);assert.equal(check.data.skipped.length,1);
+   await fresh.reload();await partial.reload();assert.equal(fresh.caption,'Planning update');assert.equal(partial.caption,null);
+   check=await request(`/social-posts/${partial.id}`,null,'DELETE');assert.equal(check.status,409);assert.ok(await m.SocialPost.findByPk(partial.id));
+   const repaired=await require(root+'/src/utils/socialReconcile').reconcile({postIds:[partial.id]});assert.ok(repaired.paused>=1);await partial.reload();assert.equal(partial.status,'approval');assert.equal(partial.tags,'Illusio Designs');
+   let jobs=await m.SocialPublishJob.findAll({where:{postId:partial.id}});assert.equal(jobs.find(job=>job.platform==='facebook').remoteId,'preserve-me');assert.equal(jobs.find(job=>job.platform==='instagram').status,'cancelled');
+   const again=await require(root+'/src/utils/socialReconcile').reconcile({postIds:[partial.id]});await partial.reload();assert.equal(partial.status,'approval');
+   check=await request(`/social-posts/${partial.id}`,{tags:'@correct_handle',_expectedUpdatedAt:partial.updatedAt});assert.equal(check.status,200,JSON.stringify(check.data));
+   check=await request(`/social-posts/${partial.id}`,{status:'ready',_expectedUpdatedAt:check.data.updatedAt});assert.equal(check.status,200,JSON.stringify(check.data));
+   jobs=await m.SocialPublishJob.findAll({where:{postId:partial.id}});assert.equal(jobs.find(job=>job.platform==='facebook').status,'published');assert.equal(jobs.find(job=>job.platform==='facebook').remoteId,'preserve-me');assert.equal(jobs.find(job=>job.platform==='instagram').status,'scheduled');
+   check=await request(`/social-posts/${fresh.id}`,null,'DELETE');assert.equal(check.status,200);assert.equal(await m.SocialPost.findByPk(fresh.id),null);
+   console.log('PASS: import preview/protected rows, live deletion guard, idempotent data repair, partial Instagram correction/reapproval preserve Facebook, and safe deletion.');
+ } finally {for(const row of extra){await m.SocialPostEvent.destroy({where:{postId:row.id}});await m.SocialPublishJob.destroy({where:{postId:row.id}});await m.SocialPost.destroy({where:{id:row.id}});}}
+ console.log('PASS: authenticated local HTTP routes reject approval/publish bypass, save client-request details, and expose read-only Meta readiness without credentials or writes.');
+ }finally{if(server)await new Promise(r=>server.close(r));await new Promise(r=>setTimeout(r,50));if(user)await m.ActivityLog.destroy({where:{userId:user.id}});if(post){await m.SocialPostEvent.destroy({where:{postId:post.id}});await m.SocialPublishJob.destroy({where:{postId:post.id}});await post.destroy();}if(account)await account.destroy();if(brand)await brand.destroy();if(user){await m.Notification.destroy({where:{userId:user.id}});await user.destroy();}await m.sequelize.close();}})().catch(e=>{console.error(e.message);process.exitCode=1});

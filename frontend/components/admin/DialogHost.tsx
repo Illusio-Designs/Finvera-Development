@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { DialogOpts } from "@/lib/dialog";
 type AnyInput = HTMLInputElement | HTMLTextAreaElement;
 
@@ -29,15 +30,15 @@ export default function DialogHost() {
   const onConfirm = () => close(kind === "prompt" ? value.trim() || null : kind === "confirm" ? true : undefined);
   const onCancel = () => close(kind === "prompt" ? null : kind === "confirm" ? false : undefined);
 
-  return (
-    <div className="adm-overlay center" onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
-      <div className="adm-confirm" role="dialog" aria-modal="true">
+  return createPortal(
+    <div className="adm-overlay center" style={{ zIndex: 1000 }} onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div className="adm-confirm" role="dialog" aria-modal="true" aria-labelledby="adm-dialog-title">
         {opts.danger && (
           <div className="adm-confirm-ic">
             <svg viewBox="0 0 24 24" width={22} fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /></svg>
           </div>
         )}
-        <h3>{opts.title}</h3>
+        <h3 id="adm-dialog-title">{opts.title}</h3>
         {opts.message && <p style={{ whiteSpace: "pre-line" }}>{opts.message}</p>}
         {kind === "prompt" && (opts.multiline ? (
           <textarea
@@ -67,6 +68,6 @@ export default function DialogHost() {
           </button>
         </div>
       </div>
-    </div>
+    </div>, document.body,
   );
 }

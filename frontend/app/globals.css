@@ -3757,3 +3757,17 @@ em.over,.kp-legend i.over{background:#e2603d}
 .sw-tag-editor{padding:17px;border:1px solid #dbe4f4;border-radius:13px;background:#f8faff;margin-top:18px}.sw-tag-editor h3{margin:0;font-size:16px;color:#385681}.sw-tag-editor>p{font-size:11px;line-height:1.7;color:#7b8aa3}.sw-tag-canvas{position:relative;display:table;max-width:100%;margin:14px auto;background:#fff}.sw-tag-canvas>img{display:block;max-width:100%;max-height:420px;width:auto;height:auto;cursor:crosshair}.sw-tag-marker{position:absolute;transform:translate(-50%,-50%);padding:4px 7px;border-radius:6px;background:#1e3158e6;color:white;font-size:10px;pointer-events:none;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis}.sw-tag-fields{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}.sw-tag-fields label{flex:1;min-width:55px;font-size:10px;color:#7b8aa3}.sw-tag-fields label:first-child{flex:3;min-width:120px}.sw-tag-fields input{width:100%;box-sizing:border-box;border:1px solid #d4deef;border-radius:7px;padding:8px;font:inherit;background:white;color:#405c89;display:block;margin-top:5px}.sw-tag-list{padding:0;list-style:none}.sw-tag-list li{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;padding:8px 0;color:#597298;border-bottom:1px solid #e7edf7}.sw-tag-list button{border:0;padding:5px;background:transparent;color:#8a7390;font-size:10px;cursor:pointer}.sw-tag-help{font-size:10px!important;line-height:1.7!important}.sw-artwork-info{flex-wrap:wrap}.sw-artwork-info>div{min-width:80px}
 
 .sw-tag-canvas{overflow:hidden}
+
+/* Current-stage task panels: supporting information stays collapsed. */
+.cal-task-focused h2{margin:18px 0 6px;line-height:1.25}
+.cal-task-deadline{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:18px;background:#eef2fa;border-radius:16px;margin:16px 0 24px}
+.cal-task-deadline>span{font-size:12px;color:#65728b}.cal-task-deadline>strong{font-size:17px}
+.cal-task-section{padding:16px 0;border-top:1px solid #e2e7f0}.cal-task-section>summary,.cal-task-more>summary{cursor:pointer;font-weight:600;color:#405777;min-height:32px;line-height:32px}
+.cal-task-section[open]>summary{margin-bottom:12px}.cal-task-section p{overflow-wrap:anywhere}
+.cal-task-more{width:100%}.cal-task-more .cal-row{padding-top:10px;flex-wrap:wrap}
+.fvc-deadline{font-size:12px;color:#63718c;line-height:1.5}.fvc-deadline.late{color:#b42323;font-weight:600}
+.cal-live-links{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+.sw-artwork-order{display:inline-flex;gap:4px}.sw-artwork-order button{min-width:32px;min-height:32px}
+.cal-conflict{padding:16px;background:#fff5e6;border:1px solid #efcf95;border-radius:14px;overflow-wrap:anywhere}.cal-conflict ul{padding-left:18px}.cal-conflict p{white-space:pre-wrap}
+@media(max-width:600px){.cal-task-focused{width:100%;max-width:100%}.cal-task-deadline{padding:14px}.cal-task-more .cal-row>*{flex:1;min-width:130px}}
+.fvc-card{position:relative}.fvc-more{align-self:flex-end;margin-top:-24px;position:relative;z-index:2}.fvc-more>summary{cursor:pointer;list-style:none;min-width:32px;min-height:28px;text-align:center;font-size:22px}.fvc-more[open]{background:#fff;border:1px solid #e2e7f0;border-radius:10px;padding:4px}.fvc-more>button{white-space:nowrap}
