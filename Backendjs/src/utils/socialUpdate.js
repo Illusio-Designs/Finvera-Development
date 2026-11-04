@@ -16,6 +16,9 @@ async function updateRecord(req) {
       if (!contact?.active) throw Object.assign(new Error("Choose an active client follow-up owner."), { status: 400 });
     }
     await item.update(data, { transaction });
+    // Return the timestamp actually persisted by MySQL (its precision can
+    // differ from Sequelize’s in-memory timestamp used during update).
+    await item.reload({ transaction, lock: transaction.LOCK.UPDATE });
     if (item.status !== "ready") for (const job of jobs) if (["scheduled", "missed", "failed", "cancelled"].includes(job.status)) await job.update({ status: "cancelled", ...(contentHash(before) !== contentHash(item.toJSON()) ? { checkpoint: {} } : {}) }, { transaction });
     return { item, before };
   });

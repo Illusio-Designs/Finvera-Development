@@ -422,7 +422,14 @@ export default function SocialCalendar() {
       if (!full?.id) return null;
       full._full = true;
       setPosts((ps) => ps.map((x) => (x.id === id ? { ...x, ...full } : x)));
-      setEditing((e) => (e?.id === id && !e._full ? { ...e, ...heavyOf(full, dirty.current), _full: true } : e));
+      setEditing((e) => {
+        if (e?.id !== id || e._full) return e;
+        const merged = { ...e, ...full };
+        // Load the complete current snapshot, including its version timestamp,
+        // while preserving fields already entered by the person editing.
+        for (const key of dirty.current) Object.assign(merged, { [key]: e[key] });
+        return merged;
+      });
       return full;
     } catch { return null; }
   }
