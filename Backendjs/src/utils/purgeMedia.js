@@ -9,6 +9,8 @@ const { thumbNameOf } = require("./images");
 const asArr = (v) => (Array.isArray(v) ? v : (typeof v === "string" && v.trim().startsWith("[") ? (() => { try { return JSON.parse(v); } catch { return []; } })() : []));
 
 async function purgeMedia(post) {
+  // Retention is explicit; publication itself must not destroy artwork/history.
+  if (process.env.SOCIAL_PURGE_AFTER_PUBLISH !== "true") return 0;
   const media = asArr(post.media).filter((m) => m && m.url);
   const ours = media.filter((m) => /\/uploads\/social\/[^/?#]+/.test(m.url));
   if (!ours.length) return 0;

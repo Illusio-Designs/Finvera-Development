@@ -20,6 +20,7 @@ function crudController(Model, options = {}) {
     searchable = [],
     onCreate = null,   // async (item, req) => {}  — side effects (e.g. notifications)
     onUpdate = null,   // async (item, req, before) => {}
+    updateRecord = null, // optional atomic write: (req) => { item, before }
     load = null,       // (req) => Promise<item> — reuse a row an earlier middleware already loaded
     publicCache = false, // serve signed-out reads from the shared public cache (marketing site)
     publicListExclude = [], // heavy fields left out of signed-out list reads (detail endpoint keeps them)
@@ -144,15 +145,17 @@ function crudController(Model, options = {}) {
     }),
 
     update: asyncHandler(async (req, res) => {
-      const item = await (load ? load(req) : Model.findByPk(req.params.id));
-      if (!item) return res.status(404).json({ message: `${Model.name} not found.` });
-      const before = item.toJSON();
-      const data = { ...req.body };
-      if (slugFrom && req.body.slug && req.body.slug !== item.slug) {
-        data.slug = await uniqueSlug(req.body.slug, item.id);
+      let item, before;
+      if (updateRecord) ({ item, before } = await updateRecord(req));
+      else {
+        item = await (load ? load(req) : Model.findByPk(req.params.id));
+        if (!item) return res.status(404).json({ message: `${Model.name} not found.` });
+        before = item.toJSON();
+        const data = { ...req.body };
+        if (slugFrom && req.body.slug && req.body.slug !== item.slug) data.slug = await uniqueSlug(req.body.slug, item.id);
+        delete data.id;
+        await item.update(data);
       }
-      delete data.id;
-      await item.update(data);
       clearPub();
       if (entity) audit.record(req, { action: "update", entity, before, after: item });
       if (onUpdate) { try { await onUpdate(item, req, before); } catch (e) { console.warn("onUpdate hook:", e.message); } }

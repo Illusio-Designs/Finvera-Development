@@ -19,6 +19,7 @@ const asArr = (v) => {
 
 const STAGES = { planned: "Planned", client: "Need from client", production: "In production", approval: "Pending approval", ready: "Ready to post", posted: "Posted" };
 const POST_FIELDS = {
+  clientRequest: "client request", clientFollowUpDate: "client follow-up date", clientContactOwnerId: "client contact owner",
   theme: "post theme", topic: "topic", caption: "caption", requirements: "requirements", reference: "reference",
   format: "format", festive: "day/festival", driveLink: "drive link", tags: "tags", keywords: "keywords",
   channels: "post links", remarks: "remarks", poc: "client contact", dataStatus: "data status", estimateHours: "time estimate",

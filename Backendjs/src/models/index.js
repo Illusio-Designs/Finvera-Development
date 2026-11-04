@@ -371,6 +371,9 @@ const SocialPost = sequelize.define("SocialPost", {
   format: { type: DataTypes.STRING },                            // Post / Reel / Carousel / Influencer
   requirements: { type: DataTypes.TEXT },                        // client requirements
   reference: { type: DataTypes.TEXT },                           // reference link(s)
+  clientRequest: { type: DataTypes.TEXT },
+  clientFollowUpDate: { type: DataTypes.DATEONLY },
+  clientContactOwnerId: { type: DataTypes.INTEGER },
   dataStatus: { type: DataTypes.TEXT },                          // "we have" / "required from client"
   poc: { type: DataTypes.STRING },                               // client point of contact
   caption: { type: DataTypes.TEXT },                             // caption & hashtags

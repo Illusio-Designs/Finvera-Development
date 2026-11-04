@@ -44,6 +44,7 @@ const reassignPending = asyncHandler(async (req, res) => {
     return posts.length;
   });
   if (changed == null) return res.status(409).json({ message: "Some posts or permissions changed, or publishing started. Preview again; nothing was transferred." });
+  for (const id of postIds) require("../utils/audit").record(req, { action: "other", entity: "social-post", entityId: id, summary: `Pending work reassigned to ${target.name || "replacement"}`, changes: { assigneeId: [from, to] } });
   require("../middleware/auth").forgetUser(to);
   require("./kpi.controller").bumpKpiCache();
   // A notification failure must not make a successful transaction look failed.

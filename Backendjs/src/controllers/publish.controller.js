@@ -10,11 +10,15 @@ const fs = require("fs");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
 const { Op } = require("sequelize");
-const { SocialAccount, SocialPublishJob, SocialPost, Setting } = require("../models");
+const { sequelize, SocialAccount, SocialPublishJob, SocialPost, Setting } = require("../models");
 const { asyncHandler } = require("../utils/crud");
 const meta = require("../utils/meta");
 const auto = require("../utils/autoPublish");
+const { canApprove, liveLink, contentHash } = require("../utils/socialSafety");
+const { rolesOf } = require("../utils/permissions");
 const { UPLOAD_DIR } = require("../middleware/upload");
+
+const checkpointOf = (value) => { if (value && typeof value === "object") return value; try { return JSON.parse(value || "{}"); } catch { return { publishCalled: true }; } };
 
 const SEL_TTL_MS = 15 * 60 * 1000;
 const frontendUrl = require("../utils/frontendUrl");
@@ -129,40 +133,69 @@ async function jobInScope(req, res) {
 
 /* Failed / needs checking / missed → try again now. */
 const retry = asyncHandler(async (req, res) => {
-  const j = await jobInScope(req, res); if (!j) return;
-  if (!["failed", "check", "missed"].includes(j.status)) return res.status(400).json({ message: "Only failed, missed or to-check posts can be retried." });
-  const manual = !!(j.checkpoint && (typeof j.checkpoint === "object" ? j.checkpoint : {}).manual) || j.status === "missed";
-  await j.update({ status: "scheduled", runAt: new Date(), error: null, attempts: 0, checkpoint: manual ? { manual: true } : {} });
+  const original = await jobInScope(req, res); if (!original) return;
+  const outcome = await sequelize.transaction(async (transaction) => {
+    const post = await SocialPost.findByPk(original.postId, { transaction, lock: transaction.LOCK.UPDATE });
+    const job = await SocialPublishJob.findByPk(original.id, { transaction, lock: transaction.LOCK.UPDATE });
+    if (!post || !job || post.status !== "ready" || !canApprove(post, req.userRow || req.user)) return { status: 403, message: "The approved post must be Ready and assigned to you, or you must be an admin." };
+    if (!["failed", "check", "missed"].includes(job.status)) return { status: 400, message: "Only failed, missed or uncertain jobs can be retried." };
+    let checkpoint = checkpointOf(job.checkpoint);
+    const uncertain = job.status === "check" || checkpoint.publishCalled;
+    if (uncertain) {
+      if (!rolesOf(req.userRow || req.user).includes("admin") || req.body?.confirmedAbsent !== true) return { status: 409, message: "The post may already be live. An admin must check the platform and explicitly confirm it is absent before retrying." };
+      checkpoint = { absenceConfirmedBy: req.user.id, absenceConfirmedAt: new Date().toISOString(), approvedHash: contentHash(post) };
+    }
+    await job.update({ status: "scheduled", runAt: new Date(), error: null, attempts: 0, checkpoint }, { transaction });
+    return { ok: true };
+  });
+  if (outcome.status) return res.status(outcome.status).json({ message: outcome.message });
+  if (req.body?.confirmedAbsent) require("../utils/audit").record(req, { action: "other", entity: "social-post", entityId: original.postId, summary: "Admin confirmed uncertain post absent and authorized a retry" });
   setImmediate(() => auto.runDue({ force: true }));
-  res.json({ ok: true });
+  res.json(outcome);
 });
 
-/* Someone posted it by hand (or checked it went out): record the link. */
+/* Operator confirmation requires a platform-specific live permalink. */
 const markPosted = asyncHandler(async (req, res) => {
-  const j = await jobInScope(req, res); if (!j) return;
+  const original = await jobInScope(req, res); if (!original) return;
   const url = String(req.body?.url || "").trim();
-  if (url && !/^https?:\/\//.test(url)) return res.status(400).json({ message: "Paste the post's link (starting with https://)." });
-  await j.update({ status: "published", url: url || j.url || null, error: null, publishedAt: new Date(), leaseToken: null });
-  const p = await SocialPost.findByPk(j.postId);
-  if (p) await auto.afterPublished(p);
+  if (!liveLink(url, original.platform)) return res.status(400).json({ message: "Paste a valid HTTPS live post link for this platform." });
+  const outcome = await sequelize.transaction(async (transaction) => {
+    const post = await SocialPost.findByPk(original.postId, { transaction, lock: transaction.LOCK.UPDATE });
+    const job = await SocialPublishJob.findByPk(original.id, { transaction, lock: transaction.LOCK.UPDATE });
+    if (!post || !job || !canApprove(post, req.userRow || req.user)) return false;
+    if (job.status === "publishing") return false;
+    await job.update({ status: "published", url, error: null, publishedAt: new Date(), leaseToken: null, leaseUntil: null }, { transaction });
+    return true;
+  });
+  if (!outcome) return res.status(409).json({ message: "Only the reviewer or admin can confirm a live result, and publishing must have finished." });
+  require("../utils/audit").record(req, { action: "other", entity: "social-post", entityId: original.postId, summary: `Confirmed live ${original.platform} post: ${url}` });
+  await auto.afterPublished(await SocialPost.findByPk(original.postId));
   res.json({ ok: true });
 });
 
-/* Publish now, whatever the go-live time (and even before Ready). */
+/* Publish now changes the time; it never bypasses approval or an uncertain result. */
 const publishNow = asyncHandler(async (req, res) => {
-  const p = await SocialPost.findByPk(req.params.id);
-  if (!p) return res.status(404).json({ message: "Post not found." });
-  const acc = await SocialAccount.findOne({ where: { client: p.client } });
-  const targets = auto.targetsFor(p, acc);
-  if (!targets.length) return res.status(400).json({ message: `Connect ${p.client}'s Instagram / Facebook first (Social studio → Channels).` });
-  for (const pl of targets) {
-    const j = await SocialPublishJob.findOne({ where: { postId: p.id, platform: pl } });
-    if (j && ["published", "publishing"].includes(j.status)) continue;
-    const fields = { status: "scheduled", runAt: new Date(), error: null, attempts: 0, checkpoint: { manual: true } };
-    if (j) await j.update(fields); else await SocialPublishJob.create({ postId: p.id, client: p.client, platform: pl, ...fields });
-  }
+  const outcome = await sequelize.transaction(async (transaction) => {
+    const post = await SocialPost.findByPk(req.params.id, { transaction, lock: transaction.LOCK.UPDATE });
+    if (!post) return { status: 404, message: "Post not found." };
+    if (post.status !== "ready" || !canApprove(post, req.userRow || req.user)) return { status: 403, message: "Only an approved Ready post can be published by its reviewer or an admin." };
+    const jobs = await SocialPublishJob.findAll({ where: { postId: post.id }, transaction, lock: transaction.LOCK.UPDATE });
+    if (jobs.some((j) => j.status === "check" || (j.status !== "published" && checkpointOf(j.checkpoint).publishCalled))) return { status: 409, message: "Check the uncertain platform result before publishing again." };
+    const acc = await SocialAccount.findOne({ where: { client: post.client }, transaction });
+    const targets = auto.targetsFor(post, acc);
+    if (!targets.length) return { status: 400, message: "Connect and enable the brand’s Instagram / Facebook channels first." };
+    for (const platform of targets) {
+      const job = jobs.find((j) => j.platform === platform);
+      if (job && ["published", "publishing"].includes(job.status)) continue;
+      const fields = { status: "scheduled", runAt: new Date(), error: null, attempts: 0, checkpoint: { approvedHash: contentHash(post) } };
+      if (job) await job.update(fields, { transaction });
+      else await SocialPublishJob.create({ postId: post.id, client: post.client, platform, ...fields }, { transaction });
+    }
+    return { ok: true, platforms: targets };
+  });
+  if (outcome.status) return res.status(outcome.status).json({ message: outcome.message });
   setImmediate(() => auto.runDue({ force: true }));
-  res.json({ ok: true, platforms: targets });
+  res.json(outcome);
 });
 
 /* ── Media for posts (images and videos, larger than ordinary uploads) ── */

@@ -19,8 +19,9 @@
 
 const crypto = require("crypto");
 const { Op } = require("sequelize");
-const { SocialPost, SocialAccount, SocialPublishJob, User } = require("../models");
+const { sequelize, SocialPost, SocialAccount, SocialPublishJob, User } = require("../models");
 const meta = require("./meta");
+const { contentHash } = require("./socialSafety");
 const { notifyUsers } = require("./notify");
 const { rolesOf } = require("./permissions");
 
@@ -95,10 +96,10 @@ async function syncJobs(post) {
       const j = jobs.find((x) => x.platform === pl);
       const prev = j ? j.status : null;
       if (!j) {
-        await SocialPublishJob.create({ postId: p.id, client: p.client, platform: pl, status: late ? "missed" : "scheduled", runAt, checkpoint: {} });
+        await SocialPublishJob.create({ postId: p.id, client: p.client, platform: pl, status: late ? "missed" : "scheduled", runAt, checkpoint: { approvedHash: contentHash(p) } });
       } else if (["cancelled", "missed", "scheduled"].includes(j.status)) {
         const status = late ? "missed" : "scheduled";
-        if (j.status !== status || +new Date(j.runAt) !== +runAt) await j.update({ status, runAt, error: null });
+        if (j.status !== status || +new Date(j.runAt) !== +runAt) await j.update({ status, runAt, error: null, checkpoint: { ...asObj(j.checkpoint), approvedHash: contentHash(p) } });
       }
       if (late && (!j || ["cancelled", "scheduled"].includes(prev))) emailPublishProblem(p, { title: `Missed go-live: ${p.theme}`, detail: `${NAMES[pl]}: the post became Ready more than 6 hours after its go-live time, so it was not posted automatically. Use Publish now if it should still go out.` });
     }
@@ -111,6 +112,7 @@ const isRetryable = (e) => !!(e.meta?.is_transient || [1, 2, 4, 17, 32, 341, 613
 /* Problems we can spot before calling Meta, worded for the team. */
 function precheck(p, platform) {
   const media = asArr(p.media).filter((m) => m && m.url);
+  if (platform === "facebook" && media.some(meta.isVideo) && media.length > 1) return "Facebook video posts must contain one video. Split mixed or multiple-video artwork into separate posts.";
   if (!media.length && platform === "instagram") return "Add the image or video to the post — Instagram needs media.";
   if (platform === "instagram") {
     const bad = media.filter((m) => !meta.isVideo(m) && !/\.(jpe?g)(\?|$)/i.test(m.url) && /\.(png|webp|gif|avif|svg)(\?|$)/i.test(m.url));
@@ -153,8 +155,7 @@ async function afterPublished(p) {
   const channels = [...new Set([...String(p.channels || "").split(/\s*\n\s*|\s+(?=https?:)/).filter(Boolean), ...links])].join("\n");
   const before = { status: p.status, assigneeId: p.assigneeId };
   await p.update({ status: "posted", channels });
-  // It's live: free the server space taken by its uploaded image / video.
-  try { await require("./purgeMedia").purgeMedia(p); } catch (e) { console.warn("purge media:", e.message); }
+  // Retain uploaded assets so the published version remains reviewable.
   try {
     const social = require("../controllers/social.controller");
     await social.recordEvents([social.eventOf(p, { from: before.status, fromAssigneeId: before.assigneeId })]);
@@ -168,15 +169,23 @@ async function afterPublished(p) {
 
 async function runJob(job) {
   const token = crypto.randomBytes(12).toString("hex");
-  const [claimed] = await SocialPublishJob.update(
-    { status: "publishing", leaseToken: token, leaseUntil: new Date(Date.now() + LEASE_MS), attempts: (job.attempts || 0) + 1 },
-    { where: { id: job.id, status: "scheduled" } },
-  );
+  const claimed = await sequelize.transaction(async (transaction) => {
+    const post = await SocialPost.findByPk(job.postId, { transaction, lock: transaction.LOCK.UPDATE });
+    if (!post) return false;
+    const current = await SocialPublishJob.findByPk(job.id, { transaction, lock: transaction.LOCK.UPDATE });
+    if (!current || current.status !== "scheduled") return false;
+    const checkpoint = asObj(current.checkpoint);
+    if (post.status !== "ready" || (checkpoint.approvedHash && checkpoint.approvedHash !== contentHash(post))) {
+      await current.update({ status: "cancelled", error: "Content changed or approval was removed. Review the current post before scheduling." }, { transaction });
+      return false;
+    }
+    await current.update({ status: "publishing", leaseToken: token, leaseUntil: new Date(Date.now() + LEASE_MS), attempts: (current.attempts || 0) + 1 }, { transaction });
+    return true;
+  });
   if (!claimed) return;
   const j = await SocialPublishJob.findByPk(job.id);
   const p = await SocialPost.findByPk(j.postId);
   const cp = asObj(j.checkpoint);
-  if (!p || (p.status !== "ready" && !cp.manual)) { await j.update({ status: "cancelled", leaseToken: null }); return; }
   const finish = (fields) => SocialPublishJob.update({ ...fields, leaseToken: null, leaseUntil: null }, { where: { id: j.id, leaseToken: token } });
   const problem = precheck(p, j.platform);
   const acc = await SocialAccount.findOne({ where: { client: p.client } });
@@ -198,7 +207,7 @@ async function runJob(job) {
       ? await meta.publishInstagram(acc, media, caption, cp, save)
       : await meta.publishFacebook(acc, media, caption, cp, save);
     await finish({ status: "published", remoteId: res.id, url: res.url, error: null, publishedAt: new Date() });
-    await afterPublished(await SocialPost.findByPk(p.id));
+    try { await afterPublished(await SocialPost.findByPk(p.id)); } catch (e) { console.warn("Post-publish settlement:", e.message); }
   } catch (e) {
     const msg = e.message || "Meta returned an error.";
     if (/token|session|OAuthException|permission/i.test(`${e.meta?.type || ""} ${msg}`) && [190, 102, 10, 200].includes(Number(e.meta?.code))) {

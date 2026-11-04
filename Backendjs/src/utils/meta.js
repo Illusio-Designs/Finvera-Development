@@ -171,6 +171,7 @@ async function publishFacebook(acc, media, caption, cp = {}, save = async () => 
   let postId;
   const mark = async () => { cp.publishCalled = true; await save(cp); };
   const video = media.find(isVideo);
+  if (video && media.length > 1) throw new Error("Facebook video publishing supports one video per post in Finvera. Split the media into separate posts.");
   if (video) {
     await mark();
     const v = await graph("POST", `/${page}/videos`, { file_url: video.url, description: caption, access_token: token });
