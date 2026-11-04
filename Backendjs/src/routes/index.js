@@ -386,6 +386,7 @@ router.delete("/social-accounts/:client", ...canSocial, social.requireAllBrands,
 router.get("/social-publish-jobs", ...canSocial, pub.jobs);
 router.post("/social-publish-jobs/:id/retry", ...canSocial, pub.retry);
 router.post("/social-publish-jobs/:id/mark-posted", ...canSocial, pub.markPosted);
+router.get("/social-posts/:id/media-check", ...canSocial, social.guardPost, pub.mediaCheck);
 router.post("/social-posts/:id/publish-now", ...canSocial, social.guardPost, pub.publishNow);
 router.post("/social-media/upload", ...canSocial, pub.mediaUpload.array("files", 10), pub.uploadMedia);
 

@@ -139,7 +139,7 @@ const retry = asyncHandler(async (req, res) => {
     const job = await SocialPublishJob.findByPk(original.id, { transaction, lock: transaction.LOCK.UPDATE });
     if (!post || !job || post.status !== "ready" || !canApprove(post, req.userRow || req.user)) return { status: 403, message: "The approved post must be Ready and assigned to you, or you must be an admin." };
     if (!["failed", "check", "missed"].includes(job.status)) return { status: 400, message: "Only failed, missed or uncertain jobs can be retried." };
-    let checkpoint = checkpointOf(job.checkpoint);
+    let checkpoint = auto.retryCheckpoint(checkpointOf(job.checkpoint), job.error);
     const uncertain = job.status === "check" || checkpoint.publishCalled;
     if (uncertain) {
       if (!rolesOf(req.userRow || req.user).includes("admin") || req.body?.confirmedAbsent !== true) return { status: 409, message: "The post may already be live. An admin must check the platform and explicitly confirm it is absent before retrying." };
@@ -230,4 +230,10 @@ const uploadMedia = asyncHandler(async (req, res) => {
   res.status(201).json({ items });
 });
 
-module.exports = { status, start, callback, pages, choose, accounts, disconnect, jobs, retry, markPosted, publishNow, mediaUpload, uploadMedia };
+const mediaCheck = asyncHandler(async (req, res) => {
+  const post = await SocialPost.findByPk(req.params.id);
+  if (!post || !inScope(req, post.client)) return res.status(404).json({ message: "Post not found." });
+  res.json(await require("../utils/socialMediaHealth").inspectMedia(post.media));
+});
+
+module.exports = { status, start, callback, pages, choose, accounts, disconnect, jobs, retry, markPosted, publishNow, mediaUpload, uploadMedia, mediaCheck };

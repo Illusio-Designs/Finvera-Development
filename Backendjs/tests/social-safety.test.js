@@ -29,3 +29,5 @@ test("hash is stable for database JSON serialization", () => {
   assert.equal(contentHash(post), contentHash({ ...post, media: JSON.stringify([{ type: "image", url: "https://example.test/a.jpg" }]) }));
 });
 test("Need requires a description of missing client input", () => assert.throws(() => prepareUpdate({ ...post, status: "planned" }, { status: "client" }, reviewer), { status: 400 }));
+test("artwork edits cannot store executable URLs", () => assert.throws(() => prepareUpdate(post, { media: [{ url: "javascript:alert(1)", type: "image" }] }, reviewer), { status: 400 }));
+test("profile tagging rejects full names rather than guessing handles", () => assert.throws(() => prepareUpdate(post, { tags: "John Smith" }, reviewer), { status: 400 }));
