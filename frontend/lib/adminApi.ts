@@ -267,6 +267,7 @@ export const opsApi = {
   },
   systemStatus: () => req(`/system/status`),
   emailStatus: (): Promise<{ configured: boolean; from: string | null; host: string | null; port: number | null; user: string | null }> => req(`/settings/email-status`),
+  testEmailConnection: (): Promise<{ ok: boolean; message: string }> => req(`/settings/test-email-connection`, { method: "POST", body: "{}" }),
   testEmail: (to?: string): Promise<{ ok: boolean; message: string }> => req(`/settings/test-email`, { method: "POST", body: JSON.stringify(to ? { to } : {}) }),
   getEmailPrefs: (): Promise<EmailPrefs> => req(`/auth/me/email-prefs`),
   saveEmailPrefs: (prefs: Partial<Record<EmailPrefKind, boolean>>): Promise<EmailPrefs> => req(`/auth/me/email-prefs`, { method: "PUT", body: JSON.stringify({ prefs }) }),

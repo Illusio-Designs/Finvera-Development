@@ -69,6 +69,17 @@ async function sendMail({ to, subject, html, text, replyTo }) {
   }
 }
 
+/* Log in to the mail server without sending anything (nodemailer verify:
+   connect → TLS → login). Never throws. → { ok, ms, reason?, raw? } */
+async function verify() {
+  if (!configured()) return { ok: false, reason: "not-configured" };
+  const t = getTransport();
+  if (!t) return { ok: false, reason: "nodemailer-missing" };
+  const t0 = Date.now();
+  try { await t.verify(); return { ok: true, ms: Date.now() - t0 }; }
+  catch (e) { return { ok: false, ms: Date.now() - t0, reason: explain(e), raw: String(e.message || "").slice(0, 160) }; }
+}
+
 /* What the server is actually using — for the admin's test email when the
    login fails. Never includes the password itself: only its length, whether
    it has spaces at the ends, and where the value came from. */
@@ -97,4 +108,4 @@ function diag() {
   };
 }
 
-module.exports = { sendMail, layout, esc, configured, diag };
+module.exports = { sendMail, layout, esc, configured, diag, verify };

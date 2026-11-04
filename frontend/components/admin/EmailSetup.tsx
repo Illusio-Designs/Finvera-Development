@@ -1,9 +1,9 @@
 "use client";
 /* Email setup card (System page, admin): is SMTP set up, what to add in
-   cPanel if not, and a "Send a test email" box that shows the SMTP error. */
+   cPanel if not, a "Test connection" button (logs in, sends nothing) and a "Send a test email" box that shows the SMTP error. */
 import { useCallback, useEffect, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Mail01Icon, CheckmarkCircle02Icon, Alert02Icon, SentIcon, InformationCircleIcon } from "@hugeicons/core-free-icons";
+import { Mail01Icon, CheckmarkCircle02Icon, Alert02Icon, SentIcon, InformationCircleIcon, Link01Icon } from "@hugeicons/core-free-icons";
 import { opsApi } from "@/lib/adminApi";
 
 const Ic = ({ i, size = 16 }: { i: any; size?: number }) => <HugeiconsIcon icon={i} size={size} strokeWidth={1.8} />;
@@ -21,6 +21,7 @@ export default function EmailSetup({ myEmail, refreshKey }: { myEmail?: string; 
   const [error, setError] = useState("");
   const [to, setTo] = useState("");
   const [sending, setSending] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -40,6 +41,15 @@ export default function EmailSetup({ myEmail, refreshKey }: { myEmail?: string; 
     } catch (err) {
       setResult({ ok: false, text: err instanceof Error ? err.message : "Couldn't send." });
     } finally { setSending(false); }
+  }
+  async function check() {
+    setChecking(true); setResult(null);
+    try {
+      const r = await opsApi.testEmailConnection();
+      setResult({ ok: true, text: r.message || "Connected." });
+    } catch (err) {
+      setResult({ ok: false, text: err instanceof Error ? err.message : "Couldn't connect." });
+    } finally { setChecking(false); }
   }
   async function copy() {
     try { await navigator.clipboard.writeText(ENV_LINES); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* clipboard blocked */ }
@@ -88,6 +98,11 @@ export default function EmailSetup({ myEmail, refreshKey }: { myEmail?: string; 
           <button type="submit" className="sys-btn primary" disabled={sending}>
             {sending ? <><span className="sys-spin" aria-hidden="true" />Sending…</> : <><Ic i={SentIcon} />Send a test email</>}
           </button>
+          {st.configured && (
+            <button type="button" className="sys-btn" onClick={check} disabled={checking || sending}>
+              {checking ? <><span className="sys-spin" aria-hidden="true" />Checking…</> : <><Ic i={Link01Icon} />Test connection</>}
+            </button>
+          )}
         </form>
       )}
       {result && (

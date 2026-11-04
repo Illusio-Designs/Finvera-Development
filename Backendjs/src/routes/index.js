@@ -465,6 +465,7 @@ router.post("/backups/:name/verify", ...adminOnly, opsCtrl.verifyBackup);
 router.delete("/backups/:name", ...adminOnly, opsCtrl.deleteBackup);
 router.get("/system/status", ...adminOnly, opsCtrl.systemStatus);
 router.get("/settings/email-status", ...adminOnly, opsCtrl.emailStatus);
+router.post("/settings/test-email-connection", ...adminOnly, rateLimit({ windowMs: 10 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false }), opsCtrl.testEmailConnection);
 router.post("/settings/test-email", ...adminOnly, rateLimit({ windowMs: 10 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false }), opsCtrl.testEmail);
 router.get("/auth/me/email-prefs", requireAuth, opsCtrl.getEmailPrefs);   // any signed-in user, own prefs
 router.put("/auth/me/email-prefs", requireAuth, opsCtrl.putEmailPrefs);
