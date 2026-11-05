@@ -1,3 +1,4 @@
+import { testimonialInitials } from "@/lib/testimonialPresentation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Arrow } from "@/components/icons";
@@ -127,7 +128,7 @@ export default async function About() {
                   <div className="ph">{m.photo
                     /* eslint-disable-next-line @next/next/no-img-element */
                     ? <img src={m.photo} alt={m.name} />
-                    : m.initials}</div><h4>{m.name}</h4><span>{m.role}</span><p>{m.bio}</p>
+                    : testimonialInitials(m.name, m.initials)}</div><h4>{m.name}</h4><span>{m.role}</span><p>{m.bio}</p>
                 </div>
               ))}
             </div>
