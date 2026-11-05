@@ -1,4 +1,5 @@
 "use client";
+import PageLoading from "@/components/admin/PageLoading";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -49,6 +50,7 @@ export default function ContentHub() {
         <div><span className="wh-eyebrow">MAKE EVERY DETAIL CONSIDERED</span><h1>Website overview</h1><p>Everything that appears on your public website, in one place.</p></div>
         <a className="sh-btn" href="/" target="_blank" rel="noopener noreferrer">Open website <HugeiconsIcon icon={ArrowUpRight01Icon} size={16} /></a>
       </header>
+      {!data && busy && !error ? <PageLoading label="Loading website content…" /> : <>
       <section className="wh-intro" aria-label="Website content summary">
         <span className="wh-intro-icon"><HugeiconsIcon icon={Layers01Icon} size={25} /></span>
         <div><h2>A place for every part of your website.</h2><p>Open a collection to edit its content. Drafts stay private until you publish them.</p></div>
@@ -76,6 +78,7 @@ export default function ContentHub() {
       })}
       {!filtered.length && <div className="wh-empty"><HugeiconsIcon icon={Search01Icon} size={24} /><h2>No sections match</h2><p>Try a page name or where the content appears.</p><button type="button" className="sh-btn" onClick={() => setQuery("")}>Clear search</button></div>}
       <p className="wh-note">Website team profiles are public content. Sign-in accounts and permissions are managed in Users &amp; access.</p>
+      </>}
     </div>
   );
 }

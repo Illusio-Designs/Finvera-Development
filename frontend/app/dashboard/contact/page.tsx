@@ -1,4 +1,5 @@
 "use client";
+import PageLoading from "@/components/admin/PageLoading";
 import "./inbox.css";
 import "./inbox-workspace.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -325,7 +326,7 @@ export default function AdminContact() {
       </header>
 
       {actionError && <div className="ib-action-error" role="alert">{actionError}</div>}
-      <div className={"ib-mail" + (sel ? " reading" : "")}>
+      {loading && !rows.length && !sel ? <PageLoading label="Loading contact inbox…" variant="list" /> : <div className={"ib-mail" + (sel ? " reading" : "")}>
         <aside className="ib-list" aria-label="Messages">
           <div className="ib-tools">
             <div className="ib-list-title"><b>Conversations</b><button type="button" className="sh-icb sm" aria-label="Refresh messages" disabled={loading} onClick={() => { if (view) load(view, q, 1); loadCounts(); }}><I i={Refresh01Icon} size={15} /></button></div>
@@ -403,7 +404,7 @@ export default function AdminContact() {
             <div className="sh-empty ib-pick"><I i={MailOpen01Icon} size={20} /><b>Pick a message to read it</b><span>Unread messages have a blue dot. Use j and k to move between them.</span></div>
           )}
         </section>
-      </div>
+      </div>}
     </div>
   );
 }

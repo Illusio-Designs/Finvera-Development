@@ -1,4 +1,5 @@
 "use client";
+import PageLoading from "@/components/admin/PageLoading";
 import "./social-workspace.css";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { chainFor, isVideoFormat, makerFor, roleFor, indiaToday, overdueAt, moveArtwork, type SocialRole as Role } from "@/lib/socialWorkflow";
@@ -9,7 +10,6 @@ import { instagramSafeAll } from "@/lib/igImage";
 import { dialog } from "@/lib/dialog";
 import Select from "@/components/Select";
 import DatePicker from "@/components/ui/DatePicker";
-import { BoardSkeleton } from "@/components/admin/Skeleton";
 import { readXlsx } from "@/lib/xlsx";
 import { visibleInterval } from "@/lib/visibleInterval";
 import type { ImageTag } from "@/components/admin/InstagramImageTags";
@@ -1506,10 +1506,10 @@ export default function SocialCalendar() {
     );
   }
 
-  if (loading) return (
+  if (loading && !posts.length) return (
     <>
       <div className="adm-top"><div><h1>Content calendar</h1><p>Loading posts…</p></div></div>
-      <BoardSkeleton cols={5} />
+      <PageLoading label="Loading content calendar…" variant="board" />
     </>
   );
 

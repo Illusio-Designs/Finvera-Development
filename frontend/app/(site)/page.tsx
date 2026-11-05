@@ -1,3 +1,4 @@
+import { testimonialRating, testimonialInitials } from "@/lib/testimonialPresentation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Arrow, Check, XIcon, LinkedIn, Instagram } from "@/components/icons";
@@ -247,8 +248,8 @@ export default async function Home() {
           <div className="marquee-track" style={{ gap: 20 }}>
             {tRow.map((t, i) => (
               <div className="tcard" key={i}>
-                <div className="stars">{"★".repeat(t.rating || 5)}</div><p>&quot;{t.quote}&quot;</p>
-                <div className="who"><span className="av">{t.avatar}</span><div><b>{t.name}</b><small>{t.role}{t.company ? `, ${t.company}` : ""}</small></div></div>
+                <div className="stars">{"★".repeat(testimonialRating(t.rating))}</div><p>&quot;{t.quote}&quot;</p>
+                <div className="who"><span className="av">{testimonialInitials(t.name, t.avatar)}</span><div><b>{t.name}</b><small>{t.role}{t.company ? `, ${t.company}` : ""}</small></div></div>
               </div>
             ))}
           </div>

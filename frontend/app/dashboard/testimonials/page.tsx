@@ -1,27 +1,63 @@
-import ResourceManager from "@/components/admin/ResourceManager";
-
+"use client";
+import { useEffect, useRef, useState } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Add01Icon, Search01Icon, Refresh01Icon, ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
+import { api } from "@/lib/adminApi";
+import { toast } from "@/lib/toast";
+import { dialog } from "@/lib/dialog";
+import { testimonialRating, testimonialInitials } from "@/lib/testimonialPresentation";
+import PageLoading from "@/components/admin/PageLoading";
+import Select from "@/components/Select";
+import HistoryList from "@/components/admin/HistoryList";
+import "./testimonials-workspace.css";
+type Quote = { id: number; name: string; role: string | null; company: string | null; avatar: string | null; quote: string; rating: number; position: number; status: string; createdAt?: string };
+const FIELDS = ["name", "role", "company", "avatar", "quote", "rating", "position", "status"] as const;
+const sorted = (rows: Quote[]) => [...rows].sort((a, b) => a.position - b.position || String(b.createdAt || "").localeCompare(String(a.createdAt || "")) || b.id - a.id);
+function QuoteContent({ row, full = false }: { row: Partial<Quote>; full?: boolean }) {
+  return <><span className="qt-stars" role="img" aria-label={`${testimonialRating(row.rating)} out of 5 stars`}>{"★".repeat(testimonialRating(row.rating))}</span><blockquote className={full ? "full" : ""}>{row.quote ? `“${row.quote}”` : "Add your client’s words before publishing."}</blockquote><div className="qt-author"><span className="qt-avatar" aria-hidden="true">{testimonialInitials(row.name, row.avatar)}</span><div><b>{row.name || "Client name"}</b><span>{[row.role, row.company].filter(Boolean).join(" · ") || "Client details"}</span></div></div></>;
+}
 export default function AdminTestimonials() {
-  return (
-    <ResourceManager
-      resource="testimonials"
-      title="Testimonials"
-      subtitle="Client quotes shown on the site."
-      columns={[
-        { name: "name", label: "Name" },
-        { name: "company", label: "Company" },
-        { name: "status", label: "Status", type: "status" },
-      ]}
-      defaults={{ status: "published", rating: 5 }}
-      fields={[
-        { name: "name", label: "Name" },
-        { name: "role", label: "Role", placeholder: "CEO" },
-        { name: "company", label: "Company" },
-        { name: "avatar", label: "Avatar initials", placeholder: "AK" },
-        { name: "quote", label: "Quote", type: "textarea" },
-        { name: "rating", label: "Rating (1-5)", type: "number" },
-        { name: "position", label: "Order", type: "number" },
-        { name: "status", label: "Status", type: "select", options: ["published", "draft"] },
-      ]}
-    />
-  );
+  const [rows, setRows] = useState<Quote[] | null>(null), [busy, setBusy] = useState(true), [error, setError] = useState("");
+  const [query, setQuery] = useState(""), [status, setStatus] = useState("");
+  const [editing, setEditing] = useState<{ row: Quote | null; key: number } | null>(null);
+  async function load() { setBusy(true); setError(""); try { const data = await api.list("testimonials"); setRows(sorted(Array.isArray(data) ? data : [])); } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t load testimonials."); } finally { setBusy(false); } }
+  useEffect(() => { load(); }, []);
+  const shown = (rows || []).filter(row => (!status || row.status === status) && (!query.trim() || [row.name, row.company, row.role, row.quote].join(" ").toLowerCase().includes(query.trim().toLowerCase())));
+  const patch = (row: Quote) => setRows(current => sorted(current?.some(item => item.id === row.id) ? current.map(item => item.id === row.id ? row : item) : [row, ...(current || [])]));
+  return <div className="testimonials-workspace"><header className="qt-header"><div><span className="qt-eyebrow">THE WORDS THAT STAY WITH YOU</span><h1>Testimonials</h1><p>Share the words your clients leave with you.</p></div><div className="qt-header-actions"><a className="sh-btn" href="/" target="_blank" rel="noopener noreferrer">Open website <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" onClick={() => setEditing({ row: null, key: Date.now() })}><HugeiconsIcon icon={Add01Icon} size={16} />New testimonial</button></div></header>
+    {!rows && busy && !error ? <PageLoading label="Loading testimonials…" /> : <><div className="qt-toolbar"><div className="qt-tabs" role="tablist" aria-label="Testimonial status">{[["", "All quotes"], ["published", "Published"], ["draft", "Drafts"]].map(([value, label]) => <button type="button" role="tab" aria-selected={status === value} key={value} onClick={() => setStatus(value)}>{label}{rows && <small>{rows.filter(row => !value || row.status === value).length}</small>}</button>)}</div><label className="qt-search"><HugeiconsIcon icon={Search01Icon} size={16} /><input type="search" aria-label="Search testimonials" value={query} onChange={event => setQuery(event.target.value)} placeholder="Find a client, company or quote…" /></label><button type="button" className="sh-icb" aria-label="Refresh testimonials" disabled={busy} onClick={load}><HugeiconsIcon icon={Refresh01Icon} size={17} /></button></div>
+    {error && <div className="qt-error" role="alert">{error}<button type="button" className="sh-btn sm" disabled={busy} onClick={load}>Try again</button></div>}
+    <div className="qt-count" aria-live="polite">{rows ? `${shown.length} testimonials${busy ? " · refreshing…" : ""}` : "Testimonials unavailable"}</div>
+    <div className="qt-grid">{shown.map(row => <article className="qt-card" key={row.id}><QuoteContent row={row} /><footer><span className={`qt-status ${row.status}`}>{row.status === "published" ? "Published" : "Draft"}</span><button type="button" aria-label={`Edit quote from ${row.name}`} onClick={() => setEditing({ row, key: Date.now() })}>Edit quote ↗</button></footer></article>)}</div>
+    {rows && !shown.length && !error && <div className="qt-empty"><h2>{rows.length ? "No quotes match" : "Let your clients tell the story"}</h2><p>{rows.length ? "Try a different client, company or status." : "Start with a private draft and publish when the quote is ready."}</p><button type="button" className="sh-btn" onClick={() => { if (rows.length) { setQuery(""); setStatus(""); } else setEditing({ row: null, key: Date.now() }); }}>{rows.length ? "Clear filters" : "New testimonial"}</button></div>}</>}
+    {editing && <QuoteEditor key={editing.key} row={editing.row} nextPosition={rows?.length ? Math.max(...rows.map(row => row.position)) + 1 : 0} onClose={() => setEditing(null)} onPatch={patch} onSaved={row => { patch(row); setEditing(null); }} onDeleted={id => { setRows(current => current?.filter(row => row.id !== id) || []); setEditing(null); }} />}
+  </div>;
+}
+function QuoteEditor({ row, nextPosition, onClose, onSaved, onPatch, onDeleted }: { row: Quote | null; nextPosition: number; onClose: () => void; onSaved: (row: Quote) => void; onPatch: (row: Quote) => void; onDeleted: (id: number) => void }) {
+  const [base, setBase] = useState<Partial<Quote>>(row || { name: "", quote: "", rating: 5, status: "draft", position: nextPosition });
+  const [draft, setDraft] = useState(base), [busy, setBusy] = useState(false), [error, setError] = useState(""), [conflict, setConflict] = useState(false);
+  const ref = useRef<HTMLElement>(null), dirtyKeys = FIELDS.filter(field => String(draft[field] ?? "") !== String(base[field] ?? ""));
+  const set = (field: keyof Quote, value: any) => { if (!busy) setDraft(current => ({ ...current, [field]: value })); };
+  async function close() { if (busy) return; if (dirtyKeys.length && !(await dialog.confirm({ title: "Discard your changes?", message: "Your testimonial changes have not been saved.", confirmText: "Discard", cancelText: "Keep editing", danger: true }))) return; onClose(); }
+  useEffect(() => { const previous = document.body.style.overflow, focused = document.activeElement as HTMLElement | null; document.body.style.overflow = "hidden"; ref.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus(); return () => { document.body.style.overflow = previous; if (focused?.isConnected) focused.focus(); }; }, []);
+  useEffect(() => { const key = (event: KeyboardEvent) => { if (document.querySelector(".adm-overlay")) return; if (event.key === "Escape" && !document.querySelector(".cselect.open")) close(); if (event.key === "Tab") { const elements = Array.from(ref.current?.querySelectorAll<HTMLElement>("button:not(:disabled),input:not(:disabled),textarea:not(:disabled),a[href]") || []).filter(element => element.getClientRects().length && !element.closest("[inert]")); const first = elements[0], last = elements[elements.length - 1]; if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); } } }; document.addEventListener("keydown", key); return () => document.removeEventListener("keydown", key); });
+  async function save() {
+    if (busy) return;
+    if (!draft.name?.trim()) { setError("Add the client name."); return; }
+    if (draft.status === "published" && !draft.quote?.trim()) { setError("Add the client quote before publishing."); return; }
+    setBusy(true); setError(""); setConflict(false);
+    const body = Object.fromEntries((row ? dirtyKeys : FIELDS.filter(field => draft[field] !== undefined)).map(field => [field, typeof draft[field] === "string" ? String(draft[field]).trim() || (field === "quote" ? "" : null) : draft[field]]));
+    try { const saved = row ? await api.update("testimonials", row.id, { ...body, expected: base }) : await api.create("testimonials", body); toast(saved.status === "published" ? "Testimonial published" : "Draft saved", "ok", { description: saved.name }); onSaved(saved); }
+    catch (e) { setConflict((e as { status?: number }).status === 409); setError(e instanceof Error ? e.message : "Couldn’t save this testimonial."); }
+    finally { setBusy(false); }
+  }
+  async function reload() { if (!row || !(await dialog.confirm({ title: "Reload this testimonial?", message: "This replaces your unsaved edits with the latest saved version.", confirmText: "Reload", cancelText: "Keep editing" }))) return; try { const saved = await api.get("testimonials", row.id); setBase(saved); setDraft(saved); onPatch(saved); setError(""); setConflict(false); } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t reload."); } }
+  async function remove() { if (!row || busy || !(await dialog.confirm({ title: `Delete the quote from ${row.name}?`, message: "This removes the testimonial from the website. Save it as a draft to keep it privately.", confirmText: "Delete testimonial", danger: true }))) return; setBusy(true); try { await api.remove("testimonials", row.id); onDeleted(row.id); } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t delete."); } finally { setBusy(false); } }
+  const text = (field: "name" | "company" | "role" | "avatar", label: string) => <label className="qt-field"><span>{label}</span><input value={draft[field] || ""} onChange={event => set(field, event.target.value)} maxLength={field === "avatar" ? 8 : 255} /></label>;
+  return <div className="qt-overlay"><section className="qt-editor" ref={ref} role="dialog" aria-modal="true" aria-busy={busy} aria-label={row ? `Edit quote from ${row.name}` : "New testimonial"}><header className="qt-editor-header"><div><span className="qt-eyebrow">IN YOUR CLIENT’S WORDS</span><h2>{draft.name ? `A quote from ${draft.name}` : "New testimonial"}</h2><p>Keep the words personal. Publish when they’re ready.</p></div><button type="button" className="sh-icb" aria-label="Close editor" onClick={close}>×</button></header>
+    {error && <div className="qt-error" role="alert">{error}{conflict && <button type="button" className="sh-btn sm" onClick={reload}>Reload saved version</button>}</div>}
+    <div className="qt-editor-body"><div className="qt-form" inert={busy}><label className="qt-field"><span>Client quote</span><textarea aria-label="Client quote" rows={6} value={draft.quote || ""} onChange={event => set("quote", event.target.value)} placeholder="The client’s own words…" /></label>{text("name", "Client name")}<div className="qt-pair">{text("role", "Role")}{text("company", "Company")}</div><div className="qt-pair"><div className="qt-field"><label htmlFor="qt-rating">Rating</label><Select id="qt-rating" ariaLabel="Rating" value={String(draft.rating ?? 5)} onChange={value => set("rating", Number(value))} options={[1, 2, 3, 4, 5].map(value => ({ value: String(value), label: `${value} ${value === 1 ? "star" : "stars"}` }))} /></div>{text("avatar", "Avatar initials · optional")}</div><div className="qt-pair"><div className="qt-field"><label htmlFor="qt-status">Publication status</label><Select id="qt-status" ariaLabel="Publication status" value={draft.status} onChange={value => set("status", value)} options={[{ value: "draft", label: "Draft · private" }, { value: "published", label: "Published · visible on website" }]} /></div><label className="qt-field"><span>Display order</span><input type="number" min={0} step={1} value={draft.position ?? 0} onChange={event => set("position", Number(event.target.value))} /></label></div>{row && <HistoryList entity="testimonial" id={row.id} />}</div>
+    <aside className="qt-preview"><span className="qt-eyebrow">PRIVATE QUOTE PREVIEW</span><p>These are your current edits. Previewing does not save or publish them.</p><article className="qt-card"><QuoteContent row={draft} full /></article><span className={`qt-status ${draft.status}`}>{draft.status === "published" ? "Published on save" : "Private draft"}</span></aside></div>
+    <footer className="qt-editor-footer">{row && <button type="button" className="sh-btn qt-delete" disabled={busy} onClick={remove}>Delete</button>}<span>{dirtyKeys.length ? "Unsaved changes" : row ? "Saved version" : "New draft"}</span><button type="button" className="sh-btn" disabled={busy} onClick={close}>Cancel</button><button type="button" className="sh-btn pri" disabled={busy || (!!row && !dirtyKeys.length)} onClick={save}>{busy ? "Saving…" : draft.status === "published" ? "Save & publish" : "Save draft"}</button></footer>
+  </section></div>;
 }

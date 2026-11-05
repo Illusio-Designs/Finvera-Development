@@ -45,4 +45,5 @@ jobs:
         run: |
           node tests/social-workflow.test.cjs
           node tests/social-studio-metrics.test.cjs
+          node tests/testimonial-presentation.test.cjs
         working-directory: frontend

@@ -1,4 +1,5 @@
 "use client";
+import PageLoading from "@/components/admin/PageLoading";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Mark } from "@/components/icons";
@@ -407,6 +408,7 @@ export default function Today() {
   const content = (["projects", "services", "testimonials", "team", "blog"] as const).map((k) => ({ k, label: k === "blog" ? "Blog posts" : k === "projects" ? "Portfolio" : k === "team" ? "Website team" : k[0].toUpperCase() + k.slice(1), n: o?.counts?.[k] || 0 }));
   const cmax = Math.max(1, ...content.map((c) => c.n));
 
+  if (!ready || (canSocial && !t && !today.error) || ((canContent || canContact || canLeads) && !o && !ov.error) || (teamHome && !mine.data && !mine.error)) return <div className="td td-overview"><div className="td-hello"><div className="td-hello-tx"><h1>Overview</h1></div></div><PageLoading label="Loading your workspace…" /></div>;
   return (
     <div className="td td-overview">
       <div className="td-hello">

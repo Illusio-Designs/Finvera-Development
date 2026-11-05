@@ -1,4 +1,5 @@
 "use client";
+import PageLoading from "@/components/admin/PageLoading";
 /* Social studio — analytics, channels and published posts for the brand
    picked in the dropdown (or all brands). Numbers come from Instagram and
    Facebook for connected channels (followers, likes, comments, shares) and
@@ -293,7 +294,7 @@ export default function SocialStudio() {
     } catch (e: any) { toast("Couldn't connect", "err", { description: e.message }); }
   }
 
-  if (!data || !v) return <div className="ss studio-workspace"><h1>Social studio</h1>{loadError ? <div className="ss-load-error" role="alert"><p>{loadError}</p><button type="button" className="ss-btn" onClick={() => load()}>Try again</button></div> : <div className="ss-loading" role="status">Loading Social studio…</div>}</div>;
+  if (!data || !v) return <div className="ss studio-workspace"><h1>Social studio</h1>{loadError ? <div className="ss-load-error" role="alert"><p>{loadError}</p><button type="button" className="ss-btn" onClick={() => load()}>Try again</button></div> : <PageLoading label="Loading Social studio…" />}</div>;
 
   const brandLabel = brand || "All brands";
   const color = (b: string) => colors[b] || COLORS[0];

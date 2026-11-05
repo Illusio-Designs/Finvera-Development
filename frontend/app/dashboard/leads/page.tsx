@@ -1,4 +1,5 @@
 "use client";
+import PageLoading from "@/components/admin/PageLoading";
 /* Leads — the business-development pipeline.
    One request for the data (GET /api/leads); everything else (totals,
    follow-up counts, filters, board / list) is worked out here. Changes are
@@ -15,8 +16,8 @@ import { leadsApi, type LeadRow, type LeadStage } from "@/lib/adminApi";
 import { FollowUpStrip, inRange, type FollowRange } from "@/components/admin/LeadFollowUps";
 import { exportToExcel } from "@/components/admin/ExportButton";
 import Select from "@/components/Select";
-import LeadBoard, { BoardSkeleton } from "@/components/admin/leads/LeadBoard";
-import LeadList, { ListSkeleton } from "@/components/admin/leads/LeadList";
+import LeadBoard from "@/components/admin/leads/LeadBoard";
+import LeadList from "@/components/admin/leads/LeadList";
 import LeadDrawer from "@/components/admin/leads/LeadDrawer";
 import LostDialog from "@/components/admin/leads/LostDialog";
 import { STAGES, stageOf, isOpen, inr, inrShort, sumValue, byPosition, istMonth, SOURCES, PRIORITIES, cap } from "@/components/admin/leads/leadKit";
@@ -224,6 +225,7 @@ function Leads() {
     </div>
   );
 
+  if (!rows && !error) return <div className="td"><div className="td-hello"><div className="td-hello-tx"><h1>Leads</h1></div></div><PageLoading label="Loading leads…" variant="board" /></div>;
   return (
     <div className="td ld leads-workspace">
       <div className="td-hello">
@@ -284,7 +286,7 @@ function Leads() {
           </div>
           {rows && filtering && <div className="ld-count" aria-live="polite">{plural(shown.length, "lead")} match{shown.length === 1 ? "es" : ""} · {inr(sumValue(shown))}<button type="button" className="sh-link" onClick={clearFilters}>Clear all filters</button></div>}
 
-          {!rows ? (view === "board" ? <BoardSkeleton /> : <ListSkeleton />)
+          {!rows ? <PageLoading label="Loading leads…" variant={view === "board" ? "board" : "list"} />
             : rows.length === 0 ? (
               <div className="sh-empty ld-empty">
                 <HugeiconsIcon icon={UserAdd01Icon} size={20} strokeWidth={1.8} className="hgi" />

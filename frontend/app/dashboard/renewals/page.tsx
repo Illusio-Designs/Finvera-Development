@@ -1,4 +1,5 @@
 "use client";
+import PageLoading from "@/components/admin/PageLoading";
 /* Renewals — recurring maintenance / hosting / retainer invoices.
    One request for the data (GET /api/renewals); totals, filters and the
    month-by-month timeline are worked out here. Renewed moves the next date on
@@ -16,7 +17,7 @@ import {
 import { api, renewalsApi, type RenewalRow } from "@/lib/adminApi";
 import { exportToExcel } from "@/components/admin/ExportButton";
 import Select from "@/components/Select";
-import { Timeline, RenewalTable, ListSkeleton, type RowHandlers } from "@/components/admin/renewals/RenewalViews";
+import { Timeline, RenewalTable, type RowHandlers } from "@/components/admin/renewals/RenewalViews";
 import RenewalDrawer, { type DrawerAction } from "@/components/admin/renewals/RenewalDrawer";
 import { RenewDialog, EndDialog, type RenewChoice } from "@/components/admin/renewals/RenewalDialogs";
 import {
@@ -242,6 +243,7 @@ function Renewals() {
     </div>
   );
 
+  if (!rows && !error) return <div className="td"><div className="td-hello"><div className="td-hello-tx"><h1>Renewals</h1></div></div><PageLoading label="Loading renewals…" variant="list" /></div>;
   return (
     <div className="td rn renewals-workspace">
       <div className="td-hello">
@@ -299,7 +301,7 @@ function Renewals() {
             </div>
           )}
 
-          {!rows ? <ListSkeleton />
+          {!rows ? <PageLoading label="Loading renewals…" variant="list" />
             : rows.length === 0 ? (
               <div className="sh-empty rn-empty">
                 <HugeiconsIcon icon={RepeatIcon} size={20} strokeWidth={1.8} className="hgi" />
