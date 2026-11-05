@@ -46,4 +46,5 @@ jobs:
           node tests/social-workflow.test.cjs
           node tests/social-studio-metrics.test.cjs
           node tests/testimonial-presentation.test.cjs
+          node tests/website-pages.test.cjs
         working-directory: frontend
