@@ -8,7 +8,7 @@
      renewals     renewals area  ?q &status &owner (__none = unassigned) &cycle &from &to (renewal date)
      contact      contact area   ?q &unread=1 &from &to (received)
      activity     admin          same filters as GET /api/activity
-     social-posts social area    ?from &to (go-live date) &client &status &assigneeId &q — only the caller's brands
+     social-posts social area    ?from &to (go-live date) &client &status &assigneeId (none = unassigned) &postFormat &q — only the caller's brands
      users        admin          (no passwords or other secrets)
    Dates: "YYYY-MM-DD"; date-times "YYYY-MM-DD HH:mm" India time.
 
@@ -125,6 +125,8 @@ const EXPORTS = {
       if (q.client) and.push({ client: String(q.client).split(",") });
       if (q.status) and.push({ status: String(q.status).split(",") });
       if (q.assigneeId && /^\d+$/.test(q.assigneeId)) and.push({ assigneeId: Number(q.assigneeId) });
+      if (q.assigneeId === "none") and.push({ assigneeId: null });
+      if (q.postFormat) and.push({ format: String(q.postFormat) });
       if (q.q) and.push(like(["client", "theme", "topic", "caption", "festive"], q.q));
       const [rows, names] = await Promise.all([
         SocialPost.findAll({ where: and.length ? { [Op.and]: and } : {}, attributes: { exclude: ["timeLog", "media"] }, order: [["postDate", "ASC"], ["postTime", "ASC"], ["position", "ASC"]], limit: MAX_ROWS + 1, raw: true }),

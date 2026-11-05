@@ -22,6 +22,11 @@ const assert=require('node:assert/strict');const m=require(root+'/src/models');c
    let check = await request(`/social-posts/${partial.id}/preflight`,null,'GET');assert.equal(check.status,200);assert.ok(check.data.issues.some(issue=>issue.field==='tags'));
    check=await request('/social-posts/bulk?preview=1',{posts:[{client:name,theme:fresh.theme,postDate:'2026-11-10',caption:'Planning update'},{client:name,theme:partial.theme,postDate:'2026-11-10',caption:'Must not overwrite'}]},'POST');assert.equal(check.status,200);assert.equal(check.data.updated,1);assert.equal(check.data.skipped,1);
    await fresh.reload();assert.equal(fresh.caption,null);
+   const unassignedCarousel = await m.SocialPost.create({client:name,theme:'Unassigned carousel',status:'planned',format:'Carousel',assigneeId:null}); extra.push(unassignedCarousel);
+   const assignedCarousel = await m.SocialPost.create({client:name,theme:'Assigned carousel',status:'planned',format:'Carousel',assigneeId:user.id}); extra.push(assignedCarousel);
+   let exported = await request(`/export/social-posts?format=json&client=${encodeURIComponent(name)}&assigneeId=none&postFormat=Carousel`,null,'GET');assert.equal(exported.status,200);assert.equal(exported.data.total,1);assert.equal(exported.data.rows[0]['Format'],'Carousel');assert.equal(exported.data.rows[0]['Assigned to'],'');
+   const created = await request('/social-posts',{client:name,theme:'Created from calendar',status:'planned',format:'Post',postDate:'2026-11-10',postTime:'10:00',media:[],team:{}},'POST');assert.equal(created.status,201,JSON.stringify(created.data));assert.equal(created.data.status,'planned');extra.push({id:created.data.id});
+
    check=await request('/social-posts/bulk',{posts:[{client:name,theme:fresh.theme,postDate:'2026-11-10',caption:'Planning update'},{client:name,theme:partial.theme,postDate:'2026-11-10',caption:'Must not overwrite'}]},'POST');assert.equal(check.status,201,JSON.stringify(check.data));assert.equal(check.data.updated,1);assert.equal(check.data.skipped.length,1);
    await fresh.reload();await partial.reload();assert.equal(fresh.caption,'Planning update');assert.equal(partial.caption,null);
    check=await request(`/social-posts/${partial.id}`,null,'DELETE');assert.equal(check.status,409);assert.ok(await m.SocialPost.findByPk(partial.id));

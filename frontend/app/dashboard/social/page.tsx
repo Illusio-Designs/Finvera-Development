@@ -1,8 +1,10 @@
 "use client";
+import "./social-workspace.css";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { chainFor, isVideoFormat, makerFor, roleFor, indiaToday, overdueAt, moveArtwork, type SocialRole as Role } from "@/lib/socialWorkflow";
 import { api } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
+import { userRoles } from "@/lib/permissions";
 import { instagramSafeAll } from "@/lib/igImage";
 import { dialog } from "@/lib/dialog";
 import Select from "@/components/Select";
@@ -302,7 +304,8 @@ export default function SocialCalendar() {
   const [users, setUsers] = useState<User[]>([]);
   const [meId, setMeId] = useState<number | null>(null);
   // Brand access set by an admin: false = every brand (admin), true = only assigned brands + own posts.
-  const [limited, setLimited] = useState(false);
+  const [limited, setLimited] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
   const [client, setClient] = useState("");
   const [view, setView] = useState<View>("board");
@@ -381,6 +384,7 @@ export default function SocialCalendar() {
   }, []);
 
   async function load() {
+    setLoadError("");
     try {
       const [p, c, u, me] = await Promise.all([
         api.listSocialPosts({ fields: "card" }), api.list("social-clients"),
@@ -398,7 +402,7 @@ export default function SocialCalendar() {
       setClientRows(Array.isArray(c) ? c : []);
       setUsers(Array.isArray(u) ? u : []);
       setMeId((me?.user ?? me)?.id ?? null);
-      const isLimited = Array.isArray((me?.user ?? me)?.socialClients);
+      const isLimited = !userRoles(me?.user ?? me).includes("admin");
       setLimited(isLimited);
       // Team members start on My work — only when the page first opens, not
       // on the reload after every save (that would yank them off Board).
@@ -406,7 +410,7 @@ export default function SocialCalendar() {
       firstLoadDone.current = true;
       if (!isLimited) api.list("users").then((t) => setTeam(Array.isArray(t) ? t : [])).catch(() => {});
       loadPublishing();
-    } catch (e: any) { toast("Couldn't load the content calendar", "err", { description: e.message || "Check your connection and refresh the page." }); }
+    } catch (e: any) { setLoadError(e.message || "Check your connection and try again."); toast("Couldn't load the content calendar", "err", { description: e.message || "Check your connection and refresh the page." }); }
     finally { setLoading(false); }
   }
   useEffect(() => {
@@ -904,6 +908,7 @@ export default function SocialCalendar() {
         if (made?.id) setClientRows((cs) => [...cs, made]); else reload = true;
       }
       if (editing.id) setViewId(editing.id);
+      else if (saved?.id) { setView("board"); setClient(saved.client); setMonth(""); setWho(""); setFormat(""); setQuery(""); setViewId(saved.id); }
       // The response is the saved row (with server-set assignee / dates) — patch it in instead of reloading everything.
       if (reload || !applySaved(saved)) load();
       setEditing(null); toast(saved.status === "approval" && editing.status === "ready" ? "Saved — publishing paused for review" : editing.id ? "Post updated" : "Post added", "ok", { description: `“${editing.theme}” · ${editing.client}` }); loadPublishing(); window.dispatchEvent(new Event("fv-badges"));
@@ -1073,7 +1078,7 @@ export default function SocialCalendar() {
         onDragEnd={(e) => e.currentTarget.classList.remove("dragging")}
         onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setViewId(p.id); } }}
         onClick={() => setViewId(p.id)} aria-label={`${p.theme}, ${p.client}, ${dueInfo(p)?.text || ""}`}>
-        <span className="fvc-tags"><span>#{p.client.replace(/\s+/g, "")}</span>{p.format && <span>#{p.format.replace(/\s+/g, "")}</span>}</span>
+        <span className="fvc-tags"><span>{p.client}</span>{p.format && <span>{p.format}</span>}</span>
         <span className="fvc-title">{p.theme || "Untitled post"}</span>
         {canEdit(p) && p.status !== "posted" && <details className="fvc-more" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}><summary aria-label={`More actions for ${p.theme}`}>⋯</summary><button type="button" className="cal-btn sm" onClick={() => askHandoff(p, roleFor(p.status, p.format, p.step), { status: p.status }, "move")}>Change owner</button></details>}
         {p.status === "client" && p.clientFollowUpDate && <span className="fvc-note">Follow up {fmtShort(p.clientFollowUpDate)}{p.clientFollowUpDate < todayIso() ? " · overdue" : ""}</span>}
@@ -1086,7 +1091,7 @@ export default function SocialCalendar() {
         )}
         {p.status === "ready" && (
           <span className="fvc-check">
-            <span>🕑 Goes live {fmtShort(p.postDate)} · {p.postTime ? fmtTime(p.postTime) : "10:00 AM"}</span>
+            <span>Goes live {fmtShort(p.postDate)} · {p.postTime ? fmtTime(p.postTime) : "10:00 AM"}</span>
             {js.map((j) => <span key={j.id}>{PLATFORM_NAME[j.platform]} · {(JOB_LABEL[j.status]?.[0] || j.status).toLowerCase()}</span>)}
           </span>
         )}
@@ -1101,7 +1106,6 @@ export default function SocialCalendar() {
           {avatars(p)}
           <span className="fvc-meta">
             {media.length > 0 && <span title="Finished work files">📎 {media.length}</span>}
-            {p.postDate && <span>📅 {p.postDate === todayIso() ? "Today" : fmtShort(p.postDate)}</span>}
           </span>
         </span>
         {canEdit(p) && (p.status === "planned" || p.status === "client" || p.status === "production") && (
@@ -1110,13 +1114,14 @@ export default function SocialCalendar() {
             {p.status === "planned" && <button type="button" className="cal-btn" draggable={false} title="Need from client" onClick={() => needFromClient(p)}>Need</button>}
           </span>
         )}
+        {(p.status === "approval" || p.status === "ready" || p.status === "posted") && <span className="cal-task-actions" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}><button type="button" className={p.status === "approval" ? "cal-primary" : "cal-btn"} onClick={() => setViewId(p.id)}>{p.status === "approval" ? "Review" : p.status === "ready" ? "View schedule" : "View live links"}</button></span>}
       </div>
     );
   }
 
   function renderBoard() {
     return (
-      <div className="cal-board-scroll">
+      <div className="cal-board-scroll" tabIndex={0} aria-label="Workflow board; scroll to see all stages">
         <div className="cal-board">
           {STAGES.map((s) => {
             const items = list.filter((p) => p.status === s.id);
@@ -1149,7 +1154,7 @@ export default function SocialCalendar() {
     const t = todayIso(), wk = addDays(t, 7);
     const open = source.filter((p) => !isDone(p));
     return ([
-      ["Overdue", "Go-live date has passed — post or reschedule", "over", open.filter(isOverdue)],
+      ["Overdue", "Go-live time has passed — post or reschedule", "over", open.filter(isOverdue)],
       ["Work on now", "Inside the 7 days before going live", "now", open.filter((p) => !isOverdue(p) && startOn(p) && startOn(p) <= t)],
       ["Starting this week", "Start-work date in the next 7 days", "", open.filter((p) => startOn(p) > t && startOn(p) <= wk)],
       ["Later", "Start-work date after next week", "later", open.filter((p) => startOn(p) > wk)],
@@ -1508,6 +1513,8 @@ export default function SocialCalendar() {
     </>
   );
 
+  if (loadError && !posts.length) return <div className="cal-page"><div className="cal-head"><div><span className="cal-eyebrow">Social media</span><h1>Content calendar</h1></div></div><div className="cal-load-error" role="alert"><div><b>Couldn’t load the content calendar</b><p>{loadError}</p></div><button type="button" className="cal-btn" onClick={load}>Try again</button></div></div>;
+
   const t = todayIso(), wk = addDays(t, 7);
   const openList = list.filter((p) => !isDone(p));
   const tiles: [string, string | number, string, string][] = [
@@ -1517,6 +1524,10 @@ export default function SocialCalendar() {
     limited ? ["Assigned to you", list.filter((p) => p.assigneeId === meId && !isDone(p)).length, "Open posts in My work", "now"] : ["Ready to post", list.filter((p) => p.status === "ready").length, "With Social media", "ready"],
     ["Posted", list.filter(isDone).length, "Live with links", "ok"],
   ];
+  function newPost() {
+    dirty.current.clear(); setSaveError(""); setConflictPost(null); setViewId(null);
+    setEditing({ client: client || (limited ? clientNames[0] || "" : ""), theme: "", status: "planned", format: "Post", postDate: todayIso(), postTime: "10:00", team: {}, media: [], _full: true });
+  }
   const viewed = viewId != null ? posts.find((p) => p.id === viewId) : undefined;
   const set = (patch: Partial<Post>) => { Object.keys(patch).forEach((k) => dirty.current.add(k as keyof Post)); setEditing((e) => ({ ...e, ...patch })); };
   const txt = (k: keyof Post) => String(editing?.[k] ?? "");
@@ -1538,41 +1549,30 @@ export default function SocialCalendar() {
         <div>
           <span className="cal-eyebrow">Social media</span>
           <h1>{limited ? "My work" : "Content calendar"}</h1>
-          <p>{limited
-            ? "My work lists your posts. Board, Schedule and Calendar show everything for your brands, and you can edit any of them."
-            : "Every brand's posts from plan to live link, with who has each one and when work starts."}</p>
+          <p>{limited ? "Your brands, your next steps, and the work ready to move forward." : "Plan it, make it, review it, publish it. Every brand, in one clear flow."}</p>
         </div>
         <div className="cal-head-actions">
           <input ref={fileRef} type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={(e) => { importCsv(e.target.files?.[0]); e.currentTarget.value = ""; }} />
-          <button type="button" className="cal-primary" onClick={() => fileRef.current?.click()}>Import sheet</button>
-          {!limited && <button type="button" className="cal-btn" onClick={openUploads}>Upload history</button>}
-          {!limited && <button type="button" className="cal-btn" onClick={() => setBulkMove({ from: "", to: "", brand: client, role: "", posts: null, skipped: 0, busy: false })}>Reassign pending</button>}
-          <ExportButton entity="social-posts" file={client ? `content-calendar-${client.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}` : "content-calendar"} sheet={client || "Content calendar"}
-            params={() => ({
-              client, q: query.trim(), assigneeId: /^\d+$/.test(who) ? who : "",
-              from: month ? `${month}-01` : "", to: month ? iso(new Date(+month.slice(0, 4), +month.slice(5, 7), 0)) : "",
-            })} />
-
+          <button type="button" className="cal-primary" onClick={newPost} disabled={limited && !clientNames.length}>+ New post</button>
+          <button type="button" className="cal-btn" onClick={() => fileRef.current?.click()}>Import sheet</button>
+          <details className="cal-tools">
+            <summary>Calendar tools</summary>
+            <div className="cal-tools-menu">
+              {!limited && <button type="button" className="cal-btn" onClick={openUploads}>Upload history</button>}
+              {!limited && <button type="button" className="cal-btn" onClick={() => setBulkMove({ from: "", to: "", brand: client, role: "", posts: null, skipped: 0, busy: false })}>Reassign pending</button>}
+              <ExportButton entity="social-posts" file={client ? `content-calendar-${client.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}` : "content-calendar"} sheet={client || "Content calendar"}
+                params={() => ({ client, q: query.trim(), assigneeId: activeView === "mine" ? String(meId ?? "none") : who, postFormat: format, from: month ? `${month}-01` : "", to: month ? iso(new Date(+month.slice(0, 4), +month.slice(5, 7), 0)) : "" })} />
+            </div>
+          </details>
         </div>
       </div>
 
-      <div className="cal-tabs" role="tablist" aria-label="Brands">
-        {[{ name: "", label: "All brands" }, ...clientNames.map((n) => ({ name: n, label: n }))].map(({ name, label }) => {
-          const items = posts.filter((p) => !name || p.client === name);
-          const late = items.filter(isOverdue).length;
-          return (
-            <button type="button" key={name || "all"} role="tab" aria-selected={client === name} className={"cal-tab" + (client === name ? " on" : "")}
-              onClick={() => { setClient(name); setMonth(""); setCalMonth(""); }}>
-              {name && <i style={{ background: clientColor(name) }} />}
-              {label}<span className="n">{items.length}</span>{late > 0 && <span className="late">{late} late</span>}
-            </button>
-          );
-        })}
-      </div>
-
-
-      <div className="cal-tiles">
-        {tiles.map(([k, v, hint, cls]) => <div key={k} className={"cal-tile " + cls}><span>{k}</span><b>{v}</b><small>{hint}</small></div>)}
+      {loadError && <div className="cal-load-error" role="alert"><div><b>Couldn’t refresh the content calendar</b><p>{loadError}</p></div><button type="button" className="cal-btn" onClick={load}>Try again</button></div>}
+      <div className="cal-intro" aria-label="Calendar overview">
+        <span><b>{list.length}</b> posts in this view</span>
+        <span className="review"><i /><b>{list.filter((post) => post.status === "approval").length}</b> ready for review</span>
+        <span className="attention"><i /><b>{openList.filter(isOverdue).length}</b> go-live overdue</span>
+        <details className="cal-workload"><summary>Workload summary</summary><div className="cal-tiles">{tiles.map(([key, value, hint, cls]) => <div key={key} className={"cal-tile " + cls}><span>{key}</span><b>{value}</b><small>{hint}</small></div>)}</div></details>
       </div>
 
       <div className="cal-toolbar">
@@ -1581,12 +1581,14 @@ export default function SocialCalendar() {
             <button type="button" key={v} aria-pressed={activeView === v} className={activeView === v ? "on" : ""} onClick={() => { setView(v); if (v === "mine") setWho(""); }}>{label}</button>
           ))}
         </div>
+        <div className="sm-filter cal-brand-select"><Select value={client} onChange={(value) => { setClient(value); setMonth(""); setCalMonth(""); }} ariaLabel="Brand" options={[{ value: "", label: "All brands" }, ...clientNames.map((name) => ({ value: name, label: name }))]} /></div>
         <div className="sm-filter"><Select value={month} onChange={(v) => { setMonth(v); setCalMonth(""); }} ariaLabel="Month"
           options={[{ value: "", label: "All months" }, ...months.map((m) => ({ value: m, label: `${MONTHS[+m.slice(5) - 1]} ${m.slice(0, 4)}` }))]} /></div>
-        <div className="sm-filter"><Select value={format} onChange={setFormat} ariaLabel="Format"
+        <details className="cal-advanced-filters"><summary>Filters{(format || who) && <span className="cal-filter-count">{Number(!!format) + Number(!!who)}</span>}</summary><div className="cal-filter-menu">        <div className="sm-filter"><Select value={format} onChange={setFormat} ariaLabel="Format"
           options={[{ value: "", label: "All formats" }, ...formats.map((f) => ({ value: f, label: f }))]} /></div>
         {activeView !== "mine" && <div className="sm-filter"><Select value={who} onChange={setWho} ariaLabel="Assigned to"
           options={[{ value: "", label: "Everyone" }, { value: "none", label: "Unassigned" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]} /></div>}
+</div></details>
         <label className="cal-search">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
           <input placeholder="Search theme, topic, caption…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search posts" />
@@ -1794,16 +1796,16 @@ export default function SocialCalendar() {
                       options={clientNames.map((n) => ({ value: n, label: n }))} />
                   ) : (
                     <>
-                      <input list="sm-clients" value={txt("client")} onChange={(e) => set({ client: e.target.value })} required placeholder="Brand name" />
+                      <input aria-label="Brand" list="sm-clients" value={txt("client")} onChange={(e) => set({ client: e.target.value })} required placeholder="Brand name" />
                       <datalist id="sm-clients">{clientNames.map((n) => <option key={n} value={n} />)}</datalist>
                     </>
                   )}</div>
                 <div className="adm-field" style={{ flex: 1 }}><label>Format</label>
-                  <input list="sm-formats" value={txt("format")} onChange={(e) => set({ format: e.target.value })} placeholder="Post / Reel / Carousel" />
+                  <input aria-label="Format" list="sm-formats" value={txt("format")} onChange={(e) => set({ format: e.target.value })} placeholder="Post / Reel / Carousel" />
                   <datalist id="sm-formats">{FORMATS.map((f) => <option key={f} value={f} />)}</datalist></div>
               </div>
               <div className="adm-field"><label>Post theme</label>
-                <input value={txt("theme")} onChange={(e) => set({ theme: e.target.value })} required placeholder="e.g. Customer Review" /></div>
+                <input aria-label="Post theme" value={txt("theme")} onChange={(e) => set({ theme: e.target.value })} required placeholder="e.g. Customer Review" /></div>
               <div className="field row" style={{ gap: 12 }}>
                 <div className="adm-field" style={{ flex: 1 }}><label>Day / festival</label>
                   <input value={txt("festive")} onChange={(e) => set({ festive: e.target.value })} placeholder="e.g. Diwali" /></div>
@@ -1814,7 +1816,7 @@ export default function SocialCalendar() {
                 <textarea value={txt("topic")} onChange={(e) => set({ topic: e.target.value })} /></div>
             </fieldset>)}
 
-            {edPlanning || edScheduled && (<fieldset className="cal-fs">
+            {(edPlanning || edScheduled) && (<fieldset className="cal-fs">
               <legend>When</legend>
               <div className="field row" style={{ gap: 12 }}>
                 <div className="adm-field" style={{ flex: 1 }}><label>Goes live on</label>
@@ -1823,7 +1825,7 @@ export default function SocialCalendar() {
                     set({ postDate: v, ...(auto && v ? { dueDate: weekBefore(v) } : {}) });
                   }} placeholder="Goes live on" /></div>
                 <div className="adm-field" style={{ flex: 1 }}><label>At</label>
-                  <input type="time" value={txt("postTime")} onChange={(e) => set({ postTime: e.target.value })} /></div>
+                  <input aria-label="Go-live time" type="time" value={txt("postTime")} onChange={(e) => set({ postTime: e.target.value })} /></div>
               </div>
               {edPlanning && <>              <div className="field row" style={{ gap: 12 }}>
                 <div className="adm-field" style={{ flex: 1 }}><label>Start work on</label>
