@@ -381,13 +381,15 @@ export const renewalsApi = {
   list: (): Promise<RenewalRow[]> => req(`/renewals`),
   get: (id: number | string): Promise<RenewalRow> => req(`/renewals/${id}`),
   create: (body: Partial<RenewalRow>): Promise<RenewalRow> => req(`/renewals`, { method: "POST", body: JSON.stringify(body) }),
-  update: (id: number, body: Partial<RenewalRow>): Promise<RenewalRow> => req(`/renewals/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  update: (id: number, body: Partial<RenewalRow> & { expected?: Partial<RenewalRow> }): Promise<RenewalRow> => req(`/renewals/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   remove: (id: number): Promise<unknown> => req(`/renewals/${id}`, { method: "DELETE" }),
   /* Renewed: the server moves the date on one cycle (or to `renewalDate` when given)
      and puts a dated line on top of the remarks; `invoiced: false` keeps "last renewed on". */
-  renew: (id: number, body: { remark?: string; renewalDate?: string; invoiced?: boolean }): Promise<RenewalRow> =>
+  renew: (id: number, body: { remark?: string; renewalDate?: string; invoiced?: boolean; expected?: Partial<RenewalRow> }): Promise<RenewalRow> =>
     req(`/renewals/${id}/renew`, { method: "POST", body: JSON.stringify(body) }),
-  terminate: (id: number, remark: string): Promise<RenewalRow> => req(`/renewals/${id}/terminate`, { method: "POST", body: JSON.stringify({ remark }) }),
+  terminate: (id: number, remark: string, expected?: Partial<RenewalRow>): Promise<RenewalRow> => req(`/renewals/${id}/terminate`, { method: "POST", body: JSON.stringify({ remark, expected }) }),
+  restore: (row: RenewalRow): Promise<RenewalRow> => req(`/renewals/${row.id}/restore`, { method: "POST", body: JSON.stringify({ expected: row }) }),
+  remark: (id: number, remark: string): Promise<RenewalRow> => req(`/renewals/${id}/remarks`, { method: "POST", body: JSON.stringify({ remark }) }),
 };
 /* ═════════════════ end of renewals page block ══════════════════════════ */
 /* ═════════════════ Settings & pixels page ══════════════════════════════ */

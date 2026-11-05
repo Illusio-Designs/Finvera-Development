@@ -20,11 +20,12 @@ import { Timeline, RenewalTable, ListSkeleton, type RowHandlers } from "@/compon
 import RenewalDrawer, { type DrawerAction } from "@/components/admin/renewals/RenewalDrawer";
 import { RenewDialog, EndDialog, type RenewChoice } from "@/components/admin/renewals/RenewalDialogs";
 import {
-  CYCLES, STATUSES, cycleOf, inr, inrShort, sumAmount, yearlyValue, day10, daysBetween, fmtDay, label, remarkLine, prependRemark, istToday,
+  CYCLES, STATUSES, cycleOf, inr, inrShort, sumAmount, yearlyValue, day10, daysBetween, fmtDay, label, remarkLine, prependRemark, istToday, addDays,
 } from "@/components/admin/renewals/renewalKit";
 import { dialog } from "@/lib/dialog";
 import { toast } from "@/lib/toast";
 import "./renewals.css";
+import "./renewals-workspace.css";
 
 type View = "timeline" | "table";
 const VIEW_KEY = "fv-renewals-view";
@@ -40,6 +41,7 @@ function Renewals() {
   const [rows, setRows] = useState<RenewalRow[] | null>(null);
   const [error, setError] = useState("");
   const [view, setView] = useState<View>("timeline");
+  const [scope, setScope] = useState<"all" | "soon" | "overdue" | "history">("all");
   const [q, setQ] = useState("");
   const [fStatus, setFStatus] = useState("");
   const [fOwner, setFOwner] = useState("");
@@ -87,7 +89,7 @@ function Renewals() {
     const act = all.filter((r) => r.status === "active");
     const dated = act.filter((r) => day10(r.renewalDate));
     const over = dated.filter((r) => day10(r.renewalDate) < today);
-    const due = dated.filter((r) => { const n = daysBetween(today, day10(r.renewalDate)); return n >= 0 && n <= 30; });
+    const due = dated.filter((r) => { const n = daysBetween(today, day10(r.renewalDate)); return n >= 0 && n <= 14; });
     const ended = all.filter((r) => r.status === "cancelled"), paused = all.filter((r) => r.status === "paused");
     return {
       over: over.length, overSum: sumAmount(over), due: due.length, dueSum: sumAmount(due),
@@ -98,21 +100,24 @@ function Renewals() {
 
   /* ── filters ── */
   const owners = useMemo(() => [...new Set(all.map((r) => r.owner).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b)), [all]);
+  const effectiveStatus = scope === "history" ? "cancelled" : scope === "soon" || scope === "overdue" ? "active" : fStatus;
   const needle = q.trim().toLowerCase();
   const shown = useMemo(() => all.filter((r) =>
     (!needle || [r.client, r.project, r.owner, r.email].join(" ").toLowerCase().includes(needle))
-    && (!fStatus || r.status === fStatus)
+    && (!effectiveStatus || r.status === effectiveStatus)
+    && (scope !== "soon" || (!!day10(r.renewalDate) && day10(r.renewalDate) >= today && day10(r.renewalDate) <= addDays(today, 14)))
+    && (scope !== "overdue" || (!!day10(r.renewalDate) && day10(r.renewalDate) < today))
     && (!fOwner || (fOwner === "__none" ? !r.owner : r.owner === fOwner))
-    && (!fCycle || r.cycle === fCycle)), [all, needle, fStatus, fOwner, fCycle]);
-  const filtering = !!(needle || fStatus || fOwner || fCycle);
-  const clearFilters = () => { setQ(""); setFStatus(""); setFOwner(""); setFCycle(""); };
+    && (!fCycle || r.cycle === fCycle)), [all, needle, effectiveStatus, fOwner, fCycle, scope, today]);
+  const filtering = !!(needle || fStatus || fOwner || fCycle || scope !== "all");
+  const clearFilters = () => { setQ(""); setFStatus(""); setFOwner(""); setFCycle(""); setScope("all"); };
   const counts = useMemo(() => Object.fromEntries(STATUSES.map((s) => [s.id, all.filter((r) => r.status === s.id).length])), [all]);
 
   const [exporting, setExporting] = useState(false);
   async function doExport() {
     setExporting(true);
     try {
-      const r = await exportToExcel("renewals", { q: q.trim() || undefined, status: fStatus || undefined, owner: fOwner || undefined, cycle: fCycle || undefined }, { file: "renewals", sheet: "Renewals" });
+      const r = await exportToExcel("renewals", { q: q.trim() || undefined, status: effectiveStatus || undefined, from: scope === "soon" ? today : undefined, to: scope === "soon" ? addDays(today, 14) : scope === "overdue" ? addDays(today, -1) : undefined, owner: fOwner || undefined, cycle: fCycle || undefined }, { file: "renewals", sheet: "Renewals" });
       if (!r.total) toast("Nothing to export", "info", { description: "No renewals match the current filters — the file has only the headings." });
       else toast(`Exported ${plural(r.total, "renewal")}`, "ok", { description: r.truncated ? `${r.file} · only the first 20,000 rows` : r.file });
     } catch (e) {
@@ -120,12 +125,13 @@ function Renewals() {
     } finally { setExporting(false); }
   }
 
+  const actionPending = useRef(new Set<number>());
   /* ── Renewed / Terminate / Restore (each with Undo) ── */
-  async function revert(before: RenewalRow, fields: (keyof RenewalRow)[], what: string) {
+  async function revert(before: RenewalRow, expected: RenewalRow, fields: (keyof RenewalRow)[], what: string) {
     const body: Partial<RenewalRow> = {};
     for (const f of fields) (body as Record<string, unknown>)[f] = before[f] ?? null;
     try {
-      const saved = await renewalsApi.update(before.id, body);
+      const saved = await renewalsApi.update(before.id, { ...body, expected });
       patchRow(saved); refreshDrawer(saved);
       toast(what, "info", { description: label(saved) });
     } catch (e) {
@@ -135,61 +141,67 @@ function Renewals() {
   }
 
   async function renew(row: RenewalRow): Promise<RenewalRow | null> {
+    if (actionPending.current.has(row.id)) return null;
+    actionPending.current.add(row.id);
     const choice = await new Promise<RenewChoice | null>((resolve) => setRenewDlg({ row, resolve }));
     setRenewDlg(null);
-    if (!choice) return null;
+    if (!choice) { actionPending.current.delete(row.id); return null; }
     const before = rowsRef.current.find((r) => r.id === row.id) || row;
     setBusyId(row.id, true);
     try {
-      const saved = await renewalsApi.renew(row.id, { remark: choice.remark, invoiced: choice.invoiced, ...(choice.picked ? { renewalDate: choice.renewalDate } : {}) });
+      const saved = await renewalsApi.renew(row.id, { expected: row, remark: choice.remark, invoiced: choice.invoiced, ...(choice.picked ? { renewalDate: choice.renewalDate } : {}) });
       patchRow(saved);
       toast(`Renewed · next ${fmtDay(saved.renewalDate)}`, "ok", {
         description: `${label(saved)}${choice.remark ? ` · ${choice.remark}` : ""}`, duration: 8000,
-        action: { label: "Undo", onClick: () => revert(before, ["renewalDate", "lastInvoiced", "status", "notes"], `Renewal undone · back to ${before.renewalDate ? fmtDay(before.renewalDate) : "no date"}`) },
+        action: { label: "Undo", onClick: () => revert(before, saved, ["renewalDate", "lastInvoiced", "status", "notes"], `Renewal undone · back to ${before.renewalDate ? fmtDay(before.renewalDate) : "no date"}`) },
       });
       return saved;
     } catch (e) {
       toast("Couldn't mark it renewed", "err", { description: msg(e) });
       return null;
-    } finally { setBusyId(row.id, false); }
+    } finally { actionPending.current.delete(row.id); setBusyId(row.id, false); }
   }
 
   async function terminate(row: RenewalRow): Promise<RenewalRow | null> {
+    if (actionPending.current.has(row.id)) return null;
+    actionPending.current.add(row.id);
     const reason = await new Promise<string | null>((resolve) => setEndDlg({ row, resolve }));
     setEndDlg(null);
-    if (reason === null) return null;
+    if (reason === null) { actionPending.current.delete(row.id); return null; }
     const before = rowsRef.current.find((r) => r.id === row.id) || row;
     setBusyId(row.id, true);
     try {
-      const saved = await renewalsApi.terminate(row.id, reason);
+      const saved = await renewalsApi.terminate(row.id, reason, row);
       patchRow(saved);
       toast("Renewal terminated", "ok", {
         description: `${label(saved)}${reason ? ` · ${reason}` : ""}`, duration: 8000,
-        action: { label: "Undo", onClick: () => revert(before, ["status", "notes"], "Termination undone") },
+        action: { label: "Undo", onClick: () => revert(before, saved, ["status", "notes"], "Termination undone") },
       });
       return saved;
     } catch (e) {
       toast("Couldn't terminate it", "err", { description: msg(e) });
       return null;
-    } finally { setBusyId(row.id, false); }
+    } finally { actionPending.current.delete(row.id); setBusyId(row.id, false); }
   }
 
   async function restore(row: RenewalRow): Promise<RenewalRow | null> {
+    if (actionPending.current.has(row.id)) return null;
+    actionPending.current.add(row.id);
     const before = rowsRef.current.find((r) => r.id === row.id) || row;
     setBusyId(row.id, true);
     try {
-      const saved = await renewalsApi.update(row.id, { status: "active", notes: prependRemark(before.notes, remarkLine("Restored", me, "")) });
+      const saved = await renewalsApi.restore(row);
       patchRow(saved);
       const late = day10(saved.renewalDate) && day10(saved.renewalDate) < today;
       toast("Renewal restored", "ok", {
         description: `${label(saved)} is active again${late ? ` · it was due ${fmtDay(saved.renewalDate)} — check the date` : ""}`, duration: 8000,
-        action: { label: "Undo", onClick: () => revert(before, ["status", "notes"], "Restore undone") },
+        action: { label: "Undo", onClick: () => revert(before, saved, ["status", "notes"], "Restore undone") },
       });
       return saved;
     } catch (e) {
       toast("Couldn't restore it", "err", { description: msg(e) });
       return null;
-    } finally { setBusyId(row.id, false); }
+    } finally { actionPending.current.delete(row.id); setBusyId(row.id, false); }
   }
 
   async function removeRow(row: RenewalRow) {
@@ -231,18 +243,18 @@ function Renewals() {
   );
 
   return (
-    <div className="td rn">
+    <div className="td rn renewals-workspace">
       <div className="td-hello">
         <div className="td-hello-tx">
-          <div className="td-eyebrow">Projects</div>
+          <div className="td-eyebrow">KEEP EVERY CLIENT COVERED</div>
           <h1>Renewals</h1>
-          <p>Maintenance, hosting and retainer invoices. Click Renewed when it&apos;s paid and the next date moves on one cycle, or Terminate when a client stops.</p>
+          <p>Know what renews, who owns it and what is due.</p>
         </div>
         <div className="td-acts">
           <button type="button" className="sh-btn" onClick={doExport} disabled={exporting || !rows} title="Download the renewals you see (current filters) as an Excel file">
             {exporting ? <span className="spin rn-spin" aria-hidden /> : <HugeiconsIcon icon={Download04Icon} size={17} strokeWidth={1.8} />}{exporting ? "Preparing…" : "Export"}
           </button>
-          <button type="button" className="sh-btn pri" onClick={addRow}><HugeiconsIcon icon={Add01Icon} size={17} strokeWidth={2} />Add renewal</button>
+          <button type="button" className="sh-btn pri" onClick={addRow}><HugeiconsIcon icon={Add01Icon} size={17} strokeWidth={2} />New renewal</button>
         </div>
       </div>
 
@@ -255,13 +267,14 @@ function Renewals() {
       ) : (
         <>
           <div className="td-kpis">
-            {k("Overdue", Alert02Icon, totals.over ? "red" : "", String(totals.over), totals.over ? `${inr(totals.overSum)} not yet renewed` : "Nothing overdue")}
-            {k("Due in 30 days", Clock01Icon, "amber", String(totals.due), totals.due ? `${inr(totals.dueSum)} to invoice` : "Nothing due this month")}
-            {k("Yearly recurring", RupeeIcon, "green", inrShort(totals.yearly), `${inr(totals.yearly)} from ${plural(totals.active, "active renewal")}`)}
-            {k("Ended", StopCircleIcon, "", String(totals.ended), `${totals.ended ? `${inrShort(totals.endedYearly)} a year stopped` : "None terminated"}${totals.paused ? ` · ${totals.paused} paused` : ""}`,
-              () => { setFStatus(fStatus === "cancelled" ? "" : "cancelled"); })}
+            {k("Due in 14 days", Clock01Icon, "blue", String(totals.due), `${inr(totals.dueSum)} scheduled`, () => setScope("soon"))}
+            {k("Overdue", Alert02Icon, "red", String(totals.over), totals.over ? "Needs a follow-up" : "Nothing overdue", () => setScope("overdue"))}
+            {k("Active renewals", RepeatIcon, "green", String(totals.active), "Current client services", () => { setScope("all"); setFStatus("active"); })}
+            {k("Unassigned", Alert02Icon, "violet", String(all.filter((r) => r.status === "active" && !r.owner).length), "Active services without an owner", () => { setScope("all"); setFStatus("active"); setFOwner("__none"); })}
           </div>
 
+          <div className="rn-scopes" role="tablist" aria-label="Renewal views">{([["all", "All renewals"], ["soon", "Due soon"], ["overdue", "Overdue"], ["history", "History"]] as const).map(([key, text]) => <button type="button" role="tab" aria-selected={scope === key} key={key} onClick={() => { setScope(key); setFStatus(""); }}>{text}</button>)}</div>
+          {scope === "history" && <p className="rn-scope-note">Terminated services. Open a record for its renewal remarks and activity.</p>}
           <div className="rn-toolbar">
             <label className="rn-search">
               <span className="sh-sr">Search renewals</span>
@@ -269,16 +282,11 @@ function Renewals() {
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search client, service, owner…" type="search" />
               {q && <button type="button" className="rn-x" onClick={() => setQ("")} aria-label="Clear search"><HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={2} /></button>}
             </label>
-            <div className="rn-stchips" role="group" aria-label="Status">
-              <button type="button" aria-pressed={!fStatus} onClick={() => setFStatus("")}>All<em>{all.length}</em></button>
-              {STATUSES.map((s) => <button key={s.id} type="button" aria-pressed={fStatus === s.id} onClick={() => setFStatus(fStatus === s.id ? "" : s.id)}>{s.name}<em>{counts[s.id] || 0}</em></button>)}
-            </div>
-            <div className="rn-filters">
-              <div className="rn-fsel"><Select value={fOwner} onChange={setFOwner} ariaLabel="Owner" placeholder="All owners"
-                options={[{ value: "", label: "All owners" }, ...owners.map((o) => ({ value: o, label: o })), { value: "__none", label: "Unassigned" }]} /></div>
-              <div className="rn-fsel"><Select value={fCycle} onChange={setFCycle} ariaLabel="Billing cycle" placeholder="Any cycle"
-                options={[{ value: "", label: "Any cycle" }, ...CYCLES.map((c) => ({ value: c.id, label: c.name }))]} /></div>
-            </div>
+            <div className="rn-fsel"><Select value={fOwner} onChange={setFOwner} ariaLabel="Owner" placeholder="All owners" options={[{ value: "", label: "All owners" }, ...owners.map((owner) => ({ value: owner, label: owner })), { value: "__none", label: "Unassigned" }]} /></div>
+            <details className="rn-more-filters"><summary>Filters{(fCycle || fStatus) && <i />}</summary><div className="rn-filter-pop">
+              {scope === "all" && <Select value={fStatus} onChange={setFStatus} ariaLabel="Status" options={[{ value: "", label: "All statuses" }, ...STATUSES.map((status) => ({ value: status.id, label: `${status.name} (${counts[status.id] || 0})` }))]} />}
+              <Select value={fCycle} onChange={setFCycle} ariaLabel="Billing cycle" options={[{ value: "", label: "Any cycle" }, ...CYCLES.map((cycle) => ({ value: cycle.id, label: cycle.name }))]} />
+            </div></details>
             <div className="rn-seg rn-viewseg" role="group" aria-label="View">
               <button type="button" aria-pressed={view === "timeline"} onClick={() => pickView("timeline")}><HugeiconsIcon icon={Calendar03Icon} size={16} strokeWidth={1.8} />Timeline</button>
               <button type="button" aria-pressed={view === "table"} onClick={() => pickView("table")}><HugeiconsIcon icon={Table02Icon} size={16} strokeWidth={1.8} />Table</button>
@@ -297,7 +305,7 @@ function Renewals() {
                 <HugeiconsIcon icon={RepeatIcon} size={20} strokeWidth={1.8} className="hgi" />
                 <b>No renewals yet</b>
                 <span>Add the maintenance, hosting or retainer invoices you send every month, quarter or year — reminders go out before each one is due.</span>
-                <button type="button" className="sh-btn pri sm" onClick={addRow}><HugeiconsIcon icon={Add01Icon} size={15} strokeWidth={2} />Add renewal</button>
+                <button type="button" className="sh-btn pri sm" onClick={addRow}><HugeiconsIcon icon={Add01Icon} size={15} strokeWidth={2} />New renewal</button>
               </div>
             ) : shown.length === 0 ? (
               <div className="sh-empty">
@@ -307,14 +315,14 @@ function Renewals() {
               </div>
             ) : view === "timeline" ? <Timeline rows={shown} h={handlers} today={today} />
               : <RenewalTable rows={shown} h={handlers} today={today} />}
-          {error && rows && <div className="sh-empty err rn-inline-err" role="alert"><b>Couldn&apos;t refresh</b><span>{error}</span></div>}
+          {error && rows && <div className="sh-empty err rn-inline-err" role="alert"><b>Couldn&apos;t refresh</b><span>{error}</span><button type="button" className="sh-btn sm" onClick={load}>Try again</button></div>}
         </>
       )}
 
       {drawer && (
         <RenewalDrawer key={drawer.key} row={drawer.row} me={me}
           onClose={() => setDrawer(null)} onSaved={saved} onDeleted={deleted}
-          onPatched={(r) => { patchRow(r); toast("Remark added", "ok", { description: label(r) }); }} onAction={drawerAction} />
+          onPatched={patchRow} onAction={drawerAction} />
       )}
       {renewDlg && <RenewDialog row={renewDlg.row} onDone={renewDlg.resolve} />}
       {endDlg && <EndDialog row={endDlg.row} onDone={endDlg.resolve} />}

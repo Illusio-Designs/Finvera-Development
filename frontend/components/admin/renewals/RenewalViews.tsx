@@ -68,6 +68,7 @@ function RowMenu({ r, h }: { r: RenewalRow; h: RowHandlers }) {
             {item(c.wa, WhatsappIcon, "WhatsApp", true)}
             {item(c.mail, Mail01Icon, "Email")}
             <hr />
+            {r.status !== "cancelled" && <button role="menuitem" type="button" disabled={h.busy.has(r.id)} onClick={() => { setOpen(false); h.onEnd(r); }}>Terminate service</button>}
             <button role="menuitem" type="button" className="danger" onClick={() => { setOpen(false); h.onDelete(r); }}><HugeiconsIcon icon={Delete02Icon} size={17} strokeWidth={1.8} className="hgi" />Delete</button>
           </div>
         </div>
