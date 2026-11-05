@@ -1,46 +1,25 @@
-import ResourceManager from "@/components/admin/ResourceManager";
-
+"use client";
+import { useEffect, useMemo, useState } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Add01Icon, Search01Icon, Refresh01Icon, ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
+import { api } from "@/lib/adminApi";
+import Select from "@/components/Select";
+import PortfolioEditor, { type PortfolioItem } from "@/components/admin/portfolio/PortfolioEditor";
+import "./portfolio-workspace.css";
 export default function AdminProjects() {
-  return (
-    <ResourceManager
-      resource="projects"
-      title="Projects"
-      subtitle="Portfolio items shown on the Work page."
-      columns={[
-        { name: "desktopImage", label: "Main image", type: "image" },
-        { name: "title", label: "Title" },
-        { name: "category", label: "Category" },
-        { name: "status", label: "Status", type: "status" },
-      ]}
-      defaults={{ status: "published", featured: false, tags: [] }}
-      fields={[
-        { name: "title", label: "Title", placeholder: "Project name" },
-        { name: "category", label: "Category", placeholder: "e.g. AI · SaaS" },
-        { name: "url", label: "Live URL", placeholder: "https://…" },
-        { name: "tags", label: "Tags", type: "tags", placeholder: "Web Design, Development" },
-        { name: "blurb", label: "Short description", type: "textarea" },
-        { name: "client", label: "Client / company", type: "text", placeholder: "Defaults to the title" },
-        { name: "industry", label: "Industry", type: "text", placeholder: "e.g. Fintech" },
-        { name: "year", label: "Year", type: "text", placeholder: "e.g. 2025" },
-        { name: "duration", label: "Timeline", type: "text", placeholder: "e.g. 6 weeks" },
-        { name: "role", label: "Our role", type: "text", placeholder: "e.g. Design & Development" },
-        { name: "challenge", label: "The challenge", type: "richtext", placeholder: "What problem were we solving?" },
-        { name: "approach", label: "Our approach", type: "richtext", placeholder: "How we solved it" },
-        { name: "results", label: "Results (VALUE — LABEL each)", type: "tags", placeholder: "+34% — Conversion,  6 wks — Delivery" },
-        { name: "tech", label: "Tech stack", type: "tags", placeholder: "Next.js, Node, MySQL" },
-        { name: "testimonialQuote", label: "Client quote", type: "textarea", placeholder: "A short testimonial from the client" },
-        { name: "testimonialName", label: "Quote — name", type: "text" },
-        { name: "testimonialRole", label: "Quote — role", type: "text" },
-        { name: "content", label: "Case study (long)", type: "richtext" },
-        { name: "desktopImage", label: "Main image (shown on Work + Home cards)", type: "image" },
-        { name: "mobileImage", label: "Mobile screenshot", type: "image" },
-        { name: "coverImage", label: "Cover image", type: "image" },
-        { name: "featured", label: "Featured", type: "boolean", placeholder: "Show on the home page" },
-        { name: "position", label: "Order", type: "number" },
-        { name: "status", label: "Status", type: "select", options: ["published", "draft"] },
-        { name: "seoTitle", label: "SEO title", type: "text" },
-        { name: "seoDescription", label: "SEO description", type: "textarea" },
-      ]}
-    />
-  );
+  const [rows, setRows] = useState<PortfolioItem[] | null>(null), [error, setError] = useState("");
+  const [query, setQuery] = useState(""), [status, setStatus] = useState(""), [category, setCategory] = useState("");
+  const [busy, setBusy] = useState(false), [editing, setEditing] = useState<{ row: PortfolioItem | null; key: number } | null>(null);
+  async function load() { setBusy(true); setError(""); try { const result = await api.list("projects"); setRows(Array.isArray(result) ? result : []); } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t load Portfolio."); } finally { setBusy(false); } }
+  useEffect(() => { load(); }, []);
+  const categories = useMemo(() => [...new Set((rows || []).map(row => row.category).filter(Boolean))].sort(), [rows]);
+  const shown = (rows || []).filter(row => (!status || row.status === status) && (!category || row.category === category) && (!query.trim() || [row.title, row.client, row.category, row.blurb].join(" ").toLowerCase().includes(query.trim().toLowerCase())));
+  const open = (row: PortfolioItem | null) => setEditing({ row, key: Date.now() });
+  const patched = (row: PortfolioItem) => setRows(current => current?.some(item => item.id === row.id) ? current.map(item => item.id === row.id ? row : item) : [row, ...(current || [])]);
+  return <div className="portfolio-workspace"><header className="pf-header"><div><span className="pf-eyebrow">GOOD WORK DESERVES A GOOD STORY</span><h1>Portfolio</h1><p>Show the work you want clients to discover.</p></div><div className="pf-header-actions"><a className="sh-btn" href="/work" target="_blank" rel="noopener noreferrer">Open Work page <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" onClick={() => open(null)}><HugeiconsIcon icon={Add01Icon} size={16} />New case study</button></div></header>
+    <div className="pf-toolbar"><div className="pf-segments" role="tablist" aria-label="Portfolio status">{[["", "All work"], ["published", "Published"], ["draft", "Drafts"]].map(([value, label]) => <button type="button" role="tab" aria-selected={status === value} key={value} onClick={() => setStatus(value)}>{label}{rows && <small>{rows.filter(row => !value || row.status === value).length}</small>}</button>)}</div><label className="pf-search"><HugeiconsIcon icon={Search01Icon} size={16} /><input type="search" aria-label="Search case studies" placeholder="Search title, client or category…" value={query} onChange={event => setQuery(event.target.value)} /></label><div className="pf-category"><Select value={category} onChange={setCategory} ariaLabel="Category" options={[{ value: "", label: "All categories" }, ...categories.map(value => ({ value, label: value }))]} /></div><button type="button" className="sh-icb" aria-label="Refresh Portfolio" disabled={busy} onClick={load}><HugeiconsIcon icon={Refresh01Icon} size={17} /></button></div>
+    {error && <div className="pf-error" role="alert">{error}<button type="button" className="sh-btn sm" disabled={busy} onClick={load}>Try again</button></div>}
+    {!rows && !error ? <p className="pf-empty" role="status">Loading your work…</p> : <><div className="pf-result-count" aria-live="polite">{shown.length} case {shown.length === 1 ? "study" : "studies"}{busy ? " · refreshing…" : ""}</div><div className="pf-grid">{shown.map((row, index) => <article className={`pf-card tone-${index % 3}`} key={row.id}><button type="button" className="pf-artwork" aria-label={`Edit ${row.title}`} onClick={() => open(row)}>{row.desktopImage || row.coverImage ? <img src={row.desktopImage || row.coverImage} alt={row.title} loading="lazy" /> : <span>{row.title}</span>}<span className={`pf-status ${row.status}`}>{row.status === "published" ? "Published" : "Draft"}</span></button><div className="pf-card-info"><small>{[row.client, row.category].filter(Boolean).join(" · ") || "Case study"}</small><h2>{row.title}</h2><p>{row.blurb || "Add the story behind this work."}</p><div className="pf-card-actions"><button type="button" onClick={() => open(row)}>Edit case study ↗</button>{row.status === "published" && <a href={`/work/${encodeURIComponent(row.slug)}`} target="_blank" rel="noopener noreferrer" aria-label={`Open ${row.title} on website`}>View live ↗</a>}</div></div></article>)}</div>{!shown.length && !error && <div className="pf-empty"><h2>{rows?.length ? "No case studies match" : "Your next great story starts here"}</h2><p>{rows?.length ? "Try a different search or filter." : "Create a draft, add your work and publish when it’s ready."}</p><button type="button" className="sh-btn" onClick={() => { if (rows?.length) { setQuery(""); setStatus(""); setCategory(""); } else open(null); }}>{rows?.length ? "Clear filters" : "New case study"}</button></div>}</>}
+    {editing && <PortfolioEditor key={editing.key} row={editing.row} onClose={() => setEditing(null)} onSaved={row => { patched(row); setEditing(null); }} onPatched={patched} onDeleted={id => { setRows(current => current?.filter(row => row.id !== id) || []); setEditing(null); }} />}
+  </div>;
 }
