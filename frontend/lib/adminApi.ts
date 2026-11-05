@@ -107,6 +107,7 @@ export type Today = {
 export type WebsiteOverview = { collections: { resource: string; total: number; published: number; draft: number; updatedAt: string | null }[] };
 
 export const api = {
+  reorderServices: (ids: number[], expected: unknown[]): Promise<{ items: any[] }> => req("/services/reorder", { method: "POST", body: JSON.stringify({ ids, expected }) }),
   websiteOverview: (): Promise<WebsiteOverview> => req("/website/overview"),
   login: (email: string, password: string): Promise<LoginResult> => {
     memo.clear(); // a different person may be signing in

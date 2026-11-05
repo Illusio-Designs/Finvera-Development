@@ -76,7 +76,9 @@ const PROJECT_DETAIL_ONLY = ["content", "challenge", "approach", "results", "tec
   "testimonialQuote", "testimonialName", "testimonialRole", "seoTitle", "seoDescription"];
 const projectActions = require("../controllers/projects.controller");
 resource("/projects", Project, { validate: projectActions.validate, updateRecord: projectActions.updateRecord, onCreate: (item) => item.reload(), entity: "project", slugFrom: "title", hasStatus: true, searchable: ["title", "category", "blurb"], publicListExclude: PROJECT_DETAIL_ONLY, bootstrapKey: "projects" });
-resource("/services", Service, { entity: "service", slugFrom: "title", hasStatus: true, searchable: ["title", "description"], bootstrapKey: "services" });
+const serviceActions = require("../controllers/services.controller");
+router.post("/services/reorder", requireAuth, requireArea("content"), serviceActions.reorder);
+resource("/services", Service, { validate: serviceActions.validate, updateRecord: serviceActions.updateRecord, onCreate: (item) => item.reload(), entity: "service", slugFrom: "title", hasStatus: true, searchable: ["title", "description"], bootstrapKey: "services" });
 resource("/testimonials", Testimonial, { entity: "testimonial", hasStatus: true, searchable: ["name", "company", "quote"], bootstrapKey: "testimonials" });
 resource("/team", TeamMember, { entity: "team-member", hasStatus: true, searchable: ["name", "role"], bootstrapKey: "team" });
 resource("/blog", BlogPost, { entity: "blog", slugFrom: "title", hasStatus: true, order: [["publishedAt", "DESC"], ["createdAt", "DESC"]], searchable: ["title", "excerpt", "category"], publicListExclude: ["content"] });
