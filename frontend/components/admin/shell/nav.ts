@@ -1,6 +1,5 @@
-/* Admin navigation: sidebar groups, command-palette actions and the
-   helpers the shell uses to match the current page. Role gating comes from
-   lib/permissions (area null = any signed-in user). */
+/* Real dashboard routes, grouped by the work they support. The backend remains
+   authoritative for access; these areas also drive the shell route guard. */
 import {
   DashboardSquare01Icon, Briefcase01Icon, Layers01Icon, QuoteDownIcon, UserGroupIcon, News01Icon, Note01Icon,
   TextFontIcon, Target02Icon, Mail01Icon, RepeatIcon, Calendar03Icon, AnalyticsUpIcon, Search01Icon,
@@ -10,78 +9,72 @@ import {
 import type { Area } from "@/lib/permissions";
 
 export type Icon = typeof DashboardSquare01Icon;
-export type NavItem = { href: string; label: string; icon: Icon; area: Area | null };
-export type NavGroup = { key: string; label: string | null; items: NavItem[] };
+export type NavItem = { href: string; label: string; icon: Icon; area: Area | null; description?: string; collection?: boolean };
+export type NavGroup = { key: string; label: string; shortLabel: string; icon: Icon; eyebrow: string; description: string; items: NavItem[] };
+
+const sections: NavItem[] = [
+  ["faqs", "FAQs"], ["values", "Values"], ["brands", "Brand ecosystem"], ["timeline", "Company timeline"],
+  ["process", "Process steps"], ["stats", "Website stats"], ["logos", "Client logos"], ["features", "Solution features"],
+].map(([id, label]) => ({ href: `/dashboard/${id}`, label, icon: Layers01Icon, area: "content" as const, collection: true }));
 
 export const NAV_GROUPS: NavGroup[] = [
-  { key: "home", label: null, items: [
-    { href: "/dashboard", label: "Dashboard", icon: DashboardSquare01Icon, area: null },
+  { key: "home", label: "Workspace", shortLabel: "Today", icon: DashboardSquare01Icon, eyebrow: "Your daily perspective", description: "A little clarity. Better work.", items: [
+    { href: "/dashboard", label: "Overview", icon: DashboardSquare01Icon, area: null, description: "What needs you today" },
   ] },
-  { key: "content", label: "Content", items: [
-    { href: "/dashboard/projects", label: "Projects", icon: Briefcase01Icon, area: "content" },
+  { key: "social", label: "Social media", shortLabel: "Social", icon: Calendar03Icon, eyebrow: "Make & publish", description: "From first idea to live post.", items: [
+    { href: "/dashboard/social", label: "Content calendar", icon: Calendar03Icon, area: "social", description: "Plan, produce & publish" },
+    { href: "/dashboard/social-studio", label: "Social studio", icon: AnalyticsUpIcon, area: "social", description: "Accounts & performance" },
+  ] },
+  { key: "sales", label: "Sales", shortLabel: "Sales", icon: Target02Icon, eyebrow: "Conversations that count", description: "Give every opportunity a next step.", items: [
+    { href: "/dashboard/leads", label: "Leads", icon: Target02Icon, area: "leads", description: "Conversations to opportunities" },
+    { href: "/dashboard/contact", label: "Contact inbox", icon: Mail01Icon, area: "contact", description: "Enquiries, in one place" },
+  ] },
+  { key: "clients", label: "Client operations", shortLabel: "Clients", icon: RepeatIcon, eyebrow: "Keep things moving", description: "The services clients rely on.", items: [
+    { href: "/dashboard/renewals", label: "Renewals", icon: RepeatIcon, area: "renewals", description: "Keep client services running" },
+  ] },
+  { key: "website", label: "Website", shortLabel: "Website", icon: Layers01Icon, eyebrow: "Your public presence", description: "Keep every detail considered.", items: [
+    { href: "/dashboard/content", label: "Website overview", icon: TextFontIcon, area: "content", description: "Your public website" },
+    { href: "/dashboard/projects", label: "Portfolio", icon: Briefcase01Icon, area: "content", description: "Case studies & good work" },
     { href: "/dashboard/services", label: "Services", icon: Layers01Icon, area: "content" },
-    { href: "/dashboard/testimonials", label: "Testimonials", icon: QuoteDownIcon, area: "content" },
-    { href: "/dashboard/team", label: "Team", icon: UserGroupIcon, area: "content" },
     { href: "/dashboard/blog", label: "Blog", icon: News01Icon, area: "content" },
-    { href: "/dashboard/pages", label: "Pages", icon: Note01Icon, area: "content" },
-    { href: "/dashboard/content", label: "Site content", icon: TextFontIcon, area: "content" },
+    { href: "/dashboard/pages", label: "Website pages", icon: Note01Icon, area: "content" },
+    { href: "/dashboard/team", label: "Website team", icon: UserGroupIcon, area: "content", description: "Public profiles" },
+    { href: "/dashboard/testimonials", label: "Testimonials", icon: QuoteDownIcon, area: "content" },
+    { href: "/dashboard/seo", label: "SEO & sharing", icon: Search01Icon, area: "seo" },
+    ...sections,
   ] },
-  { key: "sales", label: "Sales", items: [
-    { href: "/dashboard/leads", label: "Leads", icon: Target02Icon, area: "leads" },
-    { href: "/dashboard/contact", label: "Contact inbox", icon: Mail01Icon, area: "contact" },
-  ] },
-  { key: "projects", label: "Projects", items: [
-    { href: "/dashboard/renewals", label: "Renewals", icon: RepeatIcon, area: "renewals" },
-  ] },
-  { key: "social", label: "Social media", items: [
-    { href: "/dashboard/social", label: "Content calendar", icon: Calendar03Icon, area: "social" },
-    { href: "/dashboard/social-studio", label: "Social studio", icon: AnalyticsUpIcon, area: "social" },
-  ] },
-  { key: "admin", label: "Admin", items: [
-    { href: "/dashboard/seo", label: "SEO", icon: Search01Icon, area: "seo" },
-    { href: "/dashboard/settings", label: "Settings & pixels", icon: Settings02Icon, area: "settings" },
-    { href: "/dashboard/users", label: "Users", icon: UserMultipleIcon, area: "users" },
-    { href: "/dashboard/activity", label: "Activity", icon: Activity01Icon, area: "users" }, // admins only (same gate as Users)
-    { href: "/dashboard/system", label: "System", icon: ServerStack01Icon, area: "users" },   // admins only
+  { key: "admin", label: "Administration", shortLabel: "Admin", icon: Settings02Icon, eyebrow: "Behind the work", description: "People, settings and a healthy system.", items: [
+    { href: "/dashboard/users", label: "Users & access", icon: UserMultipleIcon, area: "users", description: "People, roles & security" },
+    { href: "/dashboard/activity", label: "Activity log", icon: Activity01Icon, area: "users" },
+    { href: "/dashboard/settings", label: "Settings & tracking", icon: Settings02Icon, area: "settings" },
+    { href: "/dashboard/system", label: "System health", icon: ServerStack01Icon, area: "users" },
   ] },
 ];
 
-/* Pages that are not in the sidebar but still have a title in the top bar. */
 export const EXTRA_PAGES: NavItem[] = [
-  { href: "/dashboard/account", label: "My account", icon: UserIcon, area: null },
+  { href: "/dashboard/account", label: "My account", icon: UserIcon, area: null, description: "Your profile & sign-in security" },
 ];
+export const SUB_PAGES = sections.map((item) => ({ href: item.href, label: item.label, parent: "/dashboard/content" }));
 
-/* Site-content sub-pages (reached from Site content): breadcrumb only,
-   no route guard — the same as before. */
-export const SUB_PAGES: { href: string; label: string; parent: string }[] = [
-  ["faqs", "FAQ"], ["values", "Values"], ["brands", "Brands"], ["timeline", "Timeline"], ["process", "Process steps"],
-  ["stats", "Stats"], ["logos", "Trusted-by logos"], ["features", "Solution features"],
-].map(([k, label]) => ({ href: `/dashboard/${k}`, label, parent: "/dashboard/content" }));
-
-/* Quick actions in the command palette: each opens the page that does it. */
+/* Actions open the existing real page; labels never imply a write occurred. */
 export type QuickAction = { label: string; sub: string; href: string; icon: Icon; area: Area | null };
 export const QUICK_ACTIONS: QuickAction[] = [
   { label: "Add a lead", sub: "Leads", href: "/dashboard/leads", icon: Add01Icon, area: "leads" },
   { label: "Import a sheet", sub: "Content calendar", href: "/dashboard/social", icon: Upload01Icon, area: "social" },
-  { label: "New project", sub: "Projects", href: "/dashboard/projects", icon: Add01Icon, area: "content" },
+  { label: "New case study", sub: "Portfolio", href: "/dashboard/projects", icon: Add01Icon, area: "content" },
   { label: "Write a blog post", sub: "Blog", href: "/dashboard/blog", icon: Add01Icon, area: "content" },
   { label: "Add a renewal", sub: "Renewals", href: "/dashboard/renewals", icon: Add01Icon, area: "renewals" },
-  { label: "Invite member", sub: "Users", href: "/dashboard/users", icon: UserAdd01Icon, area: "users" },
-  { label: "Security log", sub: "Users", href: "/dashboard/users?tab=log", icon: Shield01Icon, area: "users" },
-  { label: "Back up now", sub: "System", href: "/dashboard/system#backups", icon: DatabaseBackupIcon, area: "users" },
+  { label: "Invite member", sub: "Users & access", href: "/dashboard/users", icon: UserAdd01Icon, area: "users" },
+  { label: "Security log", sub: "Users & access", href: "/dashboard/users?tab=log", icon: Shield01Icon, area: "users" },
+  { label: "Backups", sub: "System health", href: "/dashboard/system#backups", icon: DatabaseBackupIcon, area: "users" },
   { label: "My account", sub: "Profile, password, sign-ins", href: "/dashboard/account", icon: UserIcon, area: null },
 ];
 
-const ALL: NavItem[] = [...NAV_GROUPS.flatMap((g) => g.items), ...EXTRA_PAGES];
-
-/** Longest-prefix match for the current path (the home only matches itself). */
+export const ALL_PAGES: NavItem[] = [...NAV_GROUPS.flatMap((group) => group.items), ...EXTRA_PAGES];
 export function matchItem(pathname: string): NavItem | undefined {
-  return ALL
-    .filter((n) => (n.href === "/dashboard" ? pathname === "/dashboard" : pathname === n.href || pathname.startsWith(n.href + "/")))
+  return ALL_PAGES.filter((item) => item.href === "/dashboard" ? pathname === item.href : pathname === item.href || pathname.startsWith(item.href + "/"))
     .sort((a, b) => b.href.length - a.href.length)[0];
 }
-
-export const groupOf = (it: NavItem | undefined) => (it ? NAV_GROUPS.find((g) => g.items.includes(it))?.label ?? null : null);
-
-export const initials = (name?: string | null) =>
-  (name || "").trim().split(/\s+/).map((w) => w[0] || "").slice(0, 2).join("").toUpperCase();
+export const groupFor = (item: NavItem | undefined) => item ? NAV_GROUPS.find((group) => group.items.includes(item)) : undefined;
+export const groupOf = (item: NavItem | undefined) => groupFor(item)?.label ?? (item?.href === "/dashboard/account" ? "Personal" : null);
+export const initials = (name?: string | null) => (name || "").trim().split(/\s+/).map((word) => word[0] || "").slice(0, 2).join("").toUpperCase();

@@ -14,10 +14,10 @@ import GooeyNotifier from "@/components/admin/GooeyNotifier";
 import DialogHost from "@/components/admin/DialogHost";
 import CommandPalette, { type PaletteItem } from "@/components/admin/shell/CommandPalette";
 import { ShellContext, type Badges } from "@/components/admin/shell/ShellContext";
-import { NAV_GROUPS, QUICK_ACTIONS, SUB_PAGES, matchItem, groupOf, type NavItem } from "@/components/admin/shell/nav";
+import { NAV_GROUPS, QUICK_ACTIONS, EXTRA_PAGES, matchItem, groupOf, groupFor, type NavItem } from "@/components/admin/shell/nav";
 import { rolesCan, userRoles, ROLE_LABELS } from "@/lib/permissions";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Search01Icon, Menu01Icon, Cancel01Icon, SidebarLeft01Icon } from "@hugeicons/core-free-icons";
+import { Search01Icon, Menu01Icon, Cancel01Icon, SidebarLeft01Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons";
 
 const COLLAPSE_KEY = "fv_admin_collapsed";
 
@@ -51,6 +51,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [tip, setTip] = useState<{ text: string; y: number } | null>(null); // rail tooltip (collapsed)
   const [me, setMe] = useState<Me>(null);
   const [meDone, setMeDone] = useState(false);
+  const [sectionsOpen, setSectionsOpen] = useState(false);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const burgerRef = useRef<HTMLButtonElement>(null);
   // Roles come from /auth/me when available, unioned with the role in the JWT
   // (a reliable fallback so admins/users are never locked out of their nav).
   const roles = useMemo(() => {
@@ -94,32 +97,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   });
 
   const active = matchItem(pathname);
-  const sub = SUB_PAGES.find((p) => pathname === p.href || pathname.startsWith(p.href + "/"));
-  const navActive = active || (sub ? matchItem(sub.parent) : undefined); // highlighted in the sidebar
-  /* Team members without the content area get a personal "My work" home. */
+  const activeGroup = groupFor(active);
+  const personal = active?.href === "/dashboard/account";
   const teamHome = roles.length > 0 && !rolesCan(roles, "content") && rolesCan(roles, "social");
-  const labelOf = useCallback((it: NavItem) => (it.href === "/dashboard" && teamHome ? "My work" : it.label), [teamHome]);
-  const roleText = roles.map((r) => ROLE_LABELS[r] || r).join(" · ");
-
-  /* Breadcrumb: group / page (/ sub-page). */
+  const labelOf = useCallback((item: NavItem) => item.href === "/dashboard" && teamHome ? "My work" : item.label, [teamHome]);
+  const roleText = roles.map((role) => ROLE_LABELS[role] || role).join(" · ");
+  const groups = useMemo(() => NAV_GROUPS.map((group) => ({ ...group, items: group.items.filter((item) => rolesCan(roles, item.area)) })).filter((group) => group.items.length), [rolesKey]);
+  const currentGroup = groups.find((group) => group.key === activeGroup?.key) || groups[0];
+  const context = personal ? { label: "Personal", eyebrow: "Your own space", description: "Your profile and sign-in security." } : currentGroup;
+  const mainItems = personal ? EXTRA_PAGES : currentGroup?.items.filter((item) => !item.collection) || [];
+  const collectionItems = personal ? [] : currentGroup?.items.filter((item) => item.collection) || [];
   const crumbs: { label: string; href?: string }[] = [];
-  const grp = groupOf(navActive);
-  if (grp) crumbs.push({ label: grp });
-  if (sub && navActive) crumbs.push({ label: labelOf(navActive), href: navActive.href }, { label: sub.label });
-  else crumbs.push({ label: navActive ? labelOf(navActive) : "Dashboard" });
-
-  /* Nav groups filtered to what these roles may access. */
-  const groups = useMemo(() => NAV_GROUPS
-    .map((g) => ({ ...g, items: g.items.filter((it) => rolesCan(roles, it.area)) }))
-    .filter((g) => g.items.length > 0),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  [rolesKey]);
-
+  const groupLabel = groupOf(active);
+  if (groupLabel) crumbs.push({ label: groupLabel });
+  if (active?.collection) crumbs.push({ label: "Site sections", href: "/dashboard/content" });
+  crumbs.push({ label: active ? labelOf(active) : "Overview" });
   const paletteItems = useMemo<PaletteItem[]>(() => [
-    ...groups.flatMap((g) => g.items.map((it) => ({ group: "Pages" as const, label: labelOf(it), sub: g.label, href: it.href, icon: it.icon }))),
-    ...QUICK_ACTIONS.filter((a) => rolesCan(roles, a.area)).map((a) => ({ group: "Actions" as const, label: a.label, sub: a.sub, href: a.href, icon: a.icon })),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    ...groups.flatMap((group) => group.items.map((item) => ({ group: "Pages" as const, label: labelOf(item), sub: item.collection ? `${group.label} · Site sections` : group.label, href: item.href, icon: item.icon }))),
+    ...QUICK_ACTIONS.filter((action) => rolesCan(roles, action.area)).map((action) => ({ group: "Actions" as const, label: action.label, sub: action.sub, href: action.href, icon: action.icon })),
   ], [groups, labelOf, rolesKey]);
+  useEffect(() => { if (active?.collection) setSectionsOpen(true); }, [active?.href, active?.collection]);
+  useEffect(() => {
+    sidebarRef.current?.querySelector<HTMLElement>('.sh-nav[aria-current="page"]')?.scrollIntoView({ block: "nearest" });
+  }, [pathname, sectionsOpen, collapsed]);
 
   /* Ctrl/⌘ K opens the palette (rich-text editors keep it for "add link"). */
   useEffect(() => {
@@ -159,8 +159,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         try {
           const mine = Array.isArray((legacyMe as { socialClients?: unknown } | null)?.socialClients);
           const myId = (legacyMe as { id?: number } | null)?.id;
-          next["/dashboard/social"] = (await api.listSocialPosts({ fields: "card" })).filter((p: { status: string; postDate?: string | null; assigneeId?: number | null }) =>
-            p.status !== "posted" && !!p.postDate && String(p.postDate).slice(0, 10) < today && (!mine || p.assigneeId === myId)).length;
+          next["/dashboard/social"] = (await api.listSocialPosts({ fields: "card" })).filter((post: { status: string; postDate?: string | null; postTime?: string | null; assigneeId?: number | null }) =>
+            post.status !== "posted" && !!post.postDate && +new Date(`${String(post.postDate).slice(0, 10)}T${post.postTime || "10:00"}:00+05:30`) < Date.now() && (!mine || post.assigneeId === myId)).length;
         } catch { /* ignore */ }
       }
       return next;
@@ -207,14 +207,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => { setOpen(false); setPalette(false); }, [pathname]);
 
-  /* Phone drawer: Escape closes it; the page behind doesn't scroll. */
+  /* Mobile navigation is a modal drawer: trap focus, restore the trigger and
+     keep the underlying page stationary while the two navigation levels open. */
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const previous = document.activeElement as HTMLElement | null;
+    const sidebar = sidebarRef.current;
+    const frame = requestAnimationFrame(() => sidebar?.querySelector<HTMLElement>('button,a[href]')?.focus());
+    const onKey = (event: KeyboardEvent) => {
+      if (document.querySelector('.adm-confirm') || document.querySelector('.sh-userpop')) return;
+      if (event.key === "Escape") { event.preventDefault(); setOpen(false); return; }
+      if (event.key !== "Tab" || !sidebar) return;
+      const elements = Array.from(sidebar.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled),[tabindex="0"]')).filter((element) => element.getClientRects().length);
+      const first = elements[0], last = elements[elements.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !sidebar.contains(document.activeElement))) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || !sidebar.contains(document.activeElement))) { event.preventDefault(); first?.focus(); }
+    };
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
+    const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+    return () => { cancelAnimationFrame(frame); document.removeEventListener("keydown", onKey); document.body.style.overflow = overflow; (previous?.isConnected ? previous : burgerRef.current)?.focus(); };
   }, [open]);
 
   const shell = useMemo(() => ({ me, roles, rolesReady: meDone, badges: badgeData }), [me, roles, meDone, badgeData]);
@@ -229,55 +241,53 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     clearToken(); clearApiMemo(); router.replace("/login");
   };
 
-  const isOn = (it: NavItem) => navActive === it;
+  const renderPage = (item: NavItem) => {
+    const on = active === item, count = badges[item.href] || 0;
+    return <Link key={item.href} href={item.href} className={"sh-nav" + (on ? " on" : "")} aria-current={on ? "page" : undefined}>
+      <HugeiconsIcon icon={item.icon} size={19} strokeWidth={1.8} className="hgi" />
+      <span className="sh-t">{labelOf(item)}{item.description && <small>{item.description}</small>}</span>
+      {count > 0 && <span className={"sh-bdg " + (item.href === "/dashboard/leads" ? "amber" : "red")} aria-label={`${count} need attention`}>{count > 99 ? "99+" : count}</span>}
+    </Link>;
+  };
+  const revealPages = () => { setCollapsed(false); try { localStorage.setItem(COLLAPSE_KEY, "0"); } catch { /* storage blocked */ } };
 
   return (
     <ShellContext.Provider value={shell}>
       <div className={"adm sh" + (open ? " open" : "") + (collapsed ? " collapsed sh-col" : "")}>
-        <aside className={"sh-side" + (open ? " open" : "")} aria-label="Main menu"
-          onMouseOver={(e) => {
-            const el = collapsed ? (e.target as HTMLElement).closest<HTMLElement>("[data-tip]") : null;
-            if (!el) { setTip(null); return; }
-            const r = el.getBoundingClientRect();
-            setTip({ text: el.dataset.tip || "", y: r.top + r.height / 2 });
-          }}
-          onMouseLeave={() => setTip(null)}>
-          <div className="sh-logo">
-            <Link href="/dashboard" className="sh-brand" aria-label="Finvera dashboard"><Mark className="sh-mk" /><span className="sh-nm">Finvera</span></Link>
-            <button type="button" className="sh-icb sm sh-colbtn" onClick={toggleCollapsed} aria-label={collapsed ? "Expand menu" : "Collapse menu"} aria-pressed={collapsed} data-tip={collapsed ? "Expand menu" : "Collapse menu"}>
-              <HugeiconsIcon icon={SidebarLeft01Icon} size={18} strokeWidth={1.8} className="hgi" />
-            </button>
-            <button type="button" className="sh-icb sm sh-x" onClick={() => setOpen(false)} aria-label="Close menu">
-              <HugeiconsIcon icon={Cancel01Icon} size={18} strokeWidth={1.8} className="hgi" />
-            </button>
+        <aside ref={sidebarRef} id="finvera-sidebar" className={"sh-side" + (open ? " open" : "")} aria-label="Workspace navigation"
+          onMouseOver={(event) => {
+            const element = (event.target as HTMLElement).closest<HTMLElement>("[data-tip]");
+            if (!element) { setTip(null); return; }
+            const rect = element.getBoundingClientRect(); setTip({ text: element.dataset.tip || "", y: rect.top + rect.height / 2 });
+          }} onMouseLeave={() => setTip(null)}>
+          <div className="sh-workspace-rail">
+            <Link href="/dashboard" className="sh-rail-brand" aria-label="Finvera dashboard"><Mark className="sh-mk" /></Link>
+            <nav className="sh-workspaces" aria-label="Workspace areas">
+              {!meDone && !roles.length ? Array.from({ length: 5 }).map((_, index) => <span key={index} className="skel" style={{ width: 42, height: 42, borderRadius: 14 }} />) : groups.map((group) => {
+                const on = !personal && group.key === currentGroup?.key;
+                const count = group.items.reduce((sum, item) => sum + (badges[item.href] || 0), 0);
+                return <Link key={group.key} href={group.items[0].href} onClick={revealPages} className={"sh-workspace" + (on ? " on" : "")} aria-label={group.label} data-tip={group.label}>
+                  <span className="sh-workspace-icon"><HugeiconsIcon icon={group.icon} size={22} strokeWidth={1.8} className="hgi" />{count > 0 && <i className="sh-space-dot" aria-label={`${count} need attention`} />}</span>
+                  <span>{group.shortLabel}</span>
+                </Link>;
+              })}
+            </nav>
+            <InstallApp className="sh-rail-install" />
+            <button type="button" className="sh-icb plain sh-colbtn" onClick={toggleCollapsed} aria-label={collapsed ? "Expand menu" : "Collapse menu"} aria-pressed={collapsed} data-tip={collapsed ? "Expand menu" : "Collapse menu"}><HugeiconsIcon icon={SidebarLeft01Icon} size={19} strokeWidth={1.8} className="hgi" /></button>
+            <div className={"sh-rail-account" + (personal ? " current" : "")}><UserMenu me={me} roleText={roleText} canUsers={rolesCan(roles, "users")} canSettings={rolesCan(roles, "settings")} onLogout={logout} onPalette={() => { setOpen(false); setPalette(true); }} mac={mac} /></div>
           </div>
-
-          <nav className="sh-navs" aria-label="Pages">
-            {!meDone && roles.length === 0 ? (
-              Array.from({ length: 7 }).map((_, i) => <span key={i} className="skel skel-line" style={{ height: 34, margin: "4px 0", borderRadius: 10 }} />)
-            ) : groups.map((g) => (
-              <div key={g.key} className="sh-sec">
-                {g.label && <div className="sh-grp">{g.label}</div>}
-                {g.items.map((it) => {
-                  const on = isOn(it), n = badges[it.href] || 0;
-                  return (
-                    <Link key={it.href} href={it.href} className={"sh-nav" + (on ? " on" : "")} aria-current={on ? "page" : undefined} data-tip={labelOf(it)}>
-                      <HugeiconsIcon icon={it.icon} size={19} strokeWidth={1.8} className="hgi" />
-                      <span className="sh-t">{labelOf(it)}</span>
-                      {n > 0 && <>
-                        <span className={"sh-bdg " + (it.href === "/dashboard/leads" ? "amber" : "red")} aria-label={`${n} need attention`}>{n > 99 ? "99+" : n}</span>
-                        <i className="sh-dotb" aria-hidden="true" />
-                      </>}
-                    </Link>
-                  );
-                })}
-              </div>
-            ))}
-          </nav>
-
-          <InstallApp />
-          <UserMenu me={me} roleText={roleText} canUsers={rolesCan(roles, "users")} canSettings={rolesCan(roles, "settings")}
-            onLogout={logout} onPalette={() => { setOpen(false); setPalette(true); }} mac={mac} />
+          <div className="sh-page-panel">
+            <div className="sh-logo"><Link href="/dashboard" className="sh-wordmark">Finvera<small>The workspace</small></Link><button type="button" className="sh-icb plain sm sh-x" onClick={() => setOpen(false)} aria-label="Close menu"><HugeiconsIcon icon={Cancel01Icon} size={18} strokeWidth={1.8} className="hgi" /></button></div>
+            <div className="sh-space-heading"><span>{context?.eyebrow || "Your workspace"}</span><h2>{context?.label || "Workspace"}</h2><p>{context?.description || "Every page, within reach."}</p></div>
+            <nav className="sh-navs" aria-label={personal ? "Personal pages" : `${currentGroup?.label || "Workspace"} pages`}>
+              {!meDone && !roles.length ? Array.from({ length: 4 }).map((_, index) => <span key={index} className="skel skel-line" style={{ height: 40, margin: "4px 0", borderRadius: 12 }} />) : <>
+                {mainItems.map(renderPage)}
+                {collectionItems.length > 0 && <div className="sh-collections"><button type="button" className="sh-collection-toggle" onClick={() => setSectionsOpen((value) => !value)} aria-expanded={sectionsOpen} aria-controls="sh-site-sections">Site sections<HugeiconsIcon icon={ArrowDown01Icon} size={15} strokeWidth={1.8} className="hgi" /></button>{sectionsOpen && <div id="sh-site-sections" className="sh-collection-links">{collectionItems.map(renderPage)}</div>}</div>}
+                {!personal && currentGroup?.key === "home" && rolesCan(roles, "social") && <div className="sh-continue"><span>Pick up where you left off</span>{renderPage(NAV_GROUPS.find((group) => group.key === "social")!.items[0])}</div>}
+              </>}
+            </nav>
+            <div className="sh-page-panel-foot"><span>Every page. Within reach.</span><button type="button" className="sh-find-page" onClick={() => { setOpen(false); setPalette(true); }} aria-label="Find any page"><HugeiconsIcon icon={Search01Icon} size={16} strokeWidth={1.8} className="hgi" /><b>Find a page</b><kbd>{mac ? "⌘ K" : "Ctrl K"}</kbd></button></div>
+          </div>
         </aside>
 
         {collapsed && tip && <div className="adm-railtip sh-railtip" style={{ top: tip.y }} role="tooltip">{tip.text}</div>}
@@ -285,7 +295,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         <div className="sh-main">
           <header className="sh-top">
-            <button type="button" className="sh-icb sh-burger" onClick={() => setOpen(true)} aria-label="Open menu" aria-expanded={open}>
+            <button type="button" className="sh-icb sh-burger" onClick={() => setOpen(true)} ref={burgerRef} aria-label="Open menu" aria-expanded={open} aria-controls="finvera-sidebar">
               <HugeiconsIcon icon={Menu01Icon} size={19} strokeWidth={1.8} className="hgi" />
             </button>
             <nav className="sh-crumb" aria-label="Breadcrumb">
@@ -301,7 +311,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </nav>
             <button type="button" className="sh-jump" onClick={() => setPalette(true)} aria-label="Jump to a page" aria-haspopup="dialog">
               <HugeiconsIcon icon={Search01Icon} size={17} strokeWidth={1.8} className="hgi" />
-              <span>Jump to a page…</span>
+              <span>Search the workspace</span>
               <kbd>{mac ? "⌘ K" : "Ctrl K"}</kbd>
             </button>
             {today && <span className="sh-today">{today}</span>}
