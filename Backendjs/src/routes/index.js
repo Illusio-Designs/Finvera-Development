@@ -114,9 +114,9 @@ leadRouter.get("/:id/touches", ...canLeads, leadsCtrl.touches);
 leadRouter.post("/:id/touch", ...canLeads, leadsCtrl.touch);
 leadRouter.post("/reorder", ...canLeads, leadsCtrl.reorder); // one board column's card order after a drag
 leadRouter.get("/:id", ...canLeads, leadCtrl.getOne);
-leadRouter.post("/", ...canLeads, leadCtrl.create);
-leadRouter.put("/:id", ...canLeads, leadCtrl.update);
-leadRouter.patch("/:id", ...canLeads, leadCtrl.update);
+leadRouter.post("/", ...canLeads, leadsCtrl.validateLead, leadCtrl.create);
+leadRouter.put("/:id", ...canLeads, leadsCtrl.validateLead, leadCtrl.update);
+leadRouter.patch("/:id", ...canLeads, leadsCtrl.validateLead, leadCtrl.update);
 leadRouter.delete("/:id", ...canLeads, leadCtrl.remove);
 router.use("/leads", leadRouter);
 

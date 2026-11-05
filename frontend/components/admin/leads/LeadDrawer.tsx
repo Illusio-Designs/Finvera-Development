@@ -54,11 +54,12 @@ export default function LeadDrawer({ lead, defaults, calendlyUrl, initialTab = "
 
   const dirtyKeys = useMemo(() => EDITABLE.filter((k) => !same(draft[k], base[k])), [draft, base]);
   const dirty = isNew ? !!String(draft.name || "").trim() || dirtyKeys.some((k) => k !== "stage") : dirtyKeys.length > 0;
-  const set = (k: string, v: unknown) => { setDraft((d) => ({ ...d, [k]: v })); if (err?.field === k) setErr(null); };
+  const set = (k: string, v: unknown) => { if (saving) return; setDraft((d) => ({ ...d, [k]: v })); if (err?.field === k) setErr(null); };
   const st = stageOf(String(draft.stage));
 
   async function tryClose() {
-    if (dirty && !saving) {
+    if (saving) return;
+    if (dirty) {
       const ok = await dialog.confirm({ title: isNew ? "Discard this lead?" : "Discard your changes?", message: isNew ? "It hasn't been added yet." : "The changes you made here haven't been saved.", confirmText: "Discard", cancelText: "Keep editing", danger: true });
       if (!ok) return;
     }
@@ -122,14 +123,14 @@ export default function LeadDrawer({ lead, defaults, calendlyUrl, initialTab = "
   const meet = isUrl(draft.meetingUrl) ? String(draft.meetingUrl).trim() : "";
   const chip = lead ? followChip({ ...lead, ...draft } as LeadRow) : null;
   const touch = (type: LeadTouch["type"]) => { if (!isNew) { setPreset({ type, at: Date.now() }); setTab("follow"); } };
-  const ownerOpts = users.map((u) => ({ value: u.name, label: u.name }));
+  const ownerOpts = [{ value: "", label: "Unassigned" }, ...users.map((u) => ({ value: u.name, label: u.name }))];
   if (draft.owner && !ownerOpts.some((o) => o.value === draft.owner)) ownerOpts.unshift({ value: String(draft.owner), label: String(draft.owner) });
   const fe = (k: string) => (err?.field === k ? " bad" : "");
 
   return (
     <>
       <div className="ld-scrim" onMouseDown={tryClose} aria-hidden />
-      <aside className="ld-drawer" role="dialog" aria-modal="true" aria-labelledby="ld-dtitle">
+      <aside className="ld-drawer leads-detail" role="dialog" aria-modal="true" aria-labelledby="ld-dtitle">
         <header className="ld-dh">
           <div className="ld-dh-top">
             <i className="ld-av lg" style={{ background: avatarColor(String(draft.name || "?")) }} aria-hidden>{initials(String(draft.name || "") || "+")}</i>
@@ -140,7 +141,7 @@ export default function LeadDrawer({ lead, defaults, calendlyUrl, initialTab = "
             <button ref={closeRef} type="button" className="sh-icb" onClick={tryClose} aria-label="Close"><HugeiconsIcon icon={Cancel01Icon} size={18} strokeWidth={1.8} /></button>
           </div>
 
-          <div className="ld-stages" role="radiogroup" aria-label="Stage (drives the progress score)">
+          <div className="ld-stages" role="radiogroup" aria-label="Stage">
             {STAGES.map((s) => (
               <button key={s.id} type="button" role="radio" aria-checked={draft.stage === s.id} className={"ld-stg" + (draft.stage === s.id ? " on" : "")}
                 style={{ "--c": s.c, "--c-bg": s.bg } as React.CSSProperties} onClick={() => pickStage(s.id)}>
@@ -163,14 +164,14 @@ export default function LeadDrawer({ lead, defaults, calendlyUrl, initialTab = "
               {mail ? <a className="sh-btn sm" href={`mailto:${mail}`} onClick={() => touch("email")}><HugeiconsIcon icon={Mail01Icon} size={16} strokeWidth={1.8} />Email</a>
                 : <span className="sh-btn sm off" title="Add an email first" aria-disabled="true"><HugeiconsIcon icon={Mail01Icon} size={16} strokeWidth={1.8} />Email</span>}
               {meet && <a className="sh-btn sm" href={meet} target="_blank" rel="noopener noreferrer"><HugeiconsIcon icon={Link04Icon} size={16} strokeWidth={1.8} />Join meeting</a>}
-              <CalendlyButton url={calendlyUrl} name={String(draft.name || "")} email={mail} className="sh-btn sm" label="Schedule"
-                icon={<HugeiconsIcon icon={Calendar03Icon} size={16} strokeWidth={1.8} />} />
+              {isUrl(calendlyUrl) && <CalendlyButton url={calendlyUrl} name={String(draft.name || "")} email={mail} className="sh-btn sm" label="Schedule"
+                icon={<HugeiconsIcon icon={Calendar03Icon} size={16} strokeWidth={1.8} />} />}
             </div>
           )}
 
           {!isNew && (
             <div className="ld-tabs" role="tablist" aria-label="Lead sections">
-              {([["details", "Details"], ["follow", "Follow-up"], ["history", "History"]] as [Tab, string][]).map(([k, t]) => (
+              {([["details", "Summary"], ["follow", "Notes"], ["history", "Activity"]] as [Tab, string][]).map(([k, t]) => (
                 <button key={k} type="button" role="tab" id={`ld-tab-${k}`} aria-controls={`ld-pane-${k}`} aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
                   {t}{k === "details" && dirty && <i className="ld-dirty" aria-label="unsaved changes" />}
                   {k === "follow" && chip && chip.tone !== "grey" && <i className={"ld-tdot " + chip.tone} aria-label={chip.text} />}
@@ -181,9 +182,9 @@ export default function LeadDrawer({ lead, defaults, calendlyUrl, initialTab = "
         </header>
 
         <div className="ld-db">
+          {err && <div className="ld-err" role="alert"><HugeiconsIcon icon={Alert02Icon} size={16} strokeWidth={1.8} />{err.text}</div>}
           {tab === "details" && (
             <div id="ld-pane-details" role="tabpanel" aria-labelledby={isNew ? undefined : "ld-tab-details"} className="ld-form">
-              {err && <div className="ld-err" role="alert"><HugeiconsIcon icon={Alert02Icon} size={16} strokeWidth={1.8} />{err.text}</div>}
               {draft.stage === "lost" && (
                 <div className="ld-field ld-lost">
                   <label htmlFor="ld-lostReason">Why was it lost?</label>
@@ -222,7 +223,7 @@ export default function LeadDrawer({ lead, defaults, calendlyUrl, initialTab = "
                   <Select id="ld-priority" value={String(draft.priority || "")} onChange={(v) => set("priority", v)} options={PRIORITIES.map((p) => ({ value: p, label: cap(p) }))} ariaLabel="Priority" /></div>
               </div>
 
-              <div className="ld-fsec">Follow-up &amp; meeting</div>
+              <details className="ld-form-section"><summary>Follow-up &amp; meeting{draft.nextFollowUpAt ? ` · ${String(draft.nextFollowUpAt).slice(0,10)}` : ""}</summary>
               <div className="ld-frow">
                 <div className="ld-field"><label htmlFor="ld-next">Next follow-up</label>
                   <DatePicker id="ld-next" value={String(draft.nextFollowUpAt || "").slice(0, 10)} onChange={(v) => set("nextFollowUpAt", v)} placeholder="Pick a date" />
@@ -239,10 +240,11 @@ export default function LeadDrawer({ lead, defaults, calendlyUrl, initialTab = "
                 </div></div>
               {!isNew && (
                 <div className="ld-field"><span className="ld-lbl">Last contacted</span>
-                  <div className="ld-readonly">{lead?.lastContactedAt ? <><b>{relative(lead.lastContactedAt)}</b><span>{whenOf(lead.lastContactedAt)}</span></> : <span>Not contacted yet — log a call or message in Follow-up</span>}</div></div>
+                  <div className="ld-readonly">{lead?.lastContactedAt ? <><b>{relative(lead.lastContactedAt)}</b><span>{whenOf(lead.lastContactedAt)}</span></> : <span>Not contacted yet — log a call or message in Notes</span>}</div></div>
               )}
-              <div className="ld-field"><label htmlFor="ld-notes">Notes</label>
-                <textarea id="ld-notes" rows={4} value={String(draft.notes || "")} onChange={(e) => set("notes", e.target.value)} placeholder="Context, next steps, objections…" /></div>
+              </details>
+              {isNew && <div className="ld-field"><label htmlFor="ld-notes">Notes</label>
+                <textarea id="ld-notes" rows={4} value={String(draft.notes || "")} onChange={(e) => set("notes", e.target.value)} placeholder="Context, next steps, objections…" /></div>}
               {isNew && calendlyUrl && (
                 <div className="ld-field"><span className="ld-lbl">Meeting</span>
                   <CalendlyButton url={calendlyUrl} name={String(draft.name || "")} email={mail} className="sh-btn" label="Schedule with Calendly"
@@ -252,7 +254,9 @@ export default function LeadDrawer({ lead, defaults, calendlyUrl, initialTab = "
           )}
 
           {tab === "follow" && lead && (
-            <div id="ld-pane-follow" role="tabpanel" aria-labelledby="ld-tab-follow">
+            <div id="ld-pane-follow" role="tabpanel" aria-labelledby="ld-tab-follow" className="ld-form">
+              <div className="ld-field"><label htmlFor="ld-notes">Lead notes</label><textarea id="ld-notes" rows={3} value={String(draft.notes || "")} onChange={(e) => set("notes", e.target.value)} placeholder="Context, next steps, objections…" /><small>Save to apply changes to these notes. Contact logs below save separately.</small></div>
+              <h3 className="ld-notes-heading">Log a conversation &amp; next step</h3>
               <LeadTouchPanel key={lead.id} lead={{ ...lead, ...draft, id: lead.id }} showContact={false} preset={preset}
                 patch={(v) => {
                   setBase((b) => ({ ...b, ...v })); setDraft((d) => ({ ...d, ...v }));
@@ -270,7 +274,7 @@ export default function LeadDrawer({ lead, defaults, calendlyUrl, initialTab = "
         </div>
 
         <footer className="ld-df">
-          {!isNew && <button type="button" className="sh-btn ld-danger" onClick={remove}><HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.8} />Delete</button>}
+          {!isNew && <button type="button" className="sh-btn ld-danger" disabled={saving} onClick={remove}><HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.8} />Delete</button>}
           <span className="ld-sp" />
           {!isNew && dirty && <span className="ld-unsaved">Unsaved changes</span>}
           <button type="button" className="sh-btn" onClick={tryClose}>{dirty || isNew ? "Cancel" : "Close"}</button>

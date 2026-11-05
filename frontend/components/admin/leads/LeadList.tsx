@@ -10,8 +10,8 @@ import { STAGES, stageOf, progressOf, inr, followChip, followDay, byPosition } f
 
 type Key = "name" | "company" | "stage" | "value" | "owner" | "followup" | "lastContactedAt" | "source";
 const COLS: { k: Key; label: string; num?: boolean }[] = [
-  { k: "name", label: "Lead" }, { k: "company", label: "Company" }, { k: "stage", label: "Stage" }, { k: "value", label: "Value", num: true },
-  { k: "owner", label: "Owner" }, { k: "followup", label: "Follow-up" }, { k: "lastContactedAt", label: "Last contacted" }, { k: "source", label: "Source" },
+  { k: "name", label: "Lead / company" }, { k: "owner", label: "Owner" }, { k: "followup", label: "Next follow-up" },
+  { k: "stage", label: "Stage" }, { k: "value", label: "Value", num: true },
 ];
 const STAGE_IDX = Object.fromEntries(STAGES.map((s, i) => [s.id, i]));
 const PAGE = 50;
@@ -67,14 +67,11 @@ export default function LeadList({ leads, onOpen }: { leads: LeadRow[]; onOpen: 
               const s = stageOf(l.stage), chip = followChip(l, today);
               return (
                 <tr key={l.id} tabIndex={0} onClick={() => onOpen(l)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(l); } }} aria-label={`Open ${l.name}`}>
-                  <td><b>{l.name}</b>{l.purpose && <small className="ld-sub">{l.purpose}</small>}</td>
-                  <td>{l.company || <span className="ld-muted">—</span>}</td>
-                  <td><span className={"sh-pill " + s.tone}>{s.name}</span><small className="ld-pct">{progressOf(l)}%</small></td>
-                  <td className="num"><b>{Number(l.value) ? inr(l.value) : <span className="ld-muted">—</span>}</b></td>
-                  <td>{l.owner ? <span className="ld-owner"><i className="ld-av" style={{ background: avatarColor(l.owner) }} aria-hidden>{initials(l.owner)}</i>{l.owner}</span> : <span className="ld-muted">—</span>}</td>
+                  <td><b>{l.name}</b>{(l.company || l.purpose) && <small className="ld-sub">{[l.company, l.purpose].filter(Boolean).join(" · ")}</small>}</td>
+                  <td>{l.owner ? <span className="ld-owner"><i className="ld-av" style={{ background: avatarColor(l.owner) }} aria-hidden>{initials(l.owner)}</i>{l.owner}</span> : <span className="ld-muted">Unassigned</span>}</td>
                   <td>{chip ? <span className={"sh-pill nodot ld-chip " + chip.tone} title={chip.title}><HugeiconsIcon icon={Clock01Icon} size={13} strokeWidth={2} />{chip.text}</span> : <span className="ld-muted">—</span>}</td>
-                  <td>{l.lastContactedAt ? <span title={whenOf(l.lastContactedAt)}>{relative(l.lastContactedAt)}</span> : <span className="ld-muted">Never</span>}</td>
-                  <td>{l.source || <span className="ld-muted">—</span>}</td>
+                  <td><span className={"sh-pill " + s.tone}>{s.name}</span></td>
+                  <td className="num"><b>{Number(l.value) ? inr(l.value) : <span className="ld-muted">—</span>}</b></td>
                 </tr>
               );
             })}

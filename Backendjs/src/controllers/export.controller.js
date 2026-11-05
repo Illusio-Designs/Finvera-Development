@@ -4,7 +4,7 @@
    GET /api/export/:entity?format=json  (+ the entity's filters, below)
      → { entity, columns: ["ID", "Name", …], rows: [{ "ID": 1, "Name": "…" }], total, truncated, generatedAt }
    Entities and who may export them:
-     leads        leads area     ?q &stage &owner &source &priority &from &to (created, YYYY-MM-DD)
+     leads        leads area     ?q &stage &owner (__none = unassigned) &followUp (today|overdue|week) &source &priority &from &to (created, YYYY-MM-DD)
      renewals     renewals area  ?q &status &owner (__none = unassigned) &cycle &from &to (renewal date)
      contact      contact area   ?q &unread=1 &from &to (received)
      activity     admin          same filters as GET /api/activity
@@ -19,6 +19,7 @@
 const { Op } = require("sequelize");
 const { Lead, Renewal, ContactSubmission, ActivityLog, SocialPost, User, SocialClient } = require("../models");
 const { asyncHandler } = require("../utils/crud");
+const { followUpWhere } = require("../utils/leadFollowUp");
 const { rolesCan, rolesOf } = require("../utils/permissions");
 
 const MAX_ROWS = 20000;
@@ -54,9 +55,11 @@ const EXPORTS = {
     async rows(req) {
       const q = req.query, where = {};
       const and = [];
-      if (q.q) and.push(like(["name", "company", "email", "source", "owner", "purpose"], q.q));
+      if (q.q) and.push(like(["name", "company", "purpose", "email", "phone", "owner", "source", "notes"], q.q));
       if (q.stage) where.stage = String(q.stage).split(",");
-      if (q.owner) where.owner = q.owner;
+      if (q.owner === "__none") and.push({ [Op.or]: [{ owner: null }, { owner: "" }] });
+      else if (q.owner) where.owner = q.owner;
+      const follow = followUpWhere(q.followUp); if (follow) and.push(follow);
       if (q.source) where.source = q.source;
       if (q.priority) where.priority = String(q.priority).split(",");
       const c = createdRange(q); if (c) where.createdAt = c;

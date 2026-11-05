@@ -23,6 +23,7 @@ import { STAGES, stageOf, isOpen, inr, inrShort, sumValue, byPosition, istMonth,
 import { istToday } from "@/lib/activityText";
 import { toast } from "@/lib/toast";
 import "./leads.css";
+import "./leads-workspace.css";
 
 type View = "board" | "list";
 const VIEW_KEY = "fv-leads-view";
@@ -104,7 +105,7 @@ function Leads() {
   const filtering = !!(needle || fOwner || fSource || fPriority || range || (view === "list" && fStage));
   const clearFilters = () => { setQ(""); setFOwner(""); setFSource(""); setFPriority(""); setFStage(""); setRange(""); };
   const exportParams = () => ({
-    q: q.trim() || undefined, owner: fOwner && fOwner !== "__none" ? fOwner : undefined, source: fSource || undefined, priority: fPriority || undefined,
+    q: q.trim() || undefined, owner: fOwner || undefined, followUp: range || undefined, source: fSource || undefined, priority: fPriority || undefined,
     stage: view === "list" && fStage ? (fStage === "open" ? "new,contacted,qualified,proposal" : fStage) : undefined,
   });
 
@@ -115,7 +116,7 @@ function Leads() {
       const r = await exportToExcel("leads", exportParams(), { file: "leads", sheet: "Leads" });
       if (!r.total) toast("Nothing to export", "info", { description: "No leads match the current filters — the file has only the headings." });
       else toast(`Exported ${r.total.toLocaleString("en-IN")} lead${r.total === 1 ? "" : "s"}`, "ok", {
-        description: (range ? "Follow-up filter isn't part of the export · " : "") + (r.truncated ? `${r.file} · only the first 20,000 rows` : r.file),
+        description: (r.truncated ? `${r.file} · only the first 20,000 rows` : r.file),
       });
     } catch (e) {
       toast("Couldn't export", "err", { description: e instanceof Error ? e.message : "Try again in a moment." });
@@ -131,7 +132,13 @@ function Leads() {
   }
   const askLost = (lead: LeadRow) => new Promise<string | null>((resolve) => setLost({ lead, resolve }));
 
+  const moving = useRef(false);
   async function move(id: number, to: LeadStage, beforeId: number | null) {
+    if (moving.current) return;
+    moving.current = true;
+    try { await moveLead(id, to, beforeId); } finally { moving.current = false; }
+  }
+  async function moveLead(id: number, to: LeadStage, beforeId: number | null) {
     const cur = rowsRef.current;
     const lead = cur.find((l) => l.id === id);
     if (!lead) return;
@@ -164,6 +171,8 @@ function Leads() {
       await saveOrder(to, ids);
     } catch (e) {
       restore();
+      await load(); // A stage update may have succeeded before its reorder failed.
+      badges();
       toast(`Couldn't move ${lead.name}`, "err", { description: e instanceof Error ? e.message : "Try again." });
       return;
     }
@@ -216,18 +225,18 @@ function Leads() {
   );
 
   return (
-    <div className="td ld">
+    <div className="td ld leads-workspace">
       <div className="td-hello">
         <div className="td-hello-tx">
-          <div className="td-eyebrow">Sales</div>
+          <div className="td-eyebrow">CONVERSATIONS INTO CLIENTS</div>
           <h1>Leads</h1>
-          <p>Business-development pipeline. Track prospects from first touch to won.</p>
+          <p>Move the next conversation forward.</p>
         </div>
         <div className="td-acts">
-          <button type="button" className="sh-btn" onClick={doExport} disabled={exporting} title="Download the leads you see (current filters) as an Excel file">
+          <button type="button" className="sh-btn" onClick={doExport} disabled={exporting} title="Export leads matching the current filters">
             {exporting ? <span className="spin ld-spin" aria-hidden /> : <HugeiconsIcon icon={Download04Icon} size={17} strokeWidth={1.8} />}{exporting ? "Preparing…" : "Export"}
           </button>
-          <button type="button" className="sh-btn pri" onClick={addLead}><HugeiconsIcon icon={Add01Icon} size={17} strokeWidth={2} />Add lead</button>
+          <button type="button" className="sh-btn pri" onClick={addLead}><HugeiconsIcon icon={Add01Icon} size={17} strokeWidth={2} />New lead</button>
         </div>
       </div>
 
@@ -239,14 +248,14 @@ function Leads() {
         </div>
       ) : (
         <>
-          <div className="td-kpis">
+          {rows && rows.length > 0 && <div className="ld-next-work"><div><span className="ld-section-kicker">YOUR NEXT CONVERSATION</span><h2>Follow-ups first</h2><p>Choose a date group to focus the pipeline below.</p></div><FollowUpStrip rows={rows} value={range} onChange={setRange} /></div>}
+
+          <details className="ld-performance"><summary>Pipeline performance <span>{rows ? `${totals.open} open · ${inrShort(totals.pipe)}` : "Loading totals…"}</span></summary><div className="td-kpis">
             {k("Open pipeline", RupeeIcon, "blue", inrShort(totals.pipe), `${plural(totals.open, "open lead")} · ${inr(totals.pipe)}`)}
             {k("Open leads", Target02Icon, "amber", String(totals.open), totals.due ? `${plural(totals.due, "follow-up")} due or overdue` : "No follow-ups due today")}
             {k("Won this month", CheckmarkCircle02Icon, "green", inrShort(totals.wonMonth), `${plural(totals.wonMonthN, "deal")} · ${inrShort(totals.wonValue)} won in all`)}
             {k("Win rate", ChartIncreaseIcon, "violet", totals.rate == null ? "—" : `${totals.rate}%`, `${totals.won} won · ${totals.lost} lost`)}
-          </div>
-
-          {rows && rows.length > 0 && <FollowUpStrip rows={rows} value={range} onChange={setRange} />}
+          </div></details>
 
           <div className="ld-toolbar">
             <label className="ld-search">
@@ -255,25 +264,25 @@ function Leads() {
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, company, purpose…" type="search" />
               {q && <button type="button" className="ld-x" onClick={() => setQ("")} aria-label="Clear search"><HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={2} /></button>}
             </label>
-            <div className="ld-filters">
+              <div className="ld-fsel"><Select value={fOwner} onChange={setFOwner} ariaLabel="Owner" placeholder="All owners"
+                options={[{ value: "", label: "All owners" }, ...owners.map((o) => ({ value: o, label: o })), { value: "__none", label: "Unassigned" }]} /></div>
+            <details className="ld-more-filters"><summary>Filters{(fStage || fSource || fPriority) && <i aria-label="Active filters" />}</summary><div className="ld-filter-pop">
               {view === "list" && (
                 <div className="ld-fsel"><Select value={fStage} onChange={setFStage} ariaLabel="Stage" placeholder="All stages"
                   options={[{ value: "", label: "All stages" }, { value: "open", label: "Open (not won / lost)" }, ...STAGES.map((s) => ({ value: s.id, label: s.name }))]} /></div>
               )}
-              <div className="ld-fsel"><Select value={fOwner} onChange={setFOwner} ariaLabel="Owner" placeholder="All owners"
-                options={[{ value: "", label: "All owners" }, ...owners.map((o) => ({ value: o, label: o })), { value: "__none", label: "Unassigned" }]} /></div>
               <div className="ld-fsel"><Select value={fSource} onChange={setFSource} ariaLabel="Source" placeholder="All sources"
                 options={[{ value: "", label: "All sources" }, ...sources.map((s) => ({ value: s, label: s }))]} /></div>
               <div className="ld-fsel"><Select value={fPriority} onChange={setFPriority} ariaLabel="Priority" placeholder="Any priority"
                 options={[{ value: "", label: "Any priority" }, ...PRIORITIES.map((p) => ({ value: p, label: cap(p) }))]} /></div>
               {filtering && <button type="button" className="sh-link ld-clearall" onClick={clearFilters}>Clear filters</button>}
-            </div>
+            </div></details>
             <div className="ld-seg" role="group" aria-label="View">
-              <button type="button" aria-pressed={view === "board"} onClick={() => pickView("board")}><HugeiconsIcon icon={KanbanIcon} size={16} strokeWidth={1.8} />Board</button>
+              <button type="button" aria-pressed={view === "board"} onClick={() => pickView("board")}><HugeiconsIcon icon={KanbanIcon} size={16} strokeWidth={1.8} />Pipeline</button>
               <button type="button" aria-pressed={view === "list"} onClick={() => pickView("list")}><HugeiconsIcon icon={LeftToRightListBulletIcon} size={16} strokeWidth={1.8} />List</button>
             </div>
           </div>
-          {rows && filtering && <div className="ld-count" aria-live="polite">{plural(shown.length, "lead")} match{shown.length === 1 ? "es" : ""} · {inr(sumValue(shown))}</div>}
+          {rows && filtering && <div className="ld-count" aria-live="polite">{plural(shown.length, "lead")} match{shown.length === 1 ? "es" : ""} · {inr(sumValue(shown))}<button type="button" className="sh-link" onClick={clearFilters}>Clear all filters</button></div>}
 
           {!rows ? (view === "board" ? <BoardSkeleton /> : <ListSkeleton />)
             : rows.length === 0 ? (
@@ -281,7 +290,7 @@ function Leads() {
                 <HugeiconsIcon icon={UserAdd01Icon} size={20} strokeWidth={1.8} className="hgi" />
                 <b>No leads yet</b>
                 <span>Add your first prospect — new enquiries from the website form land here too.</span>
-                <button type="button" className="sh-btn pri sm" onClick={addLead}><HugeiconsIcon icon={Add01Icon} size={15} strokeWidth={2} />Add lead</button>
+                <button type="button" className="sh-btn pri sm" onClick={addLead}><HugeiconsIcon icon={Add01Icon} size={15} strokeWidth={2} />New lead</button>
               </div>
             ) : view === "board" ? (
               <LeadBoard leads={shown} onOpen={openLead} onMove={move} onAdd={addLead} filtered={filtering} />
@@ -294,7 +303,7 @@ function Leads() {
             ) : (
               <LeadList leads={shown} onOpen={openLead} />
             )}
-          {error && rows && <div className="sh-empty err ld-inline-err" role="alert"><b>Couldn&apos;t refresh</b><span>{error}</span></div>}
+          {error && rows && <div className="sh-empty err ld-inline-err" role="alert"><b>Couldn&apos;t refresh</b><span>{error}</span><button type="button" className="sh-btn sm" onClick={load}>Try again</button></div>}
         </>
       )}
 

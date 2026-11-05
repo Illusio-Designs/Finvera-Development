@@ -9,7 +9,7 @@
    Open leads only (stage not won / lost). Dates are India time. */
 
 const { Op } = require("sequelize");
-const { Lead, LeadActivity } = require("../models");
+const { sequelize, Lead, LeadActivity } = require("../models");
 const { asyncHandler } = require("../utils/crud");
 const audit = require("../utils/audit");
 
@@ -19,9 +19,7 @@ const OPEN = { stage: { [Op.notIn]: ["won", "lost"] } };
 const LIST_ATTRS = ["id", "name", "company", "email", "phone", "stage", "value", "priority", "owner", "ownerId",
   "nextFollowUpAt", "followUpNote", "meetingAt", "meetingUrl", "lastContactedAt", "source"];
 
-const todayIst = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
-const addDays = (iso, n) => { const d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
-const isDay = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+const { todayIst, addDays, isDay } = require("../utils/leadFollowUp");
 
 /* Leads of one user: owned by id, or by name on rows not yet linked. */
 const mineWhere = (user) => ({ [Op.or]: [{ ownerId: user.id }, { ownerId: null, owner: user.name || "\u0000" }] });
@@ -33,23 +31,33 @@ const RANGES = {
 };
 
 const touch = asyncHandler(async (req, res) => {
-  const lead = await Lead.findByPk(req.params.id);
-  if (!lead) return res.status(404).json({ message: "Lead not found." });
   const type = String(req.body?.type || "note").toLowerCase();
   if (!TOUCH_TYPES.includes(type)) return res.status(400).json({ message: `type must be one of ${TOUCH_TYPES.join(", ")}.` });
   const note = String(req.body?.note || "").trim().slice(0, 5000) || null;
   const hasNext = req.body && Object.prototype.hasOwnProperty.call(req.body, "nextFollowUpAt");
   const next = hasNext ? (isDay(req.body.nextFollowUpAt) ? req.body.nextFollowUpAt : null) : undefined;
-  if (hasNext && req.body.nextFollowUpAt && next === null) return res.status(400).json({ message: "nextFollowUpAt must be YYYY-MM-DD." });
+  if (hasNext && req.body.nextFollowUpAt && next === null) return res.status(400).json({ field: "nextFollowUpAt", message: "Enter a valid follow-up date (YYYY-MM-DD)." });
 
-  const before = lead.toJSON();
-  const row = await LeadActivity.create({ leadId: lead.id, type, note, nextFollowUpAt: next || null, userId: req.user.id, userName: req.user.name || null });
-  const patch = {};
-  if (CONTACT_TYPES.includes(type)) patch.lastContactedAt = new Date();
-  if (next !== undefined) patch.nextFollowUpAt = next;
-  if (hasNext && req.body.followUpNote !== undefined) patch.followUpNote = String(req.body.followUpNote || "").slice(0, 5000) || null;
-  if (type === "meeting" && req.body.meetingAt) { const d = new Date(req.body.meetingAt); if (!isNaN(d)) patch.meetingAt = d; }
-  if (Object.keys(patch).length) await lead.update(patch);
+  let meetingAt;
+  if (type === "meeting" && req.body.meetingAt) {
+    meetingAt = new Date(req.body.meetingAt);
+    if (isNaN(meetingAt)) return res.status(400).json({ message: "Enter a valid meeting time." });
+  }
+  const saved = await sequelize.transaction(async (transaction) => {
+    const lead = await Lead.findByPk(req.params.id, { transaction, lock: transaction.LOCK.UPDATE });
+    if (!lead) return null;
+    const before = lead.toJSON();
+    const row = await LeadActivity.create({ leadId: lead.id, type, note, nextFollowUpAt: next || null, userId: req.user.id, userName: req.user.name || null }, { transaction });
+    const patch = {};
+    if (CONTACT_TYPES.includes(type)) patch.lastContactedAt = new Date();
+    if (next !== undefined) patch.nextFollowUpAt = next;
+    if (hasNext && req.body.followUpNote !== undefined) patch.followUpNote = String(req.body.followUpNote || "").slice(0, 5000) || null;
+    if (meetingAt) patch.meetingAt = meetingAt;
+    if (Object.keys(patch).length) await lead.update(patch, { transaction });
+    return { before, lead, row };
+  });
+  if (!saved) return res.status(404).json({ message: "Lead not found." });
+  const { before, lead, row } = saved;
   audit.record(req, {
     action: "other", entity: "lead", entityId: lead.id, entityLabel: lead.name,
     summary: `Logged ${type}${note ? `: ${note.slice(0, 200)}` : ""}`,
@@ -176,9 +184,23 @@ const reorder = asyncHandler(async (req, res) => {
   res.json({ ok: true, stage, count: ids.length });
 });
 
+function validateLead(req, res, next) {
+  const body = req.body || {};
+  const invalid = (field, message) => res.status(400).json({ field, message });
+  if ((req.method === "POST" || "name" in body) && (typeof body.name !== "string" || !body.name.trim())) return invalid("name", "Add the contact name.");
+  if ("stage" in body && !STAGES.includes(body.stage)) return invalid("stage", "Choose a valid lead stage.");
+  if ("priority" in body && !["low", "medium", "high"].includes(body.priority)) return invalid("priority", "Choose a valid priority.");
+  if ("value" in body && (!Number.isSafeInteger(Number(body.value)) || Number(body.value) < 0 || Number(body.value) > 2147483647)) return invalid("value", "Enter a non-negative whole deal value.");
+  for (const field of ["nextFollowUpAt", "nextFollowUp"]) {
+    if (body[field] != null && body[field] !== "" && !isDay(body[field])) return invalid(field, "Enter a valid follow-up date.");
+  }
+  if (body.meetingAt && !Number.isFinite(Date.parse(body.meetingAt))) return invalid("meetingAt", "Enter a valid meeting time.");
+  next();
+}
+
 /* A lead was deleted → its touches go too. */
 async function forgetLead(id) {
   try { await LeadActivity.destroy({ where: { leadId: id } }); } catch (e) { console.warn("lead touches:", e.message); }
 }
 
-module.exports = { touch, touches, reorder, followUps, followUpCounts, homeLeads, reminderRows, forgetLead, todayIst, TOUCH_TYPES, LIST_ATTRS };
+module.exports = { validateLead, touch, touches, reorder, followUps, followUpCounts, homeLeads, reminderRows, forgetLead, todayIst, TOUCH_TYPES, LIST_ATTRS };
