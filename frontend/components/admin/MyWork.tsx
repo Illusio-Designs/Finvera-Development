@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/adminApi";
+import { overdueAt } from "@/lib/socialWorkflow";
 
 /* A team member's own content-calendar work (marketer / video / graphic /
    social): used by the dashboard home to put "my work" first. One request:
@@ -23,7 +24,7 @@ const fmt = (s: string, o: Intl.DateTimeFormatOptions) => new Date(s + "T00:00:0
 
 function due(p: Post, t: string) {
   const live = day(p.postDate), start = day(p.dueDate) || (live ? addDays(live, -7) : "");
-  if (live && live < t) return { cls: "red", text: `Overdue ${diff(live, t)}d`, rank: -1000 + diff(t, live) };
+  if (live && overdueAt(p)) return { cls: "red", text: live === t ? "Go-live time passed" : `Overdue ${diff(live, t)}d`, rank: -1000 + diff(t, live) };
   if (start && start > t) { const d = diff(t, start); return { cls: d <= 2 ? "amber" : "grey", text: `Starts in ${d}d`, rank: 100 + d }; }
   if (!live) return { cls: "grey", text: "No date", rank: 999 };
   const d = diff(t, live);
@@ -40,7 +41,7 @@ function summarise(posts: Post[]) {
     open: open.length,
     brands: new Set(open.map((p) => p.client)).size,
     overdue: queue.filter((x) => x.d.cls === "red").length,
-    workNow: open.filter((p) => { const live = day(p.postDate), start = day(p.dueDate) || (live ? addDays(live, -7) : ""); return start && start <= t && (!live || live >= t); }).length,
+    workNow: open.filter((p) => { const live = day(p.postDate), start = day(p.dueDate) || (live ? addDays(live, -7) : ""); return start && start <= t && !overdueAt(p); }).length,
     startingSoon: open.filter((p) => { const s = day(p.dueDate); return s > t && s <= weekEnd; }).length,
     goingLive: open.filter((p) => { const l = day(p.postDate); return l >= t && l <= weekEnd; }).length,
     queue,

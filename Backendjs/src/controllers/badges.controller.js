@@ -41,7 +41,7 @@ async function count(req, out) {
     }
     if (scope !== false && !(scope && !scope.client.length)) {
       const mine = scope || {};
-      jobs.push(safe("socialOverdue", () => SocialPost.count({ where: { ...mine, status: { [Op.ne]: "posted" }, postDate: { [Op.lt]: todayIST() } } })));
+      jobs.push(safe("socialOverdue", () => SocialPost.count({ where: { ...mine, ...require("../utils/socialDeadline").overdueWhere() } })));
       jobs.push(safe("approvals", () => SocialPost.count({ where: { ...mine, status: "approval" } })));
     }
   }

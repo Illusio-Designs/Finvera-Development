@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { Mark } from "@/components/icons";
+import "./today.css";
 import { useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -15,6 +17,7 @@ import { useMyWork, MyQueue, istIso } from "@/components/admin/MyWork";
 import SocialKpis from "@/components/admin/SocialKpis";
 import { rolesCan } from "@/lib/permissions";
 import { toast } from "@/lib/toast";
+import { visibleInterval } from "@/lib/visibleInterval";
 
 /* Dashboard home ("Today"). Two requests at most, side by side:
    GET /api/today (social area) and GET /api/overview (content / contact /
@@ -36,6 +39,12 @@ function useSource<T>(run: () => Promise<T>, enabled: boolean, key: string) {
     catch (e) { setS((p) => ({ ...p, error: msg(e), loading: false })); }
   }, []);
   useEffect(() => { if (enabled) load(); else setS(idle<T>()); }, [enabled, key, load]);
+  useEffect(() => {
+    if (!enabled) return;
+    const stop = visibleInterval(load, 120000);
+    window.addEventListener("fv-badges", load);
+    return () => { stop(); window.removeEventListener("fv-badges", load); };
+  }, [enabled, key, load]);
   return { ...s, reload: load, setData: (fn: (d: T) => T) => setS((p) => (p.data ? { ...p, data: fn(p.data) } : p)) };
 }
 
@@ -142,7 +151,7 @@ function WeekChart({ week, today }: { week: TodayData["week"]; today: string }) 
   const max = Math.max(4, ...week.map((w) => w.total));
   const y = (v: number) => pt + (H - pt - pb) * (1 - v / max);
   const ticks = [0, Math.round(max / 2), max];
-  const label = week.map((w) => `${dayFmt(w.day, { weekday: "long" })}: ${w.total} (${w.ready} ready)`).join("; ");
+  const label = week.map((w) => `${dayFmt(w.day, { weekday: "long" })}: ${w.total} (${w.ready} ready or live)`).join("; ");
   return (
     <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Posts going live each day this week. ${label}`} className="td-chart">
       {ticks.map((t) => (
@@ -159,7 +168,7 @@ function WeekChart({ week, today }: { week: TodayData["week"]; today: string }) 
         return (
           <g key={w.day} className="td-day" role="link" tabIndex={0} onClick={open}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }}
-            aria-label={`${dayFmt(w.day, { weekday: "long", day: "numeric", month: "long" })}: ${plural(w.total, "post")}, ${w.ready} ready. Open the calendar`}>
+            aria-label={`${dayFmt(w.day, { weekday: "long", day: "numeric", month: "long" })}: ${plural(w.total, "post")}, ${w.ready} ready or live. Open the calendar`}>
               {isT && <rect x={x - 6} y={pt - 14} width={bw + 12} height={H - pb - pt + 14} rx={12} fill="var(--td-brand-soft)" />}
               <rect x={x - 4} y={pt - 14} width={bw + 8} height={H - pb - pt + 14} fill="transparent" />
               {w.ready > 0 && <rect x={x} y={yr} width={bw} height={y(0) - yr} rx={8} fill="var(--td-brand)" />}
@@ -339,7 +348,7 @@ export default function Today() {
       const d = mine.data;
       list.push(
         { key: "now", label: "Work on now", icon: Task01Icon, tone: "blue", href: "/dashboard/social", value: d?.workNow ?? 0, sub: d ? (d.open ? `${plural(d.open, "open post")} across ${plural(d.brands, "brand")}` : "Nothing assigned right now") : "", ...m },
-        { key: "late", label: "Overdue", icon: Alert02Icon, tone: "red", href: "/dashboard/social", value: d?.overdue ?? 0, sub: "Go-live date passed", ...m },
+        { key: "late", label: "Overdue", icon: Alert02Icon, tone: "red", href: "/dashboard/social", value: d?.overdue ?? 0, sub: "Go-live time passed · IST", ...m },
         { key: "start", label: "Starting this week", icon: Rocket01Icon, tone: "amber", href: "/dashboard/social", value: d?.startingSoon ?? 0, sub: "Start date in the next 7 days", ...m },
         { key: "live", label: "Going live this week", icon: Calendar03Icon, tone: "violet", href: "/dashboard/social", value: d?.goingLive ?? 0, sub: "Go-live in the next 7 days", ...m },
       );
@@ -350,7 +359,7 @@ export default function Today() {
       list.push({ key: "unread", label: "Unread messages", icon: Mail01Icon, tone: "blue", href: "/dashboard/contact", value: o?.contact?.unread ?? 0, sub: o?.contact?.unread ? (un ? `Latest from ${un.name}, ${dateFmt(un.createdAt)}` : "In the contact inbox") : "Inbox zero", ...L(ov) });
     }
     if (canSocial) {
-      list.push({ key: "late", label: "Overdue posts", icon: Alert02Icon, tone: "red", href: "/dashboard/social", value: t?.counts.overdue ?? 0, sub: "Past their date, not posted", ...L(today) });
+      list.push({ key: "late", label: "Overdue posts", icon: Alert02Icon, tone: "red", href: "/dashboard/social", value: t?.counts.overdue ?? 0, sub: "Go-live time passed · not posted", ...L(today) });
       list.push({ key: "appr", label: "Waiting for approval", icon: CheckmarkCircle02Icon, tone: "violet", href: "/dashboard/social", value: t?.counts.approvals ?? 0, sub: isAdmin ? "Sent to you by the team" : "In Pending approval", ...L(today) });
     }
     if (canLeads) {
@@ -362,7 +371,7 @@ export default function Today() {
       list.push({ key: "fu", label: "Follow-ups due", icon: CallIcon, tone: "amber", href: "/dashboard/leads", value: fu, sub: `${o?.leads?.followUpOverdue || 0} overdue · ${o?.leads?.followUpToday || 0} today`, ...L(ov) });
     }
     if (canSocial) {
-      list.push({ key: "week", label: "Going live this week", icon: Calendar03Icon, tone: "blue", href: "/dashboard/social", value: t?.counts.goingLiveWeek ?? 0, sub: t ? `${t.counts.scheduledWeek} ready · ${Math.max(0, t.counts.goingLiveWeek - t.counts.scheduledWeek)} still being made` : "", ...L(today) });
+      list.push({ key: "week", label: "Going live this week", icon: Calendar03Icon, tone: "blue", href: "/dashboard/social", value: t?.counts.goingLiveWeek ?? 0, sub: t ? `${t.counts.scheduledWeek} ready or live · ${Math.max(0, t.counts.goingLiveWeek - t.counts.scheduledWeek)} still being made` : "", ...L(today) });
       list.push({ key: "ontime", label: "On time this month", icon: CheckmarkCircle02Icon, tone: "green", href: "#performance", value: t?.counts.onTimeMonthPct == null ? "—" : `${t.counts.onTimeMonthPct}%`, sub: "Posts finished by their due date", ...L(today) });
     }
     if (canContent) {
@@ -373,7 +382,7 @@ export default function Today() {
   }, [teamHome, mine.data, mine.error, canContact, canSocial, canLeads, canContent, isAdmin, o, t, ov, today]);
 
   const createItems = [
-    canContent && { label: "New project", href: "/dashboard/projects", icon: Briefcase01Icon },
+    canContent && { label: "New case study", href: "/dashboard/projects", icon: Briefcase01Icon },
     canContent && { label: "Write a blog post", href: "/dashboard/blog", icon: News01Icon },
     canLeads && { label: "Add a lead", href: "/dashboard/leads", icon: Target02Icon },
     canSocial && { label: "Import a content sheet", href: "/dashboard/social", icon: Upload01Icon },
@@ -395,27 +404,44 @@ export default function Today() {
   const stageRows = STAGES.map((s) => ({ ...s, n: by[s.id]?.count || 0, v: by[s.id]?.value || 0 }));
   const totalV = stageRows.reduce((a, s) => a + s.v, 0);
   const won = by.won?.count || 0, lost = by.lost?.count || 0;
-  const content = (["projects", "services", "testimonials", "team", "blog"] as const).map((k) => ({ k, label: k === "blog" ? "Blog posts" : k[0].toUpperCase() + k.slice(1), n: o?.counts?.[k] || 0 }));
+  const content = (["projects", "services", "testimonials", "team", "blog"] as const).map((k) => ({ k, label: k === "blog" ? "Blog posts" : k === "projects" ? "Portfolio" : k === "team" ? "Website team" : k[0].toUpperCase() + k.slice(1), n: o?.counts?.[k] || 0 }));
   const cmax = Math.max(1, ...content.map((c) => c.n));
 
   return (
-    <div className="td">
+    <div className="td td-overview">
       <div className="td-hello">
         <div className="td-hello-tx">
           <div className="td-eyebrow">{now ? now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: IST }) : " "}</div>
-          <h1>{hello}{first ? `, ${first}` : ""}</h1>
-          <p>{subline || " "}</p>
+          <h1>{teamHome ? "My work, in focus." : "Your day, in focus."}</h1>
+          <p>{hello}{first ? `, ${first}` : ""}. {subline || "Your workspace is getting ready."}</p>
         </div>
         <div className="td-acts">
-          {canSocial && <Link href="/dashboard/social" className="sh-btn"><Ic i={Calendar03Icon} size={17} />Open calendar</Link>}
           <CreateMenu items={createItems} />
         </div>
       </div>
 
+      <div className="td-focus-grid">
+        <section className="td-focus-hero" aria-labelledby="td-focus-heading">
+          <Mark className="td-focus-mark" />
+          <span className="td-focus-eyebrow">Your workspace, in focus</span>
+          <h2 id="td-focus-heading">Good work starts<br /><span>with a clear next step.</span></h2>
+          <div className="td-focus-bottom"><p role="status">{needsLoading ? "Checking your workspace…" : needsErr.length || (teamHome && mine.error) ? "Some updates need a retry. Check the panels below." : needs.length ? `${plural(needs.length, "next action")} ready for your attention.` : "All clear. Make room for your next idea."}</p>
+            {canSocial ? <Link href="/dashboard/social" className="sh-btn">{teamHome ? "Open my work" : "Open calendar"}<Ic i={ArrowRight01Icon} size={16} /></Link> : createItems[0] ? <Link href={createItems[0].href} className="sh-btn">Open workspace<Ic i={ArrowRight01Icon} size={16} /></Link> : <Link href={can("seo") ? "/dashboard/seo" : "/dashboard/account"} className="sh-btn">Open workspace<Ic i={ArrowRight01Icon} size={16} /></Link>}
+          </div>
+        </section>
+        <section className="sh-card td-focus-week" aria-labelledby="td-focus-week">
+          <div className="sh-card-h"><h2 id="td-focus-week">{canSocial ? "Your week, at a glance" : "Your workspace"}<small>{canSocial ? "Posts by go-live date · India time" : "Shortcuts shaped by your access"}</small></h2></div>
+          {canSocial ? today.error && !t ? <CardError text={today.error} onRetry={today.reload} /> : !t ? <SkelRows n={2} h={30} /> : <>
+            <div className="td-miniweek">{t.week.map((weekDay) => <Link key={weekDay.day} href="/dashboard/social" className={weekDay.day === t.today ? "on" : ""} aria-label={`${dayFmt(weekDay.day, { weekday: "long", day: "numeric", month: "long" })}: ${plural(weekDay.total, "post")}, ${weekDay.ready} ready or live`}><span>{dayFmt(weekDay.day, { weekday: "short" })}</span><b>{Number(weekDay.day.slice(8, 10))}</b><small>{weekDay.total ? plural(weekDay.total, "post") : "—"}</small></Link>)}</div>
+            <p className="td-week-note"><Ic i={Calendar03Icon} size={16} />{plural(t.counts.goingLiveWeek, "post")} this week · {t.counts.scheduledWeek} ready or live</p>
+          </> : <div className="td-focus-shortcuts">{createItems.slice(0, 3).map((item) => <Link key={item.href} href={item.href}><Ic i={item.icon} size={18} /><span>{item.label}</span><Ic i={ArrowRight01Icon} size={15} /></Link>)}{!createItems.length && <Link href={can("seo") ? "/dashboard/seo" : "/dashboard/account"}><Ic i={Settings02Icon} size={18} /><span>{can("seo") ? "SEO & sharing" : "My account"}</span></Link>}</div>}
+        </section>
+      </div>
+
       {!ready ? (
-        <div className="td-kpis">{[0, 1, 2, 3].map((i) => <KpiCard key={i} hero={i === 0} k={{ key: String(i), label: " ", icon: Task01Icon, tone: "blue", href: "#", loading: true }} />)}</div>
+        <div className="td-kpis">{[0, 1, 2, 3].map((i) => <KpiCard key={i} hero={false} k={{ key: String(i), label: " ", icon: Task01Icon, tone: "blue", href: "#", loading: true }} />)}</div>
       ) : kpis.length > 0 && (
-        <div className="td-kpis">{kpis.map((k, i) => <KpiCard key={k.key} k={k} hero={i === 0} />)}</div>
+        <div className="td-kpis">{kpis.map((k) => <KpiCard key={k.key} k={k} hero={false} />)}</div>
       )}
 
       {bare ? (
@@ -452,7 +478,7 @@ export default function Today() {
               <section className="sh-card td-chartcard" aria-labelledby="td-week">
                 <div className="sh-card-h">
                   <h2 id="td-week">Posts going live this week<small>{t ? `${dayFmt(t.weekFrom, { day: "numeric", month: "short" })} – ${dayFmt(t.weekTo, { day: "numeric", month: "short" })} · tap a day to open the calendar` : "This week"}</small></h2>
-                  <div className="td-legend"><span><i style={{ background: "var(--td-brand)" }} />Ready</span><span><i className="dash" />Still being made</span></div>
+                  <div className="td-legend"><span><i style={{ background: "var(--td-brand)" }} />Ready / live</span><span><i className="dash" />Still being made</span></div>
                 </div>
                 {today.error && !t ? <CardError text={today.error} onRetry={today.reload} />
                   : !t ? <span className="skel" style={{ height: 200, borderRadius: 14 }} />
