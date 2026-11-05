@@ -175,7 +175,9 @@ leadRouter.delete("/:id", ...canLeads, leadCtrl.remove);
 router.use("/leads", leadRouter);
 
 /* ── Renewals (maintenance invoices — auth on every endpoint) ─ */
+const renewalActions = require("../controllers/renewals.controller");
 const renewalCtrl = crudController(Renewal, {
+  updateRecord: renewalActions.updateRecord,
   entity: "renewal",
   order: [["renewalDate", "ASC"], ["position", "ASC"], ["createdAt", "DESC"]],
   searchable: ["client", "project", "owner", "email"],
@@ -190,57 +192,14 @@ const renewalRouter = express.Router();
 const canRenewals = [requireAuth, requireArea("renewals")];
 renewalRouter.get("/", ...canRenewals, renewalCtrl.list);
 renewalRouter.get("/:id", ...canRenewals, renewalCtrl.getOne);
-renewalRouter.post("/", ...canRenewals, renewalCtrl.create);
-renewalRouter.put("/:id", ...canRenewals, renewalCtrl.update);
-renewalRouter.patch("/:id", ...canRenewals, renewalCtrl.update);
+renewalRouter.post("/", ...canRenewals, renewalActions.validate, renewalCtrl.create);
+renewalRouter.put("/:id", ...canRenewals, renewalActions.validate, renewalCtrl.update);
+renewalRouter.patch("/:id", ...canRenewals, renewalActions.validate, renewalCtrl.update);
 renewalRouter.delete("/:id", ...canRenewals, renewalCtrl.remove);
-/* Renewed → the next date moves on by one billing cycle (from the date it was
-   due, so paying late doesn't shift the cycle); Terminate → cancelled, no more
-   reminders. Either way the remark goes on top of the remarks log.
-   POST /:id/renew also takes (both optional, older clients send neither):
-     renewalDate "YYYY-MM-DD" — a next date picked by hand instead of +1 cycle
-     invoiced false            — keep "last renewed on" as it was (default: today) */
-const CYCLE_MONTHS = { monthly: 1, quarterly: 3, "half-yearly": 6, yearly: 12 };
-const ymd = (d) => d.toISOString().slice(0, 10);
-const addMonthsIso = (iso, n) => {
-  const [y, m, d] = iso.split("-").map(Number);
-  const last = new Date(Date.UTC(y, m - 1 + n + 1, 0)).getUTCDate(); // 31 Jan + 1 month → 28/29 Feb
-  return ymd(new Date(Date.UTC(y, m - 1 + n, Math.min(d, last))));
-};
-const fmtIn = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-const todayIstIso = () => ymd(new Date(Date.now() + 5.5 * 3600000));
-function logRemark(rec, line, remark) {
-  const entry = `${fmtIn(todayIstIso())} · ${line}${remark ? ` — ${remark}` : ""}`;
-  return [entry, rec.notes].filter((x) => x && String(x).trim()).join("\n");
-}
-renewalRouter.post("/:id/renew", ...canRenewals, async (req, res) => {
-  const rec = await Renewal.findByPk(req.params.id);
-  if (!rec) return res.status(404).json({ message: "Renewal not found." });
-  const remark = String(req.body?.remark || "").trim().slice(0, 1000);
-  const from = rec.renewalDate ? String(rec.renewalDate).slice(0, 10) : todayIstIso();
-  const picked = String(req.body?.renewalDate || "").slice(0, 10);
-  const realDay = (iso) => { const t = Date.parse(`${iso}T00:00:00Z`); return !isNaN(t) && ymd(new Date(t)) === iso; }; // no 31 Feb
-  if (picked && (!/^\d{4}-\d{2}-\d{2}$/.test(picked) || !realDay(picked))) {
-    return res.status(400).json({ message: "The next renewal date isn't a valid date.", field: "renewalDate" });
-  }
-  const next = picked || addMonthsIso(from, CYCLE_MONTHS[rec.cycle] || 12);
-  const before = rec.toJSON();
-  await rec.update({
-    renewalDate: next, ...(req.body?.invoiced === false ? {} : { lastInvoiced: todayIstIso() }), status: "active",
-    notes: logRemark(rec, `Renewed till ${fmtIn(next)} · ${req.user?.name || "someone"}`, remark),
-  });
-  audit.record(req, { action: "other", entity: "renewal", before, after: rec, diffOpts: { skip: ["notes"] }, summary: `Renewed till ${fmtIn(next)}${remark ? ` — ${remark}` : ""}` });
-  res.json(rec);
-});
-renewalRouter.post("/:id/terminate", ...canRenewals, async (req, res) => {
-  const rec = await Renewal.findByPk(req.params.id);
-  if (!rec) return res.status(404).json({ message: "Renewal not found." });
-  const remark = String(req.body?.remark || "").trim().slice(0, 1000);
-  const before = rec.toJSON();
-  await rec.update({ status: "cancelled", notes: logRemark(rec, `Terminated · ${req.user?.name || "someone"}`, remark) });
-  audit.record(req, { action: "other", entity: "renewal", before, after: rec, diffOpts: { skip: ["notes"] }, summary: `Terminated${remark ? ` — ${remark}` : ""}` });
-  res.json(rec);
-});
+renewalRouter.post("/:id/renew", ...canRenewals, renewalActions.renew);
+renewalRouter.post("/:id/terminate", ...canRenewals, renewalActions.terminate);
+renewalRouter.post("/:id/restore", ...canRenewals, renewalActions.restore);
+renewalRouter.post("/:id/remarks", ...canRenewals, renewalActions.remark);
 router.use("/renewals", renewalRouter);
 
 /* ── Social media calendar (clients + posts — auth on every endpoint) ─ */
