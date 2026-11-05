@@ -35,9 +35,9 @@ function resource(path, Model, opts, area = "content") {
   const canWrite = [requireAuth, requireArea(area)];
   r.get("/", optionalAuth, c.list);
   r.get("/:id", optionalAuth, c.getOne);
-  r.post("/", ...canWrite, c.create);
-  r.put("/:id", ...canWrite, c.update);
-  r.patch("/:id", ...canWrite, c.update);
+  r.post("/", ...canWrite, ...(opts.validate ? [opts.validate] : []), c.create);
+  r.put("/:id", ...canWrite, ...(opts.validate ? [opts.validate] : []), c.update);
+  r.patch("/:id", ...canWrite, ...(opts.validate ? [opts.validate] : []), c.update);
   r.delete("/:id", ...canWrite, c.remove);
   router.use(path, r);
 }
@@ -74,7 +74,8 @@ router.use("/auth", authRouter);
    GET /blog/:slug. Signed-in (admin) lists still return every column. */
 const PROJECT_DETAIL_ONLY = ["content", "challenge", "approach", "results", "tech", "gallery",
   "testimonialQuote", "testimonialName", "testimonialRole", "seoTitle", "seoDescription"];
-resource("/projects", Project, { entity: "project", slugFrom: "title", hasStatus: true, searchable: ["title", "category", "blurb"], publicListExclude: PROJECT_DETAIL_ONLY, bootstrapKey: "projects" });
+const projectActions = require("../controllers/projects.controller");
+resource("/projects", Project, { validate: projectActions.validate, updateRecord: projectActions.updateRecord, onCreate: (item) => item.reload(), entity: "project", slugFrom: "title", hasStatus: true, searchable: ["title", "category", "blurb"], publicListExclude: PROJECT_DETAIL_ONLY, bootstrapKey: "projects" });
 resource("/services", Service, { entity: "service", slugFrom: "title", hasStatus: true, searchable: ["title", "description"], bootstrapKey: "services" });
 resource("/testimonials", Testimonial, { entity: "testimonial", hasStatus: true, searchable: ["name", "company", "quote"], bootstrapKey: "testimonials" });
 resource("/team", TeamMember, { entity: "team-member", hasStatus: true, searchable: ["name", "role"], bootstrapKey: "team" });
