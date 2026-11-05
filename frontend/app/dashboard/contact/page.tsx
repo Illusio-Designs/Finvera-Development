@@ -1,5 +1,6 @@
 "use client";
 import "./inbox.css";
+import "./inbox-workspace.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -9,6 +10,7 @@ import {
   ArrowUpRight01Icon, CheckmarkCircle02Icon, InboxUnreadIcon, LinkSquare02Icon,
 } from "@hugeicons/core-free-icons";
 import { API_BASE, getToken, inboxApi, opsApi, type ContactMsg, type ContactReply, type InboxCounts } from "@/lib/adminApi";
+import { dialog } from "@/lib/dialog";
 import { toast } from "@/lib/toast";
 import { useShell } from "@/components/admin/shell/ShellContext";
 import { rolesCan } from "@/lib/permissions";
@@ -26,6 +28,7 @@ import { initials, avatarColor } from "@/lib/activityText";
 
 type Ic = typeof Mail01Icon;
 const I = ({ i, size = 17 }: { i: Ic; size?: number }) => <HugeiconsIcon icon={i} size={size} strokeWidth={1.8} className="hgi" />;
+type ReplyDraft = { subject: string; text: string };
 type View = "all" | "unread" | "spam";
 const PAGE = 50;
 const UNDO_MS = 6000;
@@ -90,6 +93,10 @@ export default function AdminContact() {
   const listRef = useRef<HTMLDivElement>(null);
   const readRef = useRef<HTMLElement>(null);
   const loadSeq = useRef(0);
+  const [drafts, setDrafts] = useState<Record<number, ReplyDraft>>({});
+  const readPending = useRef(new Set<number>());
+  const [readBusy, setReadBusy] = useState<number[]>([]);
+  const [actionError, setActionError] = useState("");
 
   const badges = () => window.dispatchEvent(new Event("fv-badges"));
   const hidden = (m: ContactMsg) => pending.current.has(m.id);
@@ -142,17 +149,23 @@ export default function AdminContact() {
   /* Open a message: show it, mark it read (optimistically). */
   const open = useCallback((m: ContactMsg | null, focusPane = false) => {
     setSel(m);
+    setActionError("");
     syncUrl(view, m?.id ?? null);
     if (!m) return;
-    if (!m.isRead && !m.isSpam) {
+    if (!m.isRead && !m.isSpam && !readPending.current.has(m.id)) {
+      readPending.current.add(m.id); setReadBusy([...readPending.current]);
       const upd = { ...m, isRead: true };
       setSel(upd);
       setRows((rs) => rs.map((r) => (r.id === m.id ? upd : r)));
       setCounts((c) => (c ? { ...c, unread: Math.max(0, c.unread - 1) } : c));
-      inboxApi.setRead(m.id, true).then(badges).catch(() => {
+      inboxApi.setRead(m.id, true).then(() => {
+        badges();
+      }).catch((e) => {
         setRows((rs) => rs.map((r) => (r.id === m.id ? { ...r, isRead: false } : r)));
+        setSel((current) => current?.id === m.id ? { ...current, isRead: m.isRead } : current);
+        setActionError(`Couldn’t mark the message read: ${errMsg(e)}`);
         loadCounts();
-      });
+      }).finally(() => { readPending.current.delete(m.id); setReadBusy([...readPending.current]); });
     }
     if (focusPane) requestAnimationFrame(() => readRef.current?.focus({ preventScroll: true }));
     if (window.matchMedia("(max-width: 860px)").matches) window.scrollTo({ top: 0 });
@@ -193,10 +206,13 @@ export default function AdminContact() {
   };
 
   async function setRead(m: ContactMsg, isRead: boolean) {
+    if (readPending.current.has(m.id) || !!m.isRead === isRead) return;
+    readPending.current.add(m.id); setReadBusy([...readPending.current]); setActionError("");
     patchRow({ ...m, isRead });
     setCounts((c) => (c ? { ...c, unread: Math.max(0, c.unread + (isRead ? -1 : 1)) } : c));
     try { await inboxApi.setRead(m.id, isRead); badges(); if (!isRead) toast("Marked as unread", "ok", { description: m.name, sound: false }); }
-    catch (e) { patchRow(m); loadCounts(); toast("Couldn't change it", "err", { description: errMsg(e) }); }
+    catch (e) { patchRow(m); loadCounts(); setActionError(errMsg(e)); toast("Couldn't change it", "err", { description: errMsg(e) }); }
+    finally { readPending.current.delete(m.id); setReadBusy([...readPending.current]); }
   }
 
   async function flagSpam(m: ContactMsg, isSpam: boolean) {
@@ -254,7 +270,8 @@ export default function AdminContact() {
   async function toLead(m: ContactMsg) {
     try {
       const r = await inboxApi.toLead(m.id);
-      patchRow({ ...m, leadId: r.lead.id, isRead: true });
+      patchRow(r.contact);
+      loadCounts(); badges();
       toast(r.created ? "Lead created" : "Already a lead", "ok", {
         description: r.created ? `${m.name} added to New` : m.name,
         action: canLeads ? { label: "Open lead", onClick: () => { window.location.href = `/dashboard/leads?lead=${r.lead.id}`; } } : undefined,
@@ -294,22 +311,24 @@ export default function AdminContact() {
   ];
 
   return (
-    <div className={"ib" + (sel ? " ib-reading" : "")}>
+    <div className={"ib inbox-workspace" + (sel ? " ib-reading" : "")}>
       <header className="ib-head">
         <div className="ib-head-tx">
-          <div className="td-eyebrow">Sales</div>
+          <div className="td-eyebrow">EVERY CONVERSATION COUNTS</div>
           <h1>Contact inbox</h1>
-          <p>Messages from the contact form on finvera.solutions.</p>
+          <p>Turn incoming messages into the right next step.</p>
         </div>
         <div className="ib-head-acts">
           {unread != null && <span className={"sh-pill nodot " + (unread ? "blue" : "green")}>{unread ? plural(unread, "unread message") : "All read"}</span>}
-          <ExportButton entity="contact" file="contact-inbox" sheet="Contact inbox" label="Export to Excel" className="ib-export" />
+          <ExportButton entity="contact" file="contact-inbox" sheet="Contact inbox" label="Export" className="ib-export" params={{ q: q.trim() || undefined, unread: view === "unread" ? 1 : undefined, spam: view === "spam" ? 1 : undefined }} />
         </div>
       </header>
 
+      {actionError && <div className="ib-action-error" role="alert">{actionError}</div>}
       <div className={"ib-mail" + (sel ? " reading" : "")}>
         <aside className="ib-list" aria-label="Messages">
           <div className="ib-tools">
+            <div className="ib-list-title"><b>Conversations</b><button type="button" className="sh-icb sm" aria-label="Refresh messages" disabled={loading} onClick={() => { if (view) load(view, q, 1); loadCounts(); }}><I i={Refresh01Icon} size={15} /></button></div>
             <div className="ib-seg" role="tablist" aria-label="Show">
               {tabs.map((t) => (
                 <button key={t.v} type="button" role="tab" aria-selected={view === t.v} className={view === t.v ? "on" : ""} onClick={() => switchView(t.v)}>
@@ -324,7 +343,7 @@ export default function AdminContact() {
               {qLive && <button type="button" className="ib-x" aria-label="Clear search" onClick={() => setQLive("")}><I i={Cancel01Icon} size={14} /></button>}
             </label>
           </div>
-          {view === "spam" && <p className="ib-note"><I i={Alert02Icon} size={15} />Messages that looked like spam. No one was notified about them. Open one and choose “Not spam” to move it back.</p>}
+          {view === "spam" && <p className="ib-note"><I i={Alert02Icon} size={15} />Messages held out of the inbox. Open one and choose “Not spam” to move it back.</p>}
 
           <div className="ib-rows" ref={listRef}>
             {loading && !rows.length ? (
@@ -352,8 +371,9 @@ export default function AdminContact() {
                         <span className="ib-l1"><b>{m.name}</b><time dateTime={m.createdAt} title={fullTime(m.createdAt)}>{shortTime(m.createdAt)}</time></span>
                         <span className="ib-l2">{sub}</span>
                         <span className="ib-l3">{snippet(m.message)}</span>
-                        {(m.leadId || m.spamReason) && (
+                        {(m.leadId || m.spamReason || drafts[m.id]?.text) && (
                           <span className="ib-chips">
+                            {drafts[m.id]?.text && <span className="sh-pill amber nodot">Draft</span>}
                             {m.leadId ? <span className="sh-pill violet nodot">Lead</span> : null}
                             {m.spamReason && <span className="sh-pill red nodot" title="Why it was flagged">{m.spamReason}</span>}
                           </span>
@@ -377,6 +397,7 @@ export default function AdminContact() {
           {sel ? (
             <Reader key={sel.id} m={sel} canLeads={canLeads}
               onBack={() => open(null)} onRead={(r) => setRead(sel, r)} onSpam={(s) => flagSpam(sel, s)} onDelete={() => del(sel)}
+              readBusy={readBusy.includes(sel.id)} draft={drafts[sel.id]} onDraft={(draft) => setDrafts((ds) => { const next = { ...ds }; if (draft) next[sel.id] = draft; else delete next[sel.id]; return next; })}
               onLead={() => toLead(sel)} onReplied={() => { if (!sel.isRead) patchRow({ ...sel, isRead: true }); loadCounts(); badges(); }} />
           ) : (
             <div className="sh-empty ib-pick"><I i={MailOpen01Icon} size={20} /><b>Pick a message to read it</b><span>Unread messages have a blue dot. Use j and k to move between them.</span></div>
@@ -388,15 +409,16 @@ export default function AdminContact() {
 }
 
 /* ── The reading pane ── */
-function Reader({ m, canLeads, onBack, onRead, onSpam, onDelete, onLead, onReplied }: {
-  m: ContactMsg; canLeads: boolean; onBack: () => void; onRead: (isRead: boolean) => void; onSpam: (isSpam: boolean) => void;
+function Reader({ m, canLeads, readBusy, draft, onDraft, onBack, onRead, onSpam, onDelete, onLead, onReplied }: {
+  m: ContactMsg; canLeads: boolean; readBusy: boolean; draft?: ReplyDraft; onDraft: (draft: ReplyDraft | null) => void; onBack: () => void; onRead: (isRead: boolean) => void; onSpam: (isSpam: boolean) => void;
   onDelete: () => void; onLead: () => Promise<void>; onReplied: () => void;
 }) {
-  const [replying, setReplying] = useState(false);
+  const [replying, setReplying] = useState(!!draft?.text);
   const [replies, setReplies] = useState<ContactReply[] | null>(null);
   const [busyLead, setBusyLead] = useState(false);
   const [histKey, setHistKey] = useState(0);
-  const loadReplies = useCallback(() => { inboxApi.replies(m.id).then(setReplies).catch(() => setReplies([])); }, [m.id]);
+  const [repliesError, setRepliesError] = useState("");
+  const loadReplies = useCallback(() => { setRepliesError(""); inboxApi.replies(m.id).then(setReplies).catch((e) => setRepliesError(errMsg(e))); }, [m.id]);
   useEffect(() => { loadReplies(); }, [loadReplies]);
 
   const phone = m.phone?.trim() || "";
@@ -418,17 +440,17 @@ function Reader({ m, canLeads, onBack, onRead, onSpam, onDelete, onLead, onRepli
         </div>
         <div className="ib-rh-acts">
           {!m.isSpam && (
-            <button type="button" className="sh-btn sm" onClick={() => onRead(!m.isRead)} title="Keyboard: e">
+            <button type="button" className="sh-btn sm" disabled={readBusy} onClick={() => onRead(!m.isRead)} title="Keyboard: e">
               <I i={m.isRead ? Mail01Icon : MailOpen01Icon} size={15} />{m.isRead ? "Mark unread" : "Mark read"}
             </button>
           )}
-          <button type="button" className="sh-btn sm" onClick={() => onSpam(!m.isSpam)}><I i={m.isSpam ? InboxIcon : SpamIcon} size={15} />{m.isSpam ? "Not spam" : "Mark as spam"}</button>
-          <button type="button" className="sh-icb sm ib-del" onClick={onDelete} aria-label="Delete message" title="Delete"><I i={Delete02Icon} size={16} /></button>
+          <button type="button" className="sh-btn sm" disabled={readBusy} onClick={() => onSpam(!m.isSpam)}><I i={m.isSpam ? InboxIcon : SpamIcon} size={15} />{m.isSpam ? "Not spam" : "Mark as spam"}</button>
+          <button type="button" className="sh-icb sm ib-del" disabled={readBusy} onClick={onDelete} aria-label="Delete message" title="Delete"><I i={Delete02Icon} size={16} /></button>
         </div>
       </div>
 
-      <div className="ib-rb">
-        <div className="ib-facts">
+      <div className="ib-reader-layout">
+      <aside className="ib-context" aria-label="Sender details"><details open><summary>Sender details</summary><div className="ib-facts">
           <div className="ib-fact">
             <small>Email</small>
             <span className="ib-fact-v"><a href={`mailto:${m.email}`}>{m.email}</a>
@@ -447,23 +469,28 @@ function Reader({ m, canLeads, onBack, onRead, onSpam, onDelete, onLead, onRepli
           <div className="ib-fact"><small>Project type</small><span className="ib-fact-v">{m.projectType || <span className="muted">—</span>}</span></div>
         </div>
 
+        <HistoryList entity="contact" id={m.id} refreshKey={histKey} />
+      </details></aside>
+      <div className="ib-rb">
+        <div className="ib-message-title"><span>WEBSITE ENQUIRY</span><h3>{m.projectType || "A new conversation"}</h3></div>
+        {m.isSpam && <p className="ib-action-error">Restore this message with “Not spam” before replying or creating a lead.</p>}
         <div className="ib-body">{m.message}</div>
 
         <div className="ib-acts">
-          {!replying && <button type="button" className="sh-btn pri" onClick={() => setReplying(true)}><I i={MailReply01Icon} size={16} />Reply</button>}
+          {!replying && !m.isSpam && <button type="button" className="sh-btn pri" disabled={readBusy} onClick={() => setReplying(true)}><I i={MailReply01Icon} size={16} />Reply</button>}
           {m.leadId ? (
             canLeads ? <Link className="sh-btn" href={`/dashboard/leads?lead=${m.leadId}`}><I i={ArrowUpRight01Icon} size={16} />Open lead</Link>
               : <span className="sh-pill violet nodot">Lead #{m.leadId}</span>
           ) : (
-            <button type="button" className="sh-btn" disabled={busyLead} onClick={async () => { setBusyLead(true); await onLead(); setBusyLead(false); setHistKey((k) => k + 1); }}>
+            <button type="button" className="sh-btn" disabled={busyLead || readBusy || !!m.isSpam} onClick={async () => { setBusyLead(true); await onLead(); setBusyLead(false); setHistKey((k) => k + 1); }}>
               <I i={Target02Icon} size={16} />{busyLead ? "Creating…" : "Convert to lead"}
             </button>
           )}
           {phone && wa.length >= 10 && <a className="sh-btn" href={`https://wa.me/${wa}`} target="_blank" rel="noopener noreferrer"><I i={WhatsappIcon} size={16} />WhatsApp</a>}
-          <button type="button" className="sh-btn" onClick={() => copy(m.email, "Email")}><I i={Copy01Icon} size={16} />Copy email</button>
         </div>
 
-        {replying && <Composer m={m} onClose={() => setReplying(false)} onSent={() => { setReplying(false); loadReplies(); onReplied(); setHistKey((k) => k + 1); }} />}
+        {replying && !m.isSpam && <Composer m={m} draft={draft} onDraft={onDraft} onClose={() => setReplying(false)} onAttempt={() => { loadReplies(); onReplied(); }} onSent={() => { onDraft(null); setReplying(false); loadReplies(); onReplied(); setHistKey((k) => k + 1); }} />}
+        {repliesError && <div className="ib-action-error" role="alert">Couldn’t load replies: {repliesError}<button type="button" className="sh-btn sm" onClick={loadReplies}>Try again</button></div>}
 
         {!!replies?.length && (
           <section className="ib-replies" aria-label="Replies">
@@ -483,16 +510,15 @@ function Reader({ m, canLeads, onBack, onRead, onSpam, onDelete, onLead, onRepli
           </section>
         )}
 
-        <HistoryList entity="contact" id={m.id} refreshKey={histKey} />
-      </div>
+      </div></div>
     </div>
   );
 }
 
 /* ── Reply by email ── */
-function Composer({ m, onClose, onSent }: { m: ContactMsg; onClose: () => void; onSent: () => void }) {
-  const [subject, setSubject] = useState(`Re: your enquiry to Finvera${m.projectType ? ` (${m.projectType})` : ""}`);
-  const [text, setText] = useState("");
+function Composer({ m, draft, onDraft, onClose, onSent, onAttempt }: { m: ContactMsg; draft?: ReplyDraft; onDraft: (draft: ReplyDraft | null) => void; onClose: () => void; onSent: () => void; onAttempt: () => void }) {
+  const [subject, setSubject] = useState(draft?.subject ?? `Re: your enquiry to Finvera${m.projectType ? ` (${m.projectType})` : ""}`);
+  const [text, setText] = useState(draft?.text || "");
   const [busy, setBusy] = useState(false);
   const [fallback, setFallback] = useState("");
   const ta = useRef<HTMLTextAreaElement>(null);
@@ -501,38 +527,43 @@ function Composer({ m, onClose, onSent }: { m: ContactMsg; onClose: () => void; 
   const mailto = `mailto:${encodeURIComponent(m.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(full)}`;
 
   function applyTemplate(t: string) {
-    setText((cur) => (cur.trim() ? `${cur.replace(/\s+$/, "")}\n\n${t}` : t));
+    const next = text.trim() ? `${text.replace(/\s+$/, "")}\n\n${t}` : t; setText(next); onDraft({ subject, text: next });
     requestAnimationFrame(() => ta.current?.focus());
   }
   async function send() {
     if (!text.trim() || busy) return;
     setBusy(true); setFallback("");
     try {
-      await inboxApi.reply(m.id, { subject, message: text.trim() });
+      const result = await inboxApi.reply(m.id, { subject, message: text.trim() });
+      if (!result.emailed) throw new Error("The server did not confirm that the reply was sent.");
       toast("Reply sent", "ok", { description: `To ${m.email}` });
       onSent();
     } catch (e) {
       const err = e as Error & { status?: number };
       if (err.status === 400 && /set up/i.test(err.message)) setFallback(err.message);
-      else if (err.status === 502) { setFallback(err.message); onSent(); }
-      else toast("Couldn't send the reply", "err", { description: errMsg(e) });
+      else { setFallback(errMsg(e)); if (err.status === 502) onAttempt(); }
     } finally { setBusy(false); }
   }
 
+  async function close() {
+    if (busy) return;
+    if (text.trim() && !(await dialog.confirm({ title: "Discard this reply?", message: "Your reply has not been sent.", confirmText: "Discard", cancelText: "Keep writing", danger: true }))) return;
+    onDraft(null); onClose();
+  }
   return (
     <section className="ib-compose" aria-label={`Reply to ${m.name}`}>
       <div className="ib-compose-h"><b>Reply to {m.name}</b><span>{m.email}</span>
-        <button type="button" className="sh-icb sm plain" onClick={onClose} aria-label="Close reply"><I i={Cancel01Icon} size={15} /></button></div>
-      <label className="ib-field"><span>Subject</span><input value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={300} /></label>
+        <button type="button" className="sh-icb sm plain" onClick={close} disabled={busy} aria-label="Close reply"><I i={Cancel01Icon} size={15} /></button></div>
+      <label className="ib-field"><span>Subject</span><input value={subject} disabled={busy} onChange={(e) => { setSubject(e.target.value); onDraft({ subject: e.target.value, text }); }} maxLength={300} /></label>
       <div className="ib-tpls" role="group" aria-label="Quick replies">
-        {TEMPLATES.map((t) => <button key={t.label} type="button" className="ib-tpl" onClick={() => applyTemplate(t.text(m))}>{t.label}</button>)}
+        {TEMPLATES.map((t) => <button key={t.label} type="button" className="ib-tpl" disabled={busy} onClick={() => applyTemplate(t.text(m))}>{t.label}</button>)}
       </div>
       <label className="ib-field"><span>Message <small>“Hi {firstName(m.name)},” is added at the top, your name at the end.</small></span>
-        <textarea ref={ta} value={text} onChange={(e) => setText(e.target.value)} rows={7} maxLength={10000}
+        <textarea ref={ta} value={text} disabled={busy} onChange={(e) => { setText(e.target.value); onDraft({ subject, text: e.target.value }); }} rows={7} maxLength={10000}
           onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); send(); } }} placeholder="Write your reply…" />
       </label>
       {fallback && (
-        <div className="ib-fallback" role="status">
+        <div className="ib-fallback" role="alert">
           <I i={Alert02Icon} size={16} />
           <span>{fallback}</span>
           <span className="ib-fallback-acts">
@@ -544,7 +575,7 @@ function Composer({ m, onClose, onSent }: { m: ContactMsg; onClose: () => void; 
       <div className="ib-compose-f">
         <button type="button" className="sh-btn pri" disabled={busy || !text.trim()} onClick={send}><I i={MailSend01Icon} size={16} />{busy ? "Sending…" : "Send reply"}</button>
         <a className={"sh-btn" + (text.trim() ? "" : " ib-dim")} href={mailto}>Open in mail app</a>
-        <button type="button" className="sh-btn" onClick={onClose}>Cancel</button>
+        <button type="button" className="sh-btn" onClick={close} disabled={busy}>Cancel</button>
         <kbd className="ib-hint">Ctrl Enter</kbd>
       </div>
     </section>

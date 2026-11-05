@@ -39,6 +39,7 @@ const reply = asyncHandler(async (req, res) => {
   const mailer = require("../utils/mailer");
   const row = await ContactSubmission.findByPk(req.params.id);
   if (!row) return res.status(404).json(NOT_FOUND);
+  if (row.isSpam) return res.status(409).json({ message: "Restore this message from spam before replying." });
   const message = String(req.body?.message || "").trim();
   if (!message) return res.status(400).json({ message: "Write a reply first.", field: "message" });
   if (message.length > 10000) return res.status(400).json({ message: "That reply is too long (10,000 characters at most).", field: "message" });
@@ -79,9 +80,13 @@ const toLead = asyncHandler(async (req, res) => {
   const out = await sequelize.transaction(async (t) => {
     const row = await ContactSubmission.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
     if (!row) return null;
+    if (row.isSpam) return { spam: true };
     if (row.leadId) {
       const existing = await Lead.findByPk(row.leadId, { transaction: t });
-      if (existing) return { row, lead: existing };
+      if (existing) {
+        if (!row.isRead) await row.update({ isRead: true }, { transaction: t });
+        return { row, lead: existing };
+      }
     }
     const note = [row.projectType ? `Project type: ${row.projectType}` : "", `From the website contact form (${new Date(row.createdAt).toISOString().slice(0, 10)}):`, row.message]
       .filter(Boolean).join("\n");
@@ -97,6 +102,7 @@ const toLead = asyncHandler(async (req, res) => {
     return { row, lead };
   });
   if (!out) return res.status(404).json(NOT_FOUND);
+  if (out.spam) return res.status(409).json({ message: "Restore this message from spam before creating a lead." });
   const { row, lead } = out;
   if (created) {
     const audit = require("../utils/audit");

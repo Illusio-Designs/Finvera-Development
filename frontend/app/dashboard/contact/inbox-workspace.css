@@ -1,0 +1,44 @@
+/* Concept 02: message list, conversation and supporting sender context. */
+.inbox-workspace{gap:22px;container-type:inline-size;container-name:inbox}
+.inbox-workspace .ib-head{padding:26px 28px;border:1px solid #e0e7f4;border-radius:24px;background:radial-gradient(ellipse at 95% 0%,#d6d7ff80,transparent 55%),linear-gradient(115deg,#edf3ff,#f8faff);align-items:center}
+.inbox-workspace .td-eyebrow{font-size:10px;letter-spacing:.17em;color:#6379a9;margin-bottom:9px}
+.inbox-workspace .ib-head h1{font-size:30px;letter-spacing:-1px;color:#203564}
+.inbox-workspace .ib-head p{font-size:13px;line-height:1.7}
+.inbox-workspace .ib-export{display:inline-flex;align-items:center;gap:8px;padding:0 16px}
+.inbox-workspace .ib-mail{grid-template-columns:minmax(260px,310px) minmax(0,1fr);border-color:#e2e8f2;border-radius:24px;height:max(590px,calc(100dvh - 290px));box-shadow:0 6px 24px #29477905}
+.inbox-workspace .ib-list{background:#f8faff;border-color:#e2e8f2}
+.inbox-workspace .ib-list-title{display:flex;align-items:center;justify-content:space-between;font-size:12px;padding:0 2px;color:#526a91}
+.inbox-workspace .ib-tools{padding:16px;gap:13px;border-color:#e4eaf5}
+.inbox-workspace .ib-seg{border-radius:13px;background:#eaf0fa;padding:4px}
+.inbox-workspace .ib-seg button{font-size:12px;border-radius:10px;min-height:36px}.inbox-workspace .ib-seg button.on{color:#2c4a89;box-shadow:0 3px 12px #2440750c}
+.inbox-workspace .ib-search{background:#fff;min-height:40px;border-color:#e2e8f2}
+.inbox-workspace .ib-row{padding:18px 15px 18px 18px;gap:10px;border-color:#e7edf7}
+.inbox-workspace .ib-row.on{background:linear-gradient(115deg,#e8effe,#f0f4ff)}
+.inbox-workspace .ib-row.unread{background-color:#fff}.inbox-workspace .ib-row.unread.on{background-color:#e8effe}
+.inbox-workspace .ib-l1 b{font-size:13px}.inbox-workspace .ib-l1 time{font-size:10px}.inbox-workspace .ib-l2,.inbox-workspace .ib-l3{font-size:11px;line-height:1.8}
+.inbox-workspace .ib-av{width:32px;height:32px;font-size:10px}
+.inbox-workspace .ib-read{background:#fff}.inbox-workspace .ib-rh{padding:24px;gap:12px;border-color:#e7edf7;background:linear-gradient(180deg,#fafcff,#fff)}
+.inbox-workspace .ib-rh h2{font-size:19px}.inbox-workspace .ib-rh p{font-size:11px;line-height:1.9}
+.inbox-workspace .ib-rh-acts{width:100%;padding-top:5px}.inbox-workspace .ib-rh-acts .sh-btn{font-size:11px;min-height:32px}
+.inbox-workspace .ib-rh .ib-av.lg{width:40px;height:40px;font-size:12px}
+.inbox-workspace .ib-reader-layout{display:grid;grid-template-columns:minmax(0,1fr) 240px;align-items:start;min-width:0}
+.inbox-workspace .ib-context{grid-column:2;grid-row:1;align-self:stretch;background:#fafbfe;border-left:1px solid #e7edf7;padding:22px 18px;min-width:0}
+.inbox-workspace .ib-context summary{font-size:12px;font-weight:600;color:#526a91;line-height:1.7;list-style:none;pointer-events:none;margin-bottom:18px}
+.inbox-workspace .ib-context summary::-webkit-details-marker{display:none}
+.inbox-workspace .ib-facts{display:flex;flex-direction:column;gap:16px}.inbox-workspace .ib-fact{background:none;border:0;padding:0}
+.inbox-workspace .ib-fact small{font-size:9px;text-transform:uppercase;letter-spacing:.09em;color:#8a98ae}
+.inbox-workspace .ib-fact-v{font-size:12px;line-height:1.8;overflow-wrap:anywhere}.inbox-workspace .ib-fact-v a{min-width:0;overflow-wrap:anywhere}
+.inbox-workspace .ib-context .act-hist{margin-top:24px;font-size:11px;background:#fff;border-radius:13px}
+.inbox-workspace .ib-rb{grid-column:1;grid-row:1;padding:24px;gap:22px}
+.inbox-workspace .ib-message-title>span{font-size:9px;letter-spacing:.16em;color:#7e91af;font-weight:600}.inbox-workspace .ib-message-title h3{font-family:var(--display);font-size:19px;line-height:1.5;letter-spacing:-.5px;margin-top:8px;overflow-wrap:anywhere}
+.inbox-workspace .ib-body{font-size:13px;line-height:1.95;color:#445472}
+.inbox-workspace .ib-acts{border-top:1px solid #e7edf7;padding-top:20px;gap:8px}.inbox-workspace .ib-acts .sh-btn{font-size:11px;min-height:36px}
+.inbox-workspace .sh-btn.pri{background:linear-gradient(135deg,#5075c7,#3e60ab 55%,#2a468b);box-shadow:0 8px 20px #3e60ab20}
+.inbox-workspace .ib-compose{background:#f6f9ff;border-color:#dce6fa;border-radius:19px;padding:18px;gap:16px;min-width:0}
+.inbox-workspace .ib-compose-h{flex-wrap:wrap}.inbox-workspace .ib-compose-h b{font-size:13px}.inbox-workspace .ib-compose-h span{font-size:11px;overflow-wrap:anywhere}
+.inbox-workspace .ib-compose-f{flex-wrap:wrap}.inbox-workspace .ib-compose-f .sh-btn{font-size:11px}
+.inbox-workspace .ib-reply{border-radius:16px;padding:16px;background:#f9fbff;border-color:#e7edf7}
+.inbox-workspace .ib-action-error{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:14px 16px;background:#fff2ef;border:1px solid #f5dcd6;border-radius:14px;font-size:12px;line-height:1.8;color:#9b4537;overflow-wrap:anywhere}
+.inbox-workspace .ib-fallback{overflow-wrap:anywhere;line-height:1.8;font-size:12px}
+@container inbox (max-width:1100px){.inbox-workspace .ib-reader-layout{grid-template-columns:minmax(0,1fr)}.inbox-workspace .ib-context{grid-column:1;grid-row:2;border-left:0;border-top:1px solid #e7edf7;padding:18px 24px}.inbox-workspace .ib-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.inbox-workspace .ib-context summary{margin-bottom:16px;pointer-events:auto;cursor:pointer;list-style:disclosure-open}.inbox-workspace .ib-context details:not([open])>summary{list-style:disclosure-closed;margin-bottom:0}}
+@media(max-width:860px){.inbox-workspace .ib-head{padding:22px}.inbox-workspace .ib-mail{grid-template-columns:minmax(0,1fr);height:auto;min-height:0;overflow:hidden}.inbox-workspace .ib-row{padding:20px}.inbox-workspace .ib-rh,.inbox-workspace .ib-rb{padding:20px}.inbox-workspace .ib-rh-tx{min-width:0}.inbox-workspace .ib-reader-layout{display:flex;flex-direction:column}.inbox-workspace .ib-context{order:2;width:100%;border-left:0;border-top:1px solid #e7edf7}.inbox-workspace .ib-rb{width:100%}.inbox-workspace .ib-context summary{pointer-events:auto;cursor:pointer;list-style:disclosure-open}.inbox-workspace .ib-facts{grid-template-columns:minmax(0,1fr)}.inbox-workspace .ib-rh-acts{gap:6px}.inbox-workspace .ib-compose{padding:15px}.inbox-workspace .ib-compose-f .sh-btn{flex:1 1 auto}}
