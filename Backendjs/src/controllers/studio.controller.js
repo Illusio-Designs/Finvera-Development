@@ -9,7 +9,7 @@
    time per process), on page views and hourly (server.js + /api/cron/tick). */
 
 const { Op } = require("sequelize");
-const { SocialAccount, SocialPublishJob, SocialPost, SocialClient, SocialStat } = require("../models");
+const { sequelize, SocialAccount, SocialPublishJob, SocialPost, SocialClient, SocialStat } = require("../models");
 const { asyncHandler } = require("../utils/crud");
 const meta = require("../utils/meta");
 const auto = require("../utils/autoPublish");
@@ -55,7 +55,8 @@ async function refreshMetrics(jobs, accounts, max = 30) {
     .slice(0, max);
   await pool(stale, 4, async (j) => {
     const metrics = await meta.fetchPostMetrics(accBy.get(j.client), j.platform, j.remoteId);
-    await j.update({ metrics, metricsAt: new Date() });
+    // A denied or failed read returns no data; retain the last successful snapshot.
+    if (metrics && Object.keys(metrics).length) await j.update({ metrics, metricsAt: new Date() });
   });
 }
 
@@ -134,15 +135,20 @@ const overview = asyncHandler(async (req, res) => {
 /* Pause or resume one platform of a brand. Paused platforms get no new
    publishing jobs; open ones are cancelled and come back on resume. */
 const pause = asyncHandler(async (req, res) => {
-  const acc = await SocialAccount.findOne({ where: { client: req.params.client } });
-  if (!acc) return res.status(404).json({ message: "This brand isn't connected." });
   const platform = String(req.body?.platform || "");
   if (!["instagram", "facebook"].includes(platform)) return res.status(400).json({ message: "Pick Instagram or Facebook." });
-  const set = new Set(asArr(acc.paused));
-  if (req.body?.paused) set.add(platform); else set.delete(platform);
-  await acc.update({ paused: [...set] });
-  await auto.syncBrand(acc.client);
-  res.json({ ok: true, paused: [...set] });
+  if (typeof req.body?.paused !== "boolean") return res.status(400).json({ message: "Choose whether publishing is paused." });
+  const saved = await sequelize.transaction(async (transaction) => {
+    const acc = await SocialAccount.findOne({ where: { client: req.params.client }, transaction, lock: transaction.LOCK.UPDATE });
+    if (!acc) return null;
+    const set = new Set(asArr(acc.paused));
+    if (req.body.paused) set.add(platform); else set.delete(platform);
+    await acc.update({ paused: [...set] }, { transaction });
+    return { client: acc.client, paused: [...set] };
+  });
+  if (!saved) return res.status(404).json({ message: "This brand isn't connected." });
+  await auto.syncBrand(saved.client);
+  res.json({ ok: true, paused: saved.paused });
 });
 
 /* Profile panel: read a channel's profile; edit a Facebook Page's details. */
