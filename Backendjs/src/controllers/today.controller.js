@@ -68,7 +68,7 @@ const today = asyncHandler(async (req, res) => {
       attributes: POST_ATTRS,
       raw: true,
     }),
-    SocialPost.count({ where: { ...brandWhere, status: { [Op.ne]: "posted" }, postDate: { [Op.lt]: todayIso } } }),
+    SocialPost.count({ where: { ...brandWhere, ...require("../utils/socialDeadline").overdueWhere(now) } }),
     SocialPublishJob.findAll({
       where: { ...brandWhere, status: { [Op.in]: ["failed", "check", "missed"] } },
       attributes: ["id", "postId", "client", "platform", "status", "error", "runAt", "updatedAt"],
