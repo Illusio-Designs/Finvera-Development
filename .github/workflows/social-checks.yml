@@ -40,7 +40,9 @@ jobs:
         run: |
           set -e
           for test_file in tests/*.test.js; do node "$test_file"; done
-      - name: Calendar workflow regression tests
+      - name: Social UI regression tests
         if: ${{ inputs.backend_only != true }}
-        run: node tests/social-workflow.test.cjs
+        run: |
+          node tests/social-workflow.test.cjs
+          node tests/social-studio-metrics.test.cjs
         working-directory: frontend

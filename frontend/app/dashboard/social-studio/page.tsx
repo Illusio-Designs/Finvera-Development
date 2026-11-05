@@ -3,6 +3,8 @@
    picked in the dropdown (or all brands). Numbers come from Instagram and
    Facebook for connected channels (followers, likes, comments, shares) and
    from the content calendar (posts, schedule). */
+import "./studio-workspace.css";
+import { hasReportedMetrics, sumReported, totalReported, followerTotal } from "@/lib/socialStudioMetrics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -25,7 +27,7 @@ type Metrics = { likes?: number; comments?: number; shares?: number; picture?: s
 type Job = { id: number; postId: number; client: string; platform: Platform; status: string; runAt: string | null; publishedAt: string | null; url: string | null; error: string | null; metrics: Metrics };
 type Post = { id: number; client: string; theme: string; format: string | null; status: string; postDate: string | null; postTime: string | null; assigneeId: number | null; picture: { url: string; type: string; thumbUrl?: string | null } | null };
 type FollowerRow = { client: string; platform: Platform; day: string; followers: number };
-type Data = { brands: string[]; accounts: Acc[]; followers: FollowerRow[]; weekAgo: string; jobs: Job[]; posts: Post[]; metaConfigured: boolean };
+type Data = { brands: string[]; accounts: Acc[]; followers: FollowerRow[]; weekAgo: string; jobs: Job[]; posts: Post[]; metaConfigured: boolean; refreshedAt?: string | null; refreshing?: boolean };
 type Tab = "overview" | "channels" | "posts";
 type Profile = { platform: Platform; name?: string; username?: string; biography?: string; about?: string; description?: string; website?: string; phone?: string; email?: string; category?: string; followers?: number | null; following?: number | null; posts?: number | null; picture?: string | null; link?: string };
 
@@ -41,7 +43,8 @@ const engagement = (m: Metrics) => (m.likes || 0) + (m.comments || 0) + (m.share
 function Icon({ i, size = 16, className }: { i: any; size?: number; className?: string }) {
   return <HugeiconsIcon icon={i} size={size} strokeWidth={1.8} className={className} />;
 }
-function Delta({ now, prev, unit = "vs last week" }: { now: number; prev: number; unit?: string }) {
+function Delta({ now, prev, unit = "vs last week" }: { now: number | null; prev: number | null; unit?: string }) {
+  if (now == null || prev == null) return <span className="ss-delta">Comparison unavailable</span>;
   if (!prev && !now) return <span className="ss-delta">No change</span>;
   if (!prev) return <span className="ss-delta"><i className="up">New</i> this week</span>;
   const pct = Math.round(((now - prev) / prev) * 100);
@@ -107,6 +110,7 @@ export default function SocialStudio() {
   const [postFilter, setPostFilter] = useState<"published" | "scheduled">("published");
   const [ddOpen, setDdOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [connectFor, setConnectFor] = useState<string | null>(null);
   const [metaPick, setMetaPick] = useState<{ sel: string; brand: string; pages: { pageId: string; pageName: string; igUsername: string | null }[]; chosen: string } | null>(null);
   const [pageQ, setPageQ] = useState("");
@@ -121,29 +125,33 @@ export default function SocialStudio() {
     try { const data = await api.channelCapabilities(client, platform); setReadiness((r) => r?.client === client && r.platform === platform ? { ...r, data } : r); }
     catch (e: any) { setReadiness((r) => r?.client === client && r.platform === platform ? { ...r, error: e.message } : r); }
   }
-  const [prof, setProf] = useState<{ client: string; platform: Platform; data: Profile | null; error: string | null; form: Record<string, string>; saving: boolean } | null>(null);
+  const [prof, setProf] = useState<{ client: string; platform: Platform; data: Profile | null; error: string | null; form: Record<string, string>; saving: boolean; saveError?: string } | null>(null);
   async function openProfile(client: string, platform: Platform) {
     setProf({ client, platform, data: null, error: null, form: {}, saving: false });
     try {
       const d: Profile = await api.channelProfile(client, platform);
-      setProf({ client, platform, data: d, error: null, saving: false, form: { about: d.about || "", description: d.description || "", website: d.website || "", phone: d.phone || "", email: d.email || "" } });
-    } catch (e: any) { setProf((p) => (p ? { ...p, error: e.message } : p)); }
+      setProf((current) => current?.client === client && current.platform === platform ? { client, platform, data: d, error: null, saving: false, form: { about: d.about || "", description: d.description || "", website: d.website || "", phone: d.phone || "", email: d.email || "" } } : current);
+    } catch (e: any) { setProf((p) => (p?.client === client && p.platform === platform ? { ...p, error: e.message } : p)); }
   }
   async function saveProfile() {
     if (!prof) return;
-    setProf({ ...prof, saving: true });
+    setProf({ ...prof, saving: true, saveError: undefined });
     try {
       const d: Profile = await api.updatePageProfile(prof.client, prof.form);
-      setProf({ ...prof, data: d, saving: false });
+      setProf((p) => p?.client === prof.client && p.platform === prof.platform ? { ...p, data: d, saving: false } : p);
       toast("Page details saved", "ok", { description: `${prof.client} · Facebook` });
     } catch (e: any) {
-      setProf((p) => (p ? { ...p, saving: false } : p));
+      setProf((p) => (p?.client === prof.client && p.platform === prof.platform ? { ...p, saving: false, saveError: e.message } : p));
       toast("Couldn't save to Facebook", "err", { description: e.message });
     }
   }
 
+  useEffect(() => {
+    if (data && brand && !data.brands.includes(brand)) { setBrand(""); try { localStorage.removeItem("fv-studio-brand"); } catch {} }
+  }, [data, brand]);
   async function load(quiet = false) {
     if (!quiet) setBusy(true);
+    setLoadError("");
     try {
       const [d, c, me, u, health] = await Promise.all([
         api.socialStudio(), api.list("social-clients").catch(() => []), api.me().catch(() => null), api.listUsers().catch(() => []),
@@ -156,9 +164,9 @@ export default function SocialStudio() {
       const cols: Record<string, string> = {};
       (d.brands as string[]).forEach((b, i) => { cols[b] = (Array.isArray(c) ? c.find((x: any) => x.name === b)?.color : null) || COLORS[i % COLORS.length]; });
       setColors(cols);
-      setLimited(Array.isArray((me?.user ?? me)?.socialClients));
+      setLimited(!userRoles(me?.user ?? me).includes("admin"));
       setUsers(Array.isArray(u) ? u : []);
-    } catch (e: any) { toast("Couldn't load Social studio", "err", { description: e.message }); }
+    } catch (e: any) { setLoadError(e.message || "Check your connection and try again."); toast("Couldn't load Social studio", "err", { description: e.message }); }
     finally { setBusy(false); }
   }
   useEffect(() => {
@@ -203,14 +211,14 @@ export default function SocialStudio() {
     const postById = new Map(data.posts.map((p) => [p.id, p]));
     const now = Date.now();
     const pubIn = (from: number, to: number) => jobs.filter((j) => j.status === "published" && j.publishedAt && +new Date(j.publishedAt) >= from && +new Date(j.publishedAt) < to);
-    const week = pubIn(now - 7 * DAY, now + DAY), prev = pubIn(now - 14 * DAY, now - 7 * DAY), month = pubIn(now - 30 * DAY, now + DAY);
+    const week = pubIn(now - 7 * DAY, now + 1), prev = pubIn(now - 14 * DAY, now - 7 * DAY), month = pubIn(now - 30 * DAY, now + 1);
     const uniq = (js: Job[]) => new Set(js.map((j) => j.postId)).size;
-    const sum = (js: Job[], k: keyof Metrics) => js.reduce((s, j) => s + (Number(j.metrics?.[k]) || 0), 0);
+    const sum = (js: Job[], k: "likes" | "comments" | "shares") => sumReported(js, k);
     // channels (one card per platform)
     const channels = accounts.flatMap((a) => (["instagram", "facebook"] as Platform[]).filter((p) => p === "facebook" || a.igUsername).map((p) => {
       const rows = data.followers.filter((f) => f.client === a.client && f.platform === p).sort((x, y) => x.day.localeCompare(y.day));
       const followers = a.stats?.[p]?.followers ?? rows[rows.length - 1]?.followers ?? null;
-      const then = [...rows].reverse().find((r) => r.day <= data.weekAgo) || rows[0];
+      const then = [...rows].reverse().find((r) => r.day <= data.weekAgo);
       const grew = followers != null && then && then.day < (rows[rows.length - 1]?.day || "") ? followers - then.followers : null;
       const mine = jobs.filter((j) => j.client === a.client && j.platform === p);
       return {
@@ -224,12 +232,11 @@ export default function SocialStudio() {
         problems: mine.filter((j) => ["failed", "check", "missed"].includes(j.status)).length,
       };
     }));
-    const followersNow = channels.reduce((s, c) => s + (c.followers || 0), 0);
+    const followersNow = followerTotal(channels);
     const grew = channels.some((c) => c.grew != null) ? channels.reduce((s, c) => s + (c.grew || 0), 0) : null;
     const upcoming = jobs.filter((j) => j.status === "scheduled" && j.runAt).sort((x, y) => +new Date(x.runAt!) - +new Date(y.runAt!));
-    const next7 = upcoming.filter((j) => +new Date(j.runAt!) < now + 7 * DAY);
-    const top = [...month].sort((x, y) => engagement(y.metrics) - engagement(x.metrics))[0];
-    const onTime = month.filter((j) => j.runAt && +new Date(j.publishedAt!) - +new Date(j.runAt) <= 30 * 60000).length;
+    const next7 = upcoming.filter((j) => +new Date(j.runAt!) >= now && +new Date(j.runAt!) < now + 7 * DAY);
+    const top = month.filter((job) => hasReportedMetrics(job.metrics)).sort((x, y) => engagement(y.metrics) - engagement(x.metrics))[0];
     // chart: engagement per day by platform over 30 days (by the day the post went out)
     const days: string[] = [], ig: number[] = [], fb: number[] = [];
     for (let i = 29; i >= 0; i--) {
@@ -243,7 +250,7 @@ export default function SocialStudio() {
     const attention = channels.filter((c) => c.state === "reconnect");
     const failed = jobs.filter((j) => ["failed", "check", "missed"].includes(j.status));
     return {
-      brands, accounts, channels, postById, week, prev, month, uniq, sum, followersNow, grew, upcoming, next7, top, onTime,
+      brands, accounts, channels, postById, week, prev, month, uniq, sum, followersNow, grew, upcoming, next7, top,
       days, ig, fb, published, attention, failed,
     };
   }, [data, brand]);
@@ -286,7 +293,7 @@ export default function SocialStudio() {
     } catch (e: any) { toast("Couldn't connect", "err", { description: e.message }); }
   }
 
-  if (!data || !v) return <div className="ss"><div className="ss-loading">Loading Social studio…</div></div>;
+  if (!data || !v) return <div className="ss studio-workspace"><h1>Social studio</h1>{loadError ? <div className="ss-load-error" role="alert"><p>{loadError}</p><button type="button" className="ss-btn" onClick={() => load()}>Try again</button></div> : <div className="ss-loading" role="status">Loading Social studio…</div>}</div>;
 
   const brandLabel = brand || "All brands";
   const color = (b: string) => colors[b] || COLORS[0];
@@ -306,16 +313,17 @@ export default function SocialStudio() {
   const nextJob = v.upcoming[0];
   const nextPost = nextJob ? v.postById.get(nextJob.postId) : null;
   const thumb = (j?: Job | null, p?: Post | null) => j?.metrics?.picture || p?.picture?.thumbUrl || p?.picture?.url || null;
-  const hasMetrics = v.month.some((j) => j.metrics && Object.keys(j.metrics).length);
+  const hasMetrics = v.month.some((j) => hasReportedMetrics(j.metrics));
 
   return (
-    <div className="ss">
+    <div className="ss studio-workspace">
+      {loadError && <div className="ss-load-error" role="alert"><p>Couldn’t refresh this view: {loadError}</p><button type="button" className="ss-btn" onClick={() => load()}>Try again</button></div>}
       {/* ── Hero ── */}
       <section className="ss-hero">
         <div className="ss-hero-h">
           <div>
-            <h1>{title}</h1>
-            <p className="ss-range">{weekLabel} · {brandLabel}{busy && " · updating…"}</p>
+            <span className="ss-workspace-kicker">CONNECT. UNDERSTAND. GROW.</span><h1>Social studio</h1>
+            <p className="ss-range">{brandLabel} · Accounts, publishing and performance{busy && " · updating…"}</p>
           </div>
           <div className="ss-hero-actions">
             <div className="ss-dd" ref={ddRef}>
@@ -340,17 +348,18 @@ export default function SocialStudio() {
                 </ul>
               )}
             </div>
-            <button type="button" className="ss-btn" onClick={() => load()} aria-label="Refresh numbers"><Icon i={Refresh01Icon} /></button>
+            <button type="button" className="ss-btn" onClick={() => load()} aria-label="Refresh saved data" disabled={busy}><Icon i={Refresh01Icon} /></button>
           </div>
         </div>
 
-        <div className="ss-hero-grid">
+        <p className="ss-saved-note">{data.refreshedAt ? `Platform metrics last saved ${timeAgo(data.refreshedAt)}.` : "Platform metrics have not been saved yet."} {data.refreshing && "A background refresh is running."}</p>
+        {tab === "overview" && <details className="ss-weekly-highlights"><summary>Weekly highlights · {weekLabel}</summary><h2 className="ss-weekly-title">{title}</h2><div className="ss-hero-grid">
           <div className="ss-glass">
             <div className="ss-big"><b>{postsWeek}</b><span>post{postsWeek === 1 ? "" : "s"} published</span><Delta now={postsWeek} prev={postsPrev} /></div>
             <div className="ss-kpis">
               <div><span>Likes</span><p><b>{nf(v.sum(v.week, "likes"))}</b><em><Icon i={FavouriteIcon} size={15} /></em></p><Delta now={v.sum(v.week, "likes")} prev={v.sum(v.prev, "likes")} /></div>
               <div><span>Comments</span><p><b>{nf(v.sum(v.week, "comments"))}</b><em><Icon i={Comment01Icon} size={15} /></em></p><Delta now={v.sum(v.week, "comments")} prev={v.sum(v.prev, "comments")} /></div>
-              <div><span>Followers</span><p><b>{nf(v.followersNow || null)}</b><em><Icon i={UserAdd01Icon} size={15} /></em></p>
+              <div><span>Followers</span><p><b>{nf(v.followersNow)}</b><em><Icon i={UserAdd01Icon} size={15} /></em></p>
                 <span className="ss-delta">{v.grew == null ? "Growth shows after a few days" : <><i className={v.grew >= 0 ? "up" : "down"}>{v.grew >= 0 ? "+" : ""}{v.grew}</i> this week</>}</span></div>
               <div><span>Going out next 7 days</span><p><b>{v.next7.length}</b><em><Icon i={Calendar03Icon} size={15} /></em></p><span className="ss-delta">scheduled on {new Set(v.next7.map((j) => `${j.client}|${j.platform}`)).size} channel{new Set(v.next7.map((j) => `${j.client}|${j.platform}`)).size === 1 ? "" : "s"}</span></div>
             </div>
@@ -360,9 +369,9 @@ export default function SocialStudio() {
             {v.top && topPost ? (
               <a className="ss-toppost" href={v.top.metrics?.url || v.top.url || "#"} target="_blank" rel="noopener noreferrer">
                 <span className="th" style={thumb(v.top, topPost) ? { backgroundImage: `url(${thumb(v.top, topPost)})` } : { background: color(topPost.client) }} />
-                <span><b>{topPost.theme}</b><small>{topPost.client} · {PNAME[v.top.platform]} · {nf(v.top.metrics?.likes || 0)} likes · {nf(v.top.metrics?.comments || 0)} comments</small></span>
+                <span><b>{topPost.theme}</b><small>{topPost.client} · {PNAME[v.top.platform]} · {nf(v.top.metrics?.likes)} likes · {nf(v.top.metrics?.comments)} comments</small></span>
               </a>
-            ) : <p className="ss-empty-s">Nothing published in the last 30 days yet.</p>}
+            ) : <p className="ss-empty-s">No reported engagement for posts in the last 30 days yet.</p>}
             <div className="ss-hr" />
             <span className="ss-side-t"><Icon i={Clock01Icon} size={16} />Next going live</span>
             {nextJob && nextPost ? (
@@ -372,7 +381,7 @@ export default function SocialStudio() {
               </div>
             ) : <p className="ss-empty-s">Nothing scheduled. Posts in Ready to post appear here.</p>}
           </div>
-        </div>
+        </div></details>}
       </section>
 
       {v.attention.length > 0 && (
@@ -408,14 +417,14 @@ export default function SocialStudio() {
           </div>
           <div className="ss-tiles">
             <div><p><b>{v.uniq(v.month)}</b><em><Icon i={FireIcon} size={15} /></em></p><span>Posts published</span></div>
-            <div><p><b>{nf(v.sum(v.month, "likes") + v.sum(v.month, "comments") + v.sum(v.month, "shares"))}</b><em><Icon i={StarIcon} size={15} /></em></p><span>Likes, comments &amp; shares</span></div>
-            <div><p><b>{nf(v.followersNow || null)}</b><em><Icon i={UserAdd01Icon} size={15} /></em></p><span>Followers now</span></div>
-            <div><p><b>{v.month.length ? `${Math.round((100 * v.onTime) / v.month.length)}%` : "—"}</b><em><Icon i={Clock01Icon} size={15} /></em></p><span>Went out on time</span></div>
+            <div><p><b>{nf(totalReported(v.month))}</b><em><Icon i={StarIcon} size={15} /></em></p><span>Likes, comments &amp; shares</span></div>
+            <div><p><b>{nf(v.followersNow)}</b><em><Icon i={UserAdd01Icon} size={15} /></em></p><span>Followers now</span></div>
+            <div><p><b>{v.next7.length}</b><em><Icon i={Clock01Icon} size={15} /></em></p><span>Scheduled next 7 days</span></div>
           </div>
           {hasMetrics
             ? <AreaChart days={v.days} series={[{ label: "Instagram", color: "#b9c9ef", values: v.ig }, { label: "Facebook", color: "#d6ccff", values: v.fb }]} />
             : <div className="ss-empty">Engagement per day shows here once posts have gone out through Social studio and Instagram or Facebook reports likes and comments.</div>}
-          <p className="ss-note">Likes, comments, shares and followers are read from Instagram and Facebook every hour for connected channels. Posts and timing come from the content calendar.</p>
+          <p className="ss-note">Available platform metrics refresh in the background for connected channels. Missing metrics show —; totals include reported values only. The chart groups recorded engagement by the post’s publication day, not the day each interaction happened. Posts and schedules come from the content calendar.</p>
         </section>
       )}
 
@@ -591,6 +600,7 @@ export default function SocialStudio() {
         <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setProf(null); }}>
           <aside className="adm-drawer ss-prof" role="dialog" aria-modal="true" aria-label={`${prof.client} ${PNAME[prof.platform]} profile`}>
             <div className="ss-modal-h"><h3>{PNAME[prof.platform]} profile</h3><button type="button" className="ss-btn" onClick={() => setProf(null)} aria-label="Close">×</button></div>
+            {prof.saveError && <p className="ss-load-error" role="alert">{prof.saveError}</p>}
             {prof.error && <div className="ss-attn">{prof.error}</div>}
             {!prof.data && !prof.error && <div className="ss-loading">Loading profile…</div>}
             {prof.data && (() => {
