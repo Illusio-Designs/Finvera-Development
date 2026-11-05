@@ -85,7 +85,8 @@ const teamActions = require("../controllers/team.controller");
 resource("/team", TeamMember, { validate: teamActions.validate, updateRecord: teamActions.updateRecord, onCreate: (item) => item.reload(), entity: "team-member", hasStatus: true, searchable: ["name", "role"], bootstrapKey: "team" });
 const blogActions = require("../controllers/blog.controller");
 resource("/blog", BlogPost, { validate: blogActions.validate, updateRecord: blogActions.updateRecord, onCreate: (item) => item.reload(), entity: "blog", slugFrom: "title", hasStatus: true, order: [["publishedAt", "DESC"], ["createdAt", "DESC"]], searchable: ["title", "excerpt", "category"], publicListExclude: ["content"] });
-resource("/pages", Page, { entity: "page", slugFrom: "title", hasStatus: true, order: [["title", "ASC"]], searchable: ["title", "slug"], publicListExclude: ["content"] });
+const pageActions = require("../controllers/pages.controller");
+resource("/pages", Page, { validate: pageActions.validate, updateRecord: pageActions.updateRecord, onCreate: (item) => item.reload(), entity: "page", hasStatus: true, order: [["title", "ASC"]], searchable: ["title", "slug"], publicListExclude: ["content"] });
 
 /* ── Editable content collections (public read, auth write) ─ */
 const CONTENT_ORDER = [["position", "ASC"], ["createdAt", "ASC"]];
