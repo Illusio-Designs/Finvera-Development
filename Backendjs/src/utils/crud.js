@@ -25,6 +25,7 @@ function crudController(Model, options = {}) {
     load = null,       // (req) => Promise<item> — reuse a row an earlier middleware already loaded
     publicCache = false, // serve signed-out reads from the shared public cache (marketing site)
     publicListExclude = [], // heavy fields left out of signed-out list reads (detail endpoint keeps them)
+    canReadDrafts = (req) => !!req.user,
     entity = null,     // activity-history name (e.g. "lead"); null = not recorded
     onRemove = null,   // async (item, req) => {} — after a delete
   } = options;
@@ -65,8 +66,8 @@ function crudController(Model, options = {}) {
   function listWhere(req) {
     const where = {};
     // public callers only see published items
-    if (hasStatus && !req.user) where.status = "published";
-    if (hasStatus && req.query.status) where.status = req.query.status;
+    if (hasStatus && !canReadDrafts(req)) where.status = "published";
+    if (hasStatus && canReadDrafts(req) && req.query.status) where.status = req.query.status;
     if (req.query.q && searchable.length) {
       where[Op.or] = searchable.map((f) => ({ [f]: { [Op.like]: `%${req.query.q}%` } }));
     }
@@ -129,7 +130,7 @@ function crudController(Model, options = {}) {
       }
       const item = await Model.findOne({ where });
       if (!item) return res.status(404).json({ message: `${Model.name} not found.` });
-      if (hasStatus && !req.user && item.status !== "published") {
+      if (hasStatus && !canReadDrafts(req) && item.status !== "published") {
         return res.status(404).json({ message: `${Model.name} not found.` });
       }
       res.json(item);
