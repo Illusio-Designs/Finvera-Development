@@ -104,7 +104,10 @@ export type Today = {
   team: { id: number; name: string; avatar?: string | null; role: string; onTimePct: number | null; delivered: number; open: number; overdue: number }[];
 };
 
+export type WebsiteOverview = { collections: { resource: string; total: number; published: number; draft: number; updatedAt: string | null }[] };
+
 export const api = {
+  websiteOverview: (): Promise<WebsiteOverview> => req("/website/overview"),
   login: (email: string, password: string): Promise<LoginResult> => {
     memo.clear(); // a different person may be signing in
     return req("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }, false);

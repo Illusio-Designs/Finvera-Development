@@ -29,7 +29,7 @@ const publicLists = {}; // bootstrap key → crud controller (for /public/bootst
 function resource(path, Model, opts, area = "content") {
   // Signed-out reads (the marketing site) come from the shared public cache
   // (~60 s, cleared on every content write) with Cache-Control headers.
-  const c = crudController(Model, { publicCache: true, ...opts });
+  const c = crudController(Model, { publicCache: true, ...opts, canReadDrafts: (req) => !!req.user && require("../utils/permissions").rolesCan(req.user.roles || [req.user.role], area) });
   if (opts.bootstrapKey) publicLists[opts.bootstrapKey] = c;
   const r = express.Router();
   const canWrite = [requireAuth, requireArea(area)];
@@ -91,6 +91,8 @@ resource("/process-steps", ProcessStep, { entity: "process-step", hasStatus: tru
 resource("/stats", Stat, { entity: "stat", hasStatus: true, order: CONTENT_ORDER, searchable: ["label"], bootstrapKey: "stats" });
 resource("/logos", Logo, { entity: "logo", hasStatus: true, order: CONTENT_ORDER, searchable: ["name"], bootstrapKey: "logos" });
 resource("/features", Feature, { entity: "feature", hasStatus: true, order: CONTENT_ORDER, searchable: ["title"], bootstrapKey: "features" });
+
+router.get("/website/overview", requireAuth, requireArea("content"), require("../controllers/website.controller").overview);
 
 /* ── Leads (private BD pipeline — auth on every endpoint) ─ */
 const leadCtrl = crudController(Lead, {
