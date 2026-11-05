@@ -83,7 +83,8 @@ const testimonialActions = require("../controllers/testimonials.controller");
 resource("/testimonials", Testimonial, { validate: testimonialActions.validate, updateRecord: testimonialActions.updateRecord, onCreate: (item) => item.reload(), entity: "testimonial", hasStatus: true, searchable: ["name", "company", "quote"], bootstrapKey: "testimonials" });
 const teamActions = require("../controllers/team.controller");
 resource("/team", TeamMember, { validate: teamActions.validate, updateRecord: teamActions.updateRecord, onCreate: (item) => item.reload(), entity: "team-member", hasStatus: true, searchable: ["name", "role"], bootstrapKey: "team" });
-resource("/blog", BlogPost, { entity: "blog", slugFrom: "title", hasStatus: true, order: [["publishedAt", "DESC"], ["createdAt", "DESC"]], searchable: ["title", "excerpt", "category"], publicListExclude: ["content"] });
+const blogActions = require("../controllers/blog.controller");
+resource("/blog", BlogPost, { validate: blogActions.validate, updateRecord: blogActions.updateRecord, onCreate: (item) => item.reload(), entity: "blog", slugFrom: "title", hasStatus: true, order: [["publishedAt", "DESC"], ["createdAt", "DESC"]], searchable: ["title", "excerpt", "category"], publicListExclude: ["content"] });
 resource("/pages", Page, { entity: "page", slugFrom: "title", hasStatus: true, order: [["title", "ASC"]], searchable: ["title", "slug"], publicListExclude: ["content"] });
 
 /* ── Editable content collections (public read, auth write) ─ */

@@ -1,32 +1,28 @@
-import ResourceManager from "@/components/admin/ResourceManager";
-
+"use client";
+import PageLoading from "@/components/admin/PageLoading";
+import { useEffect, useMemo, useState } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Add01Icon, Search01Icon, Refresh01Icon, ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
+import { api } from "@/lib/adminApi";
+import Select from "@/components/Select";
+import BlogEditor, { type BlogItem } from "@/components/admin/blog/BlogEditor";
+import "./blog-workspace.css";
+const sortArticles = (rows: BlogItem[]) => [...rows].sort((a, b) => String(b.publishedAt || "").localeCompare(String(a.publishedAt || "")) || String(b.createdAt || "").localeCompare(String(a.createdAt || "")) || b.id - a.id);
 export default function AdminBlog() {
-  return (
-    <ResourceManager
-      resource="blog"
-      title="Blog posts"
-      subtitle="Articles shown on the Blog page."
-      columns={[
-        { name: "coverImage", label: "Cover", type: "image" },
-        { name: "title", label: "Title" },
-        { name: "category", label: "Category" },
-        { name: "status", label: "Status", type: "status" },
-      ]}
-      defaults={{ status: "draft", author: "Finvera", tags: [] }}
-      fields={[
-        { name: "title", label: "Title" },
-        { name: "category", label: "Category", placeholder: "CRM" },
-        { name: "excerpt", label: "Excerpt", type: "textarea" },
-        { name: "content", label: "Content", type: "richtext" },
-        { name: "coverImage", label: "Cover image", type: "image" },
-        { name: "author", label: "Author" },
-        { name: "tags", label: "Tags", type: "tags" },
-        { name: "publishedAt", label: "Publish date", type: "date" },
-        { name: "status", label: "Status", type: "select", options: ["draft", "published"] },
-        { name: "seoTitle", label: "SEO title", type: "text" },
-        { name: "seoDescription", label: "SEO description", type: "textarea" },
-        { name: "seoKeywords", label: "SEO keywords", type: "text" },
-      ]}
-    />
-  );
+  const [rows, setRows] = useState<BlogItem[] | null>(null), [error, setError] = useState("");
+  const [query, setQuery] = useState(""), [status, setStatus] = useState(""), [category, setCategory] = useState("");
+  const [busy, setBusy] = useState(true), [editing, setEditing] = useState<{ row: BlogItem | null; key: number } | null>(null);
+  async function load() { setBusy(true); setError(""); try { const result = await api.list("blog"); setRows(Array.isArray(result) ? sortArticles(result) : []); } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t load Blog."); } finally { setBusy(false); } }
+  useEffect(() => { load(); }, []);
+  const categories = useMemo(() => [...new Set((rows || []).map(row => row.category).filter(Boolean))].sort(), [rows]);
+  const shown = (rows || []).filter(row => (!status || row.status === status) && (!category || row.category === category) && (!query.trim() || [row.title, row.author, row.category, row.excerpt].join(" ").toLowerCase().includes(query.trim().toLowerCase())));
+  const open = (row: BlogItem | null) => setEditing({ row, key: Date.now() });
+  const patched = (row: BlogItem) => setRows(current => sortArticles(current?.some(item => item.id === row.id) ? current.map(item => item.id === row.id ? row : item) : [row, ...(current || [])]));
+  return <div className="blog-workspace"><header className="bl-header"><div><span className="bl-eyebrow">IDEAS WORTH SHARING</span><h1>Blog</h1><p>Write the insights your audience comes back for.</p></div><div className="bl-header-actions"><a className="sh-btn" href="/blog" target="_blank" rel="noopener noreferrer">Open Blog page <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" onClick={() => open(null)}><HugeiconsIcon icon={Add01Icon} size={16} />New article</button></div></header>
+    {!rows && !error ? <PageLoading label="Loading Blog…" variant="list" /> : <>
+    <div className="bl-toolbar"><div className="bl-segments" role="tablist" aria-label="Blog status">{[["", "All articles"], ["published", "Published"], ["draft", "Drafts"]].map(([value, label]) => <button type="button" role="tab" aria-selected={status === value} key={value} onClick={() => setStatus(value)}>{label}{rows && <small>{rows.filter(row => !value || row.status === value).length}</small>}</button>)}</div><label className="bl-search"><HugeiconsIcon icon={Search01Icon} size={16} /><input type="search" aria-label="Search articles" placeholder="Search title, author or category…" value={query} onChange={event => setQuery(event.target.value)} /></label><div className="bl-category"><Select value={category} onChange={setCategory} ariaLabel="Category" options={[{ value: "", label: "All categories" }, ...categories.map(value => ({ value, label: value }))]} /></div><button type="button" className="sh-icb" aria-label="Refresh Blog" disabled={busy} onClick={load}><HugeiconsIcon icon={Refresh01Icon} size={17} /></button></div>
+    {error && <div className="bl-error" role="alert">{error}<button type="button" className="sh-btn sm" disabled={busy} onClick={load}>Try again</button></div>}
+    <div className="bl-result-count" aria-live="polite">{rows ? `${shown.length} ${shown.length === 1 ? "article" : "articles"}${busy ? " · refreshing…" : ""}` : "Articles unavailable"}</div><div className="bl-grid">{shown.map((row, index) => <article className={`bl-card tone-${index % 3}`} key={row.id}><button type="button" className="bl-artwork" aria-label={`Edit ${row.title}`} onClick={() => open(row)}>{row.coverImage ? <img src={row.coverImage} alt={row.title} loading="lazy" /> : <span>{row.title}</span>}<span className={`bl-status ${row.status}`}>{row.status === "published" ? "Published" : "Draft"}</span></button><div className="bl-card-info"><small>{[row.author, row.category].filter(Boolean).join(" · ") || "Article"}</small><h2>{row.title}</h2><span className="bl-date">{row.publishedAt ? new Date(row.publishedAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : row.status === "published" ? "Publication date not set" : "No article date"}</span><p>{row.excerpt || "Add an excerpt to introduce this article."}</p><div className="bl-card-actions"><button type="button" onClick={() => open(row)}>Edit article ↗</button>{row.status === "published" && <a href={`/blog/${encodeURIComponent(row.slug)}`} target="_blank" rel="noopener noreferrer" aria-label={`Open ${row.title} on website`}>View live ↗</a>}</div></div></article>)}</div>{!shown.length && !error && <div className="bl-empty"><h2>{rows?.length ? "No articles match" : "Your next great story starts here"}</h2><p>{rows?.length ? "Try a different search or filter." : "Create a draft, shape your article and publish when it’s ready."}</p><button type="button" className="sh-btn" onClick={() => { if (rows?.length) { setQuery(""); setStatus(""); setCategory(""); } else open(null); }}>{rows?.length ? "Clear filters" : "New article"}</button></div>}</>}
+    {editing && <BlogEditor key={editing.key} row={editing.row} onClose={() => setEditing(null)} onSaved={row => { patched(row); setEditing(null); }} onPatched={patched} onDeleted={id => { setRows(current => current?.filter(row => row.id !== id) || []); setEditing(null); }} />}
+  </div>;
 }

@@ -41,19 +41,20 @@ function Btn({ editor, label, title, onClick, active }: {
   );
 }
 
-export default function RichText({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+export default function RichText({ value, onChange, onUploadBusy }: { value: string; onChange: (v: string) => void; onUploadBusy?: (busy: boolean) => void }) {
   const editorRef = useRef<Editor | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const uploadImage = async (file: File) => {
     if (!file.type.startsWith("image/")) return;
+    onUploadBusy?.(true);
     try {
       const { url } = await api.upload(file);
       editorRef.current?.chain().focus().setImage({ src: url, alt: file.name }).run();
       toast("Image added");
     } catch {
       toast("Image upload failed", "err");
-    }
+    } finally { onUploadBusy?.(false); }
   };
 
   const editor = useEditor({
