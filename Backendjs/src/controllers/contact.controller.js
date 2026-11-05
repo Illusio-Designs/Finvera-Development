@@ -1,5 +1,5 @@
 const { Op } = require("sequelize");
-const { ContactSubmission } = require("../models");
+const { ContactSubmission, ContactReply, sequelize } = require("../models");
 const { asyncHandler } = require("../utils/crud");
 const { notifyRoles } = require("../utils/notify");
 
@@ -148,7 +148,8 @@ const list = asyncHandler(async (req, res) => {
 const setRead = asyncHandler(async (req, res) => {
   const row = await ContactSubmission.findByPk(req.params.id);
   if (!row) return res.status(404).json({ message: "Submission not found." });
-  row.isRead = req.body.isRead !== false;
+  if (typeof req.body?.isRead !== "boolean") return res.status(400).json({ message: "Choose whether the message is read." });
+  row.isRead = req.body.isRead;
   await row.save();
   res.json(row);
 });
@@ -157,17 +158,22 @@ const setRead = asyncHandler(async (req, res) => {
 const setSpam = asyncHandler(async (req, res) => {
   const row = await ContactSubmission.findByPk(req.params.id);
   if (!row) return res.status(404).json({ message: "Submission not found." });
-  const isSpam = req.body?.isSpam !== false;
+  if (typeof req.body?.isSpam !== "boolean") return res.status(400).json({ message: "Choose whether the message is spam." });
+  const isSpam = req.body.isSpam;
   await row.update(isSpam ? { isSpam: true, spamReason: row.spamReason || "Marked by hand", isRead: true } : { isSpam: false, spamReason: null, isRead: false });
   res.json(row);
 });
 
 /* Admin: delete */
 const remove = asyncHandler(async (req, res) => {
-  const row = await ContactSubmission.findByPk(req.params.id);
-  if (!row) return res.status(404).json({ message: "Submission not found." });
-  await row.destroy();
-  try { await require("../models").ContactReply.destroy({ where: { contactId: row.id } }); } catch { /* table not there yet */ }
+  const removed = await sequelize.transaction(async (transaction) => {
+    const row = await ContactSubmission.findByPk(req.params.id, { transaction, lock: transaction.LOCK.UPDATE });
+    if (!row) return false;
+    await ContactReply.destroy({ where: { contactId: row.id }, transaction });
+    await row.destroy({ transaction });
+    return true;
+  });
+  if (!removed) return res.status(404).json({ message: "Submission not found." });
   res.json({ message: "Deleted.", id: Number(req.params.id) });
 });
 
