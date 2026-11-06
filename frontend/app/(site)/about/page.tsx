@@ -8,20 +8,13 @@ import ContentIcon from "@/components/contentIcon";
 import BrandShowcase from "@/components/BrandShowcase";
 import LogoMark from "@/components/LogoMark";
 import { getTeam, getSeo, getBrands, getMilestones, getValues, getLogos } from "@/lib/api";
-import type { Brand, Milestone } from "@/lib/types";
+import type { Milestone } from "@/lib/types";
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSeo("about");
   return seoMetadata(s);
 }
 
-const FB_BRANDS: Brand[] = [
-  { id: 1, name: "Illusio Designs", category: "Design & Marketing", icon: "paint", url: "https://illusiodesigns.agency", description: "Our founding studio. Brand identity, web design and growth marketing — the craft that gives every product a sharp, memorable presence." },
-  { id: 2, name: "Fintranzact", category: "Accounting SaaS", icon: "calculator", url: "https://fintranzact.com", description: "Cloud accounting built for modern businesses — invoicing, reconciliation, tax-ready books and real-time financial clarity." },
-  { id: 3, name: "Kartriq", category: "Omni-Channel SaaS", icon: "store", url: "https://kartriq.com", description: "One platform to run every sales channel — inventory, orders and fulfilment synced across marketplaces, retail and D2C." },
-  { id: 4, name: "Collabhype", category: "Influencer Collaboration", icon: "megaphone", url: "https://collabhype.in", description: "Where brands and creators meet — discover, manage and measure influencer campaigns from first message to final report." },
-  { id: 5, name: "Finvera", category: "CRM & SaaS Development", icon: "code", url: "https://finvera.solutions", description: "Our flagship — custom CRM systems and SaaS platforms engineered to help businesses grow, scale and innovate." },
-];
 const FB_TIMELINE: Milestone[] = [
   { id: 1, year: "2017", title: "Illusio Designs is born", description: "We start as a small design & marketing studio, helping brands look sharper and sell better." },
   { id: 2, year: "2019", title: "Into web & product", description: "Client demand pulls us from brand design into websites, product UI and front-end engineering." },
@@ -32,7 +25,6 @@ const FB_TIMELINE: Milestone[] = [
 ];
 export default async function About() {
   const [team, brandsRes, timelineRes, valuesRes, clientLogos] = await Promise.all([getTeam(), getBrands(), getMilestones(), getValues(), getLogos()]);
-  const brands = brandsRes.length ? brandsRes : FB_BRANDS;
   const timeline = timelineRes.length ? timelineRes : FB_TIMELINE;
   return (
     <>
@@ -66,7 +58,7 @@ export default async function About() {
       </section>
 
       {/* Brand ecosystem — pinned horizontal showcase (the /experience effect) */}
-      <BrandShowcase brands={brands} />
+      <BrandShowcase brands={brandsRes} />
 
       {/* Timeline */}
       <section className="section" style={{ paddingTop: 0 }}>

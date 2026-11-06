@@ -109,6 +109,7 @@ export type WebsiteOverview = { collections: { resource: string; total: number; 
 export const api = {
   reorderServices: (ids: number[], expected: unknown[]): Promise<{ items: any[] }> => req("/services/reorder", { method: "POST", body: JSON.stringify({ ids, expected }) }),
   reorderValues: (ids: number[], expected: unknown[]): Promise<{ items: any[] }> => req("/values/reorder", { method: "POST", body: JSON.stringify({ ids, expected }) }),
+  reorderBrands: (ids: number[], expected: unknown[]): Promise<{ items: any[] }> => req("/brands/reorder", { method: "POST", body: JSON.stringify({ ids, expected }) }),
   reorderFaqs: (ids: number[], expected: unknown[]): Promise<{ items: any[] }> => req("/faqs/reorder", { method: "POST", body: JSON.stringify({ ids, expected }) }),
   websiteOverview: (): Promise<WebsiteOverview> => req("/website/overview"),
   login: (email: string, password: string): Promise<LoginResult> => {

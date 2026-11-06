@@ -96,7 +96,9 @@ resource("/faqs", Faq, { validate: faqActions.validate, updateRecord: faqActions
 const valueActions = require("../controllers/values.controller");
 router.post("/values/reorder", requireAuth, requireArea("content"), valueActions.reorder);
 resource("/values", Value, { validate: valueActions.validate, updateRecord: valueActions.updateRecord, onCreate: (item) => item.reload(), entity: "value", hasStatus: true, order: [["position", "ASC"], ["createdAt", "ASC"], ["id", "ASC"]], searchable: ["title", "description"], bootstrapKey: "values" });
-resource("/brands", Brand, { entity: "brand", hasStatus: true, order: CONTENT_ORDER, searchable: ["name", "category"], bootstrapKey: "brands" });
+const brandActions = require("../controllers/brands.controller");
+router.post("/brands/reorder", requireAuth, requireArea("content"), brandActions.reorder);
+resource("/brands", Brand, { validate: brandActions.validate, updateRecord: brandActions.updateRecord, onCreate: (item) => item.reload(), entity: "brand", hasStatus: true, order: [["position", "ASC"], ["createdAt", "ASC"], ["id", "ASC"]], searchable: ["name", "category"], bootstrapKey: "brands" });
 resource("/milestones", Milestone, { entity: "milestone", hasStatus: true, order: CONTENT_ORDER, searchable: ["year", "title"], bootstrapKey: "milestones" });
 resource("/process-steps", ProcessStep, { entity: "process-step", hasStatus: true, order: CONTENT_ORDER, searchable: ["title"], bootstrapKey: "processSteps" });
 resource("/stats", Stat, { entity: "stat", hasStatus: true, order: CONTENT_ORDER, searchable: ["label"], bootstrapKey: "stats" });

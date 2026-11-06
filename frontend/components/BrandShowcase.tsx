@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import ContentIcon from "@/components/contentIcon";
+import { brandWebsite } from "@/lib/brandPresentation";
 import type { Brand } from "@/lib/types";
 
 /* Horizontal brand ecosystem — the /experience effect, but built on native
@@ -11,6 +12,7 @@ import type { Brand } from "@/lib/types";
 const COLORS = ["#6d5cff", "#2fa36b", "#ff8a3d", "#ff5f8f", "#3e60ab", "#0ea5e9"];
 
 export default function BrandShowcase({ brands }: { brands: Brand[] }) {
+  const visible = brands.filter(brand => !brand.status || brand.status === "published");
   const outerRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
 
@@ -50,27 +52,29 @@ export default function BrandShowcase({ brands }: { brands: Brand[] }) {
       clearTimeout(t); cancelAnimationFrame(raf);
       outer.style.height = ""; track.style.transform = "";
     };
-  }, [brands.length]);
+  }, [visible.length]);
 
   const panel = (b: Brand, i: number) => {
+    const url = brandWebsite(b.url);
     const color = COLORS[i % COLORS.length];
     const inner = (
       <div className="xp-panel-in">
         <span className="xp-panel-n">{String(i + 1).padStart(2, "0")}</span>
         <span className="xp-panel-ic"><ContentIcon name={b.icon} size={30} /></span>
         <span className="xp-panel-cat">{b.category}</span>
-        <h3>{b.name}</h3>
-        {b.url && <span className="xp-panel-go">Visit site →</span>}
+        <h3>{b.name}</h3>{b.description && <p className="xp-panel-desc">{b.description}</p>}
+        {url && <span className="xp-panel-go">Visit site →</span>}
       </div>
     );
     const style = { ["--c" as string]: color } as React.CSSProperties;
-    return b.url ? (
-      <a className="xp-panel is-link" key={b.id} style={style} href={b.url} target="_blank" rel="noopener noreferrer" data-cursor data-cursor-label="Visit">{inner}</a>
+    return url ? (
+      <a className="xp-panel is-link" key={b.id} style={style} href={url} target="_blank" rel="noopener noreferrer" data-cursor data-cursor-label="Visit">{inner}</a>
     ) : (
       <div className="xp-panel" key={b.id} style={style}>{inner}</div>
     );
   };
 
+  if (!visible.length) return null;
   return (
     <div className="xp-sticky-outer" ref={outerRef}>
       <div className="xp-sticky">
@@ -78,11 +82,11 @@ export default function BrandShowcase({ brands }: { brands: Brand[] }) {
           <div className="xp-panel xp-intro">
             <div className="xp-panel-in">
               <span className="xp-eyebrow">Our ecosystem</span>
-              <h2>Five brands.<br />One studio.</h2>
+              <h2>{visible.length} {visible.length === 1 ? "brand" : "brands"}.<br />One studio.</h2>
               <p>Scroll sideways →</p>
             </div>
           </div>
-          {brands.map(panel)}
+          {visible.map(panel)}
         </div>
       </div>
     </div>

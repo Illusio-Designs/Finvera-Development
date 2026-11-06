@@ -3771,3 +3771,5 @@ em.over,.kp-legend i.over{background:#e2603d}
 .cal-conflict{padding:16px;background:#fff5e6;border:1px solid #efcf95;border-radius:14px;overflow-wrap:anywhere}.cal-conflict ul{padding-left:18px}.cal-conflict p{white-space:pre-wrap}
 @media(max-width:600px){.cal-task-focused{width:100%;max-width:100%}.cal-task-deadline{padding:14px}.cal-task-more .cal-row>*{flex:1;min-width:130px}}
 .fvc-card{position:relative}.fvc-more{align-self:flex-end;margin-top:-24px;position:relative;z-index:2}.fvc-more>summary{cursor:pointer;list-style:none;min-width:32px;min-height:28px;text-align:center;font-size:22px}.fvc-more[open]{background:#fff;border:1px solid #e2e7f0;border-radius:10px;padding:4px}.fvc-more>button{white-space:nowrap}
+
+.xp-panel-desc{font-size:14px;line-height:1.8;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere;margin-top:16px;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}.xp-panel h3{overflow-wrap:anywhere}

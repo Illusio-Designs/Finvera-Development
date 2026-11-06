@@ -50,4 +50,5 @@ jobs:
           node tests/seo-metadata.test.cjs
           node tests/faqs.test.cjs
           node tests/values.test.cjs
+          node tests/brands.test.cjs
         working-directory: frontend
