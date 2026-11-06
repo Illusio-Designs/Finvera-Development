@@ -1,3 +1,4 @@
+import WebsiteStats from "@/components/WebsiteStats";
 import HomeFaqs from "@/components/HomeFaqs";
 import { seoMetadata } from "@/lib/seoMetadata";
 import { testimonialRating, testimonialInitials } from "@/lib/testimonialPresentation";
@@ -35,13 +36,11 @@ const codeHtml = `
 <span class="ln"><span class="f">crm</span>.<span class="f">deploy</span>();  <span class="c">// ship in minutes</span></span>`;
 
 const FB_LOGOS: { name: string; image?: string }[] = []; // logos come from the backend/CMS only
-const FB_STATS = [{ value: "250+", label: "Projects delivered" }, { value: "99%", label: "Uptime guaranteed" }, { value: "18+", label: "Countries served" }, { value: "4min", label: "Avg. deploy time" }];
 const FB_FEATURES = [
   { title: "Smart pipelines", description: "Drag-and-drop deal stages with automated hand-offs." },
   { title: "AI lead scoring", description: "Know which leads to call first, ranked in real time." },
   { title: "Live analytics", description: "Boardroom-ready dashboards updated to the second." },
 ];
-const splitStat = (v: string) => { const m = /^(\d+)(.*)$/.exec(v || ""); return m ? { n: m[1], s: m[2] } : { n: v, s: "" }; };
 const revBars = [
   { d: "Mon", h: 0.48 }, { d: "Tue", h: 0.66 }, { d: "Wed", h: 0.4 }, { d: "Thu", h: 0.82 },
   { d: "Fri", h: 0.58 }, { d: "Sat", h: 1 }, { d: "Sun", h: 0.72 },
@@ -58,7 +57,6 @@ export default async function Home() {
   const featured = (projects.filter((p) => p.featured).length ? projects.filter((p) => p.featured) : projects).slice(0, 3);
   const tRow = [...testimonials, ...testimonials];
   const logos = logosRes.length ? logosRes : FB_LOGOS.map((l, id) => ({ id, ...l }));
-  const stats = statsRes.length ? statsRes : FB_STATS;
   const features = featuresRes.length ? featuresRes : FB_FEATURES;
   // Social links from Settings & pixels; icons without a link are hidden.
   const site = await getSettings();
@@ -193,22 +191,8 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* Stats */}
-      <section className="section" style={{ paddingTop: 0 }}>
-        <div className="container">
-          <div className="stats reveal">
-            {stats.map((st, i) => {
-              const { n, s: suf } = splitStat(st.value);
-              return (
-                <div className="stat" key={i}>
-                  {/^\d+$/.test(n) ? <b data-count={n} data-suffix={suf}>0</b> : <b>{st.value}</b>}
-                  <span>{st.label}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+      {/* Stats — published CMS content only */}
+      <WebsiteStats items={statsRes} />
 
       {/* Process — shared component (identical on Services) */}
       <ProcessSteps />

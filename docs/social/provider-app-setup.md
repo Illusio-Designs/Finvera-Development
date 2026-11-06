@@ -18,6 +18,13 @@ Store client secrets only in the backend deployment's secret configuration. Neve
 
 ## 1. Pinterest
 
+Copy-ready app name: **Finvera Social**. Use the existing 512 × 512 Finvera PNG at `frontend/public/icons/icon-512.png` as the app icon. The public download is [Finvera app icon](https://www.finvera.solutions/icons/icon-512.png).
+
+Suggested development-stage description:
+
+> We are building Finvera Social to help businesses plan, review and publish Pinterest content. Users will authorize their own Pinterest account, select a board, upload an image, add a title, description and destination link, and approve the Pin before publishing. The first release will focus on image Pins.
+
+
 1. Open [Pinterest Developers](https://developers.pinterest.com/apps/). Sign in with the **business account** that will administer the application and verify its email.
 2. Open **My apps**, accept the developer terms and choose **Connect app**. Complete the app request form, with the real website, purpose and required details. The app name needs at least three Latin letters/numbers and cannot contain the word “Pinterest”.
 3. Submit the request for **Trial access**. Pinterest reviews even this initial application; wait for its email decision. Approval timing is controlled by Pinterest.
