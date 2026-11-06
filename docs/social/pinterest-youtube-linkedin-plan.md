@@ -2,6 +2,8 @@
 
 Planning only. These three channels are not connected or enabled by this release. Documentation checked on 6 November 2026; endpoint/product access must be rechecked when each adapter is implemented.
 
+For developer-console setup, see [Create the provider apps](./provider-app-setup.md). The new callback routes in that guide are proposed and must be implemented before OAuth testing.
+
 ## What Finvera can offer
 
 | Capability | Pinterest | YouTube | LinkedIn |
