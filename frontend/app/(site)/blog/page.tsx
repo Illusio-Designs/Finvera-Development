@@ -1,3 +1,4 @@
+import { seoMetadata } from "@/lib/seoMetadata";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Arrow } from "@/components/icons";
@@ -6,7 +7,7 @@ import { getBlog, getSeo } from "@/lib/api";
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSeo("blog");
-  return { title: s.title, description: s.description, keywords: s.keywords };
+  return seoMetadata(s);
 }
 
 function fmt(d: string | null) {

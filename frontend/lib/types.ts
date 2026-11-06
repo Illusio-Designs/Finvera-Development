@@ -21,7 +21,7 @@ export type BlogPost = {
   seoTitle?: string; seoDescription?: string; seoKeywords?: string;
 };
 export type Page = { id: number; slug: string; title: string; content: string; status: string; updatedAt?: string };
-export type Seo = { page: string; title: string; description: string; keywords?: string; ogImage?: string; noindex?: boolean };
+export type Seo = { page: string; title: string; description: string; keywords?: string; ogImage?: string; canonical?: string; noindex?: boolean };
 export type Settings = Record<string, string>;
 
 /* Editable content collections (CMS) */

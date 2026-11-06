@@ -1,3 +1,4 @@
+import { seoMetadata } from "@/lib/seoMetadata";
 import { testimonialInitials } from "@/lib/testimonialPresentation";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -10,7 +11,7 @@ import type { Brand, Milestone, ValueItem } from "@/lib/types";
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSeo("about");
-  return { title: s.title, description: s.description, keywords: s.keywords };
+  return seoMetadata(s);
 }
 
 const FB_BRANDS: Brand[] = [

@@ -1,3 +1,4 @@
+import { seoMetadata } from "@/lib/seoMetadata";
 import { testimonialRating, testimonialInitials } from "@/lib/testimonialPresentation";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -13,7 +14,7 @@ import { getServices, getProjects, getTestimonials, getSeo, getFaqs, getLogos, g
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSeo("home");
-  return { title: s.title, description: s.description, keywords: s.keywords };
+  return seoMetadata(s);
 }
 
 const codeHtml = `

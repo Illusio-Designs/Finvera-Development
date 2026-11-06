@@ -1,3 +1,4 @@
+import { seoMetadata } from "@/lib/seoMetadata";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Check } from "@/components/icons";
@@ -8,7 +9,7 @@ import { Mail01Icon, Call02Icon, Location01Icon } from "@hugeicons/core-free-ico
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSeo("contact");
-  return { title: s.title, description: s.description, keywords: s.keywords };
+  return seoMetadata(s);
 }
 
 export default async function Contact() {

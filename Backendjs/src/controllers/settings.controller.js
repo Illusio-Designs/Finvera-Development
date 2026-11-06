@@ -33,10 +33,7 @@ const getSeo = asyncHandler(async (req, res) => {
 
 /* Upsert SEO for a page (admin) */
 const upsertSeo = asyncHandler(async (req, res) => {
-  const page = req.params.page || req.body.page;
-  if (!page) return res.status(400).json({ message: "page is required." });
-  const [row] = await Seo.findOrCreate({ where: { page }, defaults: { page } });
-  await row.update({ ...req.body, page });
+  const row = await require("./seo.controller").save(req);
   pubCache.clear();
   res.json(row);
 });

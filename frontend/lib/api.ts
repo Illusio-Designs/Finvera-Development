@@ -101,16 +101,8 @@ export async function getPage(slug: string): Promise<Page | undefined> {
   } catch { return undefined; }
 }
 
-const DEFAULT_SEO: Seo = {
-  page: "home",
-  title: "Finvera — Future-Driven SaaS & CRM Development",
-  description: "Finvera builds high-quality SaaS platforms and CRM systems that help businesses grow, scale and innovate.",
-};
-
 export async function getSeo(page: string): Promise<Seo> {
-  const b = await getBootstrap();
-  if (b && b.seo && typeof b.seo === "object") return b.seo[page] || { ...DEFAULT_SEO, page }; // no row → defaults (as a 404 did)
-  return apiGet<Seo>(`/seo/${page}`, { ...DEFAULT_SEO, page });
+  return apiGet<Seo>(`/seo/${encodeURIComponent(page)}`, { page, title: "", description: "" });
 }
 export const getSettings = () => fromBootstrap<Settings>("settings", "/settings", {});
 
