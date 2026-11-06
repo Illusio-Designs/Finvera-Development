@@ -24,7 +24,7 @@ function liveLink(url, platform) {
   try {
     const u = new URL(url);
     if (u.protocol !== "https:" || u.username || u.password) return false;
-    if (platform === "instagram") return /(^|\.)instagram\.com$/i.test(u.hostname) && /^\/(p|reel|tv)\/[^/]+/.test(u.pathname);
+    if (platform === "instagram") return /(^|\.)instagram\.com$/i.test(u.hostname) && /^\/(p|reel|tv|stories)\/[^/]+/.test(u.pathname);
     return /(^|\.)(facebook\.com|fb\.watch)$/i.test(u.hostname) && u.pathname !== "/";
   } catch { return false; }
 }
@@ -44,6 +44,7 @@ function prepareUpdate(post, incoming, user, jobs = [], reviewPlatforms = null) 
     for (const media of data.media) {
       let url; try { url = new URL(media?.url); } catch { fail(400, "Use a valid artwork URL."); }
       if (!["http:", "https:"].includes(url.protocol)) fail(400, "Artwork URLs must use HTTP or HTTPS.");
+      if (media.coverUrl != null) { let cover; try { cover = new URL(media.coverUrl); } catch { fail(400, "Use a valid Reel cover URL."); } if (cover.protocol !== "https:" || cover.username || cover.password) fail(400, "Reel covers need a public HTTPS URL."); }
       try { require("./instagramTags").imageTags(media); } catch (error) { fail(400, error.message); }
     }
   }
@@ -59,7 +60,7 @@ function prepareUpdate(post, incoming, user, jobs = [], reviewPlatforms = null) 
     !jobs.some((j) => j.status === "check" || asJSON(j.checkpoint)?.publishCalled && j.status !== "published") &&
     instagramJobs.length > 0 && instagramJobs.every((j) => ["failed", "cancelled", "missed", "scheduled"].includes(j.status)) &&
     contentHash(withoutInstagramTags(post)) === contentHash(withoutInstagramTags({ ...post, ...data }));
-  if (changed && (post.status === "posted" || jobs.some((j) => ["published", "check"].includes(j.status))) && !safeTagCorrection) fail(409, "This post may already be live on a platform. After Facebook publishes, only Instagram profile tags can be corrected here; other content changes require a revised post.");
+  if (changed && (post.status === "posted" || jobs.some((j) => ["published", "check"].includes(j.status) || asJSON(j.checkpoint)?.publishCalled)) && !safeTagCorrection) fail(409, "This post may already be live on a platform. After Facebook publishes, only Instagram profile tags can be corrected here; other content changes require a revised post.");
   if (data.status && data.status !== post.status && !["ready", "posted"].includes(data.status)) {
     const allowed = { planned: ["client", "production"], client: ["planned", "production"], production: ["planned", "client", "approval"], approval: ["production"], ready: ["approval"], posted: [] };
     if (!(allowed[post.status] || []).includes(data.status)) fail(409, "Use Start work, Upload, Review and Schedule in order. This stage cannot be skipped.");

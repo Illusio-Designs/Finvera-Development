@@ -4,10 +4,10 @@ const models = require("../src/models");
 const auto = require("../src/utils/autoPublish");
 const controller = require("../src/controllers/publish.controller");
 
-async function invoke(method, { status = "ready", jobStatus = "check", checkpoint = { publishCalled: true, creationId: "old" }, body = {}, user = { id: 99, roles: ["admin"] } } = {}) {
+async function invoke(method, { status = "ready", jobStatus = "check", checkpoint = { publishCalled: true, creationId: "old" }, body = {}, platform = "instagram", user = { id: 99, roles: ["admin"] } } = {}) {
   let writes = 0;
   const post = { id: 1, client: "Demo", status, assigneeId: 33, caption: "approved", media: [], publishTo: ["instagram"] };
-  const job = { id: 2, postId: 1, client: "Demo", platform: "instagram", status: jobStatus, checkpoint, update: async (data) => { writes++; Object.assign(job, data); } };
+  const job = { id: 2, postId: 1, client: "Demo", platform, status: jobStatus, checkpoint, update: async (data) => { writes++; Object.assign(job, data); } };
   const originals = [];
   const patch = (obj, key, value) => { originals.push([obj, key, obj[key]]); obj[key] = value; };
   patch(models.sequelize, "transaction", async (fn) => fn({ LOCK: { UPDATE: "UPDATE" } }));
@@ -56,4 +56,10 @@ test("Serialized uncertain checkpoints cannot bypass the guard", async () => {
 test("Manual publication confirmation requires a live permalink", async () => {
   const result = await invoke("markPosted", { body: { url: "" } });
   assert.equal(result.response.code, 400); assert.equal(result.writes, 0);
+});
+
+test("a confirmed live Facebook Reel can retry only its pending cover without absence confirmation", async () => {
+  const checkpoint = { publishCalled: true, publishedConfirmed: true, publishedId: "live-video", videoId: "live-video", coverPending: true, uploaded: true };
+  const result = await invoke("retry", { platform: "facebook", jobStatus: "failed", checkpoint });
+  assert.equal(result.response.code, 200); assert.equal(result.job.checkpoint.publishedId, "live-video"); assert.equal(result.job.checkpoint.coverPending, true);
 });

@@ -7,10 +7,11 @@ const { UPLOAD_DIR } = require("../middleware/upload");
 async function inspectMedia(media, { publicUrl = process.env.PUBLIC_URL, uploadDir = UPLOAD_DIR } = {}) {
   const files = [];
   if (typeof media === "string") { try { media = JSON.parse(media); } catch { media = []; } }
+  media = (Array.isArray(media) ? media : []).flatMap(item => [item, ...(item.coverUrl ? [{ url: item.coverUrl, type: "image", name: "Reel cover", isCover: true }] : [])]);
   let origin = null;
   try { origin = new URL(publicUrl).origin; } catch { /* deployment URL not configured */ }
   for (const item of Array.isArray(media) ? media : []) {
-    const result = { name: item.name || "Artwork", url: item.url, localStatus: "not_checked", jpeg: null, bytes: null, problems: [], publicAccess: "not_verified" };
+    const result = { name: item.name || "Artwork", cover: !!item.isCover, url: item.url, localStatus: "not_checked", jpeg: null, bytes: null, problems: [], publicAccess: "not_verified" };
     let url;
     try { url = new URL(item.url); } catch { result.problems.push("The media URL is invalid. Upload the artwork again."); files.push(result); continue; }
     if (url.protocol !== "https:") result.problems.push("Use a publicly accessible HTTPS artwork URL for publishing in Finvera. Check PUBLIC_URL and upload the artwork again.");
@@ -48,6 +49,8 @@ async function mediaProblem(post, platform) {
   const result = await inspectMedia(post.media);
   for (const file of result.files) {
     if (file.problems.length) return file.problems[0];
+    if (platform === "facebook" && file.cover && file.localStatus !== "available") return "Upload the Facebook Reel cover inside Finvera and check the server PUBLIC_URL setting before publishing.";
+    if (platform === "facebook" && file.cover && (file.jpeg === false || file.bytes > 10 * 1024 * 1024)) return "Use a JPEG Reel cover under 10 MB.";
     if (platform === "instagram" && file.jpeg === false) return "Instagram requires JPEG images. Re-upload this image so it can be converted, then review and retry.";
   }
   return null;

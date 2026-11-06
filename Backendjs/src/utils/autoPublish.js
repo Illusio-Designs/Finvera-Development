@@ -94,7 +94,8 @@ async function syncJobs(post) {
         await SocialPublishJob.create({ postId: p.id, client: p.client, platform: pl, status: late ? "missed" : "scheduled", runAt, checkpoint: { approvedHash: contentHash(p) } });
       } else if (["cancelled", "missed", "scheduled"].includes(j.status)) {
         const status = late ? "missed" : "scheduled";
-        if (j.status !== status || +new Date(j.runAt) !== +runAt) await j.update({ status, runAt, error: null, checkpoint: { ...asObj(j.checkpoint), approvedHash: contentHash(p) } });
+        const previous = asObj(j.checkpoint), hash = contentHash(p);
+        if (j.status !== status || +new Date(j.runAt) !== +runAt || previous.approvedHash !== hash) await j.update({ status, runAt, error: null, checkpoint: previous.approvedHash === hash ? previous : { approvedHash: hash } });
       }
       if (late && (!j || ["cancelled", "scheduled"].includes(prev))) emailPublishProblem(p, { title: `Missed go-live: ${p.theme}`, detail: `${NAMES[pl]}: the post became Ready more than 6 hours after its go-live time, so it was not posted automatically. Use Publish now if it should still go out.` });
     }
@@ -199,17 +200,18 @@ async function runJob(job) {
     const media = asArr(p.media).filter((m) => m && m.url);
     const caption = composeCaption(p);
     const res = j.platform === "instagram"
-      ? await meta.publishInstagram(acc, media, caption, cp, save, p.tags)
-      : await meta.publishFacebook(acc, media, caption, cp, save);
+      ? await meta.publishInstagram(acc, media, caption, cp, save, p.tags, { format: p.format })
+      : await meta.publishFacebook(acc, media, caption, cp, save, { format: p.format });
     await finish({ status: "published", remoteId: res.id, url: res.url, error: null, publishedAt: new Date() });
     try { await afterPublished(await SocialPost.findByPk(p.id)); } catch (e) { console.warn("Post-publish settlement:", e.message); }
   } catch (e) {
     const msg = e.message || "Meta returned an error.";
-    if (/token|session|OAuthException|permission/i.test(`${e.meta?.type || ""} ${msg}`) && [190, 102, 10, 200].includes(Number(e.meta?.code))) {
+    if ((e.publishStage !== "cover" || [190, 102].includes(Number(e.meta?.code))) && /token|session|OAuthException|permission/i.test(`${e.meta?.type || ""} ${msg}`) && [190, 102, 10, 200].includes(Number(e.meta?.code))) {
       const was = acc.status;
       await acc.update({ status: "reconnect", lastError: msg }).catch(() => {});
       if (was === "connected") require("./metaHealth").alertReconnect(acc, msg).catch(() => {});
     }
+    if (cp.publishedConfirmed && cp.coverPending && e.publishStage === "cover") { await finish({ remoteId: cp.publishedId, url: cp.publishedUrl }); return fail("failed", msg); }
     if (cp.publishCalled) return fail("check", `No clear answer from ${NAMES[j.platform]} after publishing started (${msg}). Check the account before retrying.`);
     if (isRetryable(e) && j.attempts < MAX_ATTEMPTS) {
       await finish({ status: "scheduled", error: msg, checkpoint: retryCheckpoint(cp, e), runAt: new Date(Date.now() + Math.min(15 * 60000, 30000 * 2 ** j.attempts)) });

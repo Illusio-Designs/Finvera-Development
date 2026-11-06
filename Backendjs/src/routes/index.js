@@ -99,7 +99,9 @@ resource("/values", Value, { validate: valueActions.validate, updateRecord: valu
 const brandActions = require("../controllers/brands.controller");
 router.post("/brands/reorder", requireAuth, requireArea("content"), brandActions.reorder);
 resource("/brands", Brand, { validate: brandActions.validate, updateRecord: brandActions.updateRecord, onCreate: (item) => item.reload(), entity: "brand", hasStatus: true, order: [["position", "ASC"], ["createdAt", "ASC"], ["id", "ASC"]], searchable: ["name", "category"], bootstrapKey: "brands" });
-resource("/milestones", Milestone, { entity: "milestone", hasStatus: true, order: CONTENT_ORDER, searchable: ["year", "title"], bootstrapKey: "milestones" });
+const milestoneActions = require("../controllers/milestones.controller");
+router.post("/milestones/reorder", requireAuth, requireArea("content"), milestoneActions.reorder);
+resource("/milestones", Milestone, { validate: milestoneActions.validate, updateRecord: milestoneActions.updateRecord, onCreate: (item) => item.reload(), entity: "milestone", hasStatus: true, order: [["position", "ASC"], ["createdAt", "ASC"], ["id", "ASC"]], searchable: ["year", "title"], bootstrapKey: "milestones" });
 resource("/process-steps", ProcessStep, { entity: "process-step", hasStatus: true, order: CONTENT_ORDER, searchable: ["title"], bootstrapKey: "processSteps" });
 resource("/stats", Stat, { entity: "stat", hasStatus: true, order: CONTENT_ORDER, searchable: ["label"], bootstrapKey: "stats" });
 resource("/logos", Logo, { entity: "logo", hasStatus: true, order: CONTENT_ORDER, searchable: ["name"], bootstrapKey: "logos" });
@@ -372,6 +374,7 @@ router.get("/social-studio", ...canSocial, studio.overview);
 // "Today" home page: counts, what needs you, this week, team on-time (one call).
 router.get("/today", ...canSocial, require("../controllers/today.controller").today);
 router.post("/social-accounts/:client/pause", ...canSocial, social.requireAllBrands, studio.pause);
+router.get("/social-accounts/:client/picture", ...canSocial, studio.picture);
 router.get("/social-accounts/:client/profile", ...canSocial, studio.profile);
 router.get("/social-accounts/:client/capabilities", ...canSocial, studio.capabilities);
 router.put("/social-accounts/:client/profile", ...canSocial, social.requireAllBrands, studio.updateProfile);
