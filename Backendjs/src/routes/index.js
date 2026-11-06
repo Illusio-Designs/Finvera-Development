@@ -90,7 +90,9 @@ resource("/pages", Page, { validate: pageActions.validate, updateRecord: pageAct
 
 /* ── Editable content collections (public read, auth write) ─ */
 const CONTENT_ORDER = [["position", "ASC"], ["createdAt", "ASC"]];
-resource("/faqs", Faq, { entity: "faq", hasStatus: true, order: CONTENT_ORDER, searchable: ["question", "answer"], bootstrapKey: "faqs" });
+const faqActions = require("../controllers/faqs.controller");
+router.post("/faqs/reorder", requireAuth, requireArea("content"), faqActions.reorder);
+resource("/faqs", Faq, { validate: faqActions.validate, updateRecord: faqActions.updateRecord, onCreate: (item) => item.reload(), entity: "faq", hasStatus: true, order: [["position", "ASC"], ["createdAt", "ASC"], ["id", "ASC"]], searchable: ["question", "answer"], bootstrapKey: "faqs" });
 resource("/values", Value, { entity: "value", hasStatus: true, order: CONTENT_ORDER, searchable: ["title", "description"], bootstrapKey: "values" });
 resource("/brands", Brand, { entity: "brand", hasStatus: true, order: CONTENT_ORDER, searchable: ["name", "category"], bootstrapKey: "brands" });
 resource("/milestones", Milestone, { entity: "milestone", hasStatus: true, order: CONTENT_ORDER, searchable: ["year", "title"], bootstrapKey: "milestones" });
