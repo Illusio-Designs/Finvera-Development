@@ -9,7 +9,7 @@ async function checkCapabilities(acc, platform, adapter = meta) {
   const actions = [];
   const add = (id, label, state, detail, url) => actions.push({ id, label, state, detail, ...(url ? { url } : {}) });
   add("open", "Open profile", profileUrl ? "available" : "unavailable", "Opens the public account on the platform; no API write is made.", profileUrl);
-  let tokenState = "unknown", scopes = null, tokenError = null, expiresAt = null, profileReadable = false;
+  let tokenState = "unknown", scopes = null, tokenError = null, expiresAt = null, profileReadable = false, pictureReadable = false;
   if (!adapter.configured()) tokenError = "Meta app credentials are not configured on the server.";
   else if (acc.status !== "connected") { tokenState = "unavailable"; tokenError = "Reconnect this brand before checking API access."; }
   else {
@@ -28,7 +28,7 @@ async function checkCapabilities(acc, platform, adapter = meta) {
         if (Array.isArray(grant.target_ids) && grant.target_ids.length && !grant.target_ids.some((id) => [String(acc.pageId), String(acc.igUserId)].includes(String(id)))) scopes = scopes?.filter((s) => s !== grant.scope) || null;
       }
       if (tokenState === "verified" && (!instagram || acc.igUserId)) {
-        try { await adapter.graph("GET", `/${instagram ? acc.igUserId : acc.pageId}`, { fields: instagram ? "id,username" : "id,name", access_token: token }); profileReadable = true; } catch { /* a valid token does not imply access to this asset */ }
+        try { const identity = await adapter.graph("GET", `/${instagram ? acc.igUserId : acc.pageId}`, { fields: instagram ? "id,username,profile_picture_url" : "id,name,picture.type(large){url}", access_token: token }); profileReadable = true; pictureReadable = !!(instagram ? identity.profile_picture_url : identity.picture?.data?.url); } catch { /* a valid token does not imply access to this asset */ }
       }
     } catch { tokenState = "unknown"; scopes = null; tokenError = "Meta could not verify this token. Check network access, app configuration and account permissions."; }
   }
@@ -45,8 +45,10 @@ async function checkCapabilities(acc, platform, adapter = meta) {
     add("edit", "Edit supported Page details", editing, "Finvera implements About, description, website, phone and email. Scope presence alone does not verify field-specific write access. Name and picture edits open Facebook.");
   }
   add("identity", instagram ? "Edit name and profile picture" : "Edit Page name and profile picture", "external", "Finvera does not implement these identity changes. Open the account on the platform.", instagram ? "https://www.instagram.com/accounts/edit/" : profileUrl);
-  add("stories", "Publish Stories", "not_implemented", "Finvera’s publisher does not send a Story-specific publishing payload.");
-  if (!instagram) add("reels", "Publish Facebook Reels", "not_implemented", "The current Facebook publisher sends video posts, not a dedicated Reels workflow.");
+  add("picture", "Read profile picture", pictureReadable ? "verified" : "unknown", pictureReadable ? "Meta returned a picture URL. Browser loading still depends on the image URL remaining valid." : "Meta has not returned a verified picture URL. Use Refresh photo; your saved image is kept on failure.");
+  add("stories", "Publish Stories", instagram && !acc.igUserId ? "unavailable" : permission(instagram ? ["instagram_basic", "instagram_content_publish"] : ["pages_show_list", "pages_read_engagement", "pages_manage_posts"]), "Story-specific publishing is implemented. Confirm account eligibility, Page tasks and media requirements with a test account; this read-only check does not publish.");
+  add("covers", "Upload Reel covers", permission(instagram ? ["instagram_basic", "instagram_content_publish"] : ["pages_read_user_content", "pages_manage_engagement", "pages_show_list"]), instagram ? "Finvera passes the saved cover_url on Reel creation. Verify the public JPEG cover URL and account publishing access." : "Finvera uploads a preferred video thumbnail. Meta's current reference lists these scopes; check them against the app's Graph version and review access before publishing a cover.");
+  if (!instagram) add("reels", "Publish Facebook Reels", permission(["pages_show_list", "pages_read_engagement", "pages_manage_posts"]), "Uses the Page Reels upload flow. Verify Page tasks and test-account publishing before relying on this capability.");
   add("liveEdits", "Edit or delete already-live posts", "not_implemented", "Scheduled edits are supported before publishing; changes to live platform posts are a separate workflow.");
   add("mediaTags", "Tag profiles on images", instagram ? "needs_test" : "not_implemented", instagram ? "Finvera sends positioned tags on images and carousel images. Account eligibility and actual results must be verified with an authorized test post. Video tags are not implemented." : "Facebook person tagging is not implemented. Instagram image tags are not forwarded to Facebook.");
   add("mentions", "Caption mentions", "needs_test", "Caption handles are sent as text. Clickable mentions depend on platform behavior and must be checked separately.");

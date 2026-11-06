@@ -31,7 +31,7 @@ async function decode(file: File): Promise<{ w: number; h: number; draw: (ctx: C
   }
 }
 
-export async function instagramSafe(file: File): Promise<IgFix> {
+export async function instagramSafe(file: File, mode: "feed" | "preserve" = "feed"): Promise<IgFix> {
   if (!/^image\//.test(file.type) && !/\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name)) return { file, changed: false }; // video etc.
   const isJpeg = /^image\/jpe?g$/i.test(file.type) || /\.jpe?g$/i.test(file.name);
   const img = await decode(file);
@@ -40,7 +40,7 @@ export async function instagramSafe(file: File): Promise<IgFix> {
     throw new Error(`“${file.name}” couldn't be read. Save it as a JPG and upload again — Instagram only accepts JPG.`);
   }
   const ratio = img.w / img.h;
-  const tooTall = ratio < MIN_RATIO, tooWide = ratio > MAX_RATIO;
+  const tooTall = mode === "feed" && ratio < MIN_RATIO, tooWide = mode === "feed" && ratio > MAX_RATIO;
   const tooBig = Math.max(img.w, img.h) > MAX_EDGE;
   if (isJpeg && !tooTall && !tooWide && !tooBig) return { file, changed: false };
 
@@ -66,8 +66,8 @@ export async function instagramSafe(file: File): Promise<IgFix> {
 }
 
 /* All files at once; returns the files to upload and a short summary line. */
-export async function instagramSafeAll(files: File[]): Promise<{ files: File[]; summary: string }> {
-  const out = await Promise.all(files.map(instagramSafe));
+export async function instagramSafeAll(files: File[], mode: "feed" | "preserve" = "feed"): Promise<{ files: File[]; summary: string }> {
+  const out = await Promise.all(files.map(file => instagramSafe(file, mode)));
   const changed = out.filter((x) => x.changed);
   const summary = changed.length ? `${changed.length} image${changed.length === 1 ? "" : "s"} made Instagram-ready (${[...new Set(changed.map((c) => c.note))].join("; ")}).` : "";
   return { files: out.map((x) => x.file), summary };

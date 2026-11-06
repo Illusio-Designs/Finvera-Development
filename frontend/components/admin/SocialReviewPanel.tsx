@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 
-type Post = { id: number; theme: string; client: string; format?: string | null; caption?: string; tags?: string; keywords?: string; requirements?: string; remarks?: string; postDate?: string | null; postTime?: string | null; updatedAt?: string; publishTo?: string[] | null; media?: { url: string; type: string; name?: string; thumbUrl?: string | null; userTags?: { username: string; x: number; y: number }[] }[] };
+type Post = { id: number; theme: string; client: string; format?: string | null; caption?: string; tags?: string; keywords?: string; requirements?: string; remarks?: string; postDate?: string | null; postTime?: string | null; updatedAt?: string; publishTo?: string[] | null; media?: { url: string; type: string; name?: string; thumbUrl?: string | null; coverUrl?: string | null; userTags?: { username: string; x: number; y: number }[] }[] };
 const CHECKS = ["Artwork and media order", "Caption and hashtags", "People to tag and requirements", "Channels and go-live time"];
 
 export default function SocialReviewPanel({ post, loaded, canReview, reviewer, channels, preflightIssues = [], preflightLoading = false, preflightError, onClose, onApprove, onChanges, onEdit }: {
@@ -15,6 +15,7 @@ export default function SocialReviewPanel({ post, loaded, canReview, reviewer, c
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const story = /story|stories/i.test(post.format || "");
   const media = post.media || [];
   const active = media[Math.min(selected, Math.max(0, media.length - 1))];
   const video = active?.type === "video" || /\.(mp4|mov|m4v)(\?|$)/i.test(active?.url || "");
@@ -46,10 +47,11 @@ export default function SocialReviewPanel({ post, loaded, canReview, reviewer, c
     <div className="sw-review-title"><div><strong>{post.theme}</strong><p>{post.client} · {post.format || "Social post"}</p></div><span className="sw-upload-count">Pending approval</span></div>
     {!loaded && <p role="status">Loading the saved version…</p>}
     <div className="sw-review-columns"><section className="sw-review-content" aria-label="Saved post preview">
-      <div className="sw-review-art">{active ? video ? <video key={active.url} src={active.url} controls playsInline preload="metadata" /> : <img src={active.url} alt={active.name || "Saved post artwork"} /> : <p>No artwork attached.<small>Ask the maker to upload the finished work.</small></p>}</div>
+      <div className={"sw-review-art" + (story ? " sw-story-preview" : "")}>{active ? video ? <video poster={active.coverUrl || undefined} key={active.url} src={active.url} controls playsInline preload="metadata" /> : <img src={active.url} alt={active.name || "Saved post artwork"} /> : <p>No artwork attached.<small>Ask the maker to upload the finished work.</small></p>}</div>
+      {active?.coverUrl && <div className="sw-review-copy"><span className="sw-upload-kicker">REEL COVER</span><img className="sw-review-cover" src={active.coverUrl} alt="Saved Reel cover" /><p>Check this cover as well as the video.</p></div>}
       {media.length > 1 && <div className="sw-review-thumbs">{media.map((item, index) => <button type="button" key={item.url + index} aria-label={`Preview artwork ${index + 1}`} aria-pressed={selected === index} onClick={() => setSelected(index)}>{item.type === "video" ? <span>▶ {index + 1}</span> : <img src={item.thumbUrl || item.url} alt={`Artwork ${index + 1}`} />}</button>)}</div>}
-      <div className="sw-review-copy"><span className="sw-upload-kicker">CAPTION & HASHTAGS</span><p>{post.caption || "No caption added."}</p>{post.keywords && <small>Keywords: {post.keywords}</small>}</div>
-      <div className="sw-review-copy"><span className="sw-upload-kicker">PEOPLE & REQUIREMENTS</span><p>{post.tags || (media.some((item) => item.userTags?.length) ? "Image-specific profiles are listed below." : "No Instagram profiles tagged.")}</p><small>These profiles are tagged on Instagram images at the center unless a position is saved on the artwork. Image tags are not sent to Facebook.</small>{media.some((item) => item.userTags?.length) && <ul>{media.map((item, index) => item.userTags?.length ? <li key={index}>Image {index + 1}: {item.userTags.map((tag) => `@${tag.username} (${Math.round(tag.x * 100)}%, ${Math.round(tag.y * 100)}%)`).join(", ")}</li> : null)}</ul>}{post.requirements && <p>{post.requirements}</p>}{post.remarks && <p>Team notes: {post.remarks}</p>}</div>
+      <div className="sw-review-copy"><span className="sw-upload-kicker">{story ? "STORY NOTES · NOT PUBLISHED" : "CAPTION & HASHTAGS"}</span><p>{post.caption || "No caption added."}</p>{post.keywords && <small>Keywords: {post.keywords}</small>}</div>
+      <div className="sw-review-copy"><span className="sw-upload-kicker">PEOPLE & REQUIREMENTS</span><p>{post.tags || (media.some((item) => item.userTags?.length) ? "Image-specific profiles are listed below." : "No Instagram profiles tagged.")}</p><small>{story ? "Story tags and stickers are not implemented. Artwork is published without caption notes or keywords." : "These profiles are tagged on Instagram images at the center unless a position is saved on the artwork. Image tags are not sent to Facebook."}</small>{media.some((item) => item.userTags?.length) && <ul>{media.map((item, index) => item.userTags?.length ? <li key={index}>Image {index + 1}: {item.userTags.map((tag) => `@${tag.username} (${Math.round(tag.x * 100)}%, ${Math.round(tag.y * 100)}%)`).join(", ")}</li> : null)}</ul>}{post.requirements && <p>{post.requirements}</p>}{post.remarks && <p>Team notes: {post.remarks}</p>}</div>
       <button type="button" className="cal-btn" disabled={busy || !loaded} onClick={onEdit}>Edit saved content</button>
     </section><section className="sw-review-checklist" aria-label="Review checklist">
       <span className="sw-upload-kicker">CHECK IT. PASS IT ON.</span><h3>Ready for its moment?</h3>

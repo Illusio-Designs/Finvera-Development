@@ -1,19 +1,19 @@
 # Stories, Reel covers and profile pictures
 
-Implementation proposal for Instagram and Facebook, based on the current Finvera code and Meta documentation checked on 6 November 2026. These social features are proposed work; the Values release does not enable them.
+Implementation specification for Instagram and Facebook, based on the current Finvera code and Meta documentation checked on 6 November 2026. The Story publishers, separate Reel-cover upload and review preview, profile-photo refresh/fallback, and readiness checks are implemented. Mocked Graph, local database and browser checks cover these paths; live account eligibility and write permissions still need verification in the Meta app. No production test posts were sent.
 
-## Current behavior
+## Original audit before implementation
 
 | Feature | Current implementation | Change needed |
 | --- | --- | --- |
 | Stories | Calendar offers Story, but `socialPreflight.js` blocks automatic publishing. Manual posting remains available. | Add real, separate Story publishers for both platforms before removing the validation block. |
 | Instagram Reel cover | Reels are created without `cover_url` or `thumb_offset`. | Store an optional cover upload or selected video frame and pass it to Instagram. |
-| Facebook Reel cover | Videos currently use the Page `/videos` publishing endpoint; there is no separate Reel publishing implementation or cover upload. | Use the Page Reels publishing flow, then the documented video-thumbnail workflow. |
+| Facebook Reel cover | Videos currently use the Page `/videos` publishing endpoint; there is no separate Reel publishing implementation or cover upload. | Use the Page Reels publishing flow, then the documented video-thumbnail workflow. If the Reel publishes but its cover fails, the job retains the confirmed live video ID and Retry updates only the cover. |
 | Profile pictures | Meta reads already request Facebook `picture` and Instagram `profile_picture_url`. Instagram's connection image is stored; Facebook's connection image is fetched but discarded. Cards use CSS background images without load-error fallback. | Retain both platform pictures, refresh them, and show a reliable fallback when a URL fails. |
 
 The code findings identify possible causes of missing pictures. They do not establish which error affected a specific connected production account.
 
-## Proposed UI flow
+## Implemented UI flow
 
 1. **Calendar:** Choose Post, Carousel, Reel or Story and select Instagram, Facebook or both. Show a Story destination badge so a Story cannot be mistaken for a feed post.
 2. **Upload:** Keep the existing upload-only drawer. A Story accepts one photo or video per publishing item. A Reel accepts one video and shows a separate **Cover image — optional** upload below it. A cover must never be added to the carousel/media array as another post asset.
@@ -30,13 +30,13 @@ Stories should not offer feed-only caption, carousel or positioned image-tag con
 
 Create a container using `media_type=STORIES` with `image_url` or `video_url`, wait for processing and publish with `media_publish`. Verify Story eligibility for the connected account and app's login/API version.
 
-For a Reel, send the optional public image URL as `cover_url`. A chosen video frame can use `thumb_offset` in milliseconds instead. Meta gives `cover_url` precedence when both are provided. Check cover availability over public HTTPS before creating the container, as with the existing artwork health checks.
+For a Reel, Finvera sends the optional public image URL as `cover_url`. A future frame-selector control could use `thumb_offset` in milliseconds instead. The current release implements uploaded covers, not a frame selector. Meta gives `cover_url` precedence when both are provided. Check cover availability over public HTTPS before creating the container, as with the existing artwork health checks.
 
 ### Facebook
 
 For a photo Story, upload an unpublished photo and publish its ID through `/{page-id}/photo_stories`. Video Stories use `/{page-id}/video_stories` with start, upload and finish phases.
 
-For a Reel, implement `/{page-id}/video_reels` start, upload and finish phases. The current ordinary video route should remain available for Video posts. Meta's Reels guide links the `/{video-id}/thumbnails` endpoint for custom covers. That endpoint uploads an image file as `source` with `is_preferred=true`; merely passing a cover URL to the existing `/videos` call is insufficient. Check the supported call order, processing status and permissions against Finvera's configured Graph version before enabling the UI.
+For a Reel, implement `/{page-id}/video_reels` start, upload and finish phases. The current ordinary video route should remain available for Video posts. Meta's Reels guide links the `/{video-id}/thumbnails` endpoint for custom covers. That endpoint uploads an image file as `source` with `is_preferred=true`; merely passing a cover URL to the existing `/videos` call is insufficient. Finvera waits for publishing confirmation, saves the live video checkpoint, then uploads the cover. A cover-only retry never sends another Reel publishing request. Check processing status and permissions against Finvera's configured Graph version before enabling the UI.
 
 The repository currently defaults to Graph v26.0; current documentation examples use v27.0. Do not upgrade the app's API version silently as part of this feature.
 
@@ -71,3 +71,11 @@ The repository currently defaults to Graph v26.0; current documentation examples
 - [Facebook Stories API](https://developers.facebook.com/docs/page-stories-api/)
 - [Facebook Reels publishing](https://developers.facebook.com/docs/video-api/guides/reels-publishing/)
 - [Facebook video thumbnails](https://developers.facebook.com/docs/graph-api/reference/video/thumbnails/)
+
+## Deployment and Meta app setup
+
+No database migration is needed: covers are stored as `coverUrl` on the existing video media item, and profile images use the existing account stats and Instagram-avatar fields. The profile refresh endpoint updates cached photos without changing the actual Meta profile picture.
+
+For Facebook covers, review the thumbnail permissions for the configured Graph API version. If your app needs `pages_read_user_content` and `pages_manage_engagement`, add them to the app review configuration, obtain the required access, and append them to `META_EXTRA_SCOPES` while preserving existing extra scopes. Reconnect the brand to grant newly approved scopes, then check Readiness & actions. These settings are not changed automatically by deployment.
+
+Instagram/Facebook Stories publish artwork without the caption notes or keyword hashtags. Story stickers and Story profile tagging are not implemented. Choose Video Story for the video-editor production track. Shared content and covers remain protected once any platform has published.

@@ -88,6 +88,10 @@ const choose = asyncHandler(async (req, res) => {
     igUserId: page.igUserId, igUsername: page.igUsername, igAvatar: page.igAvatar, connectedBy: req.user.id, status: "connected", lastError: null,
   };
   const existing = await SocialAccount.findOne({ where: { client: data.client } });
+  const priorStats = existing && existing.pageId === data.pageId ? { ...(typeof existing.stats === "object" ? existing.stats : {}) } : {};
+  if (existing?.igUserId !== data.igUserId) delete priorStats.instagram;
+  data.stats = require("../utils/profilePictures").mergeProfileStats(priorStats, { facebook: { name: page.pageName, picture: page.pageAvatar }, instagram: { username: page.igUsername, picture: page.igAvatar } });
+  data.statsAt = null;
   const acc = existing ? await existing.update(data) : await SocialAccount.create(data);
   await r.row.destroy();
   await auto.syncBrand(acc.client);
@@ -140,11 +144,13 @@ const retry = asyncHandler(async (req, res) => {
     if (!post || !job || post.status !== "ready" || !canApprove(post, req.userRow || req.user)) return { status: 403, message: "The approved post must be Ready and assigned to you, or you must be an admin." };
     if (!["failed", "check", "missed"].includes(job.status)) return { status: 400, message: "Only failed, missed or uncertain jobs can be retried." };
     let checkpoint = auto.retryCheckpoint(checkpointOf(job.checkpoint), job.error);
-    const uncertain = job.status === "check" || checkpoint.publishCalled;
+    const coverOnly = job.platform === "facebook" && checkpoint.publishedConfirmed === true && checkpoint.coverPending === true && !!checkpoint.publishedId && !!checkpoint.videoId;
+    const uncertain = !coverOnly && (job.status === "check" || checkpoint.publishCalled);
     if (uncertain) {
       if (!rolesOf(req.userRow || req.user).includes("admin") || req.body?.confirmedAbsent !== true) return { status: 409, message: "The post may already be live. An admin must check the platform and explicitly confirm it is absent before retrying." };
       checkpoint = { absenceConfirmedBy: req.user.id, absenceConfirmedAt: new Date().toISOString(), approvedHash: contentHash(post) };
     }
+    if (!uncertain && !coverOnly && checkpoint.approvedHash && checkpoint.approvedHash !== contentHash(post)) checkpoint = { approvedHash: contentHash(post) };
     await job.update({ status: "scheduled", runAt: new Date(), error: null, attempts: 0, checkpoint }, { transaction });
     return { ok: true };
   });
@@ -180,7 +186,7 @@ const publishNow = asyncHandler(async (req, res) => {
     if (!post) return { status: 404, message: "Post not found." };
     if (post.status !== "ready" || !canApprove(post, req.userRow || req.user)) return { status: 403, message: "Only an approved Ready post can be published by its reviewer or an admin." };
     const jobs = await SocialPublishJob.findAll({ where: { postId: post.id }, transaction, lock: transaction.LOCK.UPDATE });
-    if (jobs.some((j) => j.status === "check" || (j.status !== "published" && checkpointOf(j.checkpoint).publishCalled))) return { status: 409, message: "Check the uncertain platform result before publishing again." };
+    if (jobs.some((j) => j.status === "check" || (j.status !== "published" && checkpointOf(j.checkpoint).publishCalled))) return { status: 409, message: "A platform is already live or needs verification. Use its Retry action for a pending cover, and check uncertain results before publishing again." };
     const acc = await SocialAccount.findOne({ where: { client: post.client }, transaction });
     const targets = auto.targetsFor(post, acc);
     if (!targets.length) return { status: 400, message: "Connect and enable the brand’s Instagram / Facebook channels first." };

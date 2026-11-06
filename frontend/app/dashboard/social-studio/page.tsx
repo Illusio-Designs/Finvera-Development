@@ -1,4 +1,5 @@
 "use client";
+import ChannelAvatar from "@/components/admin/ChannelAvatar";
 import PageLoading from "@/components/admin/PageLoading";
 /* Social studio — analytics, channels and published posts for the brand
    picked in the dropdown (or all brands). Numbers come from Instagram and
@@ -127,7 +128,22 @@ export default function SocialStudio() {
     catch (e: any) { setReadiness((r) => r?.client === client && r.platform === platform ? { ...r, error: e.message } : r); }
   }
   const [prof, setProf] = useState<{ client: string; platform: Platform; data: Profile | null; error: string | null; form: Record<string, string>; saving: boolean; saveError?: string } | null>(null);
+  const photoRequest = useRef(0);
+  const [photoBusy, setPhotoBusy] = useState(false), [photoError, setPhotoError] = useState(""), [photoVersion, setPhotoVersion] = useState(0);
+  async function refreshPhoto() {
+    if (!prof || photoBusy) return;
+    const { client, platform } = prof; const request = ++photoRequest.current;
+    setPhotoBusy(true); setPhotoError("");
+    try {
+      const result = await api.channelPicture(client, platform);
+      setData(current => current ? { ...current, accounts: current.accounts.map(account => account.client === client ? { ...account, stats: { ...account.stats, [platform]: { ...account.stats?.[platform], picture: result.picture } }, ...(platform === "instagram" ? { igAvatar: result.picture } : {}) } : account) } : current);
+      setProf(current => current?.client === client && current.platform === platform && current.data ? { ...current, data: { ...current.data, picture: result.picture } } : current);
+      setPhotoVersion(version => version + 1);
+    } catch (error: any) { if (request === photoRequest.current) setPhotoError(error.message); }
+    finally { if (request === photoRequest.current) setPhotoBusy(false); }
+  }
   async function openProfile(client: string, platform: Platform) {
+    photoRequest.current++; setPhotoBusy(false); setPhotoError("");
     setProf({ client, platform, data: null, error: null, form: {}, saving: false });
     try {
       const d: Profile = await api.channelProfile(client, platform);
@@ -456,10 +472,7 @@ export default function SocialStudio() {
                   {chs.map((c) => (
                     <article key={c.platform} className={"ss-ch " + c.state}>
                       <div className="ss-ch-h">
-                        <span className={"ss-ava" + (c.platform === "instagram" ? " ig" : "")} style={{ background: color(b), backgroundImage: c.picture ? `url(${c.picture})` : undefined }}>
-                          {!c.picture && b[0]}
-                          <span className={"badge " + c.platform}><Icon i={c.platform === "instagram" ? InstagramIcon : Facebook01Icon} size={12} /></span>
-                        </span>
+                        <ChannelAvatar key={`${c.picture}:${photoVersion}`} picture={c.picture} label={b} className={"ss-ava" + (c.platform === "instagram" ? " ig" : "")} color={color(b)} />
                         <div><b>{c.handle}</b><small>{c.platform === "instagram" ? "Instagram Business" : "Facebook Page"}</small></div>
                         <span className={"ss-st " + c.state}>{c.state === "live" ? "● Connected" : c.state === "paused" ? "Paused" : "● Reconnect"}</span>
                       </div>
@@ -601,6 +614,8 @@ export default function SocialStudio() {
         <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setProf(null); }}>
           <aside className="adm-drawer ss-prof" role="dialog" aria-modal="true" aria-label={`${prof.client} ${PNAME[prof.platform]} profile`}>
             <div className="ss-modal-h"><h3>{PNAME[prof.platform]} profile</h3><button type="button" className="ss-btn" onClick={() => setProf(null)} aria-label="Close">×</button></div>
+            <button type="button" className="ss-btn" disabled={photoBusy || prof.saving} onClick={refreshPhoto}>{photoBusy ? "Refreshing photo…" : "Refresh photo"}</button>
+            {photoError && <p className="ss-load-error" role="alert">{photoError}</p>}
             {prof.saveError && <p className="ss-load-error" role="alert">{prof.saveError}</p>}
             {prof.error && <div className="ss-attn">{prof.error}</div>}
             {!prof.data && !prof.error && <div className="ss-loading">Loading profile…</div>}
@@ -611,7 +626,7 @@ export default function SocialStudio() {
               return (
                 <>
                   <div className={"ss-prof-cover " + prof.platform}>
-                    <span className={"ss-ava big" + (ig ? " ig" : "")} style={{ background: color(prof.client), backgroundImage: d.picture ? `url(${d.picture})` : undefined }}>{!d.picture && prof.client[0]}</span>
+                    <ChannelAvatar key={`${d.picture}:${photoVersion}`} picture={d.picture} label={prof.client} className={"ss-ava big" + (ig ? " ig" : "")} color={color(prof.client)} />
                   </div>
                   <div className="ss-prof-id">
                     {d.link && <a className="ss-chip" href={d.link} target="_blank" rel="noopener noreferrer">Open profile ↗</a>}

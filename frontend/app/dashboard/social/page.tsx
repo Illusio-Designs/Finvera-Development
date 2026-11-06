@@ -37,7 +37,7 @@ type Post = {
   _full?: boolean; // client-only: the heavy fields (HEAVY) are loaded — the board loads light "card" posts
 };
 /* Auto-publishing */
-type Media = { userTags?: ImageTag[]; url: string; type: "image" | "video"; name?: string; thumbUrl?: string | null }; // thumbUrl: small preview (newer uploads)
+type Media = { userTags?: ImageTag[]; url: string; type: "image" | "video"; name?: string; thumbUrl?: string | null; coverUrl?: string | null }; // thumbUrl: small preview (newer uploads)
 type PubJob = { id: number; postId: number; client: string; platform: "instagram" | "facebook"; status: string; runAt: string | null; attempts: number;
   error: string | null; url: string | null; publishedAt: string | null; account: string | null; theme: string; format: string | null; postStatus: string | null };
 type SocialAcc = { client: string; pageName: string; igUsername: string | null; igAvatar: string | null; status: string; lastError: string | null };
@@ -106,7 +106,7 @@ function nextHop(p: Pick<Post, "status" | "step" | "team" | "format">): { role: 
   return null;
 }
 const CLIENT_COLORS = ["#3e60ab", "#0f766e", "#be185d", "#a16207", "#7c5cff", "#0369a1", "#c2410c", "#15803d"];
-const FORMATS = ["Post", "Reel", "Carousel", "Video", "Story", "Influencer Reel"];
+const FORMATS = ["Post", "Reel", "Carousel", "Video", "Story", "Video Story", "Influencer Reel"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const COL_PAGE = 20; // cards per board column before "Show more"
@@ -656,7 +656,7 @@ export default function SocialCalendar() {
     setMediaBusy(true);
     try {
       if (files.length + (editing.media || []).length > 10) throw new Error("Use at most 10 files per post.");
-      const ig = await instagramSafeAll(Array.from(files));
+      const ig = await instagramSafeAll(Array.from(files), /story|stories/i.test(editing.format || "") ? "preserve" : "feed");
       const r = await api.uploadSocialMedia(ig.files);
       dirty.current.add("media");
       setEditing((e) => (e ? { ...e, media: [...(e.media || []), ...r.items] } : e));
@@ -819,7 +819,7 @@ export default function SocialCalendar() {
     try {
       const remaining = 10 - (p.media || []).length;
       if (files.length > remaining) throw new Error(`You can add ${remaining} more file${remaining === 1 ? "" : "s"}. Remove an existing file or choose fewer files.`);
-      const ig = await instagramSafeAll(Array.from(files));
+      const ig = await instagramSafeAll(Array.from(files), /story|stories/i.test(p.format || "") ? "preserve" : "feed");
       const r = await api.uploadSocialMedia(ig.files);
       const media = [...(p.media || []), ...r.items];
       const saved = await api.update("social-posts", p.id, { media, _expectedUpdatedAt: p.updatedAt });
@@ -831,6 +831,27 @@ export default function SocialCalendar() {
       toast("Upload failed", "err", { description: message });
     }
     finally { mediaMutating.current.delete(p.id); setWorkBusy(null); }
+  }
+  async function updateCover(p: Post, file: File | null): Promise<boolean> {
+    if (mediaMutating.current.has(p.id) || p.media?.length !== 1) return false;
+    mediaMutating.current.add(p.id); setWorkBusy(p.id); setWorkError(null);
+    try {
+      let coverUrl: string | undefined;
+      if (file) { const converted = await instagramSafeAll([file], "preserve"); const uploaded = await api.uploadSocialMedia(converted.files); coverUrl = uploaded.items[0]?.url; if (!coverUrl) throw new Error("Cover upload failed."); }
+      const media = p.media.map(item => { const { coverUrl: old, ...rest } = item; return coverUrl ? { ...rest, coverUrl } : rest; });
+      const saved = await api.update("social-posts", p.id, { media, _expectedUpdatedAt: p.updatedAt }); applySaved(saved); return true;
+    } catch (error: any) { setWorkError({ postId: p.id, message: error.message }); return false; }
+    finally { mediaMutating.current.delete(p.id); setWorkBusy(null); }
+  }
+  async function editCover(file: File | null): Promise<boolean> {
+    if (!editing || editing.media?.length !== 1 || mediaBusy) return false;
+    setMediaBusy(true);
+    try {
+      let coverUrl: string | undefined;
+      if (file) { const converted = await instagramSafeAll([file], "preserve"); const uploaded = await api.uploadSocialMedia(converted.files); coverUrl = uploaded.items[0]?.url; if (!coverUrl) throw new Error("Cover upload failed."); }
+      set({ media: editing.media.map(item => { const { coverUrl: old, ...rest } = item; return coverUrl ? { ...rest, coverUrl } : rest; }) }); return true;
+    } catch (error: any) { setSaveError(error.message); return false; }
+    finally { setMediaBusy(false); }
   }
   async function saveWorkMedia(p: Post, media: Media[]) {
     if (mediaMutating.current.has(p.id)) return;
@@ -1285,7 +1306,7 @@ export default function SocialCalendar() {
   }
 
   function renderWork(p: Post) {
-    return <SocialUploadWork key={p.id} media={p.media || []} busy={workBusy === p.id} disabled={!p._full || reviewSending || tagSaving === p.id}
+    return <SocialUploadWork key={p.id} format={p.format} onCover={file => updateCover(p, file)} media={p.media || []} busy={workBusy === p.id} disabled={!p._full || reviewSending || tagSaving === p.id}
       editable={canEdit(p)} posted={p.status === "posted"} error={workError?.postId === p.id ? workError.message : undefined}
       onFiles={(files) => uploadWork(p, files)} onRemove={(index) => removeWork(p, index)} onTags={(index, tags) => saveImageTags(p, index, tags)} onReorder={(from, to) => saveWorkMedia(p, moveArtwork(p.media || [], from, to))} />;
   }
@@ -1860,11 +1881,11 @@ export default function SocialCalendar() {
               </div>
             </fieldset>)}
 
-            {/story|stories/i.test(editing.format || "") && <p className="cal-pubnote">Stories use manual posting. Auto-publishing is unavailable for this format; deselect publishing channels before approval.</p>}
+            {/story|stories/i.test(editing.format || "") && <p className="cal-pubnote">Stories publish as one photo or video to the selected channels. Caption notes and keywords stay internal. Choose Video Story when a video editor should make the asset.</p>}
             <fieldset className="cal-fs">
-              <legend>Content &amp; links</legend>
-              <div className="adm-field"><label>Caption &amp; hashtags</label>
-                <textarea aria-label="Caption & hashtags" rows={6} value={txt("caption")} onChange={(e) => set({ caption: e.target.value })} /></div>
+              <legend>Content &amp; links</legend>{!/reel/i.test(editing.format || "") && editing.media?.some(item => item.coverUrl) && <button type="button" className="cal-btn sm" onClick={() => set({ media: editing.media?.map(item => { const { coverUrl, ...rest } = item; return rest; }) })}>Remove Reel covers for this format</button>}
+              <div className="adm-field"><label>{/story|stories/i.test(editing.format || "") ? "Story notes · not published" : "Caption & hashtags"}</label>
+                <textarea aria-label={/story|stories/i.test(editing.format || "") ? "Story notes · not published" : "Caption & hashtags"} rows={6} value={txt("caption")} onChange={(e) => set({ caption: e.target.value })} /></div>
               {edPlanning && <>              <div className="field row" style={{ gap: 12 }}>
                 <div className="adm-field" style={{ flex: 1 }}><label>Reference link</label>
                   <input value={txt("reference")} onChange={(e) => set({ reference: e.target.value })} placeholder="https://" /></div>
@@ -1876,7 +1897,7 @@ export default function SocialCalendar() {
                   <textarea value={txt("dataStatus")} onChange={(e) => set({ dataStatus: e.target.value })} placeholder="We have / Required from client" /></div>
               </div></>}
               <div className="field row" style={{ gap: 12 }}>
-                <div className="adm-field" style={{ flex: 1 }}><label>Instagram profiles to tag</label>
+                <div className="adm-field" style={{ flex: 1 }}><label>Instagram profiles to tag</label>{/story|stories/i.test(editing.format || "") && <button type="button" className="cal-btn sm" onClick={() => set({ tags: "", media: (editing.media || []).map(item => ({ ...item, userTags: [] })) })}>Clear tags for Story</button>}
                   <input aria-label="Instagram profiles to tag" value={txt("tags")} onChange={(e) => set({ tags: e.target.value })} /><span className="adm-hint">Use exact @usernames separated by commas, not display names, hashtags or emails. Clear this field to publish without post-wide tags; remove image-specific tags under Tag profiles. These apply to Instagram images at the center; use Tag profiles on artwork to adjust positions. Caption @mentions are separate.</span></div>
                 <div className="adm-field" style={{ flex: 1 }}><label>Keywords</label>
                   <input value={txt("keywords")} onChange={(e) => set({ keywords: e.target.value })} /></div>
@@ -1915,7 +1936,7 @@ export default function SocialCalendar() {
                     {!chosen.length && <span className="adm-hint">Nothing ticked — this post won't publish by itself.</span>}
                   </div>}
                   <div className="adm-field"><label>Image or video to post</label>
-                    <SocialUploadWork media={media} busy={mediaBusy} disabled={mediaBusy} editable posted={false} staged
+                    <SocialUploadWork format={editing.format} onCover={editCover} media={media} busy={mediaBusy} disabled={mediaBusy} editable posted={false} staged
                       onFiles={(files) => addMedia(files)} onRemove={(index) => set({ media: media.filter((_, i) => i !== index) })} onReorder={(from, to) => set({ media: moveArtwork(media, from, to) })}
                       onTags={async (index, tags) => { set({ media: media.map((item, i) => i === index ? { ...item, userTags: tags } : item) }); return true; }} />
                     <span className="adm-hint">One image or video, or up to 10 for a carousel. JPG images and MP4 videos work everywhere.</span>
@@ -1924,7 +1945,7 @@ export default function SocialCalendar() {
                   </div>
                   <label className="cal-check"><input type="checkbox" checked={editing.keywordHashtags !== false} onChange={(e) => set({ keywordHashtags: e.target.checked })} />
                     Add the keywords as hashtags</label>
-                  {cap.text && <div className="adm-field"><label>What gets posted</label>
+                  {cap.text && !/story|stories/i.test(editing.format || "") && <div className="adm-field"><label>What gets posted</label>
                     <p className="cal-pre cal-preview">{cap.text}</p>
                     <span className={"adm-hint" + (cap.text.length > 2200 ? " cal-warn" : "")}>{cap.text.length}/2,200 characters · {(cap.text.match(/#[\p{L}\p{N}_]+/gu) || []).length}/30 hashtags</span>
                   </div>}

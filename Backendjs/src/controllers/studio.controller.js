@@ -33,7 +33,7 @@ async function refreshProfiles(accounts) {
   await pool(stale, 4, async (a) => {
     const stats = await meta.fetchProfile(a);
     if (!Object.keys(stats).length) return;
-    await a.update({ stats, statsAt: new Date() });
+    await a.update({ stats: require("../utils/profilePictures").mergeProfileStats(a.stats, stats), statsAt: Object.values(stats).some(row => Object.hasOwn(row, "followers")) ? new Date() : a.statsAt, ...(stats.instagram?.picture ? { igAvatar: stats.instagram.picture } : {}) });
     const day = todayIst();
     for (const platform of Object.keys(stats)) {
       const followers = stats[platform]?.followers;
@@ -158,6 +158,22 @@ const profile = asyncHandler(async (req, res) => {
   try { res.json(await meta.profileDetails(acc, req.query.platform === "instagram" ? "instagram" : "facebook")); }
   catch (e) { res.status(502).json({ message: e.message }); }
 });
+const picture = asyncHandler(async (req, res) => {
+  const platform = req.query.platform === "instagram" ? "instagram" : "facebook";
+  const acc = await SocialAccount.findOne({ where: { client: req.params.client } });
+  if (!acc || (req.socialScope && !req.socialScope.has(acc.client))) return res.status(404).json({ message: "This brand isn't connected." });
+  try {
+    const result = await meta.profilePicture(acc, platform);
+    if (!result.picture) return res.status(502).json({ message: "Meta did not return a profile picture. Your saved picture has been kept." });
+    await sequelize.transaction(async transaction => {
+      const current = await SocialAccount.findByPk(acc.id, { transaction, lock: transaction.LOCK.UPDATE });
+      if (!current || current.pageId !== acc.pageId || current.igUserId !== acc.igUserId) throw new Error("The connected account changed. Refresh Social studio.");
+      const { platform: ignored, ...values } = result;
+      await current.update({ stats: require("../utils/profilePictures").mergeProfileStats(current.stats, { [platform]: values }), ...(platform === "instagram" ? { igAvatar: result.picture } : {}) }, { transaction });
+    });
+    res.json(result);
+  } catch (error) { res.status(502).json({ message: error.message }); }
+});
 const updateProfile = asyncHandler(async (req, res) => {
   const acc = await SocialAccount.findOne({ where: { client: req.params.client } });
   if (!acc) return res.status(404).json({ message: "This brand isn't connected." });
@@ -183,4 +199,4 @@ const capabilities = asyncHandler(async (req, res) => {
   res.json(await require("../utils/metaCapabilities").checkCapabilities(acc, platform));
 });
 
-module.exports = { overview, pause, profile, updateProfile, capabilities, refreshAllStudio };
+module.exports = { picture, overview, pause, profile, updateProfile, capabilities, refreshAllStudio };

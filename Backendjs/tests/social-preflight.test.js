@@ -10,8 +10,10 @@ test("approval catches imported invalid tag text before scheduling", () => {
   assert.throws(() => prepareUpdate({ ...post, tags: "Illusio Designs" }, { status: "ready" }, admin), /Invalid Instagram tag/);
   assert.equal(prepareUpdate(post, { status: "ready" }, admin).status, "ready");
 });
-test("Story publishing is blocked while manual approval remains available", () => {
-  assert.match(preflight({ ...post, format: "Story" })[0].message, /Story auto-publishing/);
+test("Stories validate their own media and tagging rules", () => {
+  assert.deepEqual(preflight({ ...post, format: "Story", tags: "" }), []);
+  assert.match(preflight({ ...post, format: "Story" })[0].message, /Story profile tagging/);
+  assert.ok(preflight({ ...post, format: "Story", tags: "", media: [...post.media, ...post.media] }).some(issue => /exactly one/.test(issue.message)));
   assert.deepEqual(preflight({ ...post, format: "Story", publishTo: [] }, []), []);
 });
 test("reels and Facebook mixed media have platform-specific requirements", () => {

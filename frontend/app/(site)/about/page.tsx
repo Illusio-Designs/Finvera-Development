@@ -1,3 +1,4 @@
+import AboutTimeline from "@/components/AboutTimeline";
 import AboutValues from "@/components/AboutValues";
 import { seoMetadata } from "@/lib/seoMetadata";
 import { testimonialInitials } from "@/lib/testimonialPresentation";
@@ -8,24 +9,14 @@ import ContentIcon from "@/components/contentIcon";
 import BrandShowcase from "@/components/BrandShowcase";
 import LogoMark from "@/components/LogoMark";
 import { getTeam, getSeo, getBrands, getMilestones, getValues, getLogos } from "@/lib/api";
-import type { Milestone } from "@/lib/types";
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSeo("about");
   return seoMetadata(s);
 }
 
-const FB_TIMELINE: Milestone[] = [
-  { id: 1, year: "2017", title: "Illusio Designs is born", description: "We start as a small design & marketing studio, helping brands look sharper and sell better." },
-  { id: 2, year: "2019", title: "Into web & product", description: "Client demand pulls us from brand design into websites, product UI and front-end engineering." },
-  { id: 3, year: "2021", title: "Our first SaaS", description: "We ship our first SaaS products — for clients and for ourselves — and fall for building software." },
-  { id: 4, year: "2023", title: "The brand family grows", description: "Fintranzact, Kartriq and Collabhype take shape — accounting, omni-channel retail and creator collaboration." },
-  { id: 5, year: "2024", title: "Finvera Solutions LLP", description: "We formally incorporate. Finvera becomes our CRM & SaaS development flagship." },
-  { id: 6, year: "Today", title: "A multi-product group", description: "Five brands, one team — building design, software and SaaS for businesses worldwide." },
-];
 export default async function About() {
   const [team, brandsRes, timelineRes, valuesRes, clientLogos] = await Promise.all([getTeam(), getBrands(), getMilestones(), getValues(), getLogos()]);
-  const timeline = timelineRes.length ? timelineRes : FB_TIMELINE;
   return (
     <>
       <section className="page-hero">
@@ -60,27 +51,7 @@ export default async function About() {
       {/* Brand ecosystem — pinned horizontal showcase (the /experience effect) */}
       <BrandShowcase brands={brandsRes} />
 
-      {/* Timeline */}
-      <section className="section" style={{ paddingTop: 0 }}>
-        <div className="container">
-          <div className="section-head center reveal">
-            <span className="eyebrow">Our journey</span>
-            <h2>Nine years, <span className="grad-word">one throughline</span></h2>
-          </div>
-          <div className="timeline">
-            {timeline.map((s, i) => (
-              <div className={"tl-item reveal-x" + (i % 2 ? " r" : "")} key={s.id}>
-                <div className="tl-marker"><span className="tl-dot" /></div>
-                <div className="tl-body">
-                  <span className="tl-year">{s.year}</span>
-                  <h4>{s.title}</h4>
-                  <p>{s.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <AboutTimeline items={timelineRes} />
 
       <AboutValues items={valuesRes} />
 

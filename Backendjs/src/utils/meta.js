@@ -130,8 +130,10 @@ async function waitForContainer(id, token, maxMs = 5 * 60 * 1000) {
    `cp` is the job's checkpoint: the container id is saved as soon as it
    exists so a retry resumes instead of uploading again, and `publishCalled`
    marks the moment after which the outcome is uncertain on failure. */
-async function publishInstagram(acc, media, caption, cp = {}, save = async () => {}, profiles = "") {
-  media = postMediaWithTags(media, profiles);
+async function publishInstagram(acc, media, caption, cp = {}, save = async () => {}, profiles = "", options = {}) {
+  const story = /story|stories/i.test(options.format || "");
+  if (story && (media.length !== 1 || profiles || media.some(item => imageTags(item).length))) throw new Error("A Story needs one asset and does not support image profile tags.");
+  media = story ? media : postMediaWithTags(media, profiles);
   const token = decrypt(acc.pageToken);
   const ig = acc.igUserId;
   if (!ig) throw new Error("This brand has no Instagram Business account linked to its Facebook Page.");
@@ -143,8 +145,8 @@ async function publishInstagram(acc, media, caption, cp = {}, save = async () =>
   } else if (media.length === 1) {
     const m = media[0];
     const c = await graph("POST", `/${ig}/media`, isVideo(m)
-      ? { media_type: "REELS", video_url: m.url, caption, share_to_feed: "true", access_token: token }
-      : imageParams(m, { caption, access_token: token }));
+      ? { media_type: story ? "STORIES" : "REELS", video_url: m.url, ...(story ? {} : { caption, share_to_feed: "true", ...(m.coverUrl ? { cover_url: m.coverUrl } : {}) }), access_token: token }
+      : story ? { media_type: "STORIES", image_url: m.url, access_token: token } : imageParams(m, { caption, access_token: token }));
     creation = c.id;
   } else {
     const children = [];
@@ -166,11 +168,23 @@ async function publishInstagram(acc, media, caption, cp = {}, save = async () =>
   return { id: pub.id, url: info.permalink || null };
 }
 
+async function waitForFacebookPublished(id, token) {
+  for (let attempt = 0; attempt < 18; attempt++) {
+    const result = await graph("GET", `/${id}`, { fields: "status", access_token: token });
+    const phase = result.status?.publishing_phase;
+    if (["complete", "completed"].includes(phase?.status)) return;
+    if (phase?.status === "error") throw new Error("Facebook reported a publishing error. Check the Page before retrying.");
+    await sleep(5000);
+  }
+  throw new Error("Facebook accepted the video but has not confirmed it is live yet. Check the Page before retrying.");
+}
+
 /* Facebook Page: a video, or photos (one or several) in one post. The final
    call creates the post, so a failure from then on is uncertain. */
-async function publishFacebook(acc, media, caption, cp = {}, save = async () => {}) {
+async function publishFacebook(acc, media, caption, cp = {}, save = async () => {}, options = {}) {
   const token = decrypt(acc.pageToken);
   const page = acc.pageId;
+  if (/story|stories|reel/i.test(options.format || "")) return require("./socialMetaFormats").publishFacebookFormat({ page, token, media, caption, format: options.format, checkpoint: cp, save }, { graph, isVideo, waitForPublished: waitForFacebookPublished, uploadHosted: require("./metaUploads").uploadHosted, uploadCover: (id, url, access) => require("./metaUploads").uploadCover(id, url, access, FB_GRAPH) });
   let postId;
   const mark = async () => { cp.publishCalled = true; await save(cp); };
   const video = media.find(isVideo);
@@ -198,12 +212,25 @@ async function fetchProfile(acc) {
   const token = decrypt(acc.pageToken);
   const out = {};
   const fb = await graph("GET", `/${acc.pageId}`, { fields: "name,followers_count,fan_count,picture.type(large){url}", access_token: token }).catch(() => null);
+  if (!fb) { const identity = await profilePicture(acc, "facebook").catch(() => null); if (identity) { const { platform, ...data } = identity; out.facebook = data; } }
   if (fb) out.facebook = { followers: fb.followers_count ?? fb.fan_count ?? null, name: fb.name, picture: fb.picture?.data?.url || null };
   if (acc.igUserId) {
     const ig = await graph("GET", `/${acc.igUserId}`, { fields: "username,followers_count,media_count,profile_picture_url", access_token: token }).catch(() => null);
+    if (!ig) { const identity = await profilePicture(acc, "instagram").catch(() => null); if (identity) { const { platform, ...data } = identity; out.instagram = data; } }
     if (ig) out.instagram = { followers: ig.followers_count ?? null, posts: ig.media_count ?? null, username: ig.username, picture: ig.profile_picture_url || null };
   }
   return out;
+}
+
+async function profilePicture(acc, platform) {
+  const token = decrypt(acc.pageToken);
+  if (platform === "instagram") {
+    if (!acc.igUserId) throw new Error("No Instagram account is linked to this brand.");
+    const row = await graph("GET", `/${acc.igUserId}`, { fields: "username,profile_picture_url", access_token: token });
+    return { platform, username: row.username, picture: row.profile_picture_url || null };
+  }
+  const row = await graph("GET", `/${acc.pageId}`, { fields: "name,picture.type(large){url}", access_token: token });
+  return { platform, name: row.name, picture: row.picture?.data?.url || null };
 }
 
 /* Likes / comments (and shares on Facebook) of one published post. */
@@ -238,4 +265,4 @@ async function updatePage(acc, fields) {
   return graph("POST", `/${acc.pageId}`, params);
 }
 
-module.exports = { profileDetails, updatePage, fetchProfile, fetchPostMetrics, configured, redirectUri, SCOPES, encrypt, decrypt, buildAuthUrl, exchangeCode, listPages, publishInstagram, publishFacebook, isVideo, graph };
+module.exports = { profilePicture, profileDetails, updatePage, fetchProfile, fetchPostMetrics, configured, redirectUri, SCOPES, encrypt, decrypt, buildAuthUrl, exchangeCode, listPages, publishInstagram, publishFacebook, isVideo, graph };

@@ -109,6 +109,7 @@ export type WebsiteOverview = { collections: { resource: string; total: number; 
 export const api = {
   reorderServices: (ids: number[], expected: unknown[]): Promise<{ items: any[] }> => req("/services/reorder", { method: "POST", body: JSON.stringify({ ids, expected }) }),
   reorderValues: (ids: number[], expected: unknown[]): Promise<{ items: any[] }> => req("/values/reorder", { method: "POST", body: JSON.stringify({ ids, expected }) }),
+  reorderMilestones: (ids: number[], expected: unknown[]): Promise<{ items: any[] }> => req("/milestones/reorder", { method: "POST", body: JSON.stringify({ ids, expected }) }),
   reorderBrands: (ids: number[], expected: unknown[]): Promise<{ items: any[] }> => req("/brands/reorder", { method: "POST", body: JSON.stringify({ ids, expected }) }),
   reorderFaqs: (ids: number[], expected: unknown[]): Promise<{ items: any[] }> => req("/faqs/reorder", { method: "POST", body: JSON.stringify({ ids, expected }) }),
   websiteOverview: (): Promise<WebsiteOverview> => req("/website/overview"),
@@ -224,6 +225,7 @@ export const api = {
   socialStudio: () => req(`/social-studio`),
   channelCapabilities: (client: string, platform: string) => req(`/social-accounts/${encodeURIComponent(client)}/capabilities?platform=${platform}`),
   channelProfile: (client: string, platform: string) => req(`/social-accounts/${encodeURIComponent(client)}/profile?platform=${platform}`),
+  channelPicture: (client: string, platform: string) => req(`/social-accounts/${encodeURIComponent(client)}/picture?platform=${encodeURIComponent(platform)}`),
   updatePageProfile: (client: string, body: Record<string, string>) => req(`/social-accounts/${encodeURIComponent(client)}/profile`, { method: "PUT", body: JSON.stringify(body) }),
   pauseChannel: (client: string, platform: string, paused: boolean) => req(`/social-accounts/${encodeURIComponent(client)}/pause`, { method: "POST", body: JSON.stringify({ platform, paused }) }),
   disconnectSocial: (client: string) => req(`/social-accounts/${encodeURIComponent(client)}`, { method: "DELETE" }),

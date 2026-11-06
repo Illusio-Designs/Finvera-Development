@@ -3,9 +3,11 @@
 import { useRef, useState } from "react";
 import InstagramImageTags, { type ImageTag } from "./InstagramImageTags";
 
-type Artwork = { url: string; type: "image" | "video"; name?: string; thumbUrl?: string | null; userTags?: ImageTag[] };
+type Artwork = { url: string; type: "image" | "video"; name?: string; thumbUrl?: string | null; coverUrl?: string | null; userTags?: ImageTag[] };
 type Props = {
   media: Artwork[];
+  format?: string | null;
+  onCover?: (file: File | null) => Promise<boolean>;
   busy: boolean;
   disabled: boolean;
   editable: boolean;
@@ -18,7 +20,11 @@ type Props = {
   onReorder?: (from: number, to: number) => void;
 };
 
-export default function SocialUploadWork({ media, busy, disabled, editable, posted, error, staged = false, onFiles, onRemove, onTags, onReorder }: Props) {
+export default function SocialUploadWork({ media, busy, disabled, editable, posted, error, staged = false, onFiles, onRemove, onTags, onReorder, format, onCover }: Props) {
+  const story = /story|stories/i.test(format || ""), reel = /reel/i.test(format || "");
+  const maxFiles = story || reel ? 1 : 10;
+  const coverInput = useRef<HTMLInputElement>(null);
+  const [coverBusy, setCoverBusy] = useState(false);
   const [tagging, setTagging] = useState<string | null>(null);
   const tagIndex = media.findIndex((item) => item.url === tagging);
   const input = useRef<HTMLInputElement>(null);
@@ -26,8 +32,8 @@ export default function SocialUploadWork({ media, busy, disabled, editable, post
   const [dragging, setDragging] = useState(false);
   const [localError, setLocalError] = useState("");
   const [pending, setPending] = useState<File[]>([]);
-  const remaining = Math.max(0, 10 - media.length);
-  const canUpload = editable && !posted && !disabled && !busy && remaining > 0;
+  const remaining = Math.max(0, maxFiles - media.length);
+  const canUpload = editable && !posted && !disabled && !busy && !coverBusy && remaining > 0;
 
   async function select(files: File[]) {
     setDragging(false); depth.current = 0;
@@ -41,7 +47,7 @@ export default function SocialUploadWork({ media, busy, disabled, editable, post
 
   return (
     <section className="sw-upload" aria-label="Final artwork" aria-busy={busy}>
-      <div className="sw-upload-heading"><div><span className="sw-upload-kicker">THE CREATIVE HANDOFF</span><h3>Give your idea its final look.</h3></div><span className="sw-upload-count">{media.length}<span> / 10 files</span></span></div>
+      <div className="sw-upload-heading"><div><span className="sw-upload-kicker">THE CREATIVE HANDOFF</span><h3>Give your idea its final look.</h3></div><span className="sw-upload-count">{media.length}<span> / {maxFiles} {maxFiles === 1 ? "file" : "files"}</span></span></div>
       <p className="sw-upload-intro">Add the artwork your reviewer will check.</p>
 
       {editable && !posted && <div className={"sw-drop" + (dragging ? " is-dragging" : "") + (busy ? " is-busy" : "") + (!canUpload ? " is-disabled" : "")}
@@ -54,7 +60,7 @@ export default function SocialUploadWork({ media, busy, disabled, editable, post
         <span className="sw-drop-hint">{busy ? "Uploading and saving to this post" : !remaining ? "Remove a file to make room for another." : "Drag images or videos here, or choose them below."}</span>
         <input ref={input} type="file" multiple hidden aria-label="Choose final artwork" disabled={!canUpload} accept=".jpg,.jpeg,.png,.webp,.mp4,.mov,.m4v" onChange={(e) => { select(Array.from(e.target.files || [])); e.target.value = ""; }} />
         <button type="button" className="sw-upload-button" disabled={!canUpload} onClick={() => input.current?.click()}>{busy ? "Uploading…" : "Upload"}</button>
-        <small>JPG, PNG, WebP · MP4, MOV · up to 10 files</small>
+        <small>JPG, PNG, WebP · MP4, MOV · {maxFiles === 1 ? "one asset" : "up to 10 files"}</small>
         {busy && <div className="sw-upload-progress" role="status"><i /><span className="sw-sr-only">Uploading {pending.length || "selected"} files. Please wait.</span></div>}
       </div>}
 
@@ -64,13 +70,15 @@ export default function SocialUploadWork({ media, busy, disabled, editable, post
       {media.length > 0 && <div className="sw-artwork-grid">{media.map((file, index) => {
         const video = file.type === "video" || /\.(mp4|mov|m4v)(\?|$)/i.test(file.url);
         return <article className="sw-artwork" key={file.url + index}>
-          <a className="sw-artwork-preview" href={file.url} target="_blank" rel="noopener noreferrer" aria-label={`Open ${file.name || `artwork ${index + 1}`}`} draggable={false}>
-            {video ? <video src={file.url} muted playsInline preload="metadata" /> : <img src={file.thumbUrl || file.url} alt={file.name || `Artwork ${index + 1}`} draggable={false} />}
+          <a className={"sw-artwork-preview" + (story ? " sw-story-preview" : "")} href={file.url} target="_blank" rel="noopener noreferrer" aria-label={`Open ${file.name || `artwork ${index + 1}`}`} draggable={false}>
+            {video ? <video poster={file.coverUrl || undefined} src={file.url} muted playsInline preload="metadata" /> : <img src={file.thumbUrl || file.url} alt={file.name || `Artwork ${index + 1}`} draggable={false} />}
             <span className="sw-artwork-number">{String(index + 1).padStart(2, "0")}</span><span className="sw-artwork-type">{video ? "▶ Video" : "Image"}</span>
           </a>
-          <div className="sw-artwork-info"><div><strong title={file.name}>{file.name || `Artwork ${index + 1}`}</strong><small>{staged ? "Ready to save with this post" : "✓ Saved to this post"}</small></div>{editable && !posted && !video && <button type="button" disabled={disabled || busy} onClick={() => setTagging(file.url)}>Tag profiles{file.userTags?.length ? ` (${file.userTags.length})` : ""}</button>}{editable && !posted && onReorder && media.length > 1 && <span className="sw-artwork-order"><button type="button" disabled={disabled || busy || index === 0} aria-label={`Move artwork ${index + 1} earlier`} onClick={() => onReorder(index, index - 1)}>←</button><button type="button" disabled={disabled || busy || index === media.length - 1} aria-label={`Move artwork ${index + 1} later`} onClick={() => onReorder(index, index + 1)}>→</button></span>}{editable && !posted && <button type="button" disabled={disabled || busy} aria-label={`Remove ${file.name || `artwork ${index + 1}`}`} onClick={() => { setLocalError(""); onRemove(index); }}>Remove</button>}</div>
+          <div className="sw-artwork-info"><div><strong title={file.name}>{file.name || `Artwork ${index + 1}`}</strong><small>{staged ? "Ready to save with this post" : "✓ Saved to this post"}</small></div>{editable && !posted && !story && !video && <button type="button" disabled={disabled || busy} onClick={() => setTagging(file.url)}>Tag profiles{file.userTags?.length ? ` (${file.userTags.length})` : ""}</button>}{editable && !posted && onReorder && media.length > 1 && <span className="sw-artwork-order"><button type="button" disabled={disabled || busy || index === 0} aria-label={`Move artwork ${index + 1} earlier`} onClick={() => onReorder(index, index - 1)}>←</button><button type="button" disabled={disabled || busy || index === media.length - 1} aria-label={`Move artwork ${index + 1} later`} onClick={() => onReorder(index, index + 1)}>→</button></span>}{editable && !posted && <button type="button" disabled={disabled || busy} aria-label={`Remove ${file.name || `artwork ${index + 1}`}`} onClick={() => { setLocalError(""); onRemove(index); }}>Remove</button>}</div>
         </article>;
       })}</div>}
+      {reel && media.length === 1 && (media[0].type === "video" || /\.(mp4|mov|m4v)(\?|$)/i.test(media[0].url)) && <section className="sw-reel-cover" aria-label="Reel cover"><h4>Cover image · optional</h4><p>Reviewed and saved with this video. The cover is uploaded separately to Instagram and Facebook.</p>{media[0].coverUrl && <img src={media[0].coverUrl} alt="Reel cover" />}{editable && !posted && onCover && <><input ref={coverInput} type="file" aria-label="Choose Reel cover" accept="image/jpeg,image/png,image/webp" hidden disabled={disabled || busy || coverBusy} onChange={async event => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 8 * 1024 * 1024) { setLocalError("Choose a JPG, PNG or WebP cover under 8 MB."); return; } setCoverBusy(true); setLocalError(""); try { if (!(await onCover(file))) setLocalError("The cover could not be saved. Try again."); } finally { setCoverBusy(false); } }} /><button type="button" disabled={disabled || busy || coverBusy} onClick={() => coverInput.current?.click()}>{coverBusy ? "Saving cover…" : media[0].coverUrl ? "Replace cover" : "Upload cover"}</button>{media[0].coverUrl && <button type="button" disabled={disabled || busy || coverBusy} onClick={async () => { setCoverBusy(true); try { if (!(await onCover(null))) setLocalError("The cover could not be removed. Try again."); } finally { setCoverBusy(false); } }}>Remove cover</button>}</>}</section>}
+      {story && <p className="sw-upload-intro">Story · one vertical photo or video. Caption notes and keywords are not published. Stickers and Story tagging are not implemented here.</p>}
       {tagIndex >= 0 && <InstagramImageTags saveLabel={staged ? "Apply image tags" : "Save image tags"} key={tagging} url={media[tagIndex].url} tags={media[tagIndex].userTags || []} onSave={(tags) => onTags(tagIndex, tags)} onClose={() => setTagging(null)} />}
       <div className="sw-upload-footer"><span aria-hidden="true">✦</span><p>{posted ? "Live now. Your artwork stays with this post’s history." : staged ? "Save this post to apply artwork and tag changes." : media.length ? "Looking good. Send your saved artwork for review when it’s ready." : "One good handoff at a time. Upload here, then send for review."}<small>Uploading does not publish your post.</small></p></div>
     </section>
