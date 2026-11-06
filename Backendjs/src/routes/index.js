@@ -462,7 +462,7 @@ router.post("/contact/:id(\\d+)/to-lead", ...canContact, inboxCtrl.toLead);
 const seoRouter = express.Router();
 seoRouter.get("/", optionalAuth, settingsCtrl.listSeo);        // public; signed-in reads skip the cache
 seoRouter.get("/:page", optionalAuth, settingsCtrl.getSeo);
-seoRouter.put("/:page", requireAuth, requireArea("seo"),
+seoRouter.put("/:page", requireAuth, requireArea("seo"), require("../controllers/seo.controller").validate,
   audit.track("seo", { load: (req) => require("../models").Seo.findOne({ where: { page: req.params.page } }), idFrom: (req) => req.params.page, label: (_r, req) => req.params.page }),
   settingsCtrl.upsertSeo);
 router.use("/seo", seoRouter);
