@@ -1,3 +1,4 @@
+import AboutValues from "@/components/AboutValues";
 import { seoMetadata } from "@/lib/seoMetadata";
 import { testimonialInitials } from "@/lib/testimonialPresentation";
 import Link from "next/link";
@@ -7,7 +8,7 @@ import ContentIcon from "@/components/contentIcon";
 import BrandShowcase from "@/components/BrandShowcase";
 import LogoMark from "@/components/LogoMark";
 import { getTeam, getSeo, getBrands, getMilestones, getValues, getLogos } from "@/lib/api";
-import type { Brand, Milestone, ValueItem } from "@/lib/types";
+import type { Brand, Milestone } from "@/lib/types";
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSeo("about");
@@ -29,18 +30,10 @@ const FB_TIMELINE: Milestone[] = [
   { id: 5, year: "2024", title: "Finvera Solutions LLP", description: "We formally incorporate. Finvera becomes our CRM & SaaS development flagship." },
   { id: 6, year: "Today", title: "A multi-product group", description: "Five brands, one team — building design, software and SaaS for businesses worldwide." },
 ];
-const FB_VALUES: ValueItem[] = [
-  { id: 1, title: "Ship fast", description: "Momentum compounds. We deliver working software every single week.", icon: "rocket" },
-  { id: 2, title: "Own the outcome", description: "We measure success by your metrics, not billed hours.", icon: "target" },
-  { id: 3, title: "Craft matters", description: "Details are the product. We sweat the pixels and the milliseconds.", icon: "award" },
-  { id: 4, title: "Partner, not vendor", description: "We work as an extension of your team — transparent and hands-on.", icon: "agreement" },
-];
-
 export default async function About() {
   const [team, brandsRes, timelineRes, valuesRes, clientLogos] = await Promise.all([getTeam(), getBrands(), getMilestones(), getValues(), getLogos()]);
   const brands = brandsRes.length ? brandsRes : FB_BRANDS;
   const timeline = timelineRes.length ? timelineRes : FB_TIMELINE;
-  const values = valuesRes.length ? valuesRes : FB_VALUES;
   return (
     <>
       <section className="page-hero">
@@ -97,23 +90,7 @@ export default async function About() {
         </div>
       </section>
 
-      {/* Values */}
-      <section className="section" style={{ paddingTop: 0 }}>
-        <div className="container">
-          <div className="section-head center reveal">
-            <span className="eyebrow">What drives us</span>
-            <h2>Values we <span className="grad-word">build by</span></h2>
-          </div>
-          <div className="grid-4">
-            {values.map((v, i) => (
-              <div className={"card value reveal" + (i ? " d" + i : "")} data-cursor key={v.id}>
-                <div className="vic"><ContentIcon name={v.icon} size={22} /></div>
-                <h4>{v.title}</h4><p>{v.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <AboutValues items={valuesRes} />
 
       {/* Team */}
       {team.length > 0 && (
