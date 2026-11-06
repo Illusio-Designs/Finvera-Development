@@ -48,4 +48,5 @@ jobs:
           node tests/testimonial-presentation.test.cjs
           node tests/website-pages.test.cjs
           node tests/seo-metadata.test.cjs
+          node tests/faqs.test.cjs
         working-directory: frontend

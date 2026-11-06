@@ -1,3 +1,4 @@
+import HomeFaqs from "@/components/HomeFaqs";
 import { seoMetadata } from "@/lib/seoMetadata";
 import { testimonialRating, testimonialInitials } from "@/lib/testimonialPresentation";
 import Link from "next/link";
@@ -50,21 +51,12 @@ const pipeline = [
   { co: "Globex", meta: "Growth • $12k", tag: "Negotiation", cls: "neg", in: "GX" },
   { co: "Nexora", meta: "Startup • $6k", tag: "Proposal", cls: "prop", in: "NX" },
 ];
-const FB_FAQS = [
-  { id: 1, question: "How fast can you start on my project?", answer: "Most engagements kick off within one week. After a short discovery call we assemble a squad and schedule your first sprint immediately." },
-  { id: 2, question: "Do you build both SaaS and CRM products?", answer: "Yes — it's our core focus. We build multi-tenant SaaS platforms and fully custom CRM systems, including migrations from tools like Salesforce and HubSpot." },
-  { id: 3, question: "Who owns the code and IP?", answer: "You do, 100%. All source code, designs and infrastructure are transferred to your organization with full documentation." },
-  { id: 4, question: "Can you take over an existing codebase?", answer: "Absolutely. We regularly audit, stabilize and scale existing products — starting with a technical review before any changes ship." },
-];
-
-
 export default async function Home() {
   const [services, projects, testimonials, faqsRes, logosRes, statsRes, featuresRes] = await Promise.all([
     getServices(), getProjects(), getTestimonials(), getFaqs(), getLogos(), getStats(), getFeatures(),
   ]);
   const featured = (projects.filter((p) => p.featured).length ? projects.filter((p) => p.featured) : projects).slice(0, 3);
   const tRow = [...testimonials, ...testimonials];
-  const faqs = faqsRes.length ? faqsRes : FB_FAQS;
   const logos = logosRes.length ? logosRes : FB_LOGOS.map((l, id) => ({ id, ...l }));
   const stats = statsRes.length ? statsRes : FB_STATS;
   const features = featuresRes.length ? featuresRes : FB_FEATURES;
@@ -257,23 +249,7 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* FAQ */}
-      <section className="section" id="faq">
-        <div className="container">
-          <div className="section-head center reveal">
-            <span className="eyebrow">FAQ</span>
-            <h2>Questions, <span className="grad-word">answered</span></h2>
-          </div>
-          <div className="faq">
-            {faqs.map((f, i) => (
-              <div className={"qa reveal" + (i ? " d" + i : "")} key={f.id ?? i}>
-                <button className="q">{f.question}<span className="pm" /></button>
-                <div className="a"><p>{f.answer}</p></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <HomeFaqs items={faqsRes} />
 
       <Manifesto text="We craft SaaS and CRM software that helps businesses grow, scale and innovate — where every release moves your revenue forward." />
 
