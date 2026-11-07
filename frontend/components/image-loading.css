@@ -1,0 +1,8 @@
+/* Images remain concealed until their own load + decode completes. */
+img:not([data-image-state="ready"]):not([data-image-loading="off"]){opacity:0!important}
+img[data-image-state="loading"],img[data-image-state="error"]{pointer-events:none}
+.image-load-shimmer,.image-load-fallback{position:absolute!important;display:flex!important;align-items:center!important;justify-content:center!important;pointer-events:none!important;padding:0!important;margin:0!important;border:0!important;z-index:1;overflow:hidden;min-width:0;min-height:0;box-sizing:border-box;font:11px/1.5 Arial,sans-serif!important;color:#8c9db7!important}
+.image-load-shimmer{background:linear-gradient(105deg,#eaf0f9 25%,#f9fbff 43%,#eaf0f9 65%)!important;background-size:220% 100%!important;animation:fullImageShimmer 1.45s linear infinite!important}
+.image-load-fallback{background:#eef2f8!important;animation:none!important;text-align:center}
+@keyframes fullImageShimmer{to{background-position:-220% 0}}
+@media(prefers-reduced-motion:reduce){.image-load-shimmer{animation:none!important}}

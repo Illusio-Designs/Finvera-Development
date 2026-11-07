@@ -31,7 +31,11 @@ app.use(cors({
   credentials: true,
 }));
 
+/* Browser display variants use an API route so Apache cannot bypass them. */
+app.get("/api/image-display", require("./middleware/webpImages").imageDisplay);
+
 /* Static uploads */
+app.use("/uploads", (req, res, next) => { res.vary("Accept"); next(); }, require("./middleware/webpImages").webpImages);
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
 /* Health check (top-level, for load balancers / cPanel / uptime monitors) */

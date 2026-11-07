@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Sora, Inter } from "next/font/google";
+import ImageLoading from "@/components/ImageLoading";
 import LogoDefs from "@/components/LogoDefs";
 
 // Premium 2-font system: Inter for text, Sora for display/headings.
@@ -39,6 +40,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable} ${sora.variable}`}>
       <body>
         <LogoDefs />
+        <ImageLoading />
+        <noscript><style>{'img:not([data-image-loading="off"]){opacity:1!important}'}</style></noscript>
         {children}
       </body>
     </html>
