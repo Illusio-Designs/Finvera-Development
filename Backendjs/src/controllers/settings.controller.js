@@ -1,5 +1,5 @@
 const { Op } = require("sequelize");
-const { Seo, Setting } = require("../models");
+const { Seo, Setting, sequelize } = require("../models");
 const NOT_SYSTEM = { [Op.or]: [{ group: null }, { group: { [Op.ne]: "system" } }] };
 const { asyncHandler } = require("../utils/crud");
 const pubCache = require("../utils/publicCache");
@@ -100,33 +100,32 @@ function checkSetting(key, value) {
 
 /* Bulk upsert settings (admin): body = { key: value, ... } or [{key,value,group,isPublic}] */
 const updateSettings = asyncHandler(async (req, res) => {
-  const entries = Array.isArray(req.body)
-    ? req.body
-    : Object.entries(req.body).map(([key, value]) => ({ key, value }));
-  // Check every value first, so a bad one saves nothing.
+  if (!req.body || typeof req.body !== "object") return res.status(400).json({ message: "Send setting values as an object or array." });
+  const entries = Array.isArray(req.body) ? req.body : Object.entries(req.body).map(([key, value]) => ({ key, value }));
+  if (entries.length > 200) return res.status(400).json({ message: "Save at most 200 settings at once." });
+  const keys = new Set();
   for (const e of entries) {
-    if (!e || !e.key) continue;
+    if (!e || typeof e !== "object" || typeof e.key !== "string" || !/^[A-Za-z0-9_.-]{1,255}$/.test(e.key) || keys.has(e.key)) return res.status(400).json({ message: "Each setting needs a unique, valid key." });
+    keys.add(e.key);
+    if ((e.value != null && !["string", "number", "boolean"].includes(typeof e.value)) || String(e.value ?? "").length > 60000 || (e.group != null && (typeof e.group !== "string" || e.group.length > 255)) || (e.isPublic != null && typeof e.isPublic !== "boolean") || (e.expectedValue != null && typeof e.expectedValue !== "string")) return res.status(400).json({ message: "That setting value or metadata is invalid.", field: e.key });
     const c = checkSetting(e.key, e.value);
     if (!c.ok) return res.status(400).json({ message: c.message, field: e.key });
     e.value = c.value;
   }
-  const results = [];
   const skipped = [];
-  for (const e of entries) {
-    if (!e.key) continue;
-    // Internal keys (seed version, one-off migration markers) are the
-    // server's own bookkeeping: never writable from the API, and new keys
-    // can't be created in that group either.
-    const existing = await Setting.findOne({ where: { key: e.key } });
-    if ((existing && existing.group === "system") || e.group === "system") { skipped.push(e.key); continue; }
-    const [row] = existing ? [existing] : await Setting.findOrCreate({ where: { key: e.key }, defaults: { key: e.key } });
-    await row.update({
-      value: e.value != null ? String(e.value) : row.value,
-      group: e.group || row.group,
-      isPublic: e.isPublic != null ? e.isPublic : row.isPublic,
-    });
-    results.push(row);
-  }
+  const results = await sequelize.transaction(async transaction => {
+    const out = [];
+    // Stable lock order keeps simultaneous bulk edits from deadlocking.
+    for (const e of [...entries].sort((a, b) => a.key.localeCompare(b.key))) {
+      const existing = await Setting.findOne({ where: { key: e.key }, transaction, lock: transaction.LOCK.UPDATE });
+      if ((existing && existing.group === "system") || e.group === "system") { skipped.push(e.key); continue; }
+      if (Object.prototype.hasOwnProperty.call(e, "expectedValue") && String(existing?.value ?? "") !== String(e.expectedValue ?? "")) throw Object.assign(new Error("Settings changed since you opened this page. Reload saved values before saving; your edits have been kept."), { status: 409 });
+      const row = existing || await Setting.create({ key: e.key }, { transaction });
+      await row.update({ value: e.value != null ? String(e.value) : row.value, group: e.group || row.group, isPublic: e.isPublic != null ? e.isPublic : row.isPublic }, { transaction });
+      out.push(row);
+    }
+    return out;
+  });
   clearSettingsCache();
   if (skipped.length) res.set("X-Settings-Skipped", skipped.join(","));
   res.json(results);

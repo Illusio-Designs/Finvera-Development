@@ -411,7 +411,7 @@ export const settingsApi = {
   /* Every non-internal setting with its group (needs the settings area). */
   list: (): Promise<SettingRow[]> => req(`/settings/all`),
   /* Saves only the keys sent; a 400 names the bad key in `field`. */
-  save: (changes: Record<string, string>): Promise<SettingRow[]> => req(`/settings`, { method: "PUT", body: JSON.stringify(changes) }),
+  save: (changes: Record<string, string>, expected?: Record<string, string>): Promise<SettingRow[]> => req(`/settings`, { method: "PUT", body: JSON.stringify(expected ? Object.entries(changes).map(([key, value]) => ({ key, value, expectedValue: expected[key] })) : changes) }),
 };
 /* ═════════════════ end of settings & pixels block ══════════════════════ */
 

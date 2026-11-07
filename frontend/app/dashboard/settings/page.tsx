@@ -18,6 +18,9 @@ import { useShell } from "@/components/admin/shell/ShellContext";
 import { rolesCan } from "@/lib/permissions";
 import { toast } from "@/lib/toast";
 import { dialog } from "@/lib/dialog";
+import PageLoading from "@/components/admin/PageLoading";
+import { WorkspaceHero, WorkspaceStats } from "@/components/admin/Workspace";
+import "./settings-workspace.css";
 import ShrinkImages from "@/components/admin/ShrinkImages";
 import { SECTIONS, FIELD, clean, idStatus, issueOf, linkOk, type Field } from "./fields";
 import "./settings.css";
@@ -35,6 +38,7 @@ export default function AdminSettings() {
   const [draft, setDraft] = useState<Vals>({});          // what's in the boxes
   const [loadErr, setLoadErr] = useState("");
   const [saving, setSaving] = useState(false);
+  const [saveErr, setSaveErr] = useState("");
   const [serverErr, setServerErr] = useState<Vals>({});  // a 400 from the server, by key
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [tried, setTried] = useState(false);              // pressed Save with problems
@@ -47,7 +51,7 @@ export default function AdminSettings() {
       const rows = await settingsApi.list();
       const v: Vals = {};
       (Array.isArray(rows) ? rows : []).forEach((r) => { if (FIELD[r.key]) v[r.key] = r.value ?? ""; });
-      setOrig(v); setDraft(v); setServerErr({}); setTouched({}); setTried(false);
+      setOrig(v); setDraft(v); setSaveErr(""); setServerErr({}); setTouched({}); setTried(false);
     } catch (e) { setLoadErr(e instanceof Error ? e.message : "Couldn't load the settings."); }
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -141,9 +145,9 @@ export default function AdminSettings() {
       return;
     }
     const payload: Vals = Object.fromEntries(changed.map((k) => [k, clean(k, draft[k] ?? "")]));
-    setSaving(true);
+    setSaving(true); setSaveErr("");
     try {
-      await settingsApi.save(payload);
+      await settingsApi.save(payload, Object.fromEntries(changed.map(k => [k, orig[k] ?? ""])));
       setOrig((o) => ({ ...(o || {}), ...payload }));
       // Keep anything typed while saving; tidy the boxes that were saved.
       setDraft((d) => { const c = { ...d }; for (const k in payload) if (clean(k, c[k] ?? "") === payload[k]) c[k] = payload[k]; return c; });
@@ -151,6 +155,7 @@ export default function AdminSettings() {
       toast("Settings saved", "ok", { description: `${plural(changed.length, "change")} · live on the site within a couple of minutes` });
     } catch (e) {
       const err = e as ApiError;
+      setSaveErr(err.message || "Couldn’t save the settings. Your edits are still here.");
       if (err.field && FIELD[err.field]) { setServerErr({ [err.field]: err.message }); focusField(err.field); }
       toast("Couldn't save the settings", "err", { description: err.message || "Try again in a moment. Nothing was changed." });
     } finally { setSaving(false); }
@@ -212,7 +217,7 @@ export default function AdminSettings() {
                   inputMode={f.key === "facebook_pixel_id" ? "numeric" : f.kind === "email" ? "email" : f.kind === "url" ? "url" : f.kind === "phone" ? "tel" : undefined} />}
             {st && (
               <span className={"sh-pill st-pill " + (st === "ok" ? "green" : st === "bad" ? "amber" : "grey")} aria-live="polite">
-                {st === "ok" ? "Connected" : st === "bad" ? "Check the format" : "Not set"}
+                {st === "ok" ? "Format ready" : st === "bad" ? "Check the format" : "Not set"}
               </span>
             )}
             {f.kind === "url" && (
@@ -269,14 +274,15 @@ export default function AdminSettings() {
   );
 
   return (
-    <div className="td st">
-      <div className="td-hello">
-        <div className="td-hello-tx">
-          <div className="td-eyebrow">Admin</div>
-          <h1>Settings &amp; pixels</h1>
-          <p>Brand info, social links and analytics connections.</p>
-        </div>
-      </div>
+    <div className="td st fw-workspace settings-workspace">
+      <WorkspaceHero eyebrow="Website controls" title="Settings & tracking" description="Keep your brand details, public profiles and tracking IDs in one considered space. Review your changes before they go live." actions={<button type="button" className="sh-btn" disabled={saving || !orig} onClick={async () => { if (n && !await dialog.confirm({title:"Reload saved settings?",message:"Your unsaved changes will be discarded.",confirmText:"Reload",cancelText:"Keep editing"})) return; load(); }}><HugeiconsIcon icon={Refresh01Icon} size={15} />Reload saved values</button>} />
+      <WorkspaceStats items={[
+        {label:"Website settings",value:orig ? Object.keys(orig).length : "—",detail:"Brand, profiles and tracking",accent:true},
+        {label:"Filled values",value:orig ? Object.values(orig).filter(v=>v.trim()).length : "—",detail:"Currently saved on the website"},
+        {label:"Tracking ID formats",value:orig ? SECTIONS[0].fields.filter(f => f.key in orig && idStatus(f, clean(f.key, orig[f.key] ?? "")) === "ok").length : "—",detail:"Format checks, not connection tests"},
+        {label:"Pending changes",value:orig ? n : "—",detail:n ? "Review and save below" : "All edits saved"},
+      ]} />
+      {saveErr && <div className="fw-error" role="alert"><span>{saveErr} Your edits are still here. Reload saved values to compare before trying again.</span></div>}
 
       {loadErr && !orig ? (
         <div className="sh-empty err" role="alert">
@@ -284,7 +290,7 @@ export default function AdminSettings() {
           <b>Couldn&apos;t load the settings</b><span>{loadErr}</span>
           <button type="button" className="sh-btn sm" onClick={load}><HugeiconsIcon icon={Refresh01Icon} size={15} strokeWidth={1.8} />Try again</button>
         </div>
-      ) : (
+      ) : !orig ? <PageLoading label="Loading settings & tracking…" variant="list" /> : (
         <div className="st-grid">
           <nav className="st-nav" aria-label="Settings sections">
             <div className="st-nav-secs" ref={chipsRef}>
@@ -300,16 +306,7 @@ export default function AdminSettings() {
           </nav>
 
           <div className="st-col">
-            {!orig ? (
-              [5, 5, 3].map((rows, i) => (
-                <section key={i} className="sh-card st-card" aria-hidden="true">
-                  <div className="st-card-h"><span className="skel" style={{ width: 40, height: 40, borderRadius: 12 }} /><span style={{ flex: 1 }}><span className="skel skel-line" style={{ width: 170, height: 14 }} /><span className="skel skel-line" style={{ width: "60%", height: 10, marginTop: 8 }} /></span></div>
-                  {Array.from({ length: rows }).map((_, j) => (
-                    <div key={j} className="st-row st-skel"><span className="skel skel-line" style={{ width: 140, height: 12 }} /><span className="skel" style={{ height: 42, borderRadius: 12 }} /></div>
-                  ))}
-                </section>
-              ))
-            ) : sections.length === 0 ? (
+            {sections.length === 0 ? (
               <div className="sh-empty">
                 <HugeiconsIcon icon={Settings02Icon} size={20} strokeWidth={1.8} className="hgi" />
                 <b>No settings yet</b>

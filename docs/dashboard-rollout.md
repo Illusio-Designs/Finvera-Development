@@ -5,7 +5,7 @@ Each page is checked and pushed before moving to the next. Public website collec
 - [x] Reports — team/user performance, client reports, saved snapshots and exports.
 - [x] Users & access — redesigned directory, reliable loading/retry, accessible drawers and self-lockout protection.
 - [x] Activity log — redesigned trail, filter-safe pagination, retry and validated India-time date filters.
-- [ ] Settings & tracking.
+- [x] Settings & tracking — overview, format readiness, centered loading and transactional conflict-safe saves.
 - [ ] System health.
 - [ ] My account.
 
