@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Mail01Icon, CheckmarkCircle02Icon, Alert02Icon, SentIcon, InformationCircleIcon, Link01Icon } from "@hugeicons/core-free-icons";
+import PageLoading from "@/components/admin/PageLoading";
 import { opsApi } from "@/lib/adminApi";
 
 const Ic = ({ i, size = 16 }: { i: any; size?: number }) => <HugeiconsIcon icon={i} size={size} strokeWidth={1.8} />;
@@ -66,8 +67,8 @@ export default function EmailSetup({ myEmail, refreshKey }: { myEmail?: string; 
         {st && <span className={"sys-pill " + (st.configured ? "ok" : "off")}>{st.configured ? "Set up" : "Not set up"}</span>}
       </div>
 
-      {error && <div className="sys-note bad" role="alert"><Ic i={Alert02Icon} /><span>{error}</span></div>}
-      {!st && !error && <div className="sys-empty">Loading…</div>}
+      {error && <div className="sys-note bad" role="alert"><Ic i={Alert02Icon} /><span>{error}</span><button type="button" className="sys-btn" onClick={load}>Retry</button></div>}
+      {!st && !error && <PageLoading label="Loading email setup…" variant="list" />}
 
       {st && st.configured && (
         <dl className="sys-kv">

@@ -6,7 +6,7 @@ Each page is checked and pushed before moving to the next. Public website collec
 - [x] Users & access — redesigned directory, reliable loading/retry, accessible drawers and self-lockout protection.
 - [x] Activity log — redesigned trail, filter-safe pagination, retry and validated India-time date filters.
 - [x] Settings & tracking — overview, format readiness, centered loading and transactional conflict-safe saves.
-- [ ] System health.
+- [x] System health — service summary, retryable loading, accurate Meta expiry warnings and clearer backup configuration status.
 - [ ] My account.
 
 The report design artifact remains available in `design/social-report-prototype.html`. Production pages use real scoped backend data, not the artifact's sample values.

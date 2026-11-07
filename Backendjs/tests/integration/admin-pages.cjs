@@ -2,7 +2,7 @@
 const path=require('path');require('dotenv').config({path:path.resolve(__dirname,'../../.env')});
 if(process.env.FINVERA_INTEGRATION_TESTS!=='1'||!['localhost','127.0.0.1'].includes(process.env.DB_HOST||'localhost'))throw Error('Opt in with FINVERA_INTEGRATION_TESTS=1 and a local DB.');
 process.env.JWT_SECRET=process.env.JWT_SECRET||'local-integration-test';
-const m=require('../../src/models'),assert=require('node:assert/strict'),jwt=require('jsonwebtoken'),target=process.argv[2]||'activity';let server;const users=[],logs=[],settings=[];
+const m=require('../../src/models'),assert=require('node:assert/strict'),jwt=require('jsonwebtoken'),target=process.argv[2]||'activity';let server;const users=[],logs=[],settings=[],accounts=[];
 (async()=>{try{await m.sequelize.authenticate();await require('../../src/utils/ensureColumns')(m.sequelize);const stamp=Date.now(),label='Admin page test '+stamp;
 for(const role of ['admin','graphic'])users.push(await m.User.create({name:label+' '+role,email:role+stamp+'@example.test',password:'not-a-login',role,roles:[role],active:true,socialClients:[]}));const [admin,member]=users;
 server=require('../../src/app').listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));const base=`http://127.0.0.1:${server.address().port}/api`;
@@ -27,5 +27,10 @@ assert.equal((await req('/settings',admin,[{key:a.key,value:{nested:'bad'}}],'PU
 got=await req('/settings',admin,{[internal.key]:'Forbidden'},'PUT');assert.equal(got.status,200);assert.equal((await internal.reload()).value,'Original');
 got=await req('/settings',null);assert.equal(got.data[a.key],'Saved');
 console.log('PASS: Settings permissions, public/private/internal visibility, transactional rollback on stale edits, safe values and cache refresh. Local fixtures only.');
+}else if(target==='system'){
+for(const [suffix,days]of [['expired',-1],['soon',3],['valid',30]])accounts.push(await m.SocialAccount.create({client:label+' '+suffix,pageId:'test-'+stamp+'-'+suffix,pageName:'Local test',pageToken:'not-a-real-token',status:'connected',tokenExpiresAt:new Date(Date.now()+days*86400000)}));
+for(const url of ['/system/status','/backups','/settings/email-status']){assert.equal((await req(url,null)).status,401);assert.equal((await req(url,member)).status,403);assert.equal((await req(url)).status,200)}
+const got=await req('/system/status');assert.equal(got.data.db.ok,true);assert.ok(got.data.metaCheck.accounts.needReconnect.includes(label+' expired'));assert.ok(!got.data.metaCheck.accounts.expiringSoon.includes(label+' expired'));assert.ok(got.data.metaCheck.accounts.expiringSoon.includes(label+' soon'));assert.ok(!got.data.metaCheck.accounts.expiringSoon.includes(label+' valid'));for(const secret of ['pageToken','not-a-real-token','SMTP_PASS','JWT_SECRET'])assert.equal(JSON.stringify(got.data).includes(secret),false);
+console.log('PASS: System, backup list and email setup are admin-only; status is readable, expired Meta credentials require reconnect, expiry warnings do not double-count and tokens are excluded. Read-only operations; local fixtures.');
 }else throw Error('Unknown page: '+target);
-}finally{if(server)await new Promise(r=>server.close(r));await new Promise(r=>setTimeout(r,150));for(const row of logs)await row.destroy();for(const row of settings)await row.destroy();for(const u of users){await m.ActivityLog.destroy({where:{userId:u.id}});await m.SecurityEvent.destroy({where:{userId:u.id}});await u.destroy()}await m.sequelize.close()}})().catch(e=>{console.error(e);process.exitCode=1});
+}finally{if(server)await new Promise(r=>server.close(r));await new Promise(r=>setTimeout(r,150));for(const row of logs)await row.destroy();for(const row of settings)await row.destroy();for(const row of accounts)await row.destroy();for(const u of users){await m.ActivityLog.destroy({where:{userId:u.id}});await m.SecurityEvent.destroy({where:{userId:u.id}});await u.destroy()}await m.sequelize.close()}})().catch(e=>{console.error(e);process.exitCode=1});

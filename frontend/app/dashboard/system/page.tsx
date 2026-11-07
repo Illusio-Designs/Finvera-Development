@@ -3,7 +3,7 @@
    database, email, backups, daily jobs, Instagram/Facebook logins, errors
    and the spam guard; then Backups and Email setup. Refreshes every 60 s
    while the tab is visible. */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -13,6 +13,9 @@ import {
 import { api, opsApi } from "@/lib/adminApi";
 import { visibleInterval } from "@/lib/visibleInterval";
 import { fmtBytes, hoursSince, timeAgo, uptime } from "@/lib/opsFormat";
+import PageLoading from "@/components/admin/PageLoading";
+import { WorkspaceHero, WorkspaceStats } from "@/components/admin/Workspace";
+import "./system-workspace.css";
 import SystemBackups from "@/components/admin/SystemBackups";
 import EmailSetup from "@/components/admin/EmailSetup";
 
@@ -55,11 +58,13 @@ export default function SystemPage() {
   const [tick, setTick] = useState(0); // bumps the Backups / Email cards on a manual refresh
   const [, rerender] = useState(0);
 
+  const inFlight = useRef(false);
   const load = useCallback(async () => {
-    setLoading(true);
+    if (inFlight.current) return;
+    inFlight.current = true; setLoading(true);
     try { setS(await opsApi.systemStatus()); setError(""); setAt(Date.now()); }
     catch (e) { setError(e instanceof Error ? e.message : "Couldn't load the status"); }
-    finally { setLoading(false); }
+    finally { inFlight.current = false; setLoading(false); }
   }, []);
   useEffect(() => {
     load();
@@ -70,31 +75,25 @@ export default function SystemPage() {
   }, [load]);
   const refresh = () => { load(); setTick((n) => n + 1); };
 
-  const cards = s ? buildCards(s) : null;
+  const health = s ? buildCards(s) : null;
+  const tones = health?.tones || [];
 
   return (
-    <>
-      <div className="adm-top">
-        <div>
-          <div className="sys-eyebrow">Admin</div>
-          <h1>System</h1>
-          <p>Is everything running? Server, database, backups, email and daily jobs.</p>
-        </div>
-        <div className="sys-top-r">
-          {at && <span className="sys-updated" aria-live="polite">Updated {timeAgo(at)}</span>}
-          <button type="button" className="sys-btn" onClick={refresh} disabled={loading}>
-            {loading ? <span className="sys-spin" aria-hidden="true" /> : <Ic i={Refresh01Icon} size={16} />}Refresh
-          </button>
-        </div>
-      </div>
-
-      {error && <div className="sys-note bad" role="alert"><Ic i={Alert02Icon} /><span>{error}</span></div>}
-      {!s && !error && <div className="sys-grid">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="sys-hc"><span className="skel skel-line" style={{ height: 70, borderRadius: 12, display: "block" }} /></div>)}</div>}
-      {cards && <div className="sys-grid">{cards}</div>}
-
-      <SystemBackups offsiteEnabled={s ? s.backups.offsiteEnabled : null} onChange={load} refreshKey={tick} />
-      <EmailSetup myEmail={myEmail} refreshKey={tick} />
-    </>
+    <div className="fw-workspace system-workspace">
+      <WorkspaceHero eyebrow="Operations centre" title="System health" description="A live view of the services behind your workspace. Spot what needs attention, then open the right control below." actions={<button type="button" className="sys-btn" onClick={refresh} disabled={loading}>{loading ? <span className="sys-spin" aria-hidden="true" /> : <Ic i={Refresh01Icon} size={16} />}Refresh status</button>}>
+        <span className="fw-caption" aria-live="polite">{at ? `Last successful refresh ${timeAgo(at)}${error ? " · showing previous status" : ""}` : "Waiting for the first status check"} · Refreshes every minute while this tab is visible</span>
+      </WorkspaceHero>
+      <WorkspaceStats items={[
+        {label:"Healthy checks",value:health ? tones.filter(t=>t==="ok").length : "—",detail:"Of nine monitored services",accent:true},
+        {label:"Needs attention",value:health ? tones.filter(t=>t==="bad"||t==="warn").length : "—",detail:"Warnings and service problems"},
+        {label:"Not configured",value:health ? tones.filter(t=>t==="off").length : "—",detail:"Optional or not yet started"},
+        {label:"Server uptime",value:s ? uptime(s.uptimeSec) : "—",detail:"Current application process"},
+      ]} />
+      {error && <div className="fw-error" role="alert"><span>{error}{s ? " Previous results remain visible." : ""}</span><button type="button" disabled={loading} onClick={refresh}>Retry / reload</button></div>}
+      {!s && !error && <PageLoading label="Checking system health…" />}
+      {health && <><div className="fw-section-title"><div><h2>Service overview</h2><p>Configuration and recent health signals. Email setup does not confirm mail delivery.</p></div><div className="sys-jumps"><a href="#backups">Backups ↗</a><a href="#email">Email setup ↗</a></div></div><div className="sys-grid">{health.cards}</div><p className="fw-caption">Error counts cover this application process since its last restart. Meta status reflects stored checks; open Social studio to recheck a channel.</p></>}
+      {s && <><SystemBackups offsiteEnabled={s.backups.offsiteEnabled} onChange={load} refreshKey={tick} /><EmailSetup myEmail={myEmail} refreshKey={tick} /></>}
+    </div>
   );
 }
 
@@ -114,18 +113,18 @@ function buildCards(s: Status) {
   const remTone: Tone = !s.reminders.lastRun ? "off" : hoursSince(remAt, now) > 26 ? "warn" : "ok";
 
   const acc = s.metaCheck.accounts;
-  const metaTone: Tone = !acc || acc.total === 0 ? "off" : acc.needReconnect.length ? "bad" : acc.expiringSoon.length ? "warn" : "ok";
+  const metaTone: Tone = !acc ? "warn" : acc.total === 0 ? "off" : acc.needReconnect.length ? "bad" : acc.expiringSoon.length ? "warn" : "ok";
 
   const errTone: Tone = s.errors.last30m > 0 ? "bad" : s.errors.last24h > 0 ? "warn" : "ok";
   const pool = s.pool;
 
-  return [
+  return { tones: ["ok", s.db.ok ? "ok" : "bad", s.mail.configured ? "ok" : "off", bkTone, remTone, cronTone, metaTone, errTone, s.spamGuard.turnstile ? "ok" : "off"] as Tone[], cards: [
     <Card key="server" icon={ServerStack01Icon} title="Server" tone="ok" pill="Running" value={uptime(s.uptimeSec)}>
       Memory {Math.round(s.memory.rssMb)} MB · Node {s.node}
     </Card>,
     <Card key="db" icon={DatabaseIcon} title="Database" tone={s.db.ok ? "ok" : "bad"} value={s.db.ok ? `OK · ${s.db.pingMs ?? "—"} ms` : "Not reachable"}>
       {s.db.ok
-        ? <>Connections in use {pool.using ?? 0} of {pool.size ?? 0} open{pool.max ? ` (max ${pool.max})` : ""}{pool.waiting ? ` · ${pool.waiting} waiting` : ""}</>
+        ? <>Connections in use {pool.using ?? "—"} of {pool.size ?? "—"} open{pool.max ? ` (max ${pool.max})` : ""}{pool.waiting ? ` · ${pool.waiting} waiting` : ""}</>
         : s.db.error}
     </Card>,
     <Card key="mail" icon={Mail01Icon} title="Email" tone={s.mail.configured ? "ok" : "off"} pill={s.mail.configured ? "Set up" : "Not set up"} value={s.mail.configured ? "Set up" : "Not set up"}>
@@ -146,7 +145,8 @@ function buildCards(s: Status) {
       {cronTone === "ok" ? "The scheduled job is calling the server." : "The cPanel cron job should call the server every few minutes. Check it’s still set up."}
     </Card>,
     <Card key="meta" icon={InstagramIcon} title="Instagram / Facebook" tone={metaTone} pill={metaTone === "off" ? "None" : undefined}
-      value={!acc || !acc.total ? "No accounts connected" : acc.needReconnect.length ? `${acc.needReconnect.length} need${acc.needReconnect.length === 1 ? "s" : ""} reconnecting` : acc.expiringSoon.length ? `${acc.expiringSoon.length} expiring soon` : `All ${acc.total} connected`}>
+      value={!acc ? "Status unavailable" : !acc.total ? "No accounts connected" : acc.needReconnect.length ? `${acc.needReconnect.length} need${acc.needReconnect.length === 1 ? "s" : ""} reconnecting` : acc.expiringSoon.length ? `${acc.expiringSoon.length} expiring soon` : `All ${acc.total} connected`}>
+      {!acc && <>Channel status could not be read. Refresh or open Social studio. </>}
       {acc && acc.needReconnect.length > 0 && <>Reconnect: {list(acc.needReconnect)}. </>}
       {acc && acc.expiringSoon.length > 0 && <>Login expires within 7 days: {list(acc.expiringSoon)}. </>}
       {s.metaCheck.lastRun ? <>Checked {shortDay(s.metaCheck.lastRun)}. </> : null}
@@ -164,5 +164,5 @@ function buildCards(s: Status) {
         ? "Cloudflare Turnstile checks every website enquiry."
         : <>Hidden-field and timing checks still block most bots. For a captcha, add <code>TURNSTILE_SECRET</code> on the server and <code>NEXT_PUBLIC_TURNSTILE_SITE_KEY</code> on the website.</>}
     </Card>,
-  ];
+  ] };
 }

@@ -7,6 +7,7 @@ import {
   DatabaseBackupIcon, Download04Icon, Delete02Icon, CheckmarkCircle02Icon, Alert02Icon, ArrowDown01Icon,
   CloudServerIcon, InformationCircleIcon, ShieldUserIcon,
 } from "@hugeicons/core-free-icons";
+import PageLoading from "@/components/admin/PageLoading";
 import { opsApi, type BackupCheck, type BackupList } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
 import { dialog } from "@/lib/dialog";
@@ -91,19 +92,19 @@ export default function SystemBackups({ offsiteEnabled, onChange, refreshKey }: 
           <h2 id="sys-backups-h">Backups</h2>
           <p>A full copy of the database is made every night. The newest {list?.keep ?? 14} are kept on the server.</p>
         </div>
-        <button type="button" className="sys-btn primary" onClick={backUpNow} disabled={running}>
+        <button type="button" className="sys-btn primary" onClick={backUpNow} disabled={running || !list}>
           {running ? <><span className="sys-spin" aria-hidden="true" />Backing up…</> : <><Ic i={DatabaseBackupIcon} />Back up now</>}
         </button>
       </div>
 
-      {error && <div className="sys-note bad" role="alert"><Ic i={Alert02Icon} /><span>{error}</span></div>}
+      {error && <div className="sys-note bad" role="alert"><Ic i={Alert02Icon} /><span>{error}</span><button type="button" className="sys-btn" onClick={load}>Retry</button></div>}
       {last && last.ok === false && (
         <div className="sys-note bad" role="status"><Ic i={Alert02Icon} />
           <span><b>The last backup failed</b> ({timeAgo(last.at)}, {last.kind}): {last.error}</span>
         </div>
       )}
 
-      {!list ? <div className="sys-empty">Loading backups…</div>
+      {!list ? error ? null : <PageLoading label="Loading backups…" variant="list" />
         : list.items.length === 0 ? <div className="sys-empty">No backups yet. Click “Back up now” to make the first one.</div>
         : (
           <ul className="sys-bk">
@@ -142,7 +143,7 @@ export default function SystemBackups({ offsiteEnabled, onChange, refreshKey }: 
 
       {offsiteEnabled != null && (offsiteEnabled ? (
         <div className="sys-note ok" style={{ marginTop: 14 }}><Ic i={CloudServerIcon} />
-          <span><b>Off-server copy is on.</b> Every day a copy of the newest backup is saved outside the server (GitHub, kept 30 days), so it survives even if the server is lost.</span>
+          <span><b>Off-server downloads are configured.</b> The server allows protected backup downloads. Check the “db-backup” workflow in GitHub Actions to confirm that recent off-server copies were saved successfully.</span>
         </div>
       ) : (
         <div className="sys-note warn" style={{ marginTop: 14 }}><Ic i={CloudServerIcon} />
