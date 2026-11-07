@@ -20,7 +20,7 @@ function normRoles(roles, role) {
 }
 const NO_ROLE = { message: "Choose at least one role for this user." };
 
-/* Social media brand ids (as strings, matching the multiselect); [] = all brands.
+/* Social media brand ids (as strings, matching the multiselect); [] = no brands (admins have full access).
    Accepts an array or a JSON string (MySQL can hand JSON back as text). */
 function normBrands(v) {
   let a = v;
@@ -126,6 +126,7 @@ const update = asyncHandler(async (req, res) => {
   if (roles != null || role != null) {
     const l = normRoles(roles, role);
     if (!l.length) return res.status(400).json(NO_ROLE);
+    if (self && rolesBefore.includes("admin") && !l.includes("admin")) return res.status(400).json({ message: "You cannot remove your own Admin role. Ask another admin to change your access.", field: "roles" });
     user.roles = l; user.role = l[0];
   }
   if (active != null) user.active = !!active;

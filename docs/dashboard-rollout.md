@@ -3,7 +3,7 @@
 Each page is checked and pushed before moving to the next. Public website collections, calendar/studio, sales pages and the main layout have been completed in the preceding releases.
 
 - [x] Reports — team/user performance, client reports, saved snapshots and exports.
-- [ ] Users & access — next.
+- [x] Users & access — redesigned directory, reliable loading/retry, accessible drawers and self-lockout protection.
 - [ ] Activity log.
 - [ ] Settings & tracking.
 - [ ] System health.

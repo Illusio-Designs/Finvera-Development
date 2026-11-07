@@ -11,6 +11,9 @@ import {
 import { api, apiErr, type AdminUser, type SecPage, type Session, type ShareLink, type UserStatus } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
 import { dialog } from "@/lib/dialog";
+import PageLoading from "@/components/admin/PageLoading";
+import { WorkspaceHero, WorkspaceStats } from "@/components/admin/Workspace";
+import "./users-workspace.css";
 import Select from "@/components/Select";
 import ExportButton from "@/components/admin/ExportButton";
 import Toggle from "@/components/ui/Toggle";
@@ -59,38 +62,52 @@ function MultiPick({ options, value, onChange, label }: { options: { value: stri
   );
 }
 
-function PhotoPick({ value, onChange, name }: { value: string; onChange: (v: string) => void; name: string }) {
+function PhotoPick({ value, onChange, name, onBusyChange }: { value: string; onChange: (v: string) => void; name: string; onBusyChange: (busy: boolean) => void }) {
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   async function pick(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]; e.target.value = "";
     if (!f) return;
-    setBusy(true);
+    if (!/^image\/(jpeg|png|webp)$/.test(f.type) || f.size > 10 * 1024 * 1024) { toast("Choose a JPG, PNG or WebP under 10 MB", "err"); return; }
+    setBusy(true); onBusyChange(true);
     try { onChange((await api.upload(f)).url); }
     catch (ex) { toast("Couldn't upload the photo", "err", { description: apiErr(ex).message }); }
-    finally { setBusy(false); }
+    finally { setBusy(false); onBusyChange(false); }
   }
   return (
     <div className="acc-avrow">
       <Avatar src={value || null} name={name} size={56} />
       <div className="acc-btnrow">
         <button type="button" className="ss-chip" onClick={() => ref.current?.click()} disabled={busy}>{busy ? "Uploading…" : value ? "Change photo" : "Upload photo"}</button>
-        {value && <button type="button" className="ss-chip ghost" onClick={() => onChange("")}>Remove</button>}
+        {value && <button type="button" className="ss-chip ghost" disabled={busy} onClick={() => onChange("")}>Remove</button>}
       </div>
-      <input ref={ref} type="file" accept="image/*" hidden onChange={pick} />
+      <input ref={ref} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={pick} />
     </div>
   );
 }
 
 function Drawer({ title, sub, onClose, children, wide }: { title: string; sub?: React.ReactNode; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
+  const panel = useRef<HTMLElement>(null);
+  const closeRef = useRef(onClose); closeRef.current = onClose;
   useEffect(() => {
-    const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", k);
-    return () => document.removeEventListener("keydown", k);
-  }, [onClose]);
+    const before = document.activeElement as HTMLElement | null, overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusable = () => Array.from(panel.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled):not([type=hidden]),textarea:not(:disabled),select:not(:disabled),a[href],[tabindex="0"]') || []).filter(e => e.getClientRects().length);
+    (panel.current?.querySelector<HTMLElement>('[autofocus]') || focusable()[0] || panel.current)?.focus();
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); closeRef.current(); }
+      if (e.key !== "Tab") return;
+      const list = focusable(), first = list[0], last = list[list.length - 1];
+      if (!first) { e.preventDefault(); panel.current?.focus(); }
+      else if (e.shiftKey && (document.activeElement === first || !panel.current?.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !panel.current?.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", key);
+    return () => { document.body.style.overflow = overflow; document.removeEventListener("keydown", key); before?.focus(); };
+  }, []);
   return (
     <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <aside className={"adm-drawer acc-drawer" + (wide ? " wide" : "")} role="dialog" aria-modal="true" aria-label={title}>
+      <aside ref={panel} tabIndex={-1} className={"adm-drawer acc-drawer" + (wide ? " wide" : "")} role="dialog" aria-modal="true" aria-label={title}>
         <div className="acc-drawer-h">
           <div><h2>{title}</h2>{sub && <p className="sub">{sub}</p>}</div>
           <button type="button" className="ss-btn" onClick={onClose} aria-label="Close">×</button>
@@ -108,6 +125,7 @@ export default function AdminUsers() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [meId, setMeId] = useState<number | null>(null);
   const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"all" | UserStatus>("all");
   const [edit, setEdit] = useState<AdminUser | "new" | null>(null);
@@ -119,15 +137,16 @@ export default function AdminUsers() {
   const [menuUp, setMenuUp] = useState(false); // open the actions menu upwards near the bottom of the screen
 
   const load = useCallback(async () => {
-    try { setUsers(await api.listAdminUsers()); setErr(""); }
-    catch (e) { setErr(apiErr(e).message); }
+    setLoading(true); setErr("");
+    try {
+      const [list, clients, me] = await Promise.all([api.listAdminUsers(), api.list("social-clients"), api.me()]);
+      setUsers(list); setBrands(Array.isArray(clients) ? clients : []); setMeId((me?.user ?? me)?.id ?? null);
+    } catch (e) { setErr(apiErr(e).message); }
+    finally { setLoading(false); }
   }, []);
   useEffect(() => {
-    const t = new URLSearchParams(window.location.search).get("tab");
-    if (t === "log") setTab("log");
+    if (new URLSearchParams(window.location.search).get("tab") === "log") setTab("log");
     load();
-    api.list("social-clients").then((cs) => setBrands(Array.isArray(cs) ? cs : [])).catch(() => {});
-    api.me().then((r) => setMeId((r?.user ?? r)?.id ?? null)).catch(() => {});
   }, [load]);
   useEffect(() => {
     if (menu == null) return;
@@ -203,17 +222,14 @@ export default function AdminUsers() {
   }
 
   return (
-    <div className="acc-users">
-      <div className="adm-top">
-        <div><h1>Users</h1><p>Who can sign in, what they can open, and which brands they see in the content planner.</p></div>
-        {tab === "members" && (
-          <div className="acc-btnrow">
-            <ExportButton entity="users" />
-            <button type="button" className="ss-chip" onClick={() => setEdit("new")}><Icon i={PlusSignIcon} size={15} />Add with password</button>
-            <button type="button" className="adm-btn primary" onClick={() => setInvite(true)}><Icon i={UserAdd01Icon} size={16} />Invite member</button>
-          </div>
-        )}
-      </div>
+    <div className="acc-users fw-workspace users-workspace">
+      <WorkspaceHero eyebrow="People & permissions" title="Users & access" description="The right people. The right access. Give every member a clear role and the brands they need to do their best work." actions={tab === "members" ? <><ExportButton entity="users" /><button type="button" className="ss-chip" disabled={!users || loading} onClick={() => setEdit("new")}><Icon i={PlusSignIcon} size={15} />Add with password</button><button type="button" className="adm-btn primary" disabled={!users || loading} onClick={() => setInvite(true)}><Icon i={UserAdd01Icon} size={16} />Invite member</button></> : undefined} />
+      <WorkspaceStats items={[
+        { label: "Team directory", value: users ? users.length : "—", detail: "All member accounts", accent: true },
+        { label: "Active members", value: users ? counts.active || 0 : "—", detail: "Ready to sign in and work" },
+        { label: "Invitations", value: users ? counts.invited || 0 : "—", detail: "Waiting to set a password" },
+        { label: "Two-step login", value: users ? users.filter(u => u.active && u.twoFactorEnabled).length : "—", detail: "Enabled on active accounts" },
+      ]} />
 
       <div className="ss-pills acc-tabs" role="tablist" aria-label="Users sections">
         <button type="button" role="tab" aria-selected={tab === "members"} className={tab === "members" ? "on" : ""} onClick={() => pickTab("members")}>
@@ -224,7 +240,7 @@ export default function AdminUsers() {
         </button>
       </div>
 
-      {err && <Note kind="err">{err}</Note>}
+      {err && <div className="fw-error" role="alert"><span>{err}</span><button type="button" disabled={loading} onClick={load}>Retry / reload</button></div>}
 
       {tab === "log" ? <SecurityLog users={users || []} /> : (
         <>
@@ -244,8 +260,9 @@ export default function AdminUsers() {
             </div>
           </div>
 
+          <div className="fw-section-title"><div><h2>Team directory</h2><p>Roles define pages. Brand access defines the content each member can work on.</p></div>{users && <span>{shown.length} of {users.length} members</span>}</div>
           {!users ? (
-            <div className="acc-grid">{[0, 1, 2].map((i) => <div key={i} className="acc-ucard"><span className="skel skel-line" style={{ display: "block", height: 150, borderRadius: 14 }} /></div>)}</div>
+            loading ? <PageLoading label="Loading users & access…" /> : <div className="ss-empty">The directory could not be loaded. Use Retry / reload above.</div>
           ) : !shown.length ? (
             <div className="ss-empty">{users.length ? "No users match." : "No users yet. Invite your first team member."}</div>
           ) : (
@@ -441,10 +458,12 @@ function EditDrawer({ user, self, brands, onClose, onSaved }: {
   });
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const set = (k: keyof typeof f, v: unknown) => { setF((x) => ({ ...x, [k]: v })); setErrs({}); };
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (photoBusy || busy) return;
     const er: Record<string, string> = {};
     if (!f.name.trim()) er.name = "Enter their name.";
     if (!/^\S+@\S+\.\S+$/.test(f.email.trim())) er.email = "Enter a valid email address.";
@@ -477,7 +496,7 @@ function EditDrawer({ user, self, brands, onClose, onSaved }: {
       sub={isNew ? "You choose their first password and share it with them. To let them pick their own, use Invite member instead." : <>{user!.email}{status && <> · <span className={"acc-pill " + status.cls}>{status.label}</span></>}</>}>
       <form onSubmit={submit} noValidate>
         {errs.form && <Note kind="err">{errs.form}</Note>}
-        <div className="adm-field"><label>Photo</label><PhotoPick value={f.avatar} onChange={(v) => set("avatar", v)} name={f.name} /></div>
+        <div className="adm-field"><label>Photo</label><PhotoPick onBusyChange={setPhotoBusy} value={f.avatar} onChange={(v) => set("avatar", v)} name={f.name} /></div>
         <div className="acc-two">
           <div className="adm-field">
             <label htmlFor="ed-name">Full name</label>
@@ -496,7 +515,7 @@ function EditDrawer({ user, self, brands, onClose, onSaved }: {
         </div>
         <div className="adm-field">
           <label>Roles (what they can open)</label>
-          <MultiPick label="Roles" options={ROLES} value={f.roles} onChange={(v) => set("roles", v)} />
+          <MultiPick label="Roles" options={ROLES} value={f.roles} onChange={(v) => { if (self && user?.roles.includes("admin") && !v.includes("admin")) { setErrs({ roles: "Keep your Admin role. Ask another admin to change your access." }); return; } set("roles", v); }} />
           <FieldError msg={errs.roles} />
         </div>
         {!f.roles.includes("admin") && (
@@ -523,7 +542,7 @@ function EditDrawer({ user, self, brands, onClose, onSaved }: {
           </div>
         )}
         <div className="adm-drawer-actions">
-          <button className="adm-btn primary" type="submit" disabled={busy}>{busy ? <><span className="spin" /> Saving…</> : isNew ? "Add user" : "Save"}</button>
+          <button className="adm-btn primary" type="submit" disabled={busy || photoBusy}>{busy ? <><span className="spin" /> Saving…</> : isNew ? "Add user" : "Save"}</button>
           <button className="adm-btn ghost" type="button" onClick={onClose}>Cancel</button>
         </div>
       </form>
