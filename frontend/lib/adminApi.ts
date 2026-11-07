@@ -107,6 +107,7 @@ export type Today = {
 export type WebsiteOverview = { collections: { resource: string; total: number; published: number; draft: number; updatedAt: string | null }[] };
 
 export const api = {
+  reorderLogos: (ids: number[], expected: unknown[]): Promise<{ items: any[] }> => req("/logos/reorder", { method: "POST", body: JSON.stringify({ ids, expected }) }),
   reorderStats: (ids: number[], expected: unknown[]): Promise<{ items: any[] }> => req("/stats/reorder", { method: "POST", body: JSON.stringify({ ids, expected }) }),
   reorderProcessSteps: (ids: number[], expected: unknown[]): Promise<{ items: any[] }> => req("/process-steps/reorder", { method: "POST", body: JSON.stringify({ ids, expected }) }),
   reorderServices: (ids: number[], expected: unknown[]): Promise<{ items: any[] }> => req("/services/reorder", { method: "POST", body: JSON.stringify({ ids, expected }) }),

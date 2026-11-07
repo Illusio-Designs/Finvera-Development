@@ -53,6 +53,7 @@ jobs:
           node tests/values.test.cjs
           node tests/processSteps.test.cjs
           node tests/stats.test.cjs
+          node tests/logos.test.cjs
           node tests/brands.test.cjs
           node tests/timeline.test.cjs
         working-directory: frontend

@@ -9,7 +9,7 @@ import ProjectCard from "@/components/ProjectCard";
 import ServiceGrid from "@/components/ServiceGrid";
 import ProcessSteps from "@/components/ProcessSteps";
 import Manifesto from "@/components/Manifesto";
-import LogoMark from "@/components/LogoMark";
+import ClientLogos from "@/components/ClientLogos";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AnalyticsUpIcon } from "@hugeicons/core-free-icons";
 import { getServices, getProjects, getTestimonials, getSeo, getFaqs, getLogos, getStats, getFeatures, getSettings } from "@/lib/api";
@@ -35,7 +35,6 @@ const codeHtml = `
 <span class="ln"> </span>
 <span class="ln"><span class="f">crm</span>.<span class="f">deploy</span>();  <span class="c">// ship in minutes</span></span>`;
 
-const FB_LOGOS: { name: string; image?: string }[] = []; // logos come from the backend/CMS only
 const FB_FEATURES = [
   { title: "Smart pipelines", description: "Drag-and-drop deal stages with automated hand-offs." },
   { title: "AI lead scoring", description: "Know which leads to call first, ranked in real time." },
@@ -56,7 +55,6 @@ export default async function Home() {
   ]);
   const featured = (projects.filter((p) => p.featured).length ? projects.filter((p) => p.featured) : projects).slice(0, 3);
   const tRow = [...testimonials, ...testimonials];
-  const logos = logosRes.length ? logosRes : FB_LOGOS.map((l, id) => ({ id, ...l }));
   const features = featuresRes.length ? featuresRes : FB_FEATURES;
   // Social links from Settings & pixels; icons without a link are hidden.
   const site = await getSettings();
@@ -115,25 +113,8 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* Logos marquee (from CMS) */}
-      {logos.length > 0 && (
-      <section className="section" style={{ paddingTop: 0 }} aria-label="Trusted by">
-        <div className="container">
-          <p className="reveal" style={{ textAlign: "center", color: "var(--muted-2)", fontSize: 12, letterSpacing: ".14em", textTransform: "uppercase", marginBottom: 30 }}>
-            Trusted by fast-scaling teams worldwide
-          </p>
-          <div className="marquee">
-            <div className="marquee-track">
-              {[...logos, ...logos].map((l, i) => (
-                <span className="logo-item" key={i}>
-                  <LogoMark name={l.name} image={l.image} />
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-      )}
+      {/* Client logos — saved publication state and order */}
+      <ClientLogos items={logosRes} />
 
       {/* Services */}
       <section className="section" id="services">

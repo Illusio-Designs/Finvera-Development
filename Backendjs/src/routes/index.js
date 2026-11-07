@@ -108,7 +108,9 @@ resource("/process-steps", ProcessStep, { validate: processActions.validate, upd
 const statActions = require("../controllers/stats.controller");
 router.post("/stats/reorder", requireAuth, requireArea("content"), statActions.reorder);
 resource("/stats", Stat, { validate: statActions.validate, updateRecord: statActions.updateRecord, onCreate: (item) => item.reload(), entity: "stat", hasStatus: true, order: [["position", "ASC"], ["createdAt", "ASC"], ["id", "ASC"]], searchable: ["value", "label"], bootstrapKey: "stats" });
-resource("/logos", Logo, { entity: "logo", hasStatus: true, order: CONTENT_ORDER, searchable: ["name"], bootstrapKey: "logos" });
+const logoActions = require("../controllers/logos.controller");
+router.post("/logos/reorder", requireAuth, requireArea("content"), logoActions.reorder);
+resource("/logos", Logo, { validate: logoActions.validate, updateRecord: logoActions.updateRecord, onCreate: (item) => item.reload(), entity: "logo", hasStatus: true, order: [["position", "ASC"], ["createdAt", "ASC"], ["id", "ASC"]], searchable: ["name"], bootstrapKey: "logos" });
 resource("/features", Feature, { entity: "feature", hasStatus: true, order: CONTENT_ORDER, searchable: ["title"], bootstrapKey: "features" });
 
 router.get("/website/overview", requireAuth, requireArea("content"), require("../controllers/website.controller").overview);

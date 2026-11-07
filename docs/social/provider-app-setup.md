@@ -35,6 +35,14 @@ Suggested development-stage description:
 
 Start with image Pins. Add video uploads and eligible analytics as later capabilities; do not promise Instagram Story/Reel equivalents.
 
+### Pinterest use-case selection
+
+Select **Pin creation and scheduling** for the planned publishing flow. Select **Reporting** as well if including the later account/Pin analytics feature. Ad campaign management, Pinner app, E-commerce, Recommendations & experimentation and Other are outside the current integration plan.
+
+### Pinterest audience and reading access
+
+Choose **Businesses** as the primary audience. Add **Creators** when individual content creators will use Finvera. For reading Pins/boards, choose **Yes, mine**: this refers to each authenticated account's own data, including a client authorizing their account. Finvera needs to read the connected account's boards for destination selection. **Yes, for general users** is for other Pinners' data and is outside the current planned flow.
+
 ## 2. Google Cloud / YouTube
 
 1. Open [Google Cloud Console](https://console.cloud.google.com/), create a project such as **Finvera Social**, and select it.
