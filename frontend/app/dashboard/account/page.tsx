@@ -15,6 +15,10 @@ import { disablePush } from "@/lib/push";
 import {
   ActivityList, Avatar, FieldError, Icon, Note, Pager, PasswordInput, PasswordRules, QrCode, SessionList, copyText, passwordOk,
 } from "@/components/admin/account/kit";
+import PageLoading from "@/components/admin/PageLoading";
+import { WorkspaceHero } from "@/components/admin/Workspace";
+import { ROLE_LABELS, userRoles } from "@/lib/permissions";
+import "./account-workspace.css";
 import EmailPrefs from "@/components/admin/EmailPrefs";
 
 type Tab = "profile" | "password" | "twofa" | "devices" | "emails" | "activity";
@@ -36,32 +40,52 @@ export default function MyAccount() {
   const [me, setMe] = useState<AuthUser | null>(null);
   const [loadErr, setLoadErr] = useState("");
 
-  useEffect(() => {
-    const q = new URLSearchParams(window.location.search);
-    const t = q.get("tab") as Tab | null;
-    if (t && TABS.some(([k]) => k === t)) setTab(t);
-    if (q.get("required") === "1") setRequired(true);
-    clearApiMemo();
-    api.me().then((r) => {
-      const u: AuthUser = r?.user ?? r;
+  const router = useRouter();
+  const [dirty, setDirty] = useState(false);
+  const [working, setWorking] = useState(false);
+  const dirtyRef = useRef(false), workingRef = useRef(false);
+  dirtyRef.current = dirty; workingRef.current = working;
+  const load = useCallback(async () => {
+    setLoadErr(""); clearApiMemo();
+    try {
+      const r = await api.me(), u: AuthUser = r?.user ?? r;
       setMe(u);
       if (u?.mustChangePassword || r?.mustChangePassword) { setRequired(true); setTab("password"); }
-    }).catch((e) => setLoadErr(apiErr(e).message));
+    } catch (e) { setLoadErr(apiErr(e).message); }
   }, []);
-
-  const pick = (t: Tab) => {
-    setTab(t);
-    const u = new URL(window.location.href);
-    u.searchParams.set("tab", t);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search), t = q.get("tab") as Tab | null;
+    if (t && TABS.some(([k]) => k === t)) setTab(t);
+    if (q.get("required") === "1") setRequired(true);
+    load();
+  }, [load]);
+  useEffect(() => {
+    const before = (e: BeforeUnloadEvent) => { if (dirtyRef.current || workingRef.current) { e.preventDefault(); e.returnValue = ""; } };
+    const click = (e: MouseEvent) => {
+      if ((!dirtyRef.current && !workingRef.current) || e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as HTMLElement)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!a || a.target === "_blank" || a.hasAttribute("download")) return;
+      const url = new URL(a.href, location.href); if (url.origin !== location.origin || url.pathname === location.pathname) return;
+      e.preventDefault(); e.stopPropagation(); if (workingRef.current) return;
+      dialog.confirm({ title: "Leave without saving?", message: "Edits or setup details on this page may be lost. Save any backup codes before leaving.", confirmText: "Leave page", cancelText: "Keep editing" }).then(ok => { if (ok) { dirtyRef.current = false; setDirty(false); router.push(url.pathname + url.search + url.hash); } });
+    };
+    window.addEventListener("beforeunload", before); document.addEventListener("click", click, true);
+    return () => { window.removeEventListener("beforeunload", before); document.removeEventListener("click", click, true); };
+  }, [router]);
+  const pick = async (t: Tab) => {
+    if (t === tab || working) return;
+    if (dirty && !await dialog.confirm({ title: "Discard unsaved changes?", message: "Edits or setup details on this tab may be lost. Save any backup codes before leaving.", confirmText: "Discard changes", cancelText: "Keep editing" })) return;
+    setDirty(false); setTab(t);
+    const u = new URL(window.location.href); u.searchParams.set("tab", t);
     if (t !== "password") u.searchParams.delete("required");
     window.history.replaceState(null, "", u.pathname + u.search);
   };
 
   return (
-    <div className="acc-wrap">
-      <div className="adm-top">
-        <div><h1>My account</h1><p>Your profile, password and how you sign in.</p></div>
-      </div>
+    <div className="acc-wrap fw-workspace account-workspace">
+      <WorkspaceHero eyebrow="Your personal space" title="My account" description="Make yourself at home. Manage how your team sees you, how you sign in and which updates reach you." />
+      {loadErr && <div className="fw-error" role="alert"><span>{loadErr}</span><button type="button" onClick={load}>Retry / reload</button></div>}
+      {me && <section className="account-identity" aria-label="Your account overview"><Avatar src={me.avatar} name={me.name} size={64} /><div className="account-identity-name"><span className="fw-eyebrow">YOUR FINVERA IDENTITY</span><h2>{me.name}</h2><p>{me.email}</p><div className="acc-tags">{userRoles(me).map(role=><span className="adm-badge role" key={role}>{ROLE_LABELS[role] || role}</span>)}</div></div><div className="account-security"><span className={"account-security-state" + (me.twoFactorEnabled ? " on" : "")}><Icon i={SecurityCheckIcon} size={17}/><b>{me.twoFactorEnabled ? "Two-step login on" : "Two-step login off"}</b></span><button type="button" disabled={working} onClick={() => pick("twofa")}>{me.twoFactorEnabled ? "Manage protection ↗" : "Add another layer of protection ↗"}</button></div></section>}
       {required && tab !== "password" && (
         <div className="acc-banner" role="alert">
           <Icon i={Alert02Icon} size={20} />
@@ -69,33 +93,30 @@ export default function MyAccount() {
           <button type="button" className="ss-chip dark" onClick={() => pick("password")}>Change password</button>
         </div>
       )}
-      <div className="ss-pills acc-tabs" role="tablist" aria-label="Account sections">
+      <div className="account-grid"><div className="ss-pills acc-tabs" role="tablist" aria-orientation="vertical" aria-label="Account sections">
         {TABS.map(([k, label, ic]) => (
-          <button key={k} type="button" role="tab" id={`acc-tab-${k}`} aria-selected={tab === k} aria-controls="acc-panel" className={tab === k ? "on" : ""} onClick={() => pick(k)}>
+          <button key={k} type="button" role="tab" id={`acc-tab-${k}`} aria-selected={tab === k} aria-controls="acc-panel" disabled={working} className={tab === k ? "on" : ""} onClick={() => pick(k)}>
             <em><Icon i={ic} size={14} /></em>{label}
             {k === "twofa" && me && <small className={me.twoFactorEnabled ? "acc-on" : ""}>{me.twoFactorEnabled ? "On" : "Off"}</small>}
           </button>
         ))}
       </div>
-      {loadErr && <Note kind="err">{loadErr}</Note>}
       <section id="acc-panel" role="tabpanel" aria-labelledby={`acc-tab-${tab}`}>
         {!me ? (
-          <div className="acc-panel" aria-busy="true">
-            {[60, 44, 44, 44].map((h, i) => <span key={i} className="skel skel-line" style={{ display: "block", height: h, marginBottom: 14, borderRadius: 12 }} />)}
-          </div>
-        ) : tab === "profile" ? <ProfileTab me={me} onSaved={(u) => { setMe(u); announceMe(u); }} />
-          : tab === "password" ? <PasswordTab required={required} onDone={() => { setRequired(false); setMe({ ...me, mustChangePassword: false }); }} />
-          : tab === "twofa" ? <TwoFactorTab me={me} onChange={(on) => setMe({ ...me, twoFactorEnabled: on })} />
+          !loadErr ? <PageLoading label="Loading your account…" variant="list" /> : <div className="ss-empty">Your account could not be loaded. Retry above to continue.</div>
+        ) : tab === "profile" ? <ProfileTab me={me} onDirty={setDirty} onWorking={setWorking} onSaved={(u) => { setMe(u); announceMe(u); }} />
+          : tab === "password" ? <PasswordTab required={required} onDirty={setDirty} onWorking={setWorking} onDone={() => { setRequired(false); setMe({ ...me, mustChangePassword: false }); announceMe({mustChangePassword:false}); }} />
+          : tab === "twofa" ? <TwoFactorTab me={me} onDirty={setDirty} onWorking={setWorking} onChange={(on) => { setMe({ ...me, twoFactorEnabled: on }); announceMe({twoFactorEnabled:on}); }} />
           : tab === "devices" ? <DevicesTab />
           : tab === "emails" ? <EmailPrefs />
           : <ActivityTab />}
-      </section>
+      </section></div>
     </div>
   );
 }
 
 /* ── Profile ── */
-function ProfileTab({ me, onSaved }: { me: AuthUser; onSaved: (u: AuthUser) => void }) {
+function ProfileTab({ me, onSaved, onDirty, onWorking }: { me: AuthUser; onSaved: (u: AuthUser) => void; onDirty: (dirty:boolean)=>void; onWorking: (busy:boolean)=>void }) {
   const [name, setName] = useState(me.name || "");
   const [email, setEmail] = useState(me.email || "");
   const [avatar, setAvatar] = useState<string | null>(me.avatar);
@@ -108,10 +129,14 @@ function ProfileTab({ me, onSaved }: { me: AuthUser; onSaved: (u: AuthUser) => v
   const emailChanged = email.trim().toLowerCase() !== (me.email || "").toLowerCase();
   const dirty = name.trim() !== (me.name || "") || emailChanged || (avatar || null) !== (me.avatar || null);
 
+  useEffect(() => { onDirty(dirty); }, [dirty, onDirty]);
+  useEffect(() => { onWorking(busy || up); return () => onWorking(false); }, [busy, up, onWorking]);
+
   async function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     e.target.value = "";
     if (!f) return;
+    if (!/^image\/(jpeg|png|webp)$/.test(f.type) || f.size > 10 * 1024 * 1024) { toast("Choose a JPG, PNG or WebP under 10 MB", "err"); return; }
     setUp(true);
     try { const { url } = await api.upload(f); setAvatar(url); }
     catch (ex) { toast("Couldn't upload the photo", "err", { description: apiErr(ex).message }); }
@@ -120,6 +145,7 @@ function ProfileTab({ me, onSaved }: { me: AuthUser; onSaved: (u: AuthUser) => v
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    if (busy || up) return;
     setErrs({}); setErr("");
     if (!name.trim()) { setErrs({ name: "Enter your name." }); return; }
     setBusy(true);
@@ -144,11 +170,11 @@ function ProfileTab({ me, onSaved }: { me: AuthUser; onSaved: (u: AuthUser) => v
         <Avatar src={avatar} name={name} size={72} />
         <div>
           <div className="acc-btnrow">
-            <button type="button" className="ss-chip" onClick={() => fileRef.current?.click()} disabled={up}>{up ? "Uploading…" : avatar ? "Change photo" : "Upload photo"}</button>
-            {avatar && <button type="button" className="ss-chip ghost" onClick={() => setAvatar(null)}>Remove</button>}
+            <button type="button" className="ss-chip" onClick={() => fileRef.current?.click()} disabled={up || busy}>{up ? "Uploading…" : avatar ? "Change photo" : "Upload photo"}</button>
+            {avatar && <button type="button" className="ss-chip ghost" disabled={up || busy} onClick={() => setAvatar(null)}>Remove</button>}
           </div>
-          <p className="acc-hint">A square photo works best.</p>
-          <input ref={fileRef} type="file" accept="image/*" hidden onChange={pickFile} />
+          <p className="acc-hint">A square JPG, PNG or WebP under 10 MB works best.</p>
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={pickFile} />
         </div>
       </div>
       <div className="adm-field">
@@ -170,14 +196,14 @@ function ProfileTab({ me, onSaved }: { me: AuthUser; onSaved: (u: AuthUser) => v
         </div>
       )}
       <div className="acc-actions">
-        <button className="adm-btn primary" type="submit" disabled={busy || !dirty || (emailChanged && !current)}>{busy ? <><span className="spin" /> Saving…</> : "Save profile"}</button>
+        <button className="adm-btn primary" type="submit" disabled={busy || up || !dirty || (emailChanged && !current)}>{busy ? <><span className="spin" /> Saving…</> : "Save profile"}</button>
       </div>
     </form>
   );
 }
 
 /* ── Password ── */
-function PasswordTab({ required, onDone }: { required: boolean; onDone: () => void }) {
+function PasswordTab({ required, onDone, onDirty, onWorking }: { required: boolean; onDone: () => void; onDirty: (dirty:boolean)=>void; onWorking: (busy:boolean)=>void }) {
   const router = useRouter();
   const [cur, setCur] = useState("");
   const [pw, setPw] = useState("");
@@ -185,6 +211,9 @@ function PasswordTab({ required, onDone }: { required: boolean; onDone: () => vo
   const [busy, setBusy] = useState(false);
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [ok, setOk] = useState<{ ended: number; wasRequired: boolean } | null>(null);
+
+  useEffect(() => { onDirty(!!(cur || pw || pw2)); }, [cur, pw, pw2, onDirty]);
+  useEffect(() => { onWorking(busy); return () => onWorking(false); }, [busy, onWorking]);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -277,7 +306,7 @@ function CodeInput({ id, value, onChange, label = "6-digit code from the app", i
   );
 }
 
-function TwoFactorTab({ me, onChange }: { me: AuthUser; onChange: (on: boolean) => void }) {
+function TwoFactorTab({ me, onChange, onDirty, onWorking }: { me: AuthUser; onChange: (on: boolean) => void; onDirty: (dirty:boolean)=>void; onWorking: (busy:boolean)=>void }) {
   const [setup, setSetup] = useState<{ secret: string; otpauthUrl: string; account: string } | null>(null);
   const [codes, setCodes] = useState<string[] | null>(null);
   const [code, setCode] = useState("");
@@ -285,6 +314,9 @@ function TwoFactorTab({ me, onChange }: { me: AuthUser; onChange: (on: boolean) 
   const [mode, setMode] = useState<"" | "disable" | "renew">("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+
+  useEffect(() => { onDirty(!!(setup || codes || mode || code || pw)); }, [setup, codes, mode, code, pw, onDirty]);
+  useEffect(() => { onWorking(busy); return () => onWorking(false); }, [busy, onWorking]);
 
   const reset = () => { setCode(""); setPw(""); setErr(""); };
   async function start() {
@@ -428,7 +460,7 @@ function DevicesTab() {
   const [busy, setBusy] = useState<number | null>(null);
   const [all, setAll] = useState(false);
   const [err, setErr] = useState("");
-  const load = useCallback(() => api.mySessions().then((r) => setList(r.sessions)).catch((e) => setErr(apiErr(e).message)), []);
+  const load = useCallback(() => { setErr(""); return api.mySessions().then((r) => setList(r.sessions)).catch((e) => setErr(apiErr(e).message)); }, []);
   useEffect(() => { load(); }, [load]);
 
   async function signOut(s: Session) {
@@ -461,8 +493,8 @@ function DevicesTab() {
         <div><h2>Devices</h2><p className="acc-sub">Phones and computers signed in to your account. Don&apos;t recognise one? Sign it out and change your password.</p></div>
         {others > 0 && <button type="button" className="ss-chip acc-danger" onClick={signOutOthers} disabled={all}><Icon i={Logout03Icon} size={15} />{all ? "Signing out…" : "Sign out all other devices"}</button>}
       </div>
-      {err && <Note kind="err">{err}</Note>}
-      {!list ? <div className="ss-loading">Loading devices…</div> : <SessionList sessions={list} onSignOut={signOut} busy={busy} />}
+      {err && <div className="fw-error" role="alert"><span>{err}</span><button type="button" onClick={load}>Retry</button></div>}
+      {!list ? err ? null : <PageLoading label="Loading devices…" variant="list" /> : <SessionList sessions={list} onSignOut={signOut} busy={busy} />}
     </div>
   );
 }
@@ -472,18 +504,19 @@ function ActivityTab() {
   const [page, setPage] = useState(1);
   const [data, setData] = useState<SecPage | null>(null);
   const [err, setErr] = useState("");
+  const [reload, setReload] = useState(0);
   useEffect(() => {
     let alive = true;
-    setData(null);
+    setData(null); setErr("");
     api.myActivity({ page, limit: 20 }).then((d) => alive && setData(d)).catch((e) => alive && setErr(apiErr(e).message));
     return () => { alive = false; };
-  }, [page]);
+  }, [page, reload]);
   return (
     <div className="acc-panel">
       <h2>Activity</h2>
       <p className="acc-sub">Sign-ins and security changes on your account. Failed attempts are shown in red.</p>
-      {err && <Note kind="err">{err}</Note>}
-      {!data ? <div className="ss-loading">Loading activity…</div> : (
+      {err && <div className="fw-error" role="alert"><span>{err}</span><button type="button" onClick={() => setReload(n=>n+1)}>Retry</button></div>}
+      {!data ? err ? null : <PageLoading label="Loading your security activity…" variant="list" /> : (
         <>
           <ActivityList items={data.items} emptyText="No activity yet." />
           <Pager page={data.page} pages={data.pages} total={data.total} onPage={setPage} />

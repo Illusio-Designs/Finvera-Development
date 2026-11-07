@@ -574,7 +574,7 @@ function DevicesDrawer({ user, onClose }: { user: AdminUser; onClose: () => void
   const others = (list || []).filter((s) => !s.current);
   return (
     <Drawer title={`${user.name}'s devices`} sub={`${user.email} · last sign-in ${ago(user.lastLoginAt).toLowerCase()}`} onClose={onClose}>
-      {!list ? <div className="ss-loading">Loading devices…</div> : (
+      {!list ? <PageLoading label="Loading member devices…" variant="list" /> : (
         <>
           <SessionList sessions={list} onSignOut={one} busy={busy} emptyText={`${user.name} isn't signed in anywhere.`} />
           {others.length > 1 && (
@@ -600,7 +600,7 @@ function ActivityDrawer({ user, onClose }: { user: AdminUser; onClose: () => voi
   }, [page, user.id]);
   return (
     <Drawer title={`${user.name}'s activity`} sub={user.email} onClose={onClose}>
-      {!data ? <div className="ss-loading">Loading activity…</div> : (
+      {!data ? <PageLoading label="Loading member activity…" variant="list" /> : (
         <>
           <ActivityList items={data.items} emptyText="No activity yet." />
           <Pager page={data.page} pages={data.pages} total={data.total} onPage={setPage} />
@@ -620,8 +620,8 @@ const TYPE_GROUPS: { value: string; label: string }[] = [
   { value: "2fa_enabled,2fa_disabled,2fa_failed", label: "Two-step login" },
   { value: "logout,logout_all,session_revoked", label: "Sign-outs" },
 ];
-const localStart = (d: string) => (d ? new Date(`${d}T00:00:00`).toISOString() : "");
-const localEnd = (d: string) => (d ? new Date(`${d}T23:59:59.999`).toISOString() : "");
+const localStart = (d: string) => (d ? new Date(`${d}T00:00:00+05:30`).toISOString() : "");
+const localEnd = (d: string) => (d ? new Date(`${d}T23:59:59.999+05:30`).toISOString() : "");
 
 function SecurityLog({ users }: { users: AdminUser[] }) {
   const [userId, setUserId] = useState("");
@@ -633,15 +633,16 @@ function SecurityLog({ users }: { users: AdminUser[] }) {
   const [page, setPage] = useState(1);
   const [data, setData] = useState<SecPage | null>(null);
   const [err, setErr] = useState("");
+  const [reload, setReload] = useState(0);
   useEffect(() => { const t = setTimeout(() => setQDeb(q.trim()), 350); return () => clearTimeout(t); }, [q]);
   useEffect(() => { setPage(1); }, [userId, type, from, to, qDeb]);
   useEffect(() => {
-    let alive = true;
+    let alive = true; setErr(""); setData(null);
     api.securityLog({ page, limit: 25, userId, type, from: localStart(from), to: localEnd(to), q: qDeb })
       .then((d) => { if (alive) { setData(d); setErr(""); } })
       .catch((e) => alive && setErr(apiErr(e).message));
     return () => { alive = false; };
-  }, [page, userId, type, from, to, qDeb]);
+  }, [page, userId, type, from, to, qDeb, reload]);
 
   const typeOptions = useMemo(() => [
     ...TYPE_GROUPS,
@@ -682,8 +683,8 @@ function SecurityLog({ users }: { users: AdminUser[] }) {
         </p>
         {anyFilter && <button type="button" className="acc-link" onClick={() => { setUserId(""); setType(""); setFrom(""); setTo(""); setQ(""); }}>Clear filters</button>}
       </div>
-      {err && <Note kind="err">{err}</Note>}
-      {!data ? <div className="ss-loading">Loading the log…</div> : (
+      {err && <div className="fw-error" role="alert"><span>{err}</span><button type="button" onClick={()=>setReload(n=>n+1)}>Retry</button></div>}
+      {!data ? err ? null : <PageLoading label="Loading security log…" variant="list" /> : (
         <>
           <ActivityList items={data.items} showUser emptyText={anyFilter ? "Nothing matches these filters." : "No security events yet."} />
           <Pager page={data.page} pages={data.pages} total={data.total} onPage={setPage} />

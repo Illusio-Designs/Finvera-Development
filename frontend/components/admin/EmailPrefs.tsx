@@ -2,9 +2,10 @@
 /* Email preferences for the signed-in person — which emails they want.
    Each switch saves straight away. "System" (server errors, failed backups)
    is only shown to admins. Self-contained: drop it into any page or tab. */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { InformationCircleIcon, Alert02Icon, Mail01Icon } from "@hugeicons/core-free-icons";
+import PageLoading from "@/components/admin/PageLoading";
 import { api, opsApi, type EmailPrefKind, type EmailPrefs as Prefs } from "@/lib/adminApi";
 import { userRoles } from "@/lib/permissions";
 import { toast } from "@/lib/toast";
@@ -26,13 +27,14 @@ export default function EmailPrefs({ framed = true }: { framed?: boolean }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState<EmailPrefKind | null>(null);
 
+  const load = useCallback(() => { setError(""); return opsApi.getEmailPrefs().then(setData).catch((e) => setError(e instanceof Error ? e.message : "Couldn't load your email settings")); }, []);
   useEffect(() => {
-    opsApi.getEmailPrefs().then(setData).catch((e) => setError(e instanceof Error ? e.message : "Couldn't load your email settings"));
+    load();
     api.me().then((r) => setIsAdmin(userRoles(r?.user ?? r).includes("admin"))).catch(() => {});
-  }, []);
+  }, [load]);
 
   async function flip(k: EmailPrefKind, on: boolean) {
-    if (!data) return;
+    if (!data || saving) return;
     const before = data;
     setData({ ...data, prefs: { ...data.prefs, [k]: on } }); // show it at once
     setSaving(k);
@@ -50,18 +52,18 @@ export default function EmailPrefs({ framed = true }: { framed?: boolean }) {
 
   const body = (
     <>
-      {error && <div className="sys-note bad" role="alert"><Ic i={Alert02Icon} /><span>{error}</span></div>}
+      {error && <div className="sys-note bad" role="alert"><Ic i={Alert02Icon} /><span>{error}</span><button type="button" className="sys-btn" onClick={load}>Retry</button></div>}
       {data && !data.mailConfigured && (
         <div className="sys-note warn"><Ic i={InformationCircleIcon} /><span><b>Emails aren’t set up yet</b> — you’ll still get these in the app.</span></div>
       )}
-      {!data && !error && <div className="sys-empty">Loading…</div>}
+      {!data && !error && <PageLoading label="Loading email preferences…" variant="list" />}
       {data && (
         <ul className="ops-prefs">
           {rows.map((k) => (
             <li key={k.key}>
               <div><b id={`ep-${k.key}`}>{k.title}</b><small id={`ep-${k.key}-d`}>{k.desc}</small></div>
               <label className="ops-switch">
-                <input type="checkbox" role="switch" checked={!!data.prefs[k.key]} disabled={saving === k.key}
+                <input type="checkbox" role="switch" checked={!!data.prefs[k.key]} disabled={saving !== null}
                   aria-labelledby={`ep-${k.key}`} aria-describedby={`ep-${k.key}-d`}
                   onChange={(e) => flip(k.key, e.target.checked)} />
                 <i aria-hidden="true" />
