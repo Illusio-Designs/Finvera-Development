@@ -18,6 +18,8 @@ async function purgeMedia(post) {
   for (const m of ours) {
     const name = path.basename(new URL(m.url, "http://x").pathname); // never follows ../
     const file = path.join(UPLOAD_DIR, "social", name);
+    await require("../middleware/webpImages").removeVariantsFor(file);
+    await require("../middleware/webpImages").removeVariantsFor(path.join(UPLOAD_DIR, "social", thumbNameOf(name)));
     try { await fs.promises.unlink(file); removed++; } catch (e) { if (e.code !== "ENOENT") console.warn("purge media:", e.message); }
     await fs.promises.unlink(path.join(UPLOAD_DIR, "social", thumbNameOf(name))).catch(() => {}); // its thumbnail, if any
   }
