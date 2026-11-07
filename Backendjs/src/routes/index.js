@@ -89,7 +89,6 @@ const pageActions = require("../controllers/pages.controller");
 resource("/pages", Page, { validate: pageActions.validate, updateRecord: pageActions.updateRecord, onCreate: (item) => item.reload(), entity: "page", hasStatus: true, order: [["title", "ASC"]], searchable: ["title", "slug"], publicListExclude: ["content"] });
 
 /* ── Editable content collections (public read, auth write) ─ */
-const CONTENT_ORDER = [["position", "ASC"], ["createdAt", "ASC"]];
 const faqActions = require("../controllers/faqs.controller");
 router.post("/faqs/reorder", requireAuth, requireArea("content"), faqActions.reorder);
 resource("/faqs", Faq, { validate: faqActions.validate, updateRecord: faqActions.updateRecord, onCreate: (item) => item.reload(), entity: "faq", hasStatus: true, order: [["position", "ASC"], ["createdAt", "ASC"], ["id", "ASC"]], searchable: ["question", "answer"], bootstrapKey: "faqs" });
@@ -111,7 +110,9 @@ resource("/stats", Stat, { validate: statActions.validate, updateRecord: statAct
 const logoActions = require("../controllers/logos.controller");
 router.post("/logos/reorder", requireAuth, requireArea("content"), logoActions.reorder);
 resource("/logos", Logo, { validate: logoActions.validate, updateRecord: logoActions.updateRecord, onCreate: (item) => item.reload(), entity: "logo", hasStatus: true, order: [["position", "ASC"], ["createdAt", "ASC"], ["id", "ASC"]], searchable: ["name"], bootstrapKey: "logos" });
-resource("/features", Feature, { entity: "feature", hasStatus: true, order: CONTENT_ORDER, searchable: ["title"], bootstrapKey: "features" });
+const featureActions = require("../controllers/features.controller");
+router.post("/features/reorder", requireAuth, requireArea("content"), featureActions.reorder);
+resource("/features", Feature, { validate: featureActions.validate, updateRecord: featureActions.updateRecord, onCreate: (item) => item.reload(), entity: "feature", hasStatus: true, order: [["position", "ASC"], ["createdAt", "ASC"], ["id", "ASC"]], searchable: ["title", "description"], bootstrapKey: "features" });
 
 router.get("/website/overview", requireAuth, requireArea("content"), require("../controllers/website.controller").overview);
 

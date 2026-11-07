@@ -1,3 +1,4 @@
+import SolutionFeatures from "@/components/SolutionFeatures";
 import WebsiteStats from "@/components/WebsiteStats";
 import HomeFaqs from "@/components/HomeFaqs";
 import { seoMetadata } from "@/lib/seoMetadata";
@@ -35,11 +36,6 @@ const codeHtml = `
 <span class="ln"> </span>
 <span class="ln"><span class="f">crm</span>.<span class="f">deploy</span>();  <span class="c">// ship in minutes</span></span>`;
 
-const FB_FEATURES = [
-  { title: "Smart pipelines", description: "Drag-and-drop deal stages with automated hand-offs." },
-  { title: "AI lead scoring", description: "Know which leads to call first, ranked in real time." },
-  { title: "Live analytics", description: "Boardroom-ready dashboards updated to the second." },
-];
 const revBars = [
   { d: "Mon", h: 0.48 }, { d: "Tue", h: 0.66 }, { d: "Wed", h: 0.4 }, { d: "Thu", h: 0.82 },
   { d: "Fri", h: 0.58 }, { d: "Sat", h: 1 }, { d: "Sun", h: 0.72 },
@@ -55,7 +51,6 @@ export default async function Home() {
   ]);
   const featured = (projects.filter((p) => p.featured).length ? projects.filter((p) => p.featured) : projects).slice(0, 3);
   const tRow = [...testimonials, ...testimonials];
-  const features = featuresRes.length ? featuresRes : FB_FEATURES;
   // Social links from Settings & pixels; icons without a link are hidden.
   const site = await getSettings();
   const heroSocial = ([[site.social_x, "X", XIcon], [site.social_linkedin, "LinkedIn", LinkedIn], [site.social_instagram, "Instagram", Instagram]] as const)
@@ -135,11 +130,7 @@ export default async function Home() {
             <span className="eyebrow">Built for growth</span>
             <h2 style={{ margin: "14px 0 12px", fontSize: "clamp(24px,3.2vw,38px)", letterSpacing: "-.02em" }}>One platform to <span className="grad-word">run your revenue</span></h2>
             <p style={{ color: "var(--muted)" }}>Finvera unifies your product, sales and success teams around a single source of truth — so nothing slips through the cracks.</p>
-            <ul className="feature-list">
-              {features.map((f) => (
-                <li key={f.title}><span className="fi"><Check width={15} /></span><div><h4>{f.title}</h4><p>{f.description}</p></div></li>
-              ))}
-            </ul>
+            <SolutionFeatures items={featuresRes} />
             <Link href="/solutions" className="btn btn-grad" data-cursor data-magnetic style={{ marginTop: 26 }}>Explore solutions <Arrow /></Link>
           </div>
           <div className="mock reveal d2">
