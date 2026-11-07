@@ -8,6 +8,9 @@ import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon, Cancel01Icon, ArrowDown01Icon, ArrowUpRight01Icon, Activity01Icon } from "@hugeicons/core-free-icons";
 import { api, trackApi, type ActivityRow } from "@/lib/adminApi";
+import PageLoading from "@/components/admin/PageLoading";
+import { WorkspaceHero, WorkspaceStats } from "@/components/admin/Workspace";
+import "./activity-workspace.css";
 import Select from "@/components/Select";
 import DatePicker from "@/components/ui/DatePicker";
 import ExportButton from "@/components/admin/ExportButton";
@@ -38,6 +41,7 @@ export default function ActivityPage() {
   const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const reqId = useRef(0);
+  const [refresh, setRefresh] = useState(0);
 
   useEffect(() => { api.listUsers().then((u: unknown) => setUsers(Array.isArray(u) ? u : [])).catch(() => {}); }, []);
   // Search waits for a short pause in typing.
@@ -48,23 +52,29 @@ export default function ActivityPage() {
     userId: f.userId, action: f.action, from: f.from, to: f.to, q: f.q,
   }), [f]);
 
+  const paramsRef = useRef(params); paramsRef.current = params;
   useEffect(() => {
     const id = ++reqId.current;
-    setLoading(true); setError("");
+    setLoading(true); setMore(false); setItems([]); setTotal(0); setError("");
+    if (params.from && params.to && params.from > params.to) { setError("The end date must be on or after the start date."); setLoading(false); return; }
     trackApi.activity({ ...params, page: 1, limit: PAGE })
       .then((r) => { if (id !== reqId.current) return; setItems(r.items || []); setTotal(r.total || 0); setPage(1); })
       .catch((e) => { if (id === reqId.current) setError(e?.status === 404 ? "Activity history isn't on this server yet — update the backend." : e instanceof Error ? e.message : "Couldn't load the activity."); })
       .finally(() => { if (id === reqId.current) setLoading(false); });
-  }, [params]);
+    return () => { ++reqId.current; };
+  }, [params, refresh]);
 
   async function loadMore() {
-    setMore(true);
+    if (more || loading) return;
+    const id = reqId.current, requested = params;
+    setMore(true); setError("");
     try {
       const r = await trackApi.activity({ ...params, page: page + 1, limit: PAGE });
+      if (id !== reqId.current || requested !== paramsRef.current) return;
       setItems((xs) => { const have = new Set(xs.map((x) => x.id)); return [...xs, ...(r.items || []).filter((x) => !have.has(x.id))]; });
       setTotal(r.total || 0); setPage(page + 1);
-    } catch (e) { setError(e instanceof Error ? e.message : "Couldn't load more."); }
-    finally { setMore(false); }
+    } catch (e) { if (id === reqId.current && requested === paramsRef.current) setError(e instanceof Error ? e.message : "Couldn't load more."); }
+    finally { if (id === reqId.current) setMore(false); }
   }
 
   const groups = useMemo(() => {
@@ -82,11 +92,14 @@ export default function ActivityPage() {
   const toggle = (id: number) => setOpen((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   return (
-    <>
-      <div className="adm-top">
-        <div><h1>Activity</h1><p>Who changed what across the dashboard: leads, renewals, the website, the boards and the content calendar.</p></div>
-        <ExportButton entity="activity" file="activity" sheet="Activity" params={() => params} label="Export to Excel" />
-      </div>
+    <div className="fw-workspace activity-workspace">
+      <WorkspaceHero eyebrow="Workspace history" title="Activity log" description="A clear record of what changed, who changed it and when. Follow the detail behind your team's everyday work." actions={<><button type="button" className="sh-btn" disabled={loading} onClick={() => setRefresh(n => n + 1)}>Refresh history</button><ExportButton entity="activity" file="activity" sheet="Activity" params={() => params} label="Export to Excel" /></>} />
+      <WorkspaceStats items={[
+        { label: "Matching events", value: loading ? "—" : total.toLocaleString("en-IN"), detail: "Across the selected filters", accent: true },
+        { label: "Events in view", value: loading ? "—" : items.length, detail: "Load more to explore earlier work" },
+        { label: "People in view", value: loading ? "—" : new Set(items.map(r => r.userId).filter(Boolean)).size, detail: "Distinct members in loaded events" },
+        { label: "Days in view", value: loading ? "—" : groups.length, detail: "Dates displayed in India time" },
+      ]} />
 
       <div className="act-filters">
         <label className="adm-search act-q">
@@ -110,19 +123,16 @@ export default function ActivityPage() {
         </div>
       </div>
 
-      {error && <div className="adm-msg err">{error}</div>}
+      {error && <div className="fw-error" role="alert"><span>{error}</span><button type="button" onClick={() => setRefresh(n => n + 1)}>Retry / reload</button></div>}
 
       <div className="act-meta" aria-live="polite">
         {!loading && !error && (total ? <>Showing <b>{items.length.toLocaleString("en-IN")}</b> of {total.toLocaleString("en-IN")} change{total === 1 ? "" : "s"}</> : null)}
       </div>
 
+      <div className="fw-section-title"><div><h2>The workspace trail</h2><p>Open a change to compare before and after. Date filters include the full day in India time.</p></div></div>
       {loading ? (
-        <div className="act-timeline" aria-busy="true">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="act-row skel-row"><span className="skel act-av" /><div style={{ flex: 1 }}><span className="skel skel-line" style={{ width: `${60 + (i % 3) * 12}%`, height: 14, display: "block" }} /><span className="skel skel-line" style={{ width: 90, height: 11, display: "block", marginTop: 8 }} /></div></div>
-          ))}
-        </div>
-      ) : !items.length ? (
+        <PageLoading label="Loading activity history…" variant="list" />
+      ) : error && !items.length ? null : !items.length ? (
         <div className="act-empty">
           <span className="ic"><HugeiconsIcon icon={Activity01Icon} size={26} strokeWidth={1.6} /></span>
           <b>{active ? "Nothing matches these filters" : "No activity yet"}</b>
@@ -189,6 +199,6 @@ export default function ActivityPage() {
           )}
         </div>
       )}
-    </>
+    </div>
   );
 }
