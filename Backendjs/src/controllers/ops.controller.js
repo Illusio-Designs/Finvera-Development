@@ -159,7 +159,8 @@ const systemStatus = asyncHandler(async (_req, res) => {
   try {
     const { SocialAccount } = require("../models");
     const rows = await SocialAccount.findAll({ attributes: ["client", "status", "tokenExpiresAt", "lastCheckedAt"], raw: true });
-    accounts = { total: rows.length, needReconnect: rows.filter((a) => a.status !== "connected").map((a) => a.client), expiringSoon: rows.filter((a) => a.tokenExpiresAt && new Date(a.tokenExpiresAt) - Date.now() < 7 * 86400000).map((a) => a.client) };
+    const now = Date.now(), expiresIn = a => a.tokenExpiresAt ? new Date(a.tokenExpiresAt).getTime() - now : Infinity;
+    accounts = { total: rows.length, needReconnect: rows.filter(a => a.status !== "connected" || expiresIn(a) <= 0).map(a => a.client), expiringSoon: rows.filter(a => a.status === "connected" && expiresIn(a) > 0 && expiresIn(a) < 7 * 86400000).map(a => a.client) };
   } catch { /* table missing */ }
 
   res.json({
