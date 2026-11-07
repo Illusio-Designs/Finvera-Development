@@ -118,11 +118,15 @@ const getEmailPrefs = asyncHandler(async (req, res) => {
 });
 
 const putEmailPrefs = asyncHandler(async (req, res) => {
-  const u = await User.findByPk(req.user.id);
-  if (!u) return res.status(404).json({ message: "User not found." });
   const body = req.body?.prefs && typeof req.body.prefs === "object" ? req.body.prefs : req.body;
-  const prefs = { ...emails.prefsOf(u), ...emails.cleanPrefs(body) };
-  await u.update({ emailPrefs: prefs });
+  if (!body || typeof body !== "object" || Array.isArray(body) || emails.PREF_KINDS.some(key => body[key] !== undefined && typeof body[key] !== "boolean")) return res.status(400).json({ message: "Email preferences must use true or false values." });
+  const { u, prefs } = await sequelize.transaction(async transaction => {
+    const u = await User.findByPk(req.user.id, { transaction, lock: transaction.LOCK.UPDATE });
+    if (!u) throw Object.assign(new Error("User not found."), { status: 404 });
+    const prefs = { ...emails.prefsOf(u), ...emails.cleanPrefs(body) };
+    await u.update({ emailPrefs: prefs }, { transaction });
+    return { u, prefs };
+  });
   try { require("../middleware/auth").forgetUser(u.id); } catch { /* cache only */ }
   res.json({ prefs, kinds: emails.PREF_KINDS, email: u.email, mailConfigured: mailer.configured() });
 });
