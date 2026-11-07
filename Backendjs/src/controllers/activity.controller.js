@@ -26,7 +26,7 @@ const AREA = {
   ...Object.fromEntries(CONTENT.map((e) => [e, "content"])),
 };
 const ENTITIES = Object.keys(AREA);
-const isDay = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+const isDay = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(v + "T00:00:00Z")) && new Date(v + "T00:00:00Z").toISOString().slice(0, 10) === v;
 const istStart = (iso) => new Date(`${iso}T00:00:00+05:30`);
 
 function entityList(v) {
@@ -39,6 +39,8 @@ function entityList(v) {
 }
 
 function whereOf(q) {
+  for (const field of ["from", "to"]) if (q[field] && !isDay(q[field])) throw Object.assign(new Error("Use a valid YYYY-MM-DD date for " + field + "."), { status: 400 });
+  if (q.from && q.to && q.from > q.to) throw Object.assign(new Error("The end date must be on or after the start date."), { status: 400 });
   const where = {};
   const ents = entityList(q.entity);
   if (ents.length) where.entity = ents.length === 1 ? ents[0] : { [Op.in]: ents };
