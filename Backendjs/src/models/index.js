@@ -458,6 +458,21 @@ const SocialPostEvent = sequelize.define("SocialPostEvent", {
   at: { type: DataTypes.DATE, allowNull: false },
 }, { tableName: "social_post_events", indexes: [{ fields: ["postId"] }, { fields: ["at"] }] });
 
+/* Immutable report data with separately editable/reviewed commentary. */
+const SocialReportSnapshot = sequelize.define("SocialReportSnapshot", {
+  audience: { type: DataTypes.STRING(12), allowNull: false },
+  brandScope: { type: DataTypes.JSON, allowNull: false },
+  kind: { type: DataTypes.ENUM("team", "client"), allowNull: false },
+  client: { type: DataTypes.STRING },
+  period: { type: DataTypes.STRING(7), allowNull: false },
+  createdBy: { type: DataTypes.INTEGER, allowNull: false },
+  title: { type: DataTypes.STRING, allowNull: false },
+  summary: { type: DataTypes.TEXT },
+  status: { type: DataTypes.ENUM("draft", "reviewed"), defaultValue: "draft" },
+  version: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+  data: { type: DataTypes.JSON, allowNull: false },
+}, { tableName: "social_report_snapshots", indexes: [{ fields: ["createdBy", "createdAt"] }, { fields: ["client", "period"] }] });
+
 /* ── Activity history (audit log) ─────────────────────
    One row per create / update / delete (and a few other actions such as
    renewals renewed / terminated). `changes` = { field: [old, new] } with
@@ -564,5 +579,5 @@ module.exports = {
   BlogPost, ContactSubmission, Seo, Setting, Task, Board, Comment, Page, Lead, Notification, PushSubscription,
   Renewal, SocialClient, SocialPost, LeadActivity, ActivityLog, SocialPostEvent, SocialAccount, SocialPublishJob, SocialStat,
   Faq, Value, Brand, Milestone, ProcessStep, Stat, Logo, Feature,
-  ContactReply,
+  ContactReply, SocialReportSnapshot,
 };

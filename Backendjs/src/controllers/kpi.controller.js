@@ -191,15 +191,15 @@ let generation = 0;
 
 function bumpKpiCache() { generation += 1; cache.clear(); }
 
-function cacheKey({ period, brand, scope, userId }) {
+function cacheKey({ period, brand, scope, userId, reportDetails }) {
   const who = scope ? `u${userId}:${[...scope].sort().join(",")}` : "all";
-  return `${todayIst()}|${period}|${brand}|${who}`;
+  return `${todayIst()}|${period}|${brand}|${who}|${reportDetails ? "report" : "standard"}`;
 }
 
 /* Cached KPIs. `scope` null = whole team (admin); otherwise a Set of brand
    names, and only `userId`'s own row is returned in people. */
-function getKpis({ period = "month", brand = "", scope = null, userId = null } = {}) {
-  const args = { period: String(period || "month"), brand: brand ? String(brand) : "", scope, userId };
+function getKpis({ period = "month", brand = "", scope = null, userId = null, reportDetails = false } = {}) {
+  const args = { period: String(period || "month"), brand: brand ? String(brand) : "", scope, userId, reportDetails };
   const key = cacheKey(args);
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.value;
@@ -219,9 +219,9 @@ const kpis = asyncHandler(async (req, res) => {
 });
 
 const KPI_POST_ATTRS = ["id", "client", "status", "postDate", "postTime", "dueDate", "assigneeId", "theme", "format", "estimateHours", "timeLog"];
-const KPI_EVENT_ATTRS = ["id", "postId", "client", "format", "fromStatus", "toStatus", "fromAssigneeId", "toAssigneeId", "postDate", "postTime", "at"];
+const KPI_EVENT_ATTRS = ["id", "postId", "client", "format", "fromStatus", "toStatus", "fromAssigneeId", "toAssigneeId", "postDate", "postTime", "at", "byUserId"];
 
-async function computeKpis({ period, brand, scope, userId }) {
+async function computeKpis({ period, brand, scope, userId, reportDetails }) {
   await backfillOnce();
   const today = todayIst();
   const P = periodOf(period, today);
@@ -239,7 +239,7 @@ async function computeKpis({ period, brand, scope, userId }) {
   const [posts, events, users, firstEvent] = await Promise.all([
     SocialPost.findAll({ where: brandWhere, attributes: KPI_POST_ATTRS, raw: true }),
     SocialPostEvent.findAll({ where: { ...brandWhere, at: { [Op.gte]: startUtc(addDays(historyFrom, -120)) } }, attributes: KPI_EVENT_ATTRS, order: [["at", "ASC"]], raw: true }),
-    User.findAll({ where: { active: true } }),
+    User.findAll({ where: reportDetails ? {} : { active: true } }),
     SocialPostEvent.min("at", { where: { byUserId: { [Op.ne]: null } } }), // first real (not caught-up) move
   ]);
   const postById = new Map(posts.map((p) => [p.id, p]));
@@ -318,7 +318,7 @@ async function computeKpis({ period, brand, scope, userId }) {
   /* ── People ── */
   const isTeam = (u) => rolesOf(u).some((r) => TEAM_ROLES.includes(r));
   const involved = new Set([...open.map((p) => p.assigneeId), ...delivered.map((m) => m.who)].filter(Boolean).map(Number));
-  let people = users.filter((u) => isTeam(u) || involved.has(u.id));
+  let people = users.filter((u) => (isTeam(u) && (!reportDetails || u.active)) || involved.has(u.id));
   if (meOnly) people = people.filter((u) => u.id === Number(userId));
 
   const roleLabel = { social: "Social media", marketer: "Marketer", graphic: "Graphic designer", video: "Video editor", admin: "Admin" };
@@ -341,6 +341,12 @@ async function computeKpis({ period, brand, scope, userId }) {
       startsToday: mine.filter((p) => day(p.dueDate) === today).length,
       timeByBrand: [...byBrand.entries()].map(([brand, minutes]) => ({ brand, hours: round1(minutes / 60), posts: new Set(s.myLogs.filter((l) => l.client === brand).map((l) => l.postId)).size })).sort((a, b) => b.hours - a.hours),
       recent,
+      ...(reportDetails ? {
+        active: u.active, roles: rolesOf(u),
+        assigned: firstEvent && P.from >= istDay(firstEvent) ? new Set(events.filter(e => e.byUserId && Number(e.toAssigneeId) === u.id && Number(e.fromAssigneeId) !== u.id && inRange(istDay(e.at), P.from, P.to)).map(e => e.postId)).size : null,
+        completed: s.del.map(m => ({ postId: m.postId, theme: postById.get(m.postId)?.theme || "Deleted post", client: m.client, format: m.format, day: m.day, onTime: m.onTime, deadlinePrecision: m.deadlinePrecision, to: STAGE_NAMES[m.to] || m.to })),
+        queue: mine.map(p => ({ id: p.id, theme: p.theme, client: p.client, format: p.format, status: p.status, postDate: p.postDate, postTime: p.postTime, overdue: require("../utils/socialDeadline").isOverdue(p) })),
+      } : {}),
     };
   }).sort((a, b) => b.delivered - a.delivered || b.open - a.open);
 
