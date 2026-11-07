@@ -1,6 +1,6 @@
 # Social reports — design proposal
 
-Design only; report pages, new APIs, client sharing and scheduled report delivery are not implemented by this proposal. Open `social-report-prototype.html` locally; it has no network dependencies. Every figure, name and result in the prototype is labelled sample data. The two reports are separate views under a proposed Social media → Reports entry.
+Reports are now implemented at `/dashboard/reports`, with live scoped data, immutable saved snapshots, commentary/review revisions, CSV/Excel export and browser Print / save PDF. The standalone HTML remains the original sample-data design artifact. Public client links and scheduled report delivery are not enabled. Open `social-report-prototype.html` locally; it has no network dependencies. Every figure, name and result in the prototype is labelled sample data. The two reports are separate views under a proposed Social media → Reports entry.
 
 ## Team / user social report
 
@@ -20,14 +20,16 @@ A post published to Instagram and Facebook is one unique post and two successful
 
 Current Social studio data contains saved account follower snapshots, publication jobs and the metrics actually returned by the Meta adapter. Reach, impressions, Story metrics, clicks and watch time must be capability-checked and added only when the provider integration returns them. Missing values show **Not available**, never zero; permission failure must not be assumed from missing data. Show freshness, available-metric coverage and the report generation time. Use completed historical periods when daily cutoffs matter, and call out partial current periods.
 
-## Build after design approval
+## Delivered workflow
 
-1. Agree the layouts and exact report fields. Confirm that “user report” means internal team-member performance and the client report is brand-specific.
-2. Audit assignment history and expose read-only, scoped report data using existing KPI/studio sources. Introduce immutable generated report snapshots for consistent exports. Use explicit authorization checks for every brand/person/report ID.
-3. Build Team and Client report views with centered loading shimmer, readable failures, meaningful empty states and drilldowns to underlying records. Keep internal drilldowns out of client-facing payloads, not only hidden by CSS.
-4. Add server-side PDF/CSV/Excel generation, escaping spreadsheet formula cells and avoiding remote-token leakage. Keep existing KPI exports compatible. The prototype's local CSV/print buttons export sample data only.
-5. Add reviewed narrative, client-safe preview and client-specific PDF download. Public links, automatic sending, email/WhatsApp delivery and recurring reports require a separate authorized workflow; none are enabled by this design.
-6. Verify per-role/brand access, period boundaries/IST deadlines, reassignment credit, partial publishing/retry deduplication, missing metrics, snapshot stability and desktop/mobile/PDF output.
+1. Open Social media → Social reports. Choose Team performance or Client report, month and authorized brand; admins can also choose a role/person. Ordinary members receive only their own team work.
+2. Review the live data, underlying work ledger, missing metrics and coverage dates. Historical assignment counts remain unavailable if recorded history does not cover the entire period. Inactive contributors retain past completion credit.
+3. Add commentary and save a fixed snapshot. A preview fingerprint prevents silently saving changed figures. Report data cannot be edited after capture; create a new snapshot to refresh it.
+4. Review the commentary and mark the snapshot Reviewed. Commentary edits reset review to Draft; optimistic revisions protect simultaneous editors. A demoted admin cannot retain access to an old team-wide report; brand revocation also applies to old reports and exports.
+5. Open the client-safe preview and export CSV, an Excel workbook or Print / save PDF. Every export rechecks current access. PDFs are produced through the browser print flow; no headless PDF service is required on the hosting account. Workbook sheets retain report metadata and coverage context. Client responses/exports omit staff, time logs, assignment history, provider errors and credentials.
+6. No sending/email/public-link workflow runs automatically. Existing KPI export remains compatible.
+
+Backend: `/api/social-reports/options`, `/preview`, `/snapshots`, `/snapshots/:id`, and `/snapshots/:id/csv`. Snapshot storage is an additive `social_report_snapshots` table; the normal create-missing schema sync and report table guard create it without altering existing records.
 
 ## Prototype interactions
 

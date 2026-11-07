@@ -414,3 +414,14 @@ export const settingsApi = {
   save: (changes: Record<string, string>): Promise<SettingRow[]> => req(`/settings`, { method: "PUT", body: JSON.stringify(changes) }),
 };
 /* ═════════════════ end of settings & pixels block ══════════════════════ */
+
+/* Reports are computed/scoped on the server; saved data snapshots are immutable. */
+export const reportsApi = {
+  options: () => req('/social-reports/options'),
+  preview: (q: Record<string,string>) => req('/social-reports/preview?' + new URLSearchParams(q)),
+  list: (q:Record<string,string>={}) => req('/social-reports/snapshots?'+new URLSearchParams(q)),
+  get: (id:number) => req(`/social-reports/snapshots/${id}`),
+  create: (body:unknown) => req('/social-reports/snapshots',{method:'POST',body:JSON.stringify(body)}),
+  update: (id:number,body:unknown) => req(`/social-reports/snapshots/${id}`,{method:'PATCH',body:JSON.stringify(body)}),
+  csv: async (id:number) => {const response=await fetch(`${API_BASE}/api/social-reports/snapshots/${id}/csv`,{headers:{Authorization:`Bearer ${getToken()||''}`}});if(response.status===401){clearToken();location.href='/login';throw new Error('Session expired.');}if(!response.ok)throw new Error((await response.json()).message||'Couldn’t export the report.');return response.blob();},
+};

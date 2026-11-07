@@ -178,6 +178,14 @@ const social = require("../controllers/social.controller");
 const autoPublish = require("../utils/autoPublish");
 const { postChanges, when, fmtDate, day, STAGES } = require("../utils/changeNotes");
 const canSocial = [requireAuth, requireArea("social"), social.withScope];
+const reports = require("../controllers/socialReports.controller");
+router.get("/social-reports/options", ...canSocial, reports.options);
+router.get("/social-reports/preview", ...canSocial, reports.preview);
+router.get("/social-reports/snapshots", ...canSocial, reports.list);
+router.post("/social-reports/snapshots", ...canSocial, reports.create);
+router.get("/social-reports/snapshots/:id", ...canSocial, reports.get);
+router.patch("/social-reports/snapshots/:id", ...canSocial, reports.update);
+router.get("/social-reports/snapshots/:id/csv", ...canSocial, reports.csv);
 const kpiCtrl = require("../controllers/kpi.controller");
 // Bulk changes to posts (imports, deletes) → clear the KPI cache once they succeed.
 const kpiBump = (_req, res, next) => { res.on("finish", () => { if (res.statusCode < 400) kpiCtrl.bumpKpiCache(); }); next(); };
