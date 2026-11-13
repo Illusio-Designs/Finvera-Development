@@ -1,3 +1,4 @@
+const { claimRepair } = require("../utils/taskMachine");
 const { cacheState } = require("../utils/asyncMachine");
 const { Op, fn, col, literal } = require("sequelize");
 const { SocialClient, SocialPost, SocialPostEvent, User, Setting } = require("../models");
@@ -328,7 +329,7 @@ const UPLOAD_FIX_KEY = "social.uploadedToPlanned.v2";
 let uploadFixDone = false;
 async function moveUploadedToPlannedOnce() {
   if (uploadFixDone) return;
-  const [flag, created] = await Setting.findOrCreate({ where: { key: UPLOAD_FIX_KEY }, defaults: { value: "running", group: "system", isPublic: false } });
+  const { flag, claimed: created } = await claimRepair(UPLOAD_FIX_KEY, true);
   if (!created) { uploadFixDone = true; return; }
   const posts = (await SocialPost.findAll({ where: { status: "posted" } })).filter((p) => !isLive(p));
   const ctx = {};

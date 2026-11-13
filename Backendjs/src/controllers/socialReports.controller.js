@@ -1,10 +1,11 @@
+const { lazyState } = require("../utils/asyncMachine");
 const { reportRevision } = require("../utils/contentMachine");
 const {Op}=require('sequelize');
 const {sequelize,SocialClient,SocialPost,SocialPublishJob,SocialAccount,SocialStat,SocialReportSnapshot}=require('../models');
 const {asyncHandler}=require('../utils/crud'),{periodOf,clientData,csvReport,fail,fingerprint}=require('../utils/socialReports'),{getKpis}=require('./kpi.controller');
 const audit=require('../utils/audit');
 const names=req=>req.socialScope?[...req.socialScope]:null;
-let schema;async function ensure(){if(!schema)schema=SocialReportSnapshot.sync().catch(e=>{schema=null;throw e});await schema;}
+let schema;async function ensure(){if(lazyState(schema||undefined)==="uninitialized")schema=SocialReportSnapshot.sync().catch(e=>{schema=null;throw e});await schema;}
 async function brand(req,value){if(typeof value!=='string'||!value.trim()||req.socialScope&&!req.socialScope.has(value))throw fail(404,'Client not found.');const item=await SocialClient.findOne({where:{name:value},attributes:['id','name']});if(!item)throw fail(404,'Client not found.');return item.name;}
 async function build(req,q){const period=periodOf(q.month);if(q.kind==='client'){
  const client=await brand(req,q.brand);

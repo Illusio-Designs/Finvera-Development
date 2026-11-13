@@ -27,4 +27,19 @@ function createReadCache(ttl, maximum = Infinity, now = () => Date.now()) {
     },
   };
 }
-module.exports = { cacheState, createSingleFlight, createReadCache };
+function createSerialQueue() {
+  let tail = Promise.resolve(), waiting = 0, running = false;
+  return {
+    get phase() { return running ? "running" : waiting ? "queued" : "idle"; },
+    enqueue(action) {
+      waiting++;
+      const promise = tail.then(async () => {
+        waiting--; running = true;
+        try { return await action(); } finally { running = false; }
+      });
+      tail = promise.catch(() => {}); return promise;
+    },
+  };
+}
+const lazyState = (value, error) => error || value === null ? "unavailable" : value === undefined ? "uninitialized" : "ready";
+module.exports = { cacheState, createSingleFlight, createReadCache, createSerialQueue, lazyState };

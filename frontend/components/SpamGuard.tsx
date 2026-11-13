@@ -1,4 +1,5 @@
 "use client";
+import { lazyState } from "@/lib/lifecycleMachine";
 import { captchaTransition, type CaptchaState } from "@/lib/enquiryMachine";
 /* Spam guard for the public enquiry forms.
    • Two honeypot inputs (`website`, `company_url`) that people never see or
@@ -22,7 +23,7 @@ declare global { interface Window { turnstile?: Turnstile } }
 let scriptPromise: Promise<void> | null = null;
 function loadScript(): Promise<void> {
   if (window.turnstile) return Promise.resolve();
-  if (!scriptPromise) {
+  if (lazyState(scriptPromise || undefined) === "uninitialized") {
     scriptPromise = new Promise((resolve, reject) => {
       const s = document.createElement("script");
       s.src = SCRIPT; s.async = true; s.defer = true;
@@ -31,7 +32,7 @@ function loadScript(): Promise<void> {
       document.head.appendChild(s);
     });
   }
-  return scriptPromise;
+  return scriptPromise!;
 }
 
 /* Off-screen, not display:none (some bots skip hidden inputs). */

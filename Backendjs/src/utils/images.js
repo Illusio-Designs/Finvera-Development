@@ -1,3 +1,4 @@
+const { lazyState } = require("./asyncMachine");
 /* Image compression for uploads (sharp, loaded lazily).
 
    optimizeUpload(file, { mode })   file = multer file { path, filename, size, mimetype }
@@ -28,7 +29,7 @@ const THUMB_RE = /-thumb\.(jpe?g|png|webp)$/i;
 
 let sharpMod; // undefined = not tried yet, null = unavailable
 function getSharp() {
-  if (sharpMod !== undefined) return sharpMod;
+  if (lazyState(sharpMod) !== "uninitialized") return sharpMod;
   if (String(process.env.IMAGE_OPTIMIZE || "").toLowerCase() === "false") return (sharpMod = null);
   try {
     sharpMod = require("sharp");

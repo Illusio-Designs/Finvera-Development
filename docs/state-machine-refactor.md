@@ -32,7 +32,7 @@ rules are checked against the server by contract tests.
 | 20 | Operational tools and server startup | Complete |
 | 21 | Schedulers, runner locks and alert claims | Complete |
 | 22 | Backup artifacts, studio refresh and shared caches | Complete |
-| 23 | WebP queue, repairs, polling and lazy initialization | Pending |
+| 23 | WebP queue, repairs, polling and lazy initialization | Complete |
 | — | Dormant task-board/timer schemas | Document only; no active workflow to refactor |
 
 ## 1. Social posts and ownership
@@ -272,3 +272,21 @@ classifier. Browser API memo reads mirror freshness semantics. Backup artifacts
 are Partial/Archive/Other; incomplete files never become downloadable archives.
 Tests cover rejection/retry, cache invalidation during an in-flight read, expiry,
 and backup-name boundaries.
+
+## 23. Remaining infrastructure lifecycles
+
+The WebP queue uses explicit Idle/Queued/Running serial work; rejection cannot
+poison subsequent conversions. Repair/backfill claims share create-only versus
+empty-value claim modes and preserve their existing completion/failure policies.
+Visibility polling has Hidden/Running/Disposed states, preventing restart after
+cleanup. Lazy capability classification names Uninitialized/Ready/Unavailable for
+Sharp, mail transport, push keys, report schema and CAPTCHA script loading.
+Tests verify serial failure recovery and the polling lifecycle.
+
+## Scope notes
+
+Task-board and running-timer schemas have no active transition handlers in this
+checkout and remain documented rather than activated. Native browser/service
+worker lifecycle events, existing explicit tab/status unions, and third-party
+animation/editor internals are retained. This refactor does not introduce a state
+machine dependency, migrate database values, or change authorization policy.

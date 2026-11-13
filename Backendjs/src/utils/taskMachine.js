@@ -20,4 +20,12 @@ async function claimWindow(key, now, windowMs) {
   ] } });
   return claimed > 0;
 }
-module.exports = { dailyState, runnerState, claimDate, claimWindow };
+async function claimRepair(key, createOnly, runningValue = "running") {
+  const { Setting } = require("../models");
+  const { Op } = require("sequelize");
+  const [flag, created] = await Setting.findOrCreate({ where: { key }, defaults: { value: createOnly ? runningValue : "", group: "system", isPublic: false } });
+  if (createOnly) return { flag, claimed: created };
+  const [claimed] = await Setting.update({ value: runningValue }, { where: { key, [Op.or]: [{ value: null }, { value: "" }] } });
+  return { flag, claimed: claimed > 0 };
+}
+module.exports = { dailyState, runnerState, claimDate, claimWindow, claimRepair };

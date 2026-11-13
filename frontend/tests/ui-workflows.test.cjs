@@ -1,7 +1,7 @@
 const { test } = require("node:test"), assert = require("node:assert/strict");
 const fs = require("node:fs"), path = require("node:path"), vm = require("node:vm"), ts = require("typescript");
-function load(name) {
-  const context = { exports: {} };
+function load(name, globals = {}) {
+  const context = { exports: {}, require: dependency => load(dependency.replace(/^\.\//, "")), ...globals };
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname, "../lib/" + name + ".ts"), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, context);
   return context.exports;
 }
@@ -12,6 +12,16 @@ const enquiries = load("enquiryMachine");
 const resources = load("resourceMachine");
 const notifications = load("notificationMachine");
 const presentation = load("presentationMachine");
+test("visibility polling stops on hide and cannot restart after cleanup", () => {
+  const listeners = new Map(), document = { hidden: false, addEventListener: (name, callback) => listeners.set(name, callback), removeEventListener: name => listeners.delete(name) };
+  let timers = 0, calls = 0, cleared = 0;
+  const { visibleInterval } = load("visibleInterval", { document, setInterval: () => ++timers, clearInterval: () => cleared++ });
+  const cleanup = visibleInterval(() => calls++, 100);
+  const callback = listeners.get("visibilitychange");
+  document.hidden = true; callback(); assert.equal(cleared, 1);
+  document.hidden = false; callback(); assert.equal(calls, 1); assert.equal(timers, 2);
+  cleanup(); callback(); assert.equal(timers, 2); assert.equal(listeners.size, 0);
+});
 test("disclosure toggles, one-way reveals and dialog results retain their UI contracts", () => {
   assert.equal(presentation.disclosureTransition("closed", "TOGGLE"), "open");
   assert.equal(presentation.disclosureTransition("open", "CLOSE"), "closed");

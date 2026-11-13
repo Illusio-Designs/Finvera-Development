@@ -1,17 +1,18 @@
+const { createSerialQueue } = require("../utils/asyncMachine");
 /* Browser-only WebP delivery. Original upload URLs and social publishing bytes
    stay available; no remote URLs are fetched and SVG/animation stay intact. */
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const { getSharp } = require('../utils/images');
 const ROOT = path.resolve(__dirname, '../../uploads');
 const pending = new Map();
-let conversionQueue = Promise.resolve();
+const conversionQueue = createSerialQueue();
 async function variantFor(file, stat) {
   const sharp = getSharp(); if (!sharp) return null;
   const key = crypto.createHash('sha256').update(`${file}|${stat.size}|${stat.mtimeMs}`).digest('hex');
   const out = path.join(ROOT, '.webp-cache', key + '.webp');
   try { await fs.promises.access(out); return out; } catch {}
   if (pending.has(key)) return pending.get(key);
-  const promise = conversionQueue.then(async () => {
+  const promise = conversionQueue.enqueue(async () => {
     const image = sharp(file, { limitInputPixels: 40000000 });
     const meta = await image.metadata();
     if ((meta.pages || 1) > 1 || !['jpeg','png','webp','avif','heif','gif'].includes(meta.format)) return null;
@@ -20,7 +21,6 @@ async function variantFor(file, stat) {
     const temp = out + '.' + process.pid + '.tmp';
     await fs.promises.writeFile(temp, bytes); await fs.promises.rename(temp, out); return out;
   });
-  conversionQueue = promise.catch(() => {});
   pending.set(key, promise);
   try { return await promise; } finally { pending.delete(key); }
 }

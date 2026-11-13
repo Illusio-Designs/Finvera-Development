@@ -1,3 +1,4 @@
+const { claimRepair } = require("../utils/taskMachine");
 const { cacheState } = require("../utils/asyncMachine");
 /* Content calendar performance KPIs.
 
@@ -107,8 +108,7 @@ const parseMeta = (m) => (typeof m === "string" ? (() => { try { return JSON.par
 async function backfillOnce() {
   if (backfillChecked) return;
   try {
-    await Setting.findOrCreate({ where: { key: BACKFILL_KEY }, defaults: { key: BACKFILL_KEY, value: "", group: "system", isPublic: false } });
-    const [claimed] = await Setting.update({ value: `running ${new Date().toISOString()}` }, { where: { key: BACKFILL_KEY, [Op.or]: [{ value: null }, { value: "" }] } });
+    const { claimed } = await claimRepair(BACKFILL_KEY, false, `running ${new Date().toISOString()}`);
     backfillChecked = true;
     if (!claimed) return;
     const { stageRole } = require("./social.controller");

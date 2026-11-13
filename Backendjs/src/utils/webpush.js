@@ -1,3 +1,4 @@
+const { lazyState } = require("./asyncMachine");
 /* Web Push sender — built on Node's own crypto, no npm dependency.
 
    The FTP deploy uploads code but not node_modules, so instead of the
@@ -26,7 +27,7 @@ function generateKeys() {
 }
 
 async function getKeys() {
-  if (keys) return keys;
+  if (lazyState(keys || undefined) === "ready") return keys;
   const subject = process.env.VAPID_SUBJECT || "mailto:finverasolutionsllp@gmail.com";
   if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
     keys = { publicKey: process.env.VAPID_PUBLIC_KEY.trim(), privateKey: process.env.VAPID_PRIVATE_KEY.trim(), subject };
