@@ -11,7 +11,7 @@ rules are checked against the server by contract tests.
 | Order | Machine family | Status |
 | --- | --- | --- |
 | 1 | Social post lifecycle and format-based ownership | Complete |
-| 2 | Publishing job lifecycle, retry and lease recovery | Pending |
+| 2 | Publishing job lifecycle, retry and lease recovery | Complete |
 | 3 | Approval invalidation and multi-platform completion | Pending |
 | 4 | Instagram/Facebook checkpoints and Reel cover retry | Pending |
 | 5 | OAuth selection, account health and channel pause | Pending |
@@ -70,3 +70,19 @@ Ready/Posted have no next handoff; confirmation is a separate publishing action.
 Verification: backend path/guard regression tests and frontend/API contract tests
 cover all 36 stage pairs, named events and format-based ownership; TypeScript
 checks the browser integration.
+
+## 2. Publishing jobs
+
+`Backendjs/src/utils/publishJobMachine.js` defines the events consumed by the
+publisher, operator actions and cancellation/reconciliation handlers. Worker
+completion retains the existing lease-token WHERE clause; event validation is
+not a replacement for database ownership. Recovery before a remote write returns
+to Scheduled; recovery after a write goes to Check. Only the operator Retry path
+can leave Check, after its existing absence/permission checks. Published jobs
+cannot be sent through Retry or Publish now. A confirmed Facebook Reel with a
+pending cover can resume the cover without creating a second post.
+
+Post settlement distinguishes no intended jobs, pending, partially published and
+complete publication. Cancelled jobs do not count as intended results, and an
+empty set never counts as complete. Existing platform and operator regressions
+plus machine tests cover these paths.

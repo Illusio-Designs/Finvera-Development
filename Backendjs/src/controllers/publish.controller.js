@@ -17,8 +17,8 @@ const auto = require("../utils/autoPublish");
 const { canApprove, liveLink, contentHash } = require("../utils/socialSafety");
 const { rolesOf } = require("../utils/permissions");
 const { UPLOAD_DIR } = require("../middleware/upload");
-
-const checkpointOf = (value) => { if (value && typeof value === "object") return value; try { return JSON.parse(value || "{}"); } catch { return { publishCalled: true }; } };
+const jobMachine = require("../utils/publishJobMachine");
+const { checkpointOf } = jobMachine;
 
 const SEL_TTL_MS = 15 * 60 * 1000;
 const frontendUrl = require("../utils/frontendUrl");
@@ -142,16 +142,17 @@ const retry = asyncHandler(async (req, res) => {
     const post = await SocialPost.findByPk(original.postId, { transaction, lock: transaction.LOCK.UPDATE });
     const job = await SocialPublishJob.findByPk(original.id, { transaction, lock: transaction.LOCK.UPDATE });
     if (!post || !job || post.status !== "ready" || !canApprove(post, req.userRow || req.user)) return { status: 403, message: "The approved post must be Ready and assigned to you, or you must be an admin." };
-    if (!["failed", "check", "missed"].includes(job.status)) return { status: 400, message: "Only failed, missed or uncertain jobs can be retried." };
+    const kind = jobMachine.retryKind(job);
+    if (kind === "forbidden") return { status: 400, message: "Only failed, missed or uncertain jobs can be retried." };
     let checkpoint = auto.retryCheckpoint(checkpointOf(job.checkpoint), job.error);
-    const coverOnly = job.platform === "facebook" && checkpoint.publishedConfirmed === true && checkpoint.coverPending === true && !!checkpoint.publishedId && !!checkpoint.videoId;
-    const uncertain = !coverOnly && (job.status === "check" || checkpoint.publishCalled);
+    const coverOnly = kind === "cover";
+    const uncertain = kind === "verify";
     if (uncertain) {
       if (!rolesOf(req.userRow || req.user).includes("admin") || req.body?.confirmedAbsent !== true) return { status: 409, message: "The post may already be live. An admin must check the platform and explicitly confirm it is absent before retrying." };
       checkpoint = { absenceConfirmedBy: req.user.id, absenceConfirmedAt: new Date().toISOString(), approvedHash: contentHash(post) };
     }
     if (!uncertain && !coverOnly && checkpoint.approvedHash && checkpoint.approvedHash !== contentHash(post)) checkpoint = { approvedHash: contentHash(post) };
-    await job.update({ status: "scheduled", runAt: new Date(), error: null, attempts: 0, checkpoint }, { transaction });
+    await job.update({ status: jobMachine.transition(job.status, "RETRY"), runAt: new Date(), error: null, attempts: 0, checkpoint }, { transaction });
     return { ok: true };
   });
   if (outcome.status) return res.status(outcome.status).json({ message: outcome.message });
@@ -170,7 +171,7 @@ const markPosted = asyncHandler(async (req, res) => {
     const job = await SocialPublishJob.findByPk(original.id, { transaction, lock: transaction.LOCK.UPDATE });
     if (!post || !job || !canApprove(post, req.userRow || req.user)) return false;
     if (job.status === "publishing") return false;
-    await job.update({ status: "published", url, error: null, publishedAt: new Date(), leaseToken: null, leaseUntil: null }, { transaction });
+    await job.update({ status: jobMachine.transition(job.status, "CONFIRM"), url, error: null, publishedAt: new Date(), leaseToken: null, leaseUntil: null }, { transaction });
     return true;
   });
   if (!outcome) return res.status(409).json({ message: "Only the reviewer or admin can confirm a live result, and publishing must have finished." });
@@ -193,7 +194,7 @@ const publishNow = asyncHandler(async (req, res) => {
     for (const platform of targets) {
       const job = jobs.find((j) => j.platform === platform);
       if (job && ["published", "publishing"].includes(job.status)) continue;
-      const fields = { status: "scheduled", runAt: new Date(), error: null, attempts: 0, checkpoint: { approvedHash: contentHash(post) } };
+      const fields = { status: job ? jobMachine.transition(job.status, "PUBLISH_NOW") : "scheduled", runAt: new Date(), error: null, attempts: 0, checkpoint: { approvedHash: contentHash(post) } };
       if (job) await job.update(fields, { transaction });
       else await SocialPublishJob.create({ postId: post.id, client: post.client, platform, ...fields }, { transaction });
     }

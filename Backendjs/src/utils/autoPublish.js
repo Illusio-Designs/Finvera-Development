@@ -24,6 +24,7 @@ const meta = require("./meta");
 const { contentHash } = require("./socialSafety");
 const { notifyUsers } = require("./notify");
 const { rolesOf } = require("./permissions");
+const jobMachine = require("./publishJobMachine");
 
 const PLATFORMS = ["instagram", "facebook"];
 const NAMES = { instagram: "Instagram", facebook: "Facebook" };
@@ -78,13 +79,13 @@ async function syncJobs(post) {
     const jobs = await SocialPublishJob.findAll({ where: { postId: p.id } });
     const open = (j) => ["scheduled", "missed"].includes(j.status);
     if (p.status !== "ready") {
-      for (const j of jobs.filter(open)) await j.update({ status: "cancelled" });
+      for (const j of jobs.filter(open)) await j.update({ status: jobMachine.transition(j.status, "CANCEL") });
       return;
     }
     const acc = await SocialAccount.findOne({ where: { client: p.client } });
     const targets = targetsFor(p, acc);
     const runAt = goLiveAt(p);
-    for (const j of jobs.filter((j) => open(j) && !targets.includes(j.platform))) await j.update({ status: "cancelled" });
+    for (const j of jobs.filter((j) => open(j) && !targets.includes(j.platform))) await j.update({ status: jobMachine.transition(j.status, "CANCEL") });
     if (!runAt) return;
     const late = runAt.getTime() < Date.now() - LATE_LIMIT_MS;
     for (const pl of targets) {
@@ -93,7 +94,7 @@ async function syncJobs(post) {
       if (!j) {
         await SocialPublishJob.create({ postId: p.id, client: p.client, platform: pl, status: late ? "missed" : "scheduled", runAt, checkpoint: { approvedHash: contentHash(p) } });
       } else if (["cancelled", "missed", "scheduled"].includes(j.status)) {
-        const status = late ? "missed" : "scheduled";
+        const status = jobMachine.transition(j.status, late ? "EXPIRE" : "SYNC");
         const previous = asObj(j.checkpoint), hash = contentHash(p);
         if (j.status !== status || +new Date(j.runAt) !== +runAt || previous.approvedHash !== hash) await j.update({ status, runAt, error: null, checkpoint: previous.approvedHash === hash ? previous : { approvedHash: hash } });
       }
@@ -146,7 +147,7 @@ async function teamFor(p) {
 /* Every platform for this post is out → Posted, with the live links. */
 async function afterPublished(p) {
   const jobs = (await SocialPublishJob.findAll({ where: { postId: p.id } })).filter((j) => j.status !== "cancelled");
-  if (!jobs.length || jobs.some((j) => j.status !== "published")) return;
+  if (jobMachine.publicationState(jobs) !== "complete") return;
   const links = jobs.map((j) => j.url).filter(Boolean);
   const channels = [...new Set([...String(p.channels || "").split(/\s*\n\s*|\s+(?=https?:)/).filter(Boolean), ...links])].join("\n");
   const before = { status: p.status, assigneeId: p.assigneeId };
@@ -172,10 +173,10 @@ async function runJob(job) {
     if (!current || current.status !== "scheduled") return false;
     const checkpoint = asObj(current.checkpoint);
     if (post.status !== "ready" || (checkpoint.approvedHash && checkpoint.approvedHash !== contentHash(post))) {
-      await current.update({ status: "cancelled", error: "Content changed or approval was removed. Review the current post before scheduling." }, { transaction });
+      await current.update({ status: jobMachine.transition(current.status, "CANCEL"), error: "Content changed or approval was removed. Review the current post before scheduling." }, { transaction });
       return false;
     }
-    await current.update({ status: "publishing", leaseToken: token, leaseUntil: new Date(Date.now() + LEASE_MS), attempts: (current.attempts || 0) + 1 }, { transaction });
+    await current.update({ status: jobMachine.transition(current.status, "CLAIM"), leaseToken: token, leaseUntil: new Date(Date.now() + LEASE_MS), attempts: (current.attempts || 0) + 1 }, { transaction });
     return true;
   });
   if (!claimed) return;
@@ -186,7 +187,7 @@ async function runJob(job) {
   const problem = precheck(p, j.platform) || await require("./socialMediaHealth").mediaProblem(p, j.platform);
   const acc = await SocialAccount.findOne({ where: { client: p.client } });
   const fail = async (status, error) => {
-    await finish({ status, error });
+    await finish({ status: jobMachine.transition(j.status, status === "check" ? "UNCERTAIN" : "FAIL"), error });
     await notifyUsers(await teamFor(p), {
       type: "due", title: status === "check" ? `Check ${NAMES[j.platform]}: ${p.theme}` : `Auto-post failed: ${p.theme}`,
       body: `${p.client} · ${NAMES[j.platform]}: ${error}`, link: "/dashboard/social", meta: { socialPostId: p.id },
@@ -202,7 +203,7 @@ async function runJob(job) {
     const res = j.platform === "instagram"
       ? await meta.publishInstagram(acc, media, caption, cp, save, p.tags, { format: p.format })
       : await meta.publishFacebook(acc, media, caption, cp, save, { format: p.format });
-    await finish({ status: "published", remoteId: res.id, url: res.url, error: null, publishedAt: new Date() });
+    await finish({ status: jobMachine.transition(j.status, "SUCCESS"), remoteId: res.id, url: res.url, error: null, publishedAt: new Date() });
     try { await afterPublished(await SocialPost.findByPk(p.id)); } catch (e) { console.warn("Post-publish settlement:", e.message); }
   } catch (e) {
     const msg = e.message || "Meta returned an error.";
@@ -214,7 +215,7 @@ async function runJob(job) {
     if (cp.publishedConfirmed && cp.coverPending && e.publishStage === "cover") { await finish({ remoteId: cp.publishedId, url: cp.publishedUrl }); return fail("failed", msg); }
     if (cp.publishCalled) return fail("check", `No clear answer from ${NAMES[j.platform]} after publishing started (${msg}). Check the account before retrying.`);
     if (isRetryable(e) && j.attempts < MAX_ATTEMPTS) {
-      await finish({ status: "scheduled", error: msg, checkpoint: retryCheckpoint(cp, e), runAt: new Date(Date.now() + Math.min(15 * 60000, 30000 * 2 ** j.attempts)) });
+      await finish({ status: jobMachine.transition(j.status, "RETRY_LATER"), error: msg, checkpoint: retryCheckpoint(cp, e), runAt: new Date(Date.now() + Math.min(15 * 60000, 30000 * 2 ** j.attempts)) });
       return;
     }
     return fail("failed", msg);
@@ -226,8 +227,10 @@ async function recoverStale() {
   const stale = await SocialPublishJob.findAll({ where: { status: "publishing", leaseUntil: { [Op.lt]: new Date() } } });
   for (const j of stale) {
     const cp = asObj(j.checkpoint);
-    if (cp.publishCalled) await j.update({ status: "check", error: "Publishing was interrupted after it started. Check the account before retrying.", leaseToken: null });
-    else await j.update({ status: "scheduled", runAt: new Date(), leaseToken: null });
+    const event = jobMachine.recoveryEvent(cp);
+    const status = jobMachine.transition(j.status, event);
+    if (event === "RECOVER_UNCERTAIN") await j.update({ status, error: "Publishing was interrupted after it started. Check the account before retrying.", leaseToken: null });
+    else await j.update({ status, runAt: new Date(), leaseToken: null });
   }
 }
 
