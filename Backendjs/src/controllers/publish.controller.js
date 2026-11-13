@@ -28,6 +28,7 @@ const publicAccount = (a) => ({
   client: a.client, pageId: a.pageId, pageName: a.pageName, igUserId: a.igUserId, igUsername: a.igUsername,
   igAvatar: a.igAvatar, status: a.status, lastError: a.status === "connected" ? null : a.lastError, connectedAt: a.updatedAt,
   tokenExpiresAt: a.tokenExpiresAt || null, lastCheckedAt: a.lastCheckedAt || null,
+  paused: Array.isArray(a.paused) ? a.paused : (() => { try { const value = JSON.parse(a.paused || "[]"); return Array.isArray(value) ? value : []; } catch { return []; } })(),
 });
 
 /* ── Connect ── */

@@ -1,4 +1,7 @@
 "use client";
+import Link from "next/link";
+import SocialAccountHealth from "@/components/admin/SocialAccountHealth";
+import SocialPostPreview from "@/components/admin/SocialPostPreview";
 import SocialProfileEditor from "@/components/admin/SocialProfileEditor";
 import PageLoading from "@/components/admin/PageLoading";
 import "./social-workspace.css";
@@ -51,7 +54,7 @@ type Post = {
 type Media = { userTags?: ImageTag[]; url: string; type: "image" | "video"; name?: string; thumbUrl?: string | null; coverUrl?: string | null }; // thumbUrl: small preview (newer uploads)
 type PubJob = { id: number; postId: number; client: string; platform: "instagram" | "facebook"; status: string; runAt: string | null; attempts: number;
   error: string | null; url: string | null; publishedAt: string | null; account: string | null; theme: string; format: string | null; postStatus: string | null };
-type SocialAcc = { client: string; pageName: string; igUsername: string | null; igAvatar: string | null; status: string; lastError: string | null };
+type SocialAcc = { client: string; pageName: string; igUsername: string | null; igAvatar: string | null; status: string; lastError: string | null; pageId?: string; igUserId?: string | null; tokenExpiresAt?: string | null; lastCheckedAt?: string | null; paused?: string[] };
 const PLATFORM_NAME: Record<string, string> = { instagram: "Instagram", facebook: "Facebook" };
 const JOB_LABEL: Record<string, [string, string, string]> = { // label, bg, fg
   scheduled: ["Scheduled", "#e8eefb", "#1d3474"], publishing: ["Publishing…", "#fdf0dc", "#8a4b12"], published: ["Published", "#e4f5ea", "#15703a"],
@@ -1387,6 +1390,7 @@ export default function SocialCalendar() {
         {(ready || posted) && renderPublishing(p)}
         {!ready && !posted && <section className="cal-vsec"><h3>{p.status === "client" ? "Next step" : "Ready to start?"}</h3><p>{p.status === "client" ? "Resume production when the missing input is ready." : `The ${isVideoFormat(p.format) ? "video editor" : "graphic designer"} starts work, uploads the finished artwork and sends it for review.`}</p></section>}
         {posted && urls.length > 0 && <div className="cal-live-links">{urls.map((url) => <a className="cal-btn" href={url} key={url} target="_blank" rel="noopener noreferrer">Open live post ↗</a>)}</div>}
+        {p._full && <SocialPostPreview post={p} connected={accFor(p.client) ? [...(accFor(p.client)?.igUsername ? ["instagram"] : []), "facebook"] : []} instagramName={accFor(p.client)?.igUsername} facebookName={accFor(p.client)?.pageName} />}
         <details className="cal-task-section" open={p.status === "planned"}><summary>Content &amp; requirements</summary><p className="cal-pre">{composeCaption(p).text || "No caption added."}</p>{p.requirements && <p className="cal-pre">Requirements: {p.requirements}</p>}{p.reference && <p className="cal-pre">Reference: {p.reference}</p>}{p.tags && <p>Instagram tags: {p.tags}</p>}{p.remarks && <p className="cal-pre">Team notes: {p.remarks}</p>}</details>
         <details className="cal-task-section"><summary>Team &amp; planning</summary><div className="cal-track">{chain.map((role) => <div className="cal-step" key={role}><b>{ROLE_META[role].label}</b><span>{userById(p.team?.[role] || null)?.name || "Not picked"}</span></div>)}</div><p>Start work on {fmtDay(startOf(p))}</p>{p.dataStatus && <p>Data status: {p.dataStatus}</p>}</details>
         <details className="cal-task-section"><summary>History</summary><HistoryList entity="social-post" id={p.id} refreshKey={p.updatedAt || p.status} /></details>
@@ -1589,6 +1593,7 @@ export default function SocialCalendar() {
           <p>{limited ? "Your brands, your next steps, and the work ready to move forward." : "Plan it, make it, review it, publish it. Every brand, in one clear flow."}</p>
         </div>
         <div className="cal-head-actions">
+            <Link className="cal-btn" href={`/dashboard/reports?view=client${client ? `&brand=${encodeURIComponent(client)}` : ""}${month ? `&month=${month}` : ""}`}>Monthly brand report</Link>
             <button type="button" className="cal-btn" onClick={() => setProfileOpen(true)}>Social profiles</button>
             {profileOpen && <SocialProfileEditor initialClient={client || undefined} onClose={() => setProfileOpen(false)} />}
           <input ref={fileRef} type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={(e) => { importCsv(e.target.files?.[0]); e.currentTarget.value = ""; }} />
@@ -1607,6 +1612,7 @@ export default function SocialCalendar() {
       </div>
 
       {loadError && <div className="cal-load-error" role="alert"><div><b>Couldn’t refresh the content calendar</b><p>{loadError}</p></div><button type="button" className="cal-btn" onClick={load}>Try again</button></div>}
+      <SocialAccountHealth accounts={accounts} brand={client} canManage={!limited} onReconnect={connectBrand} />
       <div className="cal-intro" aria-label="Calendar overview">
         <span><b>{list.length}</b> posts in this view</span>
         <span className="review"><i /><b>{list.filter((post) => post.status === "approval").length}</b> ready for review</span>
@@ -1972,6 +1978,7 @@ export default function SocialCalendar() {
             })()}
 
 
+            <SocialPostPreview post={editing} connected={accFor(editing.client) ? [...(accFor(editing.client)?.igUsername ? ["instagram"] : []), "facebook"] : []} instagramName={accFor(editing.client)?.igUsername} facebookName={accFor(editing.client)?.pageName} />
             {saveError && <div className="sw-upload-error" role="alert">{saveError}</div>}
             {conflictPost && <section className="cal-conflict" aria-label="Compare changed post"><h3>This post changed</h3><p>Your draft is still here. Latest stage: {STAGES.find((stage) => stage.id === conflictPost.status)?.title}. Assigned to {userById(conflictPost.assigneeId)?.name || "Nobody yet"}.</p><ul>{[...dirty.current].map((key) => <li key={key}><b>{key}</b><p>Saved: {JSON.stringify(conflictPost[key])}</p><p>Your draft: {JSON.stringify(editing[key])}</p></li>)}</ul><button type="button" className="cal-btn" onClick={async () => { if (await dialog.confirm({ title: "Reload saved version?", message: "Replace this editor’s draft with the current saved post?", confirmText: "Reload saved version" })) { dirty.current.clear(); setEditing(conflictPost); setConflictPost(null); setSaveError(""); } }}>Reload saved version</button><p>Copy any draft text you want to keep before reloading.</p></section>}
             <div className="adm-drawer-actions">

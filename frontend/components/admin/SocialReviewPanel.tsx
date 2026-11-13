@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import SocialPostPreview from "./SocialPostPreview";
 import { reviewState } from "@/lib/socialWorkMachine";
 
 type Post = { id: number; theme: string; client: string; format?: string | null; caption?: string; tags?: string; keywords?: string; requirements?: string; remarks?: string; postDate?: string | null; postTime?: string | null; updatedAt?: string; publishTo?: string[] | null; media?: { url: string; type: string; name?: string; thumbUrl?: string | null; coverUrl?: string | null; userTags?: { username: string; x: number; y: number }[] }[] };
@@ -54,6 +55,7 @@ export default function SocialReviewPanel({ post, loaded, canReview, reviewer, c
       {media.length > 1 && <div className="sw-review-thumbs">{media.map((item, index) => <button type="button" key={item.url + index} aria-label={`Preview artwork ${index + 1}`} aria-pressed={selected === index} onClick={() => setSelected(index)}>{item.type === "video" ? <span>▶ {index + 1}</span> : <img src={item.thumbUrl || item.url} alt={`Artwork ${index + 1}`} />}</button>)}</div>}
       <div className="sw-review-copy"><span className="sw-upload-kicker">{story ? "STORY NOTES · NOT PUBLISHED" : "CAPTION & HASHTAGS"}</span><p>{post.caption || "No caption added."}</p>{post.keywords && <small>Keywords: {post.keywords}</small>}</div>
       <div className="sw-review-copy"><span className="sw-upload-kicker">PEOPLE & REQUIREMENTS</span><p>{post.tags || (media.some((item) => item.userTags?.length) ? "Image-specific profiles are listed below." : "No Instagram profiles tagged.")}</p><small>{story ? "Story tags and stickers are not implemented. Artwork is published without caption notes or keywords." : "These profiles are tagged on Instagram images at the center unless a position is saved on the artwork. Image tags are not sent to Facebook."}</small>{media.some((item) => item.userTags?.length) && <ul>{media.map((item, index) => item.userTags?.length ? <li key={index}>Image {index + 1}: {item.userTags.map((tag) => `@${tag.username} (${Math.round(tag.x * 100)}%, ${Math.round(tag.y * 100)}%)`).join(", ")}</li> : null)}</ul>}{post.requirements && <p>{post.requirements}</p>}{post.remarks && <p>Team notes: {post.remarks}</p>}</div>
+      {loaded && <SocialPostPreview post={post} connected={channels.map(channel => channel.toLowerCase())} />}
       <button type="button" className="cal-btn" disabled={busy || !loaded} onClick={onEdit}>Edit saved content</button>
     </section><section className="sw-review-checklist" aria-label="Review checklist">
       <span className="sw-upload-kicker">CHECK IT. PASS IT ON.</span><h3>Ready for its moment?</h3>
