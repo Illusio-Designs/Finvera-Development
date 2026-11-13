@@ -22,7 +22,7 @@ rules are checked against the server by contract tests.
 | 10 | Renewal lifecycle and deadlines | Complete |
 | 11 | Inbox classification, lead conversion and reply delivery | Complete |
 | 12 | CMS publication and report review/revision | Complete |
-| 13 | Calendar import, handoff and client-request dialogs | Pending |
+| 13 | Calendar import, handoff and client-request dialogs | Complete |
 | 14 | Saved-post hydration, uploads and review desk | Pending |
 | 15 | Editor saving, conflicts, report export and inbox composer | Pending |
 | 16 | Public enquiry forms and CAPTCHA | Pending |
@@ -179,3 +179,12 @@ publication requirements stay in their validators. Report revision effects now
 explicitly distinguish commentary edits (Draft) from an explicit Review action
 (Reviewed), without changing immutable snapshot data or optimistic version checks.
 Content/public-draft regressions and report-revision tests verify these rules.
+
+## 13. Calendar dialogs
+
+`dialogMachine.ts`/`useWorkflowDialog.ts` represent Closed/Editing/Submitting
+dialogs explicitly. Handoff and client-input dialogs consume that state through
+their existing setter interface, preserving validation and error text. Import
+uses a single Closed/Brand/Team/Importing union, so brand and team dialogs cannot
+be active together. Cancellation/retry tests cover selected-person retention and
+functional state updates; CI runs the UI workflow tests.

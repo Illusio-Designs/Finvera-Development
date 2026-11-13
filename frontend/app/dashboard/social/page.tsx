@@ -1,6 +1,7 @@
 "use client";
 import PageLoading from "@/components/admin/PageLoading";
 import "./social-workspace.css";
+import { useWorkflowDialog, useImportWizard } from "@/lib/useWorkflowDialog";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { chainFor, isVideoFormat, makerFor, roleFor, nextStage, indiaToday, overdueAt, moveArtwork, type SocialRole as Role, type SocialStage as Stage } from "@/lib/socialWorkflow";
 import { api } from "@/lib/adminApi";
@@ -327,7 +328,7 @@ export default function SocialCalendar() {
   const [preflight, setPreflight] = useState<{ id: number; version?: string; issues: { field: string; message: string }[]; loading: boolean; error?: string } | null>(null);
   const [editing, setEditing] = useState<Partial<Post> | null>(null);
   const [uploadId, setUploadId] = useState<number | null>(null);
-  const [clientNeed, setClientNeed] = useState<{ post: Post; request: string; date: string; owner: string; busy: boolean } | null>(null);
+  const [clientNeed, setClientNeed] = useWorkflowDialog<{ post: Post; request: string; date: string; owner: string; busy: boolean }>();
   const [viewId, setViewId] = useState<number | null>(null); // read-only details card
   type TeamUser = { id: number; name: string; roles: string[]; socialClients: string[]; active: boolean };
   const [team, setTeam] = useState<TeamUser[]>([]);           // admin only: who holds which role / brands
@@ -741,7 +742,7 @@ export default function SocialCalendar() {
   // Go-live times are India time, whatever timezone the browser is in.
   const hhmm = (d: Date) => d.toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false });
   const istToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
-  const [handoff, setHandoff] = useState<Handoff | null>(null);
+  const [handoff, setHandoff] = useWorkflowDialog<Handoff>();
   const peopleFor = (role: Role) => users.filter((u) => (u.roles || []).includes(role));
   function askHandoff(p: Post, role: Role, patch: Partial<Post>, kind: Handoff["kind"]) {
     const picked = p.team?.[role] ?? null;
@@ -997,8 +998,10 @@ export default function SocialCalendar() {
   }
 
   /* ── import ── */
-  const [brandPick, setBrandPick] = useState<{ rows: string[][]; value: string; newName: string } | null>(null);
-  const [importTeam, setImportTeam] = useState<{ name: string; parsed: Partial<Post>[]; team: Partial<Record<string, number | null>>; busy: boolean } | null>(null);
+  const { brand: brandPick, setBrand: setBrandPick, team: importTeam, setTeam: setImportTeam } = useImportWizard<
+    { rows: string[][]; value: string; newName: string },
+    { name: string; parsed: Partial<Post>[]; team: Partial<Record<string, number | null>>; busy: boolean }
+  >();
   async function importCsv(file?: File) {
     if (!file) return;
     let rows: string[][];
