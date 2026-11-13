@@ -1,4 +1,5 @@
 "use client";
+import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import PageLoading from "@/components/admin/PageLoading";
 import { useEffect, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -49,7 +50,8 @@ export default function AdminBrands() {
 }
 function BrandEditor({ row, nextPosition, onClose, onSaved, onPatch, onDeleted }: { row: Brand | null; nextPosition: number; onClose: () => void; onSaved: (row: Brand) => void; onPatch: (row: Brand) => void; onDeleted: (id: number) => void }) {
   const [base, setBase] = useState<Partial<Brand>>(row || { name: "", category: "", url: "", description: "", icon: "code", status: "draft", position: nextPosition });
-  const [draft, setDraft] = useState(base), [busy, setBusy] = useState(false), [error, setError] = useState(""), [conflict, setConflict] = useState(false);
+  const [draft, setDraft] = useState(base);
+  const { saving: busy, setSaving: setBusy, error, setError, conflict, setConflict } = useSaveWorkflow();
   const ref = useRef<HTMLElement>(null), dirtyKeys = FIELDS.filter(field => String(draft[field] ?? "") !== String(base[field] ?? ""));
   const set = (field: keyof Brand, brand: any) => { if (!busy) setDraft(current => ({ ...current, [field]: brand })); };
   async function close() { if (busy) return; if (dirtyKeys.length && !(await dialog.confirm({ title: "Discard your changes?", message: "Your brand changes have not been saved.", confirmText: "Discard", cancelText: "Keep editing", danger: true }))) return; onClose(); }

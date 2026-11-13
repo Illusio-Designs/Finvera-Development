@@ -1,4 +1,5 @@
 "use client";
+import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import { useEffect, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon, Search01Icon, Refresh01Icon, ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
@@ -35,7 +36,8 @@ export default function AdminTestimonials() {
 }
 function QuoteEditor({ row, nextPosition, onClose, onSaved, onPatch, onDeleted }: { row: Quote | null; nextPosition: number; onClose: () => void; onSaved: (row: Quote) => void; onPatch: (row: Quote) => void; onDeleted: (id: number) => void }) {
   const [base, setBase] = useState<Partial<Quote>>(row || { name: "", quote: "", rating: 5, status: "draft", position: nextPosition });
-  const [draft, setDraft] = useState(base), [busy, setBusy] = useState(false), [error, setError] = useState(""), [conflict, setConflict] = useState(false);
+  const [draft, setDraft] = useState(base);
+  const { saving: busy, setSaving: setBusy, error, setError, conflict, setConflict } = useSaveWorkflow();
   const ref = useRef<HTMLElement>(null), dirtyKeys = FIELDS.filter(field => String(draft[field] ?? "") !== String(base[field] ?? ""));
   const set = (field: keyof Quote, value: any) => { if (!busy) setDraft(current => ({ ...current, [field]: value })); };
   async function close() { if (busy) return; if (dirtyKeys.length && !(await dialog.confirm({ title: "Discard your changes?", message: "Your testimonial changes have not been saved.", confirmText: "Discard", cancelText: "Keep editing", danger: true }))) return; onClose(); }

@@ -1,4 +1,5 @@
 "use client";
+import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/adminApi";
 import { dialog } from "@/lib/dialog";
@@ -12,8 +13,8 @@ export default function SeoEditor({ row, onClose, onSaved, onPatched }: { row: S
   const [base, setBase] = useState<Record<string, any>>(() => ({ ...row }));
   const [draft, setDraft] = useState<Record<string, any>>(base);
   const [tab, setTab] = useState("search");
-  const [saving, setSaving] = useState(false), [uploads, setUploads] = useState(0), [error, setError] = useState("");
-  const [conflict, setConflict] = useState(false);
+  const { saving, setSaving, error, setError, conflict, setConflict } = useSaveWorkflow();
+  const [uploads, setUploads] = useState(0);
   const dirtyKeys = FIELDS.filter(key => JSON.stringify(draft[key] ?? "") !== JSON.stringify(base[key] ?? ""));
   const dirty = dirtyKeys.length > 0;
   const busy = saving || uploads > 0;

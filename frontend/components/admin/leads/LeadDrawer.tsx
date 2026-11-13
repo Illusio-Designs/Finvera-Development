@@ -1,4 +1,5 @@
 "use client";
+import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 /* The lead drawer (also "Add lead"): name / company, the stage picker (which
    sets the progress score), quick actions (call, WhatsApp, email, join /
    schedule a meeting) and three tabs — Details (every field, Save),
@@ -40,8 +41,7 @@ export default function LeadDrawer({ lead, defaults, calendlyUrl, initialTab = "
   const [base, setBase] = useState<Draft>(() => (lead ? { ...lead } : { ...NEW_LEAD, ...defaults }));
   const [draft, setDraft] = useState<Draft>(base);
   const [tab, setTab] = useState<Tab>(isNew ? "details" : initialTab);
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState<{ text: string; field?: string } | null>(null);
+  const { saving, setSaving, error: err, setError: setErr } = useSaveWorkflow<{ text: string; field?: string } | null>(null);
   const [preset, setPreset] = useState<{ type: LeadTouch["type"]; at: number } | null>(null);
   const [histKey, setHistKey] = useState(0);
   const [users, setUsers] = useState<{ id: number; name: string }[]>([]);

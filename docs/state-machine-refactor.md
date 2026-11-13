@@ -24,7 +24,7 @@ rules are checked against the server by contract tests.
 | 12 | CMS publication and report review/revision | Complete |
 | 13 | Calendar import, handoff and client-request dialogs | Complete |
 | 14 | Saved-post hydration, uploads and review desk | Complete |
-| 15 | Editor saving, conflicts, report export and inbox composer | Pending |
+| 15 | Editor saving, conflicts, report export and inbox composer | Complete |
 | 16 | Public enquiry forms and CAPTCHA | Pending |
 | 17 | Data loading, pagination and connectivity | Pending |
 | 18 | Push, installation, notifications and read status | Pending |
@@ -197,3 +197,12 @@ Read-only, disabled, uploading, cover-saving and full upload states are explicit
 review has loading/checking/error/blocked/checklist/ready/submitting states.
 Existing per-post mutation locks and saved-version preflight identity checks stay
 in place. Tests exercise late hydration and every condition blocking approval.
+
+## 15. Saving and conflicts
+
+`editorMachine.ts`/`useSaveWorkflow.ts` model save activity separately from its
+None/Error/Conflict outcome, preserving errors through asynchronous cleanup.
+Portfolio/blog/page/SEO, lead/renewal and collection editors consume it, as does
+the inbox composer. Draft comparisons, upload counters and expected-version
+payloads remain unchanged. Report export explicitly chooses Create/Update/Read
+before preparing files; its existing operation lock and popup lifecycle remain.

@@ -7,6 +7,22 @@ function load(name) {
 }
 const dialogs = load("dialogMachine");
 const work = load("socialWorkMachine");
+const editors = load("editorMachine");
+test("a save conflict survives finally and clears only when its error/conflict state is reset", () => {
+  let state = { activity: "idle", outcome: "none", error: "" };
+  state = editors.saveTransition(state, { type: "ACTIVITY", saving: true });
+  state = editors.saveTransition(state, { type: "CONFLICT", value: true });
+  state = editors.saveTransition(state, { type: "ERROR", error: "Newer version exists" });
+  state = editors.saveTransition(state, { type: "ACTIVITY", saving: false });
+  assert.equal(state.outcome, "conflict"); assert.equal(state.error, "Newer version exists");
+  state = editors.saveTransition(state, { type: "ERROR", error: "" });
+  state = editors.saveTransition(state, { type: "CONFLICT", value: false });
+  assert.equal(state.outcome, "none");
+  assert.equal(editors.reportCaptureAction(false, false), "create");
+  assert.equal(editors.reportCaptureAction(true, true), "update");
+  assert.equal(editors.reportCaptureAction(true, false, "reviewed"), "update");
+  assert.equal(editors.reportCaptureAction(true, false), "read");
+});
 test("saved-post hydration preserves typed fields and does not overwrite a different editor", () => {
   const draft = { id: 1, caption: "Typing…", _full: false };
   const full = { id: 1, caption: "Saved", updatedAt: "latest", _full: true };

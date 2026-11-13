@@ -1,4 +1,5 @@
 "use client";
+import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import { useEffect, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon, Search01Icon, Refresh01Icon, ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
@@ -37,7 +38,8 @@ export default function AdminWebsiteTeam() {
 }
 function MemberEditor({ row, nextPosition, onClose, onSaved, onPatch, onDeleted }: { row: Member | null; nextPosition: number; onClose: () => void; onSaved: (row: Member) => void; onPatch: (row: Member) => void; onDeleted: (id: number) => void }) {
   const [base, setBase] = useState<Partial<Member>>(row || { name: "", bio: "", photo: "", initials: "", role: "", status: "draft", position: nextPosition });
-  const [draft, setDraft] = useState(base), [busy, setBusy] = useState(false), [error, setError] = useState(""), [conflict, setConflict] = useState(false);
+  const [draft, setDraft] = useState(base);
+  const { saving: busy, setSaving: setBusy, error, setError, conflict, setConflict } = useSaveWorkflow();
   const fileRef = useRef<HTMLInputElement>(null), uploadPending = useRef(false);
   const ref = useRef<HTMLElement>(null), dirtyKeys = FIELDS.filter(field => String(draft[field] ?? "") !== String(base[field] ?? ""));
   const set = (field: keyof Member, value: any) => { if (!busy) setDraft(current => ({ ...current, [field]: value })); };

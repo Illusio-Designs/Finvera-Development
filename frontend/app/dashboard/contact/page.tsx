@@ -1,4 +1,5 @@
 "use client";
+import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import PageLoading from "@/components/admin/PageLoading";
 import "./inbox.css";
 import "./inbox-workspace.css";
@@ -520,8 +521,7 @@ function Reader({ m, canLeads, readBusy, draft, onDraft, onBack, onRead, onSpam,
 function Composer({ m, draft, onDraft, onClose, onSent, onAttempt }: { m: ContactMsg; draft?: ReplyDraft; onDraft: (draft: ReplyDraft | null) => void; onClose: () => void; onSent: () => void; onAttempt: () => void }) {
   const [subject, setSubject] = useState(draft?.subject ?? `Re: your enquiry to Finvera${m.projectType ? ` (${m.projectType})` : ""}`);
   const [text, setText] = useState(draft?.text || "");
-  const [busy, setBusy] = useState(false);
-  const [fallback, setFallback] = useState("");
+  const { saving: busy, setSaving: setBusy, error: fallback, setError: setFallback } = useSaveWorkflow();
   const ta = useRef<HTMLTextAreaElement>(null);
   useEffect(() => { ta.current?.focus(); }, []);
   const full = `Hi ${firstName(m.name)},\n\n${text.trim()}`;
