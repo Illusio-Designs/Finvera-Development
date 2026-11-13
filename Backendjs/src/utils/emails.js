@@ -1,3 +1,4 @@
+const { claimWindow } = require("./taskMachine");
 /* Email alerts on top of mailer.js — who gets what, per-user preferences,
    and a cross-process throttle.
 
@@ -76,17 +77,7 @@ async function claimOnce(key, windowMs) {
   const k = `throttle.${key}`.slice(0, 250);
   const now = Date.now();
   try {
-    await Setting.findOrCreate({ where: { key: k }, defaults: { key: k, value: "0", group: "system", isPublic: false } });
-    const [n] = await Setting.update({ value: String(now) }, {
-      where: {
-        key: k,
-        [Op.or]: [
-          { value: null }, { value: "" },
-          sequelize.where(sequelize.cast(sequelize.col("value"), "UNSIGNED"), Op.lt, now - windowMs),
-        ],
-      },
-    });
-    return n > 0;
+    return await claimWindow(k, now, windowMs);
   } catch (e) {
     console.warn("claimOnce:", e.message);
     return false;

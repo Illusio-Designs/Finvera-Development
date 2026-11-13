@@ -1,3 +1,4 @@
+const { dailyState, claimDate } = require("./taskMachine");
 /* Daily reminders — sent once a day at 10:15 AM India time.
 
    This host has no cron, so maybeRunDaily() is called from three places: a
@@ -38,10 +39,9 @@ let checkedFor = null; // in-process shortcut so polls don't hit the DB once tod
 
 async function maybeRunDaily() {
   const { date, minutes } = istNow();
-  if (minutes < RUN_AT_MIN || checkedFor === date) return { ran: false };
+  if (dailyState(date, minutes, RUN_AT_MIN, checkedFor) !== "eligible") return { ran: false };
   try {
-    await Setting.findOrCreate({ where: { key: KEY }, defaults: { key: KEY, value: "", group: "system", isPublic: false } });
-    const [claimed] = await Setting.update({ value: date }, { where: { key: KEY, [Op.or]: [{ value: null }, { value: { [Op.ne]: date } }] } });
+    const claimed = await claimDate(KEY, date);
     checkedFor = date;
     if (!claimed) return { ran: false };
     const sent = await runDaily(date);

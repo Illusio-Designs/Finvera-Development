@@ -1,3 +1,4 @@
+const { dailyState, claimDate } = require("./taskMachine");
 /* Database backups in pure JS (shared hosting has no mysqldump).
 
    createBackup() writes every base table — DROP + `SHOW CREATE TABLE` + batched
@@ -280,10 +281,9 @@ async function verifyBackup(name) {
 let checkedFor = null;
 async function maybeRunDailyBackup() {
   const { date, minutes } = istDay();
-  if (minutes < RUN_AT_MIN || checkedFor === date) return { ran: false };
+  if (dailyState(date, minutes, RUN_AT_MIN, checkedFor) !== "eligible") return { ran: false };
   try {
-    await Setting.findOrCreate({ where: { key: CLAIM_KEY }, defaults: { key: CLAIM_KEY, value: "", group: "system", isPublic: false } });
-    const [claimed] = await Setting.update({ value: date }, { where: { key: CLAIM_KEY, [Op.or]: [{ value: null }, { value: { [Op.ne]: date } }] } });
+    const claimed = await claimDate(CLAIM_KEY, date);
     checkedFor = date;
     if (!claimed) return { ran: false };
     const info = await createBackup({ kind: "auto" });

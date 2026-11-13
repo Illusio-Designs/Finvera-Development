@@ -1,3 +1,4 @@
+const { runnerState } = require("./taskMachine");
 /* Auto-publishing for the content calendar.
 
    When a post is in Ready to post, it gets one job per platform its brand is
@@ -228,7 +229,7 @@ async function recoverStale() {
 
 let running = false, lastRun = 0;
 async function runDue({ force = false } = {}) {
-  if (running || (!force && Date.now() - lastRun < 20000)) return;
+  if (runnerState(running, lastRun, Date.now(), 20000, force) !== "eligible") return;
   running = true; lastRun = Date.now();
   try {
     if (!meta.configured()) return;

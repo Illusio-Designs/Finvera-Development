@@ -1,3 +1,4 @@
+const { dailyState, claimDate } = require("./taskMachine");
 const { connectionEvent } = require("./socialConnectionMachine");
 /* Meta (Facebook Page + Instagram) connection health.
 
@@ -116,10 +117,9 @@ let checkedFor = null;
 async function maybeRunDailyCheck() {
   const d = new Date(Date.now() + 330 * 60000);
   const date = d.toISOString().slice(0, 10), minutes = d.getUTCHours() * 60 + d.getUTCMinutes();
-  if (minutes < RUN_AT_MIN || checkedFor === date) return { ran: false };
+  if (dailyState(date, minutes, RUN_AT_MIN, checkedFor) !== "eligible") return { ran: false };
   try {
-    await Setting.findOrCreate({ where: { key: CLAIM_KEY }, defaults: { key: CLAIM_KEY, value: "", group: "system", isPublic: false } });
-    const [claimed] = await Setting.update({ value: date }, { where: { key: CLAIM_KEY, [Op.or]: [{ value: null }, { value: { [Op.ne]: date } }] } });
+    const claimed = await claimDate(CLAIM_KEY, date);
     checkedFor = date;
     if (!claimed) return { ran: false };
     const r = await checkAll();

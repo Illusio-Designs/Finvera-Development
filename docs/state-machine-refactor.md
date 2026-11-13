@@ -30,7 +30,7 @@ rules are checked against the server by contract tests.
 | 18 | Push, installation, notifications and read status | Complete |
 | 19 | Images, dialogs, navigation and marketing interactions | Complete |
 | 20 | Operational tools and server startup | Complete |
-| 21 | Schedulers, runner locks and alert claims | Pending |
+| 21 | Schedulers, runner locks and alert claims | Complete |
 | 22 | Backup artifacts, studio refresh and shared caches | Pending |
 | 23 | WebP queue, repairs, polling and lazy initialization | Pending |
 | — | Dormant task-board/timer schemas | Document only; no active workflow to refactor |
@@ -252,3 +252,12 @@ provisioning failures retain their existing continue-with-warning behavior.
 Operational UI activity uses Idle/Running states; per-backup Check/Download/Delete
 maps and compression result/counter states were already explicit and are retained.
 Tests verify forward-only startup and failure termination.
+
+## 21. Background claims
+
+`taskMachine.js` names daily Early/Checked/Eligible and runner Running/Cooldown/
+Eligible states. Daily reminder/backup/Meta checks share the same atomic claim;
+windowed alert claims retain the existing conditional SQL update and fail-closed
+wrapper. Claims are still consumed before work, so failure does not silently
+introduce a retry. The publisher's force option cannot bypass an active runner.
+Error bursts now explicitly move Idle/Pending before their delayed alert.
