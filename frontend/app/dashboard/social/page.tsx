@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import SocialProfileEditor from "@/components/admin/SocialProfileEditor";
 import PageLoading from "@/components/admin/PageLoading";
 import "./social-workspace.css";
 import { useWorkflowDialog, useImportWizard } from "@/lib/useWorkflowDialog";
@@ -307,6 +307,7 @@ function sheetToPosts(rows: string[][], client: string): Partial<Post>[] {
 function initials(name = "") { return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"; }
 
 export default function SocialCalendar() {
+  const [profileOpen, setProfileOpen] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
   const [clientRows, setClientRows] = useState<Client[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -1588,7 +1589,8 @@ export default function SocialCalendar() {
           <p>{limited ? "Your brands, your next steps, and the work ready to move forward." : "Plan it, make it, review it, publish it. Every brand, in one clear flow."}</p>
         </div>
         <div className="cal-head-actions">
-            <Link className="cal-btn" href={`/dashboard/social-profiles${client ? `?brand=${encodeURIComponent(client)}` : ""}`}>Social profiles</Link>
+            <button type="button" className="cal-btn" onClick={() => setProfileOpen(true)}>Social profiles</button>
+            {profileOpen && <SocialProfileEditor initialClient={client || undefined} onClose={() => setProfileOpen(false)} />}
           <input ref={fileRef} type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={(e) => { importCsv(e.target.files?.[0]); e.currentTarget.value = ""; }} />
           <button type="button" className="cal-primary" onClick={newPost} disabled={limited && !clientNames.length}>+ New post</button>
           <button type="button" className="cal-btn" onClick={() => fileRef.current?.click()}>Import sheet</button>

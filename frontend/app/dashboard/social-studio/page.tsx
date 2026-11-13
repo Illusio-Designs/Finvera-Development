@@ -1,4 +1,5 @@
 "use client";
+import SocialProfileEditor from "@/components/admin/SocialProfileEditor";
 import ChannelAvatar from "@/components/admin/ChannelAvatar";
 import PageLoading from "@/components/admin/PageLoading";
 /* Social studio — analytics, channels and published posts for the brand
@@ -126,9 +127,8 @@ export default function SocialStudio() {
     try { const data = await api.channelCapabilities(client, platform); setReadiness((r) => r?.client === client && r.platform === platform ? { ...r, data } : r); }
     catch (e: any) { setReadiness((r) => r?.client === client && r.platform === platform ? { ...r, error: e.message } : r); }
   }
-  function openProfile(client: string, platform: Platform) {
-    window.location.assign(`/dashboard/social-profiles?brand=${encodeURIComponent(client)}&platform=${platform}`);
-  }
+  const [profileSelection, setProfileSelection] = useState<{ client: string; platform: Platform } | null>(null);
+  function openProfile(client: string, platform: Platform) { setProfileSelection({ client, platform }); }
 
   useEffect(() => {
     if (data && brand && !data.brands.includes(brand)) { setBrand(""); try { localStorage.removeItem("fv-studio-brand"); } catch {} }
@@ -577,6 +577,7 @@ export default function SocialStudio() {
         </div>
       )}
 
+      {profileSelection && <SocialProfileEditor initialClient={profileSelection.client} initialPlatform={profileSelection.platform} onClose={() => setProfileSelection(null)} />}
       {metaPick && (
         <div className="adm-overlay center" onMouseDown={(e) => { if (e.target === e.currentTarget) setMetaPick(null); }}>
           <div className="ss-modal pages" role="dialog" aria-modal="true" aria-label={`Connect ${metaPick.brand}`}>
