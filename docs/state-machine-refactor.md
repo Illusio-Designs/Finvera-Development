@@ -13,7 +13,7 @@ rules are checked against the server by contract tests.
 | 1 | Social post lifecycle and format-based ownership | Complete |
 | 2 | Publishing job lifecycle, retry and lease recovery | Complete |
 | 3 | Approval invalidation and multi-platform completion | Complete |
-| 4 | Instagram/Facebook checkpoints and Reel cover retry | Pending |
+| 4 | Instagram/Facebook checkpoints and Reel cover retry | Complete |
 | 5 | OAuth selection, account health and channel pause | Pending |
 | 6 | Account lifecycle, lockout and authentication | Pending |
 | 7 | Two-factor enrollment, tickets and backup-code consumption | Pending |
@@ -97,3 +97,13 @@ revocation restores the reviewer and is shared by edits and reconciliation.
 Content hashing lives in `socialContent.js`, avoiding a dependency cycle between
 the review policy and API validation. Multi-platform completion uses the job
 machine's None/Pending/Partial/Complete classification from step 2.
+
+## 4. Platform checkpoints
+
+`publishCheckpointMachine.js` records named container/photo/video staging,
+upload, remote-write, confirmation and cover events. It exposes Empty, Staged,
+Uploaded, Write-started, Cover-pending and Published states. The live mutable
+checkpoint object, serialization fields, persistence order and remote calls are
+unchanged, so existing interrupted-upload and cover-only retry behavior survives.
+Platform regression tests exercise actual publisher functions with fake Meta
+responses; checkpoint tests verify retained result IDs and approval fingerprints.
