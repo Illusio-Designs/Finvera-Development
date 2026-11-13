@@ -16,7 +16,7 @@ rules are checked against the server by contract tests.
 | 4 | Instagram/Facebook checkpoints and Reel cover retry | Complete |
 | 5 | OAuth selection, account health and channel pause | Complete |
 | 6 | Account lifecycle, lockout and authentication | Complete |
-| 7 | Two-factor enrollment, tickets and backup-code consumption | Pending |
+| 7 | Two-factor enrollment, tickets and backup-code consumption | Complete |
 | 8 | Invite/reset links, sessions and required password changes | Pending |
 | 9 | CRM pipeline and follow-up deadlines | Pending |
 | 10 | Renewal lifecycle and deadlines | Pending |
@@ -127,3 +127,11 @@ unchanged. Login, password reset and admin unlock use the same reset event.
 Password hashing, session creation and audit/notification effects stay in the
 controllers. Boundary tests cover the fifth failure, expiry and invitation/lock
 overlap.
+
+## 7. Second factor
+
+`secondFactorMachine.js` names Disabled/Setup/Enabled configuration and the Setup,
+Enable, Disable and Renew-codes patches. It encapsulates TOTP-step and login-ticket
+consumption and backup-hash removal; password/code verification and durable writes
+stay in existing handlers. Replay tracking remains process-local, preserving the
+existing deployment semantics rather than silently introducing a new datastore.

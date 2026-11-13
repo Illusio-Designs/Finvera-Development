@@ -15,6 +15,8 @@ const sec = require("../utils/security");
 const accountMachine = require("../utils/accountMachine");
 const { MAX_FAILS, LOCK_MS, isLocked } = accountMachine;
 const TICKET_TTL = "5m";
+const secondFactor = require("../utils/secondFactorMachine");
+const replay = secondFactor.createReplayGuard();
 
 const asArr = (v) => {
   if (Array.isArray(v)) return v;
@@ -118,31 +120,19 @@ const login = asyncHandler(async (req, res) => {
   return finishLogin(user, req, res);
 });
 
-/* Recently used TOTP steps per user (stops a code being replayed in its window). */
-const usedSteps = new Map(); // userId → step
-const usedTickets = new Map(); // jti → expiresAtMs
-function spendTicket(jti, expSec) {
-  const now = Date.now();
-  if (usedTickets.size > 1000) for (const [k, t] of usedTickets) if (t < now) usedTickets.delete(k);
-  if (usedTickets.has(jti)) return false;
-  usedTickets.set(jti, expSec * 1000);
-  return true;
-}
-
 /* Check a TOTP code or a backup code for this user. Returns "totp" | "backup" | null.
    A matched backup code is removed (caller saves the user). */
 function checkSecondFactor(user, code) {
   const c = String(code || "").trim();
   if (/^\d{6}$/.test(c.replace(/\s/g, ""))) {
     const step = totp.verify(totp.open(user.twoFactorSecret), c);
-    if (step == null || (usedSteps.get(user.id) || -1) >= step) return null;
-    usedSteps.set(user.id, step);
+    if (!replay.acceptStep(user.id, step)) return null;
     return "totp";
   }
   const h = totp.hashBackup(c);
   const list = asArr(user.twoFactorBackup);
   if (totp.normBackup(c).length === 8 && list.includes(h)) {
-    user.twoFactorBackup = list.filter((x) => x !== h);
+    user.twoFactorBackup = secondFactor.consumeBackup(list, h);
     return "backup";
   }
   return null;
@@ -166,7 +156,7 @@ const login2fa = asyncHandler(async (req, res) => {
     const locked = await registerFailure(user, req, "wrong_2fa_code");
     return locked ? lockedReply(res, user) : res.status(401).json({ message: "That code didn't work. Check your authenticator app and try the newest code." });
   }
-  if (!spendTicket(t.jti, t.exp)) return res.status(401).json({ message: "Your sign-in step expired. Please enter your password again." });
+  if (!replay.spendTicket(t.jti, t.exp)) return res.status(401).json({ message: "Your sign-in step expired. Please enter your password again." });
   if (how === "backup") await user.save({ fields: ["twoFactorBackup"], silent: true });
   const extra = how === "backup" ? { usedBackupCode: true, backupCodesLeft: asArr(user.twoFactorBackup).length } : {};
   return finishLogin(user, req, res, { method: how === "backup" ? "backup_code" : "2fa", extra });
@@ -356,7 +346,7 @@ const twoFactorSetup = asyncHandler(async (req, res) => {
   const user = await User.findByPk(req.user.id);
   if (user.twoFactorEnabled) return res.status(400).json({ message: "Two-step login is already on. Turn it off first to set it up again." });
   const secret = totp.generateSecret();
-  user.twoFactorSecret = totp.seal(secret);
+  Object.assign(user, secondFactor.configurationEvent("SETUP", { secret: totp.seal(secret) }));
   await user.save({ fields: ["twoFactorSecret"] });
   forgetUser(user.id);
   res.json({ secret, otpauthUrl: totp.otpauthUrl(secret, user.email), issuer: "Finvera", account: user.email });
@@ -369,9 +359,9 @@ const twoFactorEnable = asyncHandler(async (req, res) => {
   if (!secret) return res.status(400).json({ message: "Start the setup first (scan the QR code)." });
   const step = totp.verify(secret, req.body?.code);
   if (step == null) return res.status(400).json({ message: "That code didn't work. Check the time on your phone is automatic and try the newest code.", field: "code" });
-  usedSteps.set(user.id, step);
+  replay.rememberStep(user.id, step);
   const { codes, hashes } = totp.makeBackupCodes(8);
-  user.twoFactorEnabled = true; user.twoFactorBackup = hashes;
+  Object.assign(user, secondFactor.configurationEvent("ENABLE", { hashes }));
   await user.save({ fields: ["twoFactorEnabled", "twoFactorBackup"] });
   forgetUser(user.id);
   sec.logEvent(req, { userId: user.id, email: user.email, type: "2fa_enabled" });
@@ -384,7 +374,7 @@ const twoFactorDisable = asyncHandler(async (req, res) => {
   if (!user.twoFactorEnabled) return res.status(400).json({ message: "Two-step login is already off." });
   if (!(await bcrypt.compare(String(password || ""), user.password))) return res.status(400).json({ message: "Current password is incorrect.", field: "password" });
   if (!checkSecondFactor(user, code)) return res.status(400).json({ message: "That code didn't work. Enter a code from your authenticator app or a backup code.", field: "code" });
-  user.twoFactorEnabled = false; user.twoFactorSecret = null; user.twoFactorBackup = null;
+  Object.assign(user, secondFactor.configurationEvent("DISABLE"));
   await user.save({ fields: ["twoFactorEnabled", "twoFactorSecret", "twoFactorBackup"] });
   forgetUser(user.id);
   sec.logEvent(req, { userId: user.id, email: user.email, type: "2fa_disabled" });
@@ -399,7 +389,7 @@ const twoFactorBackupCodes = asyncHandler(async (req, res) => {
   const step = totp.verify(totp.open(user.twoFactorSecret), req.body?.code);
   if (step == null) return res.status(400).json({ message: "That code didn't work. Enter the newest code from your authenticator app.", field: "code" });
   const { codes, hashes } = totp.makeBackupCodes(8);
-  user.twoFactorBackup = hashes;
+  Object.assign(user, secondFactor.configurationEvent("RENEW_CODES", { hashes }));
   await user.save({ fields: ["twoFactorBackup"] });
   sec.logEvent(req, { userId: user.id, email: user.email, type: "2fa_enabled", meta: { backupCodesRenewed: true } });
   res.json({ message: "New backup codes made. The old ones no longer work.", backupCodes: codes });

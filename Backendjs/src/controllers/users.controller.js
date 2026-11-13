@@ -1,3 +1,4 @@
+const secondFactor = require("../utils/secondFactorMachine");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const { Op } = require("sequelize");
@@ -261,7 +262,7 @@ const unlock = asyncHandler(async (req, res) => {
 const resetTwoFactor = asyncHandler(async (req, res) => {
   const user = await findUser(req, res); if (!user) return;
   const was = !!user.twoFactorEnabled;
-  user.twoFactorEnabled = false; user.twoFactorSecret = null; user.twoFactorBackup = null;
+  Object.assign(user, secondFactor.configurationEvent("DISABLE"));
   await user.save({ fields: ["twoFactorEnabled", "twoFactorSecret", "twoFactorBackup"] });
   forgetUser(user.id);
   if (was) {
