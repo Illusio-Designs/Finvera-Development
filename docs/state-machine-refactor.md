@@ -20,7 +20,7 @@ rules are checked against the server by contract tests.
 | 8 | Invite/reset links, sessions and required password changes | Complete |
 | 9 | CRM pipeline and follow-up deadlines | Complete |
 | 10 | Renewal lifecycle and deadlines | Complete |
-| 11 | Inbox classification, lead conversion and reply delivery | Pending |
+| 11 | Inbox classification, lead conversion and reply delivery | Complete |
 | 12 | CMS publication and report review/revision | Pending |
 | 13 | Calendar import, handoff and client-request dialogs | Pending |
 | 14 | Saved-post hydration, uploads and review desk | Pending |
@@ -162,3 +162,11 @@ advancement and deadline/reminder eligibility. Renewal actions retain row lockin
 expected-value conflicts and note/audit effects. Reminders still fire only at the
 existing 7/1/0/-1-day offsets, not on every approaching/overdue day. Existing
 month-end/leap-year tests and new lifecycle/reminder tests cover the extraction.
+
+## 11. Inbox
+
+`inboxMachine.js` makes read/spam classification, lead conversion eligibility and
+mail-delivery outcomes explicit. Read and spam flags remain independent in storage;
+restoring spam still makes a message unread. Conversion retains its transaction,
+existing-link reuse and deleted-lead recovery. Unconfigured mail differs from a
+failed attempted delivery, preserving existing reply-history and HTTP behavior.

@@ -1,3 +1,4 @@
+const inboxMachine = require("../utils/inboxMachine");
 const { Op } = require("sequelize");
 const { ContactSubmission, ContactReply, sequelize } = require("../models");
 const { asyncHandler } = require("../utils/crud");
@@ -160,7 +161,7 @@ const setSpam = asyncHandler(async (req, res) => {
   if (!row) return res.status(404).json({ message: "Submission not found." });
   if (typeof req.body?.isSpam !== "boolean") return res.status(400).json({ message: "Choose whether the message is spam." });
   const isSpam = req.body.isSpam;
-  await row.update(isSpam ? { isSpam: true, spamReason: row.spamReason || "Marked by hand", isRead: true } : { isSpam: false, spamReason: null, isRead: false });
+  await row.update(inboxMachine.spamPatch(row, isSpam));
   res.json(row);
 });
 
