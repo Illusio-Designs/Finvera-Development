@@ -19,6 +19,15 @@ import SocialUploadWork from "@/components/admin/SocialUploadWork";
 import HistoryList from "@/components/admin/HistoryList";
 import ExportButton from "@/components/admin/ExportButton";
 
+function CardIcon({ kind }: { kind: "clock" | "format" | "attachment" | "upload" }) {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {kind === "clock" ? <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>
+      : kind === "upload" ? <><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5" /></>
+      : kind === "attachment" ? <path d="m8 13 7-7a3 3 0 0 1 4 4l-9 9a5 5 0 0 1-7-7l9-9m-6 12 9-9" />
+      : <><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="8" cy="9" r="1.5" /><path d="m4 17 5-5 4 4 3-3 5 5" /></>}
+  </svg>;
+}
+
 type Stage = "planned" | "client" | "production" | "approval" | "ready" | "posted";
 type LogEntry = { id: string; userId?: number | null; minutes: number; note?: string; at: string };
 type Post = {
@@ -1092,6 +1101,10 @@ export default function SocialCalendar() {
     const js = jobsFor(p.id);
     const media = p.media || [];
     const first = media[0];
+    const owner = userById(p.assigneeId);
+    const role = ROLE_META[roleFor(p.status, p.format, p.step)];
+    const stage = STAGES.find((s) => s.id === p.status)!;
+    const nextAction = { planned: "Start creating this post.", client: "Waiting for the client’s input.", production: "Upload the finished creative.", approval: "Review the finished creative.", ready: "Approved and ready to go live.", posted: "Published and ready to view." }[p.status];
     const flag = p.dataStatus && !/^(planning|ok|done|ready|we have)$/i.test(p.dataStatus.trim()) ? p.dataStatus : "";
     return (
       <div role="button" tabIndex={0} key={p.id} className={"fvc-card " + tintOf(p.status) + (canEdit(p) ? "" : " ro")} draggable={canEdit(p)}
@@ -1099,8 +1112,14 @@ export default function SocialCalendar() {
         onDragEnd={(e) => e.currentTarget.classList.remove("dragging")}
         onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setViewId(p.id); } }}
         onClick={() => setViewId(p.id)} aria-label={`${p.theme}, ${p.client}, ${dueInfo(p)?.text || ""}`}>
-        <span className="fvc-tags"><span>{p.client}</span>{p.format && <span>{p.format}</span>}</span>
+        <span className="fvc-stage" style={{ background: stage.bg, color: stage.fg }}>{p.status === "production" ? "Production" : stage.title}</span>
+        <span className="fvc-brand-row">
+          <span className="fvc-brand-mark" aria-hidden="true">{initials(p.client)}</span>
+          <span className="fvc-brand-name">{p.client}</span>
+          {p.format && <span className="fvc-format"><CardIcon kind="format" />{p.format}</span>}
+        </span>
         <span className="fvc-title">{p.theme || "Untitled post"}</span>
+        <span className="fvc-next-action">{nextAction}</span>
         {canEdit(p) && p.status !== "posted" && <details className="fvc-more" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}><summary aria-label={`More actions for ${p.theme}`}>⋯</summary><button type="button" className="cal-btn sm" onClick={() => askHandoff(p, roleFor(p.status, p.format, p.step), { status: p.status }, "move")}>Change owner</button></details>}
         {p.status === "client" && p.clientFollowUpDate && <span className="fvc-note">Follow up {fmtShort(p.clientFollowUpDate)}{p.clientFollowUpDate < todayIso() ? " · overdue" : ""}</span>}
         {flag ? <span className="fvc-flag">⚠ {flag}</span> : (p.festive || p.topic) ? <span className="fvc-note">{p.festive || p.topic}</span> : null}
@@ -1112,7 +1131,6 @@ export default function SocialCalendar() {
         )}
         {p.status === "ready" && (
           <span className="fvc-check">
-            <span>Goes live {fmtShort(p.postDate)} · {p.postTime ? fmtTime(p.postTime) : "10:00 AM"}</span>
             {js.map((j) => <span key={j.id}>{PLATFORM_NAME[j.platform]} · {(JOB_LABEL[j.status]?.[0] || j.status).toLowerCase()}</span>)}
           </span>
         )}
@@ -1122,16 +1140,19 @@ export default function SocialCalendar() {
             {!js.some((j) => j.status === "published") && <span>✓ Posted {fmtShort(p.postDate)}</span>}
           </span>
         )}
-        {!isDone(p) && p.postDate && <span className={"fvc-deadline" + (isOverdue(p) ? " late" : "")}>{isOverdue(p) ? "Go-live overdue" : "Goes live"} · {fmtShort(p.postDate)} · {fmtTime(p.postTime || "10:00")}</span>}
+        <span className={"fvc-deadline" + (!isDone(p) && isOverdue(p) ? " late" : "")}>
+          <CardIcon kind="clock" /><span>{!isDone(p) && isOverdue(p) ? "Go-live overdue" : "Go-live"}: {p.postDate ? <>{fmtShort(p.postDate)} · {fmtTime(p.postTime || "10:00")} IST</> : "Not scheduled"}</span>
+        </span>
         <span className="fvc-foot">
-          {avatars(p)}
-          <span className="fvc-meta">
-            {media.length > 0 && <span title="Finished work files">📎 {media.length}</span>}
+          <span className="fvc-owner">
+            <span className="fvc-owner-avatar" aria-hidden="true">{owner ? initials(owner.name) : "—"}</span>
+            <span className="fvc-owner-copy"><b>{owner?.name || "Unassigned"}</b><small>{role.label}</small></span>
           </span>
+          {media.length > 0 && <span className="fvc-meta"><span title="Finished work files"><CardIcon kind="attachment" />{media.length}</span></span>}
         </span>
         {canEdit(p) && (p.status === "planned" || p.status === "client" || p.status === "production") && (
           <span className="cal-task-actions" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-            <button type="button" className="cal-primary" draggable={false} onClick={() => p.status === "production" ? setUploadId(p.id) : advance(p)}>{p.status === "production" ? "Upload" : "Start work"}</button>
+            <button type="button" className="cal-primary" draggable={false} onClick={() => p.status === "production" ? setUploadId(p.id) : advance(p)}>{p.status === "production" && <CardIcon kind="upload" />}{p.status === "production" ? "Upload" : "Start work"}</button>
             {p.status === "planned" && <button type="button" className="cal-btn" draggable={false} title="Need from client" onClick={() => needFromClient(p)}>Need</button>}
           </span>
         )}

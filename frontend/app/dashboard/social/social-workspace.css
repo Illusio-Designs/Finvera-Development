@@ -5,3 +5,37 @@
 .cal-page .cal-col-title small{display:none}.cal-tools>summary,.cal-workload>summary,.cal-advanced-filters>summary{display:flex;align-items:center;gap:4px}.cal-tools>summary::after,.cal-workload>summary::after,.cal-advanced-filters>summary::after{content:"";display:block;width:6px;height:6px;padding:0;margin:0 2px 3px 7px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(45deg)}
 
 .sw-reel-cover{padding:20px;border:1px solid #dfe7f6;border-radius:18px;background:#f9fbff;display:flex;flex-wrap:wrap;gap:12px}.sw-reel-cover h4,.sw-reel-cover p{flex-basis:100%;font-size:12px;line-height:1.8;color:#7186a9}.sw-reel-cover img,.sw-review-cover{max-width:240px;width:100%;max-height:320px;object-fit:contain;border-radius:12px}.sw-reel-cover button{padding:10px 15px;background:#eaf0fa;color:#3e60ab;border-radius:10px;font-size:12px}.sw-story-preview{aspect-ratio:9/16!important;max-height:65vh}.sw-story-preview img,.sw-story-preview video{width:100%;height:100%;object-fit:contain}
+
+/* Studio Focus — social calendar board cards. */
+.cal-page .cal-board{grid-template-columns:repeat(6,minmax(300px,1fr));min-width:1900px;gap:16px}
+.cal-page .cal-col{background:#eaf0fc;border-color:#e1e8f6;padding:12px}
+.cal-page .fvc-card{background:linear-gradient(145deg,#fff,#fcfdff);border:1px solid #dce5f7;border-radius:12px;padding:16px;gap:12px;box-shadow:0 3px 9px #243a750f;cursor:pointer}
+.cal-page .fvc-card[draggable=true]{cursor:grab}
+.cal-page .fvc-stage{align-self:flex-start;max-width:calc(100% - 26px);border-radius:6px;padding:4px 10px;font-size:11px;line-height:1.5;font-weight:700}
+.cal-page .fvc-brand-row{display:flex;align-items:center;gap:10px;min-width:0;flex-wrap:wrap}
+.cal-page .fvc-brand-mark{width:38px;height:38px;flex:none;border:1px solid #e7eafa;border-radius:9px;background:#f1f4fb;display:grid;place-items:center;font-size:12px;font-weight:700;color:#365390}
+.cal-page .fvc-brand-name{flex:1;min-width:0;font-size:12px;font-weight:600;color:#18203a;overflow-wrap:anywhere}
+.cal-page .fvc-format{display:inline-flex;align-items:center;gap:5px;max-width:100%;border-radius:5px;padding:3px 7px;background:#edf1fa;color:#455579;font-size:10px;line-height:1.5;overflow-wrap:anywhere}
+.cal-page .fvc-format svg{width:13px;height:13px;flex:none}
+.cal-page .fvc-title{font-family:var(--font-inter),sans-serif;font-size:19px;line-height:1.25;letter-spacing:-.5px;font-weight:750;color:#153688;text-wrap:initial;overflow-wrap:anywhere}
+.cal-page .fvc-next-action{font-size:12px;line-height:1.6;color:#58688b}
+.cal-page .fvc-note,.cal-page .fvc-flag,.cal-page .fvc-check{font-size:11px}
+.cal-page .fvc-deadline{display:flex;align-items:center;gap:8px;border-top:1px solid #e8edf6;border-bottom:1px solid #e8edf6;padding:10px 0;font-size:11px;line-height:1.5;color:#25304a}
+.cal-page .fvc-deadline svg{flex:none;color:#52658c}
+.cal-page .fvc-deadline.late,.cal-page .fvc-deadline.late svg{color:#b42323}
+.cal-page .fvc-foot{border:0;padding:0;gap:10px;min-width:0}
+.cal-page .fvc-owner{display:flex;align-items:center;gap:9px;flex:1;min-width:0}
+.cal-page .fvc-owner-avatar{width:32px;height:32px;flex:none;display:grid;place-items:center;border-radius:50%;background:#dce7ff;color:#254ca3;font-size:11px;font-weight:700}
+.cal-page .fvc-owner-copy{display:flex;flex-direction:column;min-width:0;gap:2px}
+.cal-page .fvc-owner-copy b{font-size:11px;font-weight:600;line-height:1.4;color:#18203a;overflow-wrap:anywhere}
+.cal-page .fvc-owner-copy small{font-size:10px;line-height:1.4;color:#58688b}
+.cal-page .fvc-meta{border-left:1px solid #e8edf6;padding-left:10px;margin-left:auto}
+.cal-page .fvc-meta span{display:flex;align-items:center;gap:5px;padding:0;background:none;color:#354469;font-size:11px}
+.cal-page .cal-task-actions{display:flex;width:100%;gap:8px;margin-top:5px}
+.cal-page .cal-task-actions>button{display:flex;align-items:center;justify-content:center;gap:8px;flex:1;min-height:38px;border-radius:7px;font-size:12px}
+.cal-page .cal-task-actions>.cal-primary{background:linear-gradient(120deg,#406ad2,#3e60ab);box-shadow:0 3px 8px #3e60ab1f}
+.cal-page .cal-task-actions>.cal-btn{background:#f6f8fd;border:1px solid #dce5f7}
+.cal-page .fvc-more{right:10px;top:13px;z-index:3}
+.cal-page .fvc-more>summary{color:#58688b;border-radius:5px}
+.cal-page .fvc-more>summary:focus-visible,.cal-page .cal-task-actions>button:focus-visible{outline:2px solid #3e60ab;outline-offset:3px}
+@media(max-width:700px){.cal-page .cal-board{grid-template-columns:repeat(6,min(310px,84vw));min-width:max-content}.cal-page .fvc-card{padding:14px}.cal-page .fvc-title{font-size:18px}}
