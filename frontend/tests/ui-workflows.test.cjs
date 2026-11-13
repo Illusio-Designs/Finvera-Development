@@ -8,6 +8,16 @@ function load(name) {
 const dialogs = load("dialogMachine");
 const work = load("socialWorkMachine");
 const editors = load("editorMachine");
+const enquiries = load("enquiryMachine");
+test("submission cleanup preserves success and captcha expiry discards the old token", () => {
+  let state = enquiries.enquiryTransition("idle", "SUBMIT");
+  state = enquiries.enquiryTransition(state, "SUCCESS");
+  assert.equal(enquiries.enquiryTransition(state, "SETTLED"), "ok");
+  let captcha = enquiries.captchaTransition({ phase: "ready", token: "" }, { type: "TOKEN", token: "valid" });
+  assert.equal(captcha.token, "valid");
+  captcha = enquiries.captchaTransition(captcha, { type: "EXPIRE" });
+  assert.equal(captcha.phase, "expired"); assert.equal(captcha.token, "");
+});
 test("a save conflict survives finally and clears only when its error/conflict state is reset", () => {
   let state = { activity: "idle", outcome: "none", error: "" };
   state = editors.saveTransition(state, { type: "ACTIVITY", saving: true });

@@ -25,7 +25,7 @@ rules are checked against the server by contract tests.
 | 13 | Calendar import, handoff and client-request dialogs | Complete |
 | 14 | Saved-post hydration, uploads and review desk | Complete |
 | 15 | Editor saving, conflicts, report export and inbox composer | Complete |
-| 16 | Public enquiry forms and CAPTCHA | Pending |
+| 16 | Public enquiry forms and CAPTCHA | Complete |
 | 17 | Data loading, pagination and connectivity | Pending |
 | 18 | Push, installation, notifications and read status | Pending |
 | 19 | Images, dialogs, navigation and marketing interactions | Pending |
@@ -206,3 +206,11 @@ Portfolio/blog/page/SEO, lead/renewal and collection editors consume it, as does
 the inbox composer. Draft comparisons, upload counters and expected-version
 payloads remain unchanged. Report export explicitly chooses Create/Update/Read
 before preparing files; its existing operation lock and popup lifecycle remain.
+
+## 16. Public enquiries
+
+`enquiryMachine.ts` supplies submission events shared by the contact form and
+consultation panel. Success survives asynchronous cleanup until reset. CAPTCHA
+loading/token/expiry/error/reset/removal states live in the existing ref rather
+than causing renders; widget lifecycle and server validation stay unchanged.
+Tests cover success cleanup and expired-token clearing.

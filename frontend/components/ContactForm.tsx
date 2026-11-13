@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { enquiryTransition } from "@/lib/enquiryMachine";
+import { useReducer, useState } from "react";
 import { Arrow, Check } from "./icons";
 import PhoneInput from "./PhoneInput";
 import Select from "./Select";
@@ -11,7 +12,7 @@ const PROJECT_TYPES = ["SaaS platform", "CRM system", "Cloud & DevOps", "AI & au
 const endpoint = `${(process.env.NEXT_PUBLIC_API_URL || "https://api.finvera.solutions").replace(/\/$/, "")}/api/contact`;
 
 export default function ContactForm() {
-  const [state, setState] = useState<"idle" | "sending" | "ok" | "error">("idle");
+  const [state, dispatch] = useReducer(enquiryTransition, "idle");
   const [error, setError] = useState("");
   const [bad, setBad] = useState<Record<string, string>>({});
   const [projectType, setProjectType] = useState(PROJECT_TYPES[0]);
@@ -37,7 +38,7 @@ export default function ContactForm() {
       return;
     }
 
-    setState("sending"); setError("");
+    dispatch("SUBMIT"); setError("");
     try {
       if (endpoint) {
         const res = await fetch(endpoint, {
@@ -53,13 +54,13 @@ export default function ContactForm() {
         // No backend configured yet — simulate success (demo mode)
         await new Promise((r) => setTimeout(r, 500));
       }
-      setState("ok");
+      dispatch("SUCCESS");
       form.reset();
       guard.reset();
       setProjectType(PROJECT_TYPES[0]);
       toast("Message sent — we'll be in touch shortly! 🎉");
     } catch (err) {
-      setState("error");
+      dispatch("FAILURE");
       const msg = err instanceof Error ? err.message : "Something went wrong.";
       setError(msg);
       toast(msg, "err");

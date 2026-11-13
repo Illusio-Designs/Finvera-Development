@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { enquiryTransition } from "@/lib/enquiryMachine";
+import { useEffect, useReducer, useState } from "react";
 import { Arrow } from "./icons";
 import PhoneInput from "./PhoneInput";
 import Toaster from "./admin/Toaster";
@@ -16,8 +17,8 @@ const endpoint = `${(process.env.NEXT_PUBLIC_API_URL || "https://api.finvera.sol
  */
 export default function ConsultPanel() {
   const [open, setOpen] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [done, setDone] = useState(false);
+  const [submission, dispatch] = useReducer(enquiryTransition, "idle");
+  const sending = submission === "sending", done = submission === "ok";
   const guard = useSpamGuard();
 
   useEffect(() => {
@@ -38,15 +39,16 @@ export default function ConsultPanel() {
     e.preventDefault();
     const form = e.currentTarget;
     const data = Object.fromEntries(new FormData(form).entries());
-    setSending(true);
+    dispatch("SUBMIT");
     try {
       const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...data, ...guard.extra() }) });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || "Please try again.");
-      form.reset(); guard.reset(); setDone(true); toast("Thanks! We'll be in touch shortly. 🎉");
-      setTimeout(() => { setDone(false); setOpen(false); }, 1900);
+      form.reset(); guard.reset(); dispatch("SUCCESS"); toast("Thanks! We'll be in touch shortly. 🎉");
+      setTimeout(() => { dispatch("RESET"); setOpen(false); }, 1900);
     } catch (err) {
+      dispatch("FAILURE");
       toast(err instanceof Error ? err.message : "Something went wrong.", "err");
-    } finally { setSending(false); }
+    } finally { dispatch("SETTLED"); }
   }
 
   return (
