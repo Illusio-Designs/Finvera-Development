@@ -29,7 +29,7 @@ rules are checked against the server by contract tests.
 | 17 | Data loading, pagination and connectivity | Complete |
 | 18 | Push, installation, notifications and read status | Complete |
 | 19 | Images, dialogs, navigation and marketing interactions | Complete |
-| 20 | Operational tools and server startup | Pending |
+| 20 | Operational tools and server startup | Complete |
 | 21 | Schedulers, runner locks and alert claims | Pending |
 | 22 | Backup artifacts, studio refresh and shared caches | Pending |
 | 23 | WebP queue, repairs, polling and lazy initialization | Pending |
@@ -243,3 +243,12 @@ events retain generation/source guards; dialog confirm/cancel results share a
 pure resolver. Marketing reveal policy keeps one-way reveals visible. Native
 animation/preloader events and existing DOM class/timer effects remain in their
 components. Tests cover toggling, one-way reveals and prompt/confirm/alert results.
+
+## 20. Operations and startup
+
+`startupMachine.js` names the ordered connection/schema/provisioning/seed/
+reconciliation/listen/worker phases; failures report the actual phase. Optional
+provisioning failures retain their existing continue-with-warning behavior.
+Operational UI activity uses Idle/Running states; per-backup Check/Download/Delete
+maps and compression result/counter states were already explicit and are retained.
+Tests verify forward-only startup and failure termination.

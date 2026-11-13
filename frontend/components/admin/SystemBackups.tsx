@@ -1,4 +1,5 @@
 "use client";
+import { useActivity } from "@/lib/useActivity";
 /* Backups card (System page): list, back up now, download, check, delete,
    and how to restore. Admin only (the API answers 403 otherwise). */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -28,7 +29,7 @@ function checkText(r: BackupCheck): { ok: boolean; text: string } {
 export default function SystemBackups({ offsiteEnabled, onChange, refreshKey }: { offsiteEnabled: boolean | null; onChange?: () => void; refreshKey?: number }) {
   const [list, setList] = useState<BackupList | null>(null);
   const [error, setError] = useState("");
-  const [making, setMaking] = useState(false);
+  const [making, setMaking] = useActivity();
   const [busy, setBusy] = useState<Record<string, "check" | "download" | "delete" | undefined>>({});
   const [checks, setChecks] = useState<Record<string, { ok: boolean; text: string }>>({});
   const poll = useRef<ReturnType<typeof setTimeout> | null>(null);

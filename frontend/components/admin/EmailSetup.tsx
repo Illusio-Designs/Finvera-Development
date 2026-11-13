@@ -1,4 +1,5 @@
 "use client";
+import { useActivity } from "@/lib/useActivity";
 /* Email setup card (System page, admin): is SMTP set up, what to add in
    cPanel if not, a "Test connection" button (logs in, sends nothing) and a "Send a test email" box that shows the SMTP error. */
 import { useCallback, useEffect, useState } from "react";
@@ -21,8 +22,8 @@ export default function EmailSetup({ myEmail, refreshKey }: { myEmail?: string; 
   const [st, setSt] = useState<Status | null>(null);
   const [error, setError] = useState("");
   const [to, setTo] = useState("");
-  const [sending, setSending] = useState(false);
-  const [checking, setChecking] = useState(false);
+  const [sending, setSending] = useActivity();
+  const [checking, setChecking] = useActivity();
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
