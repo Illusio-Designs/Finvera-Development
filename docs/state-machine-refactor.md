@@ -15,7 +15,7 @@ rules are checked against the server by contract tests.
 | 3 | Approval invalidation and multi-platform completion | Complete |
 | 4 | Instagram/Facebook checkpoints and Reel cover retry | Complete |
 | 5 | OAuth selection, account health and channel pause | Complete |
-| 6 | Account lifecycle, lockout and authentication | Pending |
+| 6 | Account lifecycle, lockout and authentication | Complete |
 | 7 | Two-factor enrollment, tickets and backup-code consumption | Pending |
 | 8 | Invite/reset links, sessions and required password changes | Pending |
 | 9 | CRM pipeline and follow-up deadlines | Pending |
@@ -117,3 +117,13 @@ health-check transport failures still do not change connection status. Channel
 updates retain the existing row lock and subsequent job synchronization. Tests
 cover selection ownership/expiry, empty explicit target lists and independent
 pause/resume behavior.
+
+## 6. Account state and lockout
+
+`accountMachine.js` separates account display status from lockout eligibility and
+the post-password authentication step. The five-attempt/15-minute thresholds,
+strict failure-window boundary, automatic lock expiry and display precedence are
+unchanged. Login, password reset and admin unlock use the same reset event.
+Password hashing, session creation and audit/notification effects stay in the
+controllers. Boundary tests cover the fifth failure, expiry and invitation/lock
+overlap.

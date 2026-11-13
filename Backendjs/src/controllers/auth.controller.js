@@ -12,9 +12,8 @@ const totp = require("../utils/totp");
 const sec = require("../utils/security");
 
 /* ── Lockout: 5 wrong passwords (or 2FA codes) within 15 min → locked 15 min ── */
-const MAX_FAILS = 5;
-const FAIL_WINDOW_MS = 15 * 60 * 1000;
-const LOCK_MS = 15 * 60 * 1000;
+const accountMachine = require("../utils/accountMachine");
+const { MAX_FAILS, LOCK_MS, isLocked } = accountMachine;
 const TICKET_TTL = "5m";
 
 const asArr = (v) => {
@@ -37,7 +36,6 @@ function publicUser(u) {
   };
 }
 
-const isLocked = (u) => u.lockedUntil && new Date(u.lockedUntil).getTime() > Date.now();
 const minutesLeft = (u) => Math.max(1, Math.ceil((new Date(u.lockedUntil).getTime() - Date.now()) / 60000));
 function lockedReply(res, u) {
   const m = minutesLeft(u);
@@ -49,14 +47,8 @@ function lockedReply(res, u) {
 
 /* Count a wrong password / code. Returns true when this one locked the account. */
 async function registerFailure(user, req, reason) {
-  const now = Date.now();
-  const start = user.firstFailedAt ? new Date(user.firstFailedAt).getTime() : 0;
-  if (!start || now - start > FAIL_WINDOW_MS) { user.failedLogins = 1; user.firstFailedAt = new Date(now); }
-  else user.failedLogins = (user.failedLogins || 0) + 1;
-  let locked = false;
-  if (user.failedLogins >= MAX_FAILS) {
-    user.lockedUntil = new Date(now + LOCK_MS); user.failedLogins = 0; user.firstFailedAt = null; locked = true;
-  }
+  const { patch, locked } = accountMachine.failureAfter(user);
+  Object.assign(user, patch);
   await user.save({ fields: ["failedLogins", "firstFailedAt", "lockedUntil"], silent: true });
   forgetUser(user.id);
   sec.logEvent(req, { userId: user.id, email: user.email, type: reason === "wrong_2fa_code" ? "2fa_failed" : "login_failed", meta: { reason } });
@@ -74,7 +66,7 @@ const dummyCompare = async (pw) => { dummyHash = dummyHash || await bcrypt.hash(
 /* Password (and 2FA, if on) passed — open a session and answer like /login always did. */
 async function finishLogin(user, req, res, { method = "password", extra = {} } = {}) {
   const now = new Date();
-  user.failedLogins = 0; user.firstFailedAt = null; user.lockedUntil = null;
+  Object.assign(user, accountMachine.resetFailures());
   user.lastLoginAt = now; user.lastSeenAt = now;
   await user.save({ fields: ["failedLogins", "firstFailedAt", "lockedUntil", "lastLoginAt", "lastSeenAt"], silent: true });
   forgetUser(user.id);
@@ -119,7 +111,7 @@ const login = asyncHandler(async (req, res) => {
     return locked ? lockedReply(res, user) : res.status(401).json(BAD);
   }
 
-  if (user.twoFactorEnabled) {
+  if (accountMachine.afterPassword(user) === "second-factor") {
     const ticket = jwt.sign({ kind: "2fa", sub: user.id }, process.env.JWT_SECRET, { expiresIn: TICKET_TTL, jwtid: crypto.randomBytes(8).toString("hex") });
     return res.json({ twoFactorRequired: true, ticket, message: "Enter the 6-digit code from your authenticator app." });
   }
@@ -346,7 +338,7 @@ const reset = asyncHandler(async (req, res) => {
   user.password = await bcrypt.hash(String(password), 10);
   user.passwordChangedAt = new Date();
   user.mustChangePassword = false; user.invitePending = false;
-  user.failedLogins = 0; user.firstFailedAt = null; user.lockedUntil = null;
+  Object.assign(user, accountMachine.resetFailures());
   await user.save();
   const ended = await sec.revokeSessions(user.id, { reason: "password_reset" });
   forgetUser(user.id);
