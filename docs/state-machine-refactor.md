@@ -23,7 +23,7 @@ rules are checked against the server by contract tests.
 | 11 | Inbox classification, lead conversion and reply delivery | Complete |
 | 12 | CMS publication and report review/revision | Complete |
 | 13 | Calendar import, handoff and client-request dialogs | Complete |
-| 14 | Saved-post hydration, uploads and review desk | Pending |
+| 14 | Saved-post hydration, uploads and review desk | Complete |
 | 15 | Editor saving, conflicts, report export and inbox composer | Pending |
 | 16 | Public enquiry forms and CAPTCHA | Pending |
 | 17 | Data loading, pagination and connectivity | Pending |
@@ -188,3 +188,12 @@ their existing setter interface, preserving validation and error text. Import
 uses a single Closed/Brand/Team/Importing union, so brand and team dialogs cannot
 be active together. Cancellation/retry tests cover selected-person retention and
 functional state updates; CI runs the UI workflow tests.
+
+## 14. Saved artwork and review UI
+
+`socialWorkMachine.ts` owns light-to-full editor hydration (retaining dirty fields
+and version timestamps), artwork upload eligibility and review-desk readiness.
+Read-only, disabled, uploading, cover-saving and full upload states are explicit;
+review has loading/checking/error/blocked/checklist/ready/submitting states.
+Existing per-post mutation locks and saved-version preflight identity checks stay
+in place. Tests exercise late hydration and every condition blocking approval.

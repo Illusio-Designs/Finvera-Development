@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { uploadState } from "@/lib/socialWorkMachine";
 import InstagramImageTags, { type ImageTag } from "./InstagramImageTags";
 
 type Artwork = { url: string; type: "image" | "video"; name?: string; thumbUrl?: string | null; coverUrl?: string | null; userTags?: ImageTag[] };
@@ -33,7 +34,8 @@ export default function SocialUploadWork({ media, busy, disabled, editable, post
   const [localError, setLocalError] = useState("");
   const [pending, setPending] = useState<File[]>([]);
   const remaining = Math.max(0, maxFiles - media.length);
-  const canUpload = editable && !posted && !disabled && !busy && !coverBusy && remaining > 0;
+  const phase = uploadState({ editable, posted, disabled, busy, coverBusy, remaining, dragging });
+  const canUpload = phase === "idle" || phase === "dragging";
 
   async function select(files: File[]) {
     setDragging(false); depth.current = 0;

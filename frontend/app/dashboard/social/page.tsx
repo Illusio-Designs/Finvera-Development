@@ -2,6 +2,7 @@
 import PageLoading from "@/components/admin/PageLoading";
 import "./social-workspace.css";
 import { useWorkflowDialog, useImportWizard } from "@/lib/useWorkflowDialog";
+import { hydrateEditor } from "@/lib/socialWorkMachine";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { chainFor, isVideoFormat, makerFor, roleFor, nextStage, indiaToday, overdueAt, moveArtwork, type SocialRole as Role, type SocialStage as Stage } from "@/lib/socialWorkflow";
 import { api } from "@/lib/adminApi";
@@ -437,14 +438,7 @@ export default function SocialCalendar() {
       if (!full?.id) return null;
       full._full = true;
       setPosts((ps) => ps.map((x) => (x.id === id ? { ...x, ...full } : x)));
-      setEditing((e) => {
-        if (e?.id !== id || e._full) return e;
-        const merged = { ...e, ...full };
-        // Load the complete current snapshot, including its version timestamp,
-        // while preserving fields already entered by the person editing.
-        for (const key of dirty.current) Object.assign(merged, { [key]: e[key] });
-        return merged;
-      });
+      setEditing((e) => hydrateEditor<Partial<Post>>(e, full, id, dirty.current));
       return full;
     } catch { return null; }
   }
