@@ -1,4 +1,5 @@
 "use client";
+import { useResourceState } from "@/lib/useResourceState";
 import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import PageLoading from "@/components/admin/PageLoading";
 import { useEffect, useRef, useState } from "react";
@@ -16,7 +17,7 @@ const ICONS = [["rocket", "Momentum"], ["target", "Focus"], ["award", "Craft"], 
 const FIELDS = ["title", "step", "icon", "description", "position", "status"] as const;
 const sorted = (rows: ProcessStep[]) => [...rows].sort((a, b) => a.position - b.position || String(a.createdAt || "").localeCompare(String(b.createdAt || "")) || a.id - b.id);
 export default function AdminProcessSteps() {
-  const [rows, setRows] = useState<ProcessStep[] | null>(null), [busy, setBusy] = useState(true), [error, setError] = useState("");
+  const { data: rows, setData: setRows, loading: busy, setLoading: setBusy, error, setError } = useResourceState<ProcessStep[] | null>(null, true);
   const [query, setQuery] = useState(""), [status, setStatus] = useState("");
   const [editing, setEditing] = useState<{ row: ProcessStep | null; key: number } | null>(null), [ordering, setOrdering] = useState(false);
   const orderPending = useRef(false);

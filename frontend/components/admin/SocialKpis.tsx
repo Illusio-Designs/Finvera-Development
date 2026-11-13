@@ -1,4 +1,5 @@
 "use client";
+import { useResourceState } from "@/lib/useResourceState";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
@@ -61,8 +62,7 @@ function Bars({ weeks, height = 120 }: { weeks: Week[]; height?: number }) {
 export default function SocialKpis({ mode }: { mode: "team" | "me" }) {
   const [period, setPeriod] = useState("month");
   const [brand, setBrand] = useState("");
-  const [data, setData] = useState<Data | null>(null);
-  const [error, setError] = useState(false);
+  const { data, setData, error, setError } = useResourceState<Data | null, boolean>(null, false, false);
   const [open, setOpen] = useState<Person | null>(null);
 
   useEffect(() => {

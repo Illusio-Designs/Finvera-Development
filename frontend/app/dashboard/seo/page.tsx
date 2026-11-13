@@ -1,4 +1,5 @@
 "use client";
+import { useResourceState } from "@/lib/useResourceState";
 import { useEffect, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon, Refresh01Icon, ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
@@ -8,7 +9,7 @@ import SeoEditor, { type SeoItem } from "@/components/admin/seo/SeoEditor";
 import { SEO_PAGES, seoLabel, seoPresentation } from "@/lib/seoMetadata";
 import "./seo-workspace.css";
 export default function AdminSeo() {
-  const [rows, setRows] = useState<SeoItem[] | null>(null), [busy, setBusy] = useState(true), [error, setError] = useState("");
+  const { data: rows, setData: setRows, loading: busy, setLoading: setBusy, error, setError } = useResourceState<SeoItem[] | null>(null, true);
   const [query, setQuery] = useState(""), [filter, setFilter] = useState("");
   const [editing, setEditing] = useState<{ row: SeoItem; key: number } | null>(null);
   async function load() { setBusy(true); setError(""); try { const result = await api.listSeo(); setRows(Array.isArray(result) ? result : []); } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t load SEO settings."); } finally { setBusy(false); } }

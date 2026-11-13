@@ -26,7 +26,7 @@ rules are checked against the server by contract tests.
 | 14 | Saved-post hydration, uploads and review desk | Complete |
 | 15 | Editor saving, conflicts, report export and inbox composer | Complete |
 | 16 | Public enquiry forms and CAPTCHA | Complete |
-| 17 | Data loading, pagination and connectivity | Pending |
+| 17 | Data loading, pagination and connectivity | Complete |
 | 18 | Push, installation, notifications and read status | Pending |
 | 19 | Images, dialogs, navigation and marketing interactions | Pending |
 | 20 | Operational tools and server startup | Pending |
@@ -214,3 +214,13 @@ consultation panel. Success survives asynchronous cleanup until reset. CAPTCHA
 loading/token/expiry/error/reset/removal states live in the existing ref rather
 than causing renders; widget lifecycle and server validation stay unchanged.
 Tests cover success cleanup and expired-token clearing.
+
+## 17. Resources and paging
+
+`resourceMachine.ts`/`useResourceState.ts` name unloaded/loading/refreshing/ready/
+empty/error/stale-error states and independent load-more activity. Collection
+lists, Today/My work, resource manager, inbox/activity pagination and KPI/report
+widgets use the shared state. Existing data survives refresh errors. Overlapping
+pagination/refresh flags are preserved rather than one completion ending both.
+Backend connectivity uses an explicit result classifier. No request cancellation
+or stale-response policy is changed in this extraction.

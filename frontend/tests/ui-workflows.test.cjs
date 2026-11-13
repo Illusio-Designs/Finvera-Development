@@ -9,6 +9,18 @@ const dialogs = load("dialogMachine");
 const work = load("socialWorkMachine");
 const editors = load("editorMachine");
 const enquiries = load("enquiryMachine");
+const resources = load("resourceMachine");
+test("refresh failures retain prior data and paging completion does not end an overlapping refresh", () => {
+  let state = { data: [1], request: "idle", error: "" };
+  state = resources.resourceTransition(state, { type: "LOADING", value: true });
+  state = resources.resourceTransition(state, { type: "MORE", value: true });
+  state = resources.resourceTransition(state, { type: "MORE", value: false });
+  assert.equal(state.request, "loading");
+  state = resources.resourceTransition(state, { type: "ERROR", error: "Offline" });
+  state = resources.resourceTransition(state, { type: "LOADING", value: false });
+  assert.equal(resources.resourcePhase(state), "stale-error"); assert.equal(state.data[0], 1);
+  assert.equal(resources.backendState(true, "down"), "offline");
+});
 test("submission cleanup preserves success and captcha expiry discards the old token", () => {
   let state = enquiries.enquiryTransition("idle", "SUBMIT");
   state = enquiries.enquiryTransition(state, "SUCCESS");

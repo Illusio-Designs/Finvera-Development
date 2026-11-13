@@ -1,4 +1,5 @@
 "use client";
+import { useResourceState } from "@/lib/useResourceState";
 /* Monthly KPI report for the content calendar: pick a month (last month by
    default), see the team and brand tables with the change from the month
    before, and download both as one Excel file (sheets "Team" and "Brands"). */
@@ -47,9 +48,7 @@ export function MonthlyReportButton() {
 export default function MonthlyReport({ onClose }: { onClose: () => void }) {
   const options = monthOptions();
   const [month, setMonth] = useState(options[1].value); // last month
-  const [data, setData] = useState<KpiReport | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const { data, setData, error, setError, loading, setLoading } = useResourceState<KpiReport | null>(null);
 
   useEffect(() => {
     let alive = true;

@@ -1,4 +1,5 @@
 "use client";
+import { useResourceState } from "@/lib/useResourceState";
 import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import PageLoading from "@/components/admin/PageLoading";
 import "./inbox.css";
@@ -82,12 +83,9 @@ export default function AdminContact() {
   const [view, setView] = useState<View | null>(null);
   const [q, setQ] = useState("");
   const [qLive, setQLive] = useState("");
-  const [rows, setRows] = useState<ContactMsg[]>([]);
+  const { data: rows, setData: setRows, loading, setLoading, more, setMore, error, setError } = useResourceState<ContactMsg[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [more, setMore] = useState(false);
-  const [error, setError] = useState("");
   const [counts, setCounts] = useState<InboxCounts | null>(null);
   const [sel, setSel] = useState<ContactMsg | null>(null);
   const [wantMsg, setWantMsg] = useState<number | null>(null);

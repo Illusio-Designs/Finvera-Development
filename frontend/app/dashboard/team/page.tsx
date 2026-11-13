@@ -1,4 +1,5 @@
 "use client";
+import { useResourceState } from "@/lib/useResourceState";
 import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import { useEffect, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -20,7 +21,7 @@ function MemberContent({ row, full = false }: { row: Partial<Member>; full?: boo
   return <><div className="wt-portrait">{row.photo && !failed ? <img src={row.photo} alt={row.name || "Profile photo"} onError={() => setFailed(true)} /> : <span>{testimonialInitials(row.name, row.initials)}</span>}</div><div className="wt-person"><h3>{row.name || "Team member"}</h3><span>{row.role || "Role to be added"}</span></div>{full && <p className="wt-bio">{row.bio || "Their story will appear here."}</p>}</>;
 }
 export default function AdminWebsiteTeam() {
-  const [rows, setRows] = useState<Member[] | null>(null), [busy, setBusy] = useState(true), [error, setError] = useState("");
+  const { data: rows, setData: setRows, loading: busy, setLoading: setBusy, error, setError } = useResourceState<Member[] | null>(null, true);
   const [query, setQuery] = useState(""), [status, setStatus] = useState("");
   const [editing, setEditing] = useState<{ row: Member | null; key: number } | null>(null);
   async function load() { setBusy(true); setError(""); try { const data = await api.list("team"); setRows(sorted(Array.isArray(data) ? data : [])); } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t load team."); } finally { setBusy(false); } }

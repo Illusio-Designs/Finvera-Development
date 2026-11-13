@@ -1,4 +1,5 @@
 "use client";
+import { useResourceState } from "@/lib/useResourceState";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/adminApi";
@@ -50,8 +51,7 @@ function summarise(posts: Post[]) {
 
 /** My assigned posts (card fields) → queue + counts. `meId` null = not known yet. */
 export function useMyWork(meId: number | null | undefined, enabled: boolean) {
-  const [data, setData] = useState<MyWorkData | null>(null);
-  const [error, setError] = useState("");
+  const { data, setData, error, setError } = useResourceState<MyWorkData | null>(null, false);
   const load = useCallback(async () => {
     if (!enabled || meId == null) return;
     setError("");

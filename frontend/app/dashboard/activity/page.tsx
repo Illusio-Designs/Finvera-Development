@@ -1,4 +1,5 @@
 "use client";
+import { useResourceState } from "@/lib/useResourceState";
 /* Activity — who changed what across the dashboard (admins only).
    A timeline grouped by day; tap a row to see every change as old → new.
    Filters: kind of item, person, action, dates and a search; 50 at a time
@@ -31,12 +32,9 @@ const EMPTY: Filters = { type: "", userId: "", action: "", from: "", to: "", q: 
 export default function ActivityPage() {
   const [f, setF] = useState<Filters>(EMPTY);
   const [qInput, setQInput] = useState("");
-  const [items, setItems] = useState<ActivityRow[]>([]);
+  const { data: items, setData: setItems, loading, setLoading, more, setMore, error, setError } = useResourceState<ActivityRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [more, setMore] = useState(false);
-  const [error, setError] = useState("");
   const [open, setOpen] = useState<Set<number>>(new Set());
   const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
   const [showFilters, setShowFilters] = useState(false);
