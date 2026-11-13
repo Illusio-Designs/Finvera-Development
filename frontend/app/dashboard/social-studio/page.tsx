@@ -1,4 +1,6 @@
 "use client";
+import Link from "next/link";
+import SocialAccountHealth from "@/components/admin/SocialAccountHealth";
 import SocialProfileEditor from "@/components/admin/SocialProfileEditor";
 import ChannelAvatar from "@/components/admin/ChannelAvatar";
 import PageLoading from "@/components/admin/PageLoading";
@@ -332,6 +334,7 @@ export default function SocialStudio() {
                 </ul>
               )}
             </div>
+            <Link className="ss-btn" href={`/dashboard/reports?view=client${brand ? `&brand=${encodeURIComponent(brand)}` : ""}`}>Monthly brand report</Link>
             <button type="button" className="ss-btn" onClick={() => load()} aria-label="Refresh saved data" disabled={busy}><Icon i={Refresh01Icon} /></button>
           </div>
         </div>
@@ -412,6 +415,7 @@ export default function SocialStudio() {
         </section>
       )}
 
+      <SocialAccountHealth accounts={data.accounts} brand={brand} canManage={!limited} onReconnect={connect} />
       {/* ── Channels ── */}
       {tab === "channels" && (
         <section className="ss-groups">
