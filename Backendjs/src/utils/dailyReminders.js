@@ -94,10 +94,10 @@ async function runDaily(today) {
   }
 
   /* ── Renewals: 7 days, tomorrow, today, overdue (day after) ── */
-  const label = (d) => (d === 7 ? "Renewal due in 7 days" : d === 1 ? "Renewal due tomorrow" : d === 0 ? "Renewal due today" : d === -1 ? "Renewal overdue" : null);
+  const { reminderLabel } = require("./renewalMachine");
   const records = await Renewal.findAll({ where: { renewalDate: { [Op.ne]: null }, status: "active" } });
   for (const r of records) {
-    const head = label(daysBetween(today, day(r.renewalDate)));
+    const head = reminderLabel({ status: r.status, renewalDate: day(r.renewalDate) }, today);
     if (!head) continue;
     const owner = r.owner ? nameToId.get(r.owner) : null;
     dig([...adminIds, ...(owner ? [owner] : [])], "renewals", {

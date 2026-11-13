@@ -19,7 +19,7 @@ rules are checked against the server by contract tests.
 | 7 | Two-factor enrollment, tickets and backup-code consumption | Complete |
 | 8 | Invite/reset links, sessions and required password changes | Complete |
 | 9 | CRM pipeline and follow-up deadlines | Complete |
-| 10 | Renewal lifecycle and deadlines | Pending |
+| 10 | Renewal lifecycle and deadlines | Complete |
 | 11 | Inbox classification, lead conversion and reply delivery | Pending |
 | 12 | CMS publication and report review/revision | Pending |
 | 13 | Calendar import, handoff and client-request dialogs | Pending |
@@ -154,3 +154,11 @@ stage jumps, manual timestamp overrides and legacy field synchronization. Open
 follow-up queries use the same classification. Tests cover leaving/reentering
 Won and time moving a follow-up through Future/Today/Overdue; Won/Lost suppress
 follow-up states.
+
+## 10. Renewals
+
+`renewalMachine.js` owns Renew/End/Restore/Remark effects, billing-cycle date
+advancement and deadline/reminder eligibility. Renewal actions retain row locking,
+expected-value conflicts and note/audit effects. Reminders still fire only at the
+existing 7/1/0/-1-day offsets, not on every approaching/overdue day. Existing
+month-end/leap-year tests and new lifecycle/reminder tests cover the extraction.
