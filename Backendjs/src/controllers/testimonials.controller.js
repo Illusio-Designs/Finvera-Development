@@ -1,3 +1,4 @@
+const { isPublicationState } = require("../utils/contentMachine");
 const { Testimonial, sequelize } = require('../models');
 const FIELDS = ['name', 'role', 'company', 'avatar', 'quote', 'rating', 'position', 'status'];
 const error = (status, message, field) => Object.assign(new Error(message), { status, statusCode: status, field });
@@ -6,7 +7,7 @@ function validate(req, res, next) {
   const body = req.body || {}, invalid = (field, message) => res.status(400).json({ field, message });
   if ((req.method === 'POST' || 'name' in body) && (typeof body.name !== 'string' || !body.name.trim())) return invalid('name', 'Add the client name.');
   if (req.method === 'POST') { if (!body.status) body.status = 'draft'; if (body.quote === undefined) body.quote = ''; }
-  if ('status' in body && !['draft', 'published'].includes(body.status)) return invalid('status', 'Choose Draft or Published.');
+  if ('status' in body && !isPublicationState(body.status)) return invalid('status', 'Choose Draft or Published.');
   if ('quote' in body && typeof body.quote !== 'string') return invalid('quote', 'Use text for the client quote.');
   if ('rating' in body && (body.rating == null || !Number.isInteger(Number(body.rating)) || Number(body.rating) < 1 || Number(body.rating) > 5)) return invalid('rating', 'Choose a rating from 1 to 5.');
   if ('position' in body && (!Number.isSafeInteger(Number(body.position)) || Number(body.position) < 0 || Number(body.position) > 2147483647)) return invalid('position', 'Use a non-negative whole display order.');

@@ -21,7 +21,7 @@ rules are checked against the server by contract tests.
 | 9 | CRM pipeline and follow-up deadlines | Complete |
 | 10 | Renewal lifecycle and deadlines | Complete |
 | 11 | Inbox classification, lead conversion and reply delivery | Complete |
-| 12 | CMS publication and report review/revision | Pending |
+| 12 | CMS publication and report review/revision | Complete |
 | 13 | Calendar import, handoff and client-request dialogs | Pending |
 | 14 | Saved-post hydration, uploads and review desk | Pending |
 | 15 | Editor saving, conflicts, report export and inbox composer | Pending |
@@ -170,3 +170,12 @@ mail-delivery outcomes explicit. Read and spam flags remain independent in stora
 restoring spam still makes a message unread. Conversion retains its transaction,
 existing-link reuse and deleted-lead recovery. Unconfigured mail differs from a
 failed attempted delivery, preserving existing reply-history and HTTP behavior.
+
+## 12. Content and report review
+
+`contentMachine.js` owns publication state validation used by all editable content
+controllers and public detail visibility used by shared CRUD. Collection-specific
+publication requirements stay in their validators. Report revision effects now
+explicitly distinguish commentary edits (Draft) from an explicit Review action
+(Reviewed), without changing immutable snapshot data or optimistic version checks.
+Content/public-draft regressions and report-revision tests verify these rules.

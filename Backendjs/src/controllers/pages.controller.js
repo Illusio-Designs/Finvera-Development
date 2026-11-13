@@ -1,3 +1,4 @@
+const { isPublicationState } = require("../utils/contentMachine");
 const slugify = require('slugify');
 const { Page, sequelize } = require('../models');
 const FIELDS = ['title', 'slug', 'content', 'status'];
@@ -14,7 +15,7 @@ function validate(req, res, next) {
     if (!body.slug) body.slug = slugify(body.title, { lower: true, strict: true });
   }
   if ('slug' in body && !validPageSlug(body.slug)) return invalid('slug', 'Use a short URL starting with a letter, with lowercase letters, numbers and single hyphens. Built-in website routes are reserved.');
-  if ('status' in body && !['draft', 'published'].includes(body.status)) return invalid('status', 'Choose Draft or Published.');
+  if ('status' in body && !isPublicationState(body.status)) return invalid('status', 'Choose Draft or Published.');
   if (body.content != null && typeof body.content !== 'string') return invalid('content', 'Use text for the page content.');
   next();
 }

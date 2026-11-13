@@ -1,3 +1,4 @@
+const { isPublicationState } = require("../utils/contentMachine");
 const { Stat, sequelize } = require('../models');
 const { asyncHandler } = require('../utils/crud');
 const audit = require('../utils/audit');
@@ -9,7 +10,7 @@ function validate(req, res, next) {
   const body = req.body || {}, invalid = (field, message) => res.status(400).json({ field, message });
   if ((req.method === 'POST' || 'value' in body) && (typeof body.value !== 'string' || !body.value.trim() || body.value.length > 255)) return invalid('value', 'Add a stat value of 255 characters or fewer.');
   if (req.method === 'POST' && !body.status) body.status = 'draft';
-  if ('status' in body && !['draft', 'published'].includes(body.status)) return invalid('status', 'Choose Draft or Published.');
+  if ('status' in body && !isPublicationState(body.status)) return invalid('status', 'Choose Draft or Published.');
   if ('position' in body && (!Number.isSafeInteger(Number(body.position)) || Number(body.position) < 0 || Number(body.position) > 2147483647)) return invalid('position', 'Use a non-negative whole display order.');
   if (body.label != null && (typeof body.label !== 'string' || body.label.length > 255)) return invalid('label', 'Use a stat label of 255 characters or fewer.');
   if (req.method === 'POST' && body.status === 'published' && !String(body.label || '').trim()) return invalid('label', 'Add a label before publishing.');

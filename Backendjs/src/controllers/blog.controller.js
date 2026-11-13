@@ -1,3 +1,4 @@
+const { isPublicationState } = require("../utils/contentMachine");
 const { Op } = require('sequelize');
 const slugify = require('slugify');
 const { BlogPost, sequelize } = require('../models');
@@ -22,7 +23,7 @@ function validate(req, res, next) {
   const invalid = (field, message) => res.status(400).json({ field, message });
   if ((req.method === 'POST' || 'title' in body) && (typeof body.title !== 'string' || !body.title.trim())) return invalid('title', 'Add the article title.');
   if (req.method === 'POST' && !body.status) body.status = 'draft';
-  if ('status' in body && !['draft', 'published'].includes(body.status)) return invalid('status', 'Choose Draft or Published.');
+  if ('status' in body && !isPublicationState(body.status)) return invalid('status', 'Choose Draft or Published.');
   for (const field of ['coverImage']) if (body[field] && !validUrl(body[field], true)) return invalid(field, 'Use a valid HTTP or HTTPS URL.');
   for (const field of ARRAYS) if (field in body && body[field] != null && (!Array.isArray(body[field]) || body[field].some(value => typeof value !== 'string'))) return invalid(field, 'Use a list of text values.');
   for (const field of ['title', 'author', 'category', 'coverImage', 'seoTitle', 'seoKeywords']) if (body[field] != null && (typeof body[field] !== 'string' || body[field].length > 255)) return invalid(field, 'Use text of 255 characters or fewer.');

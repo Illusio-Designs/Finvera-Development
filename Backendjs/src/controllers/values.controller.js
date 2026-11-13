@@ -1,3 +1,4 @@
+const { isPublicationState } = require("../utils/contentMachine");
 const { Value, sequelize } = require('../models');
 const { asyncHandler } = require('../utils/crud');
 const audit = require('../utils/audit');
@@ -10,7 +11,7 @@ function validate(req, res, next) {
   const body = req.body || {}, invalid = (field, message) => res.status(400).json({ field, message });
   if ((req.method === 'POST' || 'title' in body) && (typeof body.title !== 'string' || !body.title.trim() || body.title.length > 255)) return invalid('title', 'Add a value title of 255 characters or fewer.');
   if (req.method === 'POST' && !body.status) body.status = 'draft';
-  if ('status' in body && !['draft', 'published'].includes(body.status)) return invalid('status', 'Choose Draft or Published.');
+  if ('status' in body && !isPublicationState(body.status)) return invalid('status', 'Choose Draft or Published.');
   if ('icon' in body && !ICONS.includes(body.icon)) return invalid('icon', 'Choose one of the available value icons.');
   if ('position' in body && (!Number.isSafeInteger(Number(body.position)) || Number(body.position) < 0 || Number(body.position) > 2147483647)) return invalid('position', 'Use a non-negative whole display order.');
   if (body.description != null && typeof body.description !== 'string') return invalid('description', 'Use text for the value description.');

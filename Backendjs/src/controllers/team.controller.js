@@ -1,3 +1,4 @@
+const { isPublicationState } = require("../utils/contentMachine");
 const { TeamMember, sequelize } = require('../models');
 const FIELDS = ['name', 'role', 'bio', 'initials', 'photo', 'socials', 'position', 'status'];
 const error = (status, message, field) => Object.assign(new Error(message), { status, statusCode: status, field });
@@ -6,7 +7,7 @@ function validate(req, res, next) {
   const body = req.body || {}, invalid = (field, message) => res.status(400).json({ field, message });
   if ((req.method === 'POST' || 'name' in body) && (typeof body.name !== 'string' || !body.name.trim())) return invalid('name', 'Add the member name.');
   if (req.method === 'POST') { if (!body.status) body.status = 'draft'; }
-  if ('status' in body && !['draft', 'published'].includes(body.status)) return invalid('status', 'Choose Draft or Published.');
+  if ('status' in body && !isPublicationState(body.status)) return invalid('status', 'Choose Draft or Published.');
   if ('position' in body && (!Number.isSafeInteger(Number(body.position)) || Number(body.position) < 0 || Number(body.position) > 2147483647)) return invalid('position', 'Use a non-negative whole display order.');
   for (const field of ['role', 'bio', 'initials', 'photo']) {
     if (field in body && body[field] != null && typeof body[field] !== 'string') return invalid(field, 'Use text for this profile field.');
