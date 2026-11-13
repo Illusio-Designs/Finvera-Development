@@ -1,3 +1,4 @@
+const leadMachine = require("../utils/leadMachine");
 /* Lead follow-ups: touches (calls, emails, meetings …), the follow-up
    widget, counts for badges / Today, and the daily reminder rows.
 
@@ -82,8 +83,8 @@ const followUps = asyncHandler(async (req, res) => {
   }
   // One call for the widget: everything due up to a week ahead, split here.
   const rows = await Lead.findAll({ where: { ...base, nextFollowUpAt: { [Op.lte]: addDays(t, 6) } }, attributes: LIST_ATTRS, order, limit: 1000, raw: true });
-  const overdue = rows.filter((l) => String(l.nextFollowUpAt) < t);
-  const today = rows.filter((l) => String(l.nextFollowUpAt) === t);
+  const overdue = rows.filter((l) => leadMachine.followUpState(l, t) === "overdue");
+  const today = rows.filter((l) => leadMachine.followUpState(l, t) === "today");
   const week = rows.filter((l) => String(l.nextFollowUpAt) >= t);
   res.json({ today: t, counts: { today: today.length, overdue: overdue.length, week: week.length }, overdue, week });
 });
@@ -170,7 +171,7 @@ async function reminderRows(today, users, adminIds) {
    as /tasks/reorder). Only `position` is written, and only for leads that
    are in that stage — a stage change itself goes through PUT /leads/:id so
    it keeps its history, notifications and wonAt. */
-const STAGES = ["new", "contacted", "qualified", "proposal", "won", "lost"];
+const STAGES = leadMachine.STATES;
 const reorder = asyncHandler(async (req, res) => {
   const stage = String(req.body?.stage || "");
   const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number).filter((n) => Number.isInteger(n) && n > 0).slice(0, 2000);

@@ -18,7 +18,7 @@ rules are checked against the server by contract tests.
 | 6 | Account lifecycle, lockout and authentication | Complete |
 | 7 | Two-factor enrollment, tickets and backup-code consumption | Complete |
 | 8 | Invite/reset links, sessions and required password changes | Complete |
-| 9 | CRM pipeline and follow-up deadlines | Pending |
+| 9 | CRM pipeline and follow-up deadlines | Complete |
 | 10 | Renewal lifecycle and deadlines | Pending |
 | 11 | Inbox classification, lead conversion and reply delivery | Pending |
 | 12 | CMS publication and report review/revision | Pending |
@@ -145,3 +145,12 @@ password events intentionally differ in whether they clear a required password
 change. Atomic link consumption, session writes and cache invalidation remain in
 their existing locations. Tests cover consumed/expired links, legacy cutoffs,
 cross-user sessions and credential side effects.
+
+## 9. Leads
+
+`leadMachine.js` owns stage scores, win timestamps and follow-up deadline states.
+The model's existing changed-field hooks consume those rules, preserving direct
+stage jumps, manual timestamp overrides and legacy field synchronization. Open
+follow-up queries use the same classification. Tests cover leaving/reentering
+Won and time moving a follow-up through Future/Today/Overdue; Won/Lost suppress
+follow-up states.
