@@ -1,3 +1,4 @@
+const { sessionRejection } = require("../utils/credentialMachine");
 const jwt = require("jsonwebtoken");
 const { User, UserSession } = require("../models");
 const { rolesCan, rolesOf } = require("../utils/permissions");
@@ -67,13 +68,9 @@ async function resolve(token) {
     loadUser(payload.id),
     payload.jti ? loadSession(payload.jti, payload.id) : null,
   ]);
-  if (!user || !user.active) throw new AuthFail("Invalid or inactive account.");
-  if (payload.jti) {
-    if (!session || session.revokedAt || Number(session.userId) !== Number(user.id)) throw new AuthFail("Your session has ended. Please sign in again.");
-  } else if (user.tokensValidAfter && (payload.iat || 0) * 1000 < new Date(user.tokensValidAfter).getTime()) {
-    // Old-style token (no session) issued before a logout-all / reset / deactivate.
-    throw new AuthFail("Your session has ended. Please sign in again.");
-  }
+  const rejection = sessionRejection(payload, user, session);
+  if (rejection === "account") throw new AuthFail("Invalid or inactive account.");
+  if (rejection) throw new AuthFail("Your session has ended. Please sign in again.");
   return { payload, user, session };
 }
 

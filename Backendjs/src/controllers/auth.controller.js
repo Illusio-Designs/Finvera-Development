@@ -1,3 +1,4 @@
+const { credentialEvent } = require("../utils/credentialMachine");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -207,8 +208,7 @@ const changePassword = asyncHandler(async (req, res) => {
   if (!ok) return res.status(400).json({ message: "Current password is incorrect.", field: "currentPassword" });
   if (await bcrypt.compare(String(newPassword), user.password)) return res.status(400).json({ message: "Choose a password different from your current one.", field: "password" });
   user.password = await bcrypt.hash(String(newPassword), 10);
-  user.passwordChangedAt = new Date();
-  user.mustChangePassword = false;
+  Object.assign(user, credentialEvent("CHANGE_PASSWORD"));
   await user.save();
   // Sign out every other device; an old-style token (no session) can't be told apart, so it's kept.
   const ended = await sec.revokeSessions(user.id, { exceptJti: req.jti, reason: "password_changed", cutLegacy: !!req.jti });
@@ -326,9 +326,7 @@ const reset = asyncHandler(async (req, res) => {
   if (!claimed) return res.status(400).json(BAD_LINK);
   const wasInvite = row.kind === "invite" || user.invitePending;
   user.password = await bcrypt.hash(String(password), 10);
-  user.passwordChangedAt = new Date();
-  user.mustChangePassword = false; user.invitePending = false;
-  Object.assign(user, accountMachine.resetFailures());
+  Object.assign(user, credentialEvent("RESET_PASSWORD"));
   await user.save();
   const ended = await sec.revokeSessions(user.id, { reason: "password_reset" });
   forgetUser(user.id);

@@ -17,7 +17,7 @@ rules are checked against the server by contract tests.
 | 5 | OAuth selection, account health and channel pause | Complete |
 | 6 | Account lifecycle, lockout and authentication | Complete |
 | 7 | Two-factor enrollment, tickets and backup-code consumption | Complete |
-| 8 | Invite/reset links, sessions and required password changes | Pending |
+| 8 | Invite/reset links, sessions and required password changes | Complete |
 | 9 | CRM pipeline and follow-up deadlines | Pending |
 | 10 | Renewal lifecycle and deadlines | Pending |
 | 11 | Inbox classification, lead conversion and reply delivery | Pending |
@@ -135,3 +135,13 @@ Enable, Disable and Renew-codes patches. It encapsulates TOTP-step and login-tic
 consumption and backup-hash removal; password/code verification and durable writes
 stay in existing handlers. Replay tracking remains process-local, preserving the
 existing deployment semantics rather than silently introducing a new datastore.
+
+## 8. Credentials and sessions
+
+`credentialMachine.js` centralizes single-use link eligibility, session rejection,
+revocation patches and password-change/reset effects. JWT verification remains
+the expiry authority before session-row checks. Reset versus administrator-set
+password events intentionally differ in whether they clear a required password
+change. Atomic link consumption, session writes and cache invalidation remain in
+their existing locations. Tests cover consumed/expired links, legacy cutoffs,
+cross-user sessions and credential side effects.

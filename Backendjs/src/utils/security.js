@@ -1,3 +1,4 @@
+const credentialMachine = require("./credentialMachine");
 /* Account security helpers shared by auth + users controllers:
    device summary, security log, sessions, single-use email links, and the
    "something changed on your account" notices. Nothing here throws into the
@@ -81,7 +82,7 @@ async function startSession(user, req) {
 async function revokeSessions(userId, { exceptJti = null, reason = "revoked", cutLegacy = true } = {}) {
   const where = { userId, revokedAt: null };
   if (exceptJti) where.jti = { [Op.ne]: exceptJti };
-  const [count] = await UserSession.update({ revokedAt: new Date(), revokedReason: reason }, { where });
+  const [count] = await UserSession.update(credentialMachine.revocation(reason), { where });
   if (cutLegacy) {
     // Legacy tokens have no jti; anything issued before now stops working.
     await User.update({ tokensValidAfter: new Date() }, { where: { id: userId }, silent: true, hooks: false });
@@ -92,7 +93,7 @@ async function revokeSessions(userId, { exceptJti = null, reason = "revoked", cu
 }
 
 async function revokeOne(sessionRow, reason = "revoked") {
-  if (!sessionRow.revokedAt) await sessionRow.update({ revokedAt: new Date(), revokedReason: reason });
+  if (!sessionRow.revokedAt) await sessionRow.update(credentialMachine.revocation(reason));
   forgetSession(sessionRow.jti);
 }
 
@@ -139,7 +140,7 @@ async function issueLink(userId, kind, ttlMs, createdBy = null) {
 async function findLink(raw) {
   if (!raw || typeof raw !== "string" || raw.length > 200) return null;
   const row = await AuthToken.findOne({ where: { tokenHash: sha256(raw) } });
-  if (!row || row.usedAt || new Date(row.expiresAt) < new Date()) return null;
+  if (credentialMachine.linkState(row) !== "usable") return null;
   const user = await User.findByPk(row.userId);
   if (!user || !user.active) return null;
   return { row, user };

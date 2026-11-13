@@ -1,3 +1,4 @@
+const { credentialEvent } = require("../utils/credentialMachine");
 const secondFactor = require("../utils/secondFactorMachine");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
@@ -132,8 +133,7 @@ const update = asyncHandler(async (req, res) => {
   if (mustChangePassword != null) user.mustChangePassword = !!mustChangePassword;
   if (password) {
     user.password = await bcrypt.hash(password, 10);
-    user.passwordChangedAt = new Date(); user.invitePending = false;
-    Object.assign(user, resetFailures());
+    Object.assign(user, credentialEvent("ADMIN_SET_PASSWORD"));
   }
   await user.save();
   forgetUser(user.id); forgetScopes();
