@@ -5,3 +5,5 @@ test('nested site collections retain content permissions and website grouping',(
 test('SEO, settings, account and admin routes retain their own permission areas',()=>{for(const [id,area] of [['seo','seo'],['settings','settings'],['users','users'],['system','users'],['account',null]])assert.equal(nav.matchItem('/dashboard/'+id).area,area)});
 
 test('Reports appears in Social media with social-area access',()=>{const item=nav.matchItem('/dashboard/reports');assert.equal(item.area,'social');assert.equal(nav.groupFor(item).key,'social');});
+
+test('Social profiles has its own route and social access',()=>{const item=nav.matchItem('/dashboard/social-profiles');assert.equal(item.href,'/dashboard/social-profiles');assert.equal(item.area,'social');assert.equal(nav.groupFor(item).key,'social');});

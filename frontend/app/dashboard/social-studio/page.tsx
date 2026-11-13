@@ -13,7 +13,7 @@ import {
   FireIcon, FavouriteIcon, Comment01Icon, UserAdd01Icon, Calendar03Icon, StarIcon, Clock01Icon, AnalyticsUpIcon,
   Link04Icon, GridViewIcon, InstagramIcon, Facebook01Icon, PlusSignIcon, ArrowDown01Icon, ArrowUpRight01Icon,
   Alert02Icon, PlayIcon, PauseIcon, SparklesIcon, Share01Icon, Refresh01Icon, CheckmarkCircle02Icon, Unlink04Icon, Tick02Icon,
-  UserCircleIcon, Globe02Icon, Call02Icon, Mail01Icon, PencilEdit02Icon,
+  UserCircleIcon,
 } from "@hugeicons/core-free-icons";
 import { api, opsApi } from "@/lib/adminApi";
 import { userRoles } from "@/lib/permissions";
@@ -31,7 +31,6 @@ type Post = { id: number; client: string; theme: string; format: string | null; 
 type FollowerRow = { client: string; platform: Platform; day: string; followers: number };
 type Data = { brands: string[]; accounts: Acc[]; followers: FollowerRow[]; weekAgo: string; jobs: Job[]; posts: Post[]; metaConfigured: boolean; refreshedAt?: string | null; refreshing?: boolean };
 type Tab = "overview" | "channels" | "posts";
-type Profile = { platform: Platform; name?: string; username?: string; biography?: string; about?: string; description?: string; website?: string; phone?: string; email?: string; category?: string; followers?: number | null; following?: number | null; posts?: number | null; picture?: string | null; link?: string };
 
 const COLORS = ["#3e60ab", "#0f766e", "#be185d", "#a16207", "#7c5cff", "#0369a1", "#c2410c", "#15803d"];
 const DAY = 86400000;
@@ -127,40 +126,8 @@ export default function SocialStudio() {
     try { const data = await api.channelCapabilities(client, platform); setReadiness((r) => r?.client === client && r.platform === platform ? { ...r, data } : r); }
     catch (e: any) { setReadiness((r) => r?.client === client && r.platform === platform ? { ...r, error: e.message } : r); }
   }
-  const [prof, setProf] = useState<{ client: string; platform: Platform; data: Profile | null; error: string | null; form: Record<string, string>; saving: boolean; saveError?: string } | null>(null);
-  const photoRequest = useRef(0);
-  const [photoBusy, setPhotoBusy] = useState(false), [photoError, setPhotoError] = useState(""), [photoVersion, setPhotoVersion] = useState(0);
-  async function refreshPhoto() {
-    if (!prof || photoBusy) return;
-    const { client, platform } = prof; const request = ++photoRequest.current;
-    setPhotoBusy(true); setPhotoError("");
-    try {
-      const result = await api.channelPicture(client, platform);
-      setData(current => current ? { ...current, accounts: current.accounts.map(account => account.client === client ? { ...account, stats: { ...account.stats, [platform]: { ...account.stats?.[platform], picture: result.picture } }, ...(platform === "instagram" ? { igAvatar: result.picture } : {}) } : account) } : current);
-      setProf(current => current?.client === client && current.platform === platform && current.data ? { ...current, data: { ...current.data, picture: result.picture } } : current);
-      setPhotoVersion(version => version + 1);
-    } catch (error: any) { if (request === photoRequest.current) setPhotoError(error.message); }
-    finally { if (request === photoRequest.current) setPhotoBusy(false); }
-  }
-  async function openProfile(client: string, platform: Platform) {
-    photoRequest.current++; setPhotoBusy(false); setPhotoError("");
-    setProf({ client, platform, data: null, error: null, form: {}, saving: false });
-    try {
-      const d: Profile = await api.channelProfile(client, platform);
-      setProf((current) => current?.client === client && current.platform === platform ? { client, platform, data: d, error: null, saving: false, form: { about: d.about || "", description: d.description || "", website: d.website || "", phone: d.phone || "", email: d.email || "" } } : current);
-    } catch (e: any) { setProf((p) => (p?.client === client && p.platform === platform ? { ...p, error: e.message } : p)); }
-  }
-  async function saveProfile() {
-    if (!prof) return;
-    setProf({ ...prof, saving: true, saveError: undefined });
-    try {
-      const d: Profile = await api.updatePageProfile(prof.client, prof.form);
-      setProf((p) => p?.client === prof.client && p.platform === prof.platform ? { ...p, data: d, saving: false } : p);
-      toast("Page details saved", "ok", { description: `${prof.client} · Facebook` });
-    } catch (e: any) {
-      setProf((p) => (p?.client === prof.client && p.platform === prof.platform ? { ...p, saving: false, saveError: e.message } : p));
-      toast("Couldn't save to Facebook", "err", { description: e.message });
-    }
+  function openProfile(client: string, platform: Platform) {
+    window.location.assign(`/dashboard/social-profiles?brand=${encodeURIComponent(client)}&platform=${platform}`);
   }
 
   useEffect(() => {
@@ -472,7 +439,7 @@ export default function SocialStudio() {
                   {chs.map((c) => (
                     <article key={c.platform} className={"ss-ch " + c.state}>
                       <div className="ss-ch-h">
-                        <ChannelAvatar key={`${c.picture}:${photoVersion}`} picture={c.picture} label={b} className={"ss-ava" + (c.platform === "instagram" ? " ig" : "")} color={color(b)} />
+                        <ChannelAvatar key={c.picture} picture={c.picture} label={b} className={"ss-ava" + (c.platform === "instagram" ? " ig" : "")} color={color(b)} />
                         <div><b>{c.handle}</b><small>{c.platform === "instagram" ? "Instagram Business" : "Facebook Page"}</small></div>
                         <span className={"ss-st " + c.state}>{c.state === "live" ? "● Connected" : c.state === "paused" ? "Paused" : "● Reconnect"}</span>
                       </div>
@@ -606,75 +573,6 @@ export default function SocialStudio() {
               <details><summary>Granted scopes</summary><p className="ss-note">{readiness.data.scopes?.join(", ") || "Unknown — not verified"}</p></details>
             </>}
             <button type="button" className="ss-chip" disabled={!readiness.data && !readiness.error} onClick={() => checkReadiness(readiness.client, readiness.platform)}>Check again</button>
-          </aside>
-        </div>
-      )}
-
-      {prof && (
-        <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setProf(null); }}>
-          <aside className="adm-drawer ss-prof" role="dialog" aria-modal="true" aria-label={`${prof.client} ${PNAME[prof.platform]} profile`}>
-            <div className="ss-modal-h"><h3>{PNAME[prof.platform]} profile</h3><button type="button" className="ss-btn" onClick={() => setProf(null)} aria-label="Close">×</button></div>
-            <button type="button" className="ss-btn" disabled={photoBusy || prof.saving} onClick={refreshPhoto}>{photoBusy ? "Refreshing photo…" : "Refresh photo"}</button>
-            {photoError && <p className="ss-load-error" role="alert">{photoError}</p>}
-            {prof.saveError && <p className="ss-load-error" role="alert">{prof.saveError}</p>}
-            {prof.error && <div className="ss-attn">{prof.error}</div>}
-            {!prof.data && !prof.error && <div className="ss-loading">Loading profile…</div>}
-            {prof.data && (() => {
-              const d = prof.data, ig = prof.platform === "instagram";
-              const canEdit = !ig && !limited;
-              const f = prof.form, setF = (k: string, val: string) => setProf({ ...prof, form: { ...f, [k]: val } });
-              return (
-                <>
-                  <div className={"ss-prof-cover " + prof.platform}>
-                    <ChannelAvatar key={`${d.picture}:${photoVersion}`} picture={d.picture} label={prof.client} className={"ss-ava big" + (ig ? " ig" : "")} color={color(prof.client)} />
-                  </div>
-                  <div className="ss-prof-id">
-                    {d.link && <a className="ss-chip" href={d.link} target="_blank" rel="noopener noreferrer">Open profile ↗</a>}
-                    <b>{ig ? d.name || `@${d.username}` : d.name}</b>
-                    <small>{ig ? `@${d.username}` : d.category || "Facebook Page"}</small>
-                  </div>
-                  <div className="ss-ch-n">
-                    <div><b>{nf(d.followers ?? null)}</b><span>Followers</span></div>
-                    {ig ? <><div><b>{nf(d.following ?? null)}</b><span>Following</span></div><div><b>{nf(d.posts ?? null)}</b><span>Posts</span></div></>
-                      : <div><b>{v.channels.find((c) => c.client === prof.client && c.platform === "facebook")?.published30 ?? 0}</b><span>Published (30d)</span></div>}
-                  </div>
-                  {ig ? (
-                    <>
-                      <div className="ss-prof-sec"><span>Bio</span><p>{d.biography || "No bio yet."}</p></div>
-                      {d.website && <div className="ss-prof-sec"><span>Website</span><a href={d.website} target="_blank" rel="noopener noreferrer">{d.website}</a></div>}
-                      <p className="ss-note">Profile edits for Instagram are not implemented in Finvera. Use Instagram to change the name, bio, website or picture, then refresh this profile.</p>
-                      <a className="ss-chip dark" href="https://www.instagram.com/accounts/edit/" target="_blank" rel="noopener noreferrer"><Icon i={PencilEdit02Icon} size={14} />Edit on Instagram</a>
-                    </>
-                  ) : canEdit ? (
-                    <form className="ss-prof-form" onSubmit={(e) => { e.preventDefault(); saveProfile(); }}>
-                      <label className="ss-field">About <small>Short line under the Page name (up to 255 characters)</small>
-                        <input value={f.about} maxLength={255} onChange={(e) => setF("about", e.target.value)} /></label>
-                      <label className="ss-field">Description
-                        <textarea rows={4} value={f.description} onChange={(e) => setF("description", e.target.value)} /></label>
-                      <label className="ss-field"><span className="ss-lbl"><Icon i={Globe02Icon} size={14} />Website</span>
-                        <input value={f.website} placeholder="https://" onChange={(e) => setF("website", e.target.value)} /></label>
-                      <div className="ss-two">
-                        <label className="ss-field"><span className="ss-lbl"><Icon i={Call02Icon} size={14} />Phone</span>
-                          <input value={f.phone} onChange={(e) => setF("phone", e.target.value)} /></label>
-                        <label className="ss-field"><span className="ss-lbl"><Icon i={Mail01Icon} size={14} />Email</span>
-                          <input type="email" value={f.email} onChange={(e) => setF("email", e.target.value)} /></label>
-                      </div>
-                      <p className="ss-note">Saved straight to the Facebook Page. The Page name and pictures are changed on Facebook.</p>
-                      <div className="ss-modal-f">
-                        <a className="ss-chip" href={d.link} target="_blank" rel="noopener noreferrer">Open Page <Icon i={ArrowUpRight01Icon} size={14} /></a>
-                        <button type="submit" className="ss-chip dark" disabled={prof.saving}>{prof.saving ? "Saving…" : "Save to Facebook"}</button>
-                      </div>
-                    </form>
-                  ) : (
-                    <>
-                      {d.about && <div className="ss-prof-sec"><span>About</span><p>{d.about}</p></div>}
-                      {d.description && <div className="ss-prof-sec"><span>Description</span><p>{d.description}</p></div>}
-                      {d.website && <div className="ss-prof-sec"><span>Website</span><a href={d.website} target="_blank" rel="noopener noreferrer">{d.website}</a></div>}
-                    </>
-                  )}
-                </>
-              );
-            })()}
           </aside>
         </div>
       )}

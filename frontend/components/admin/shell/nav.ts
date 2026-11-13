@@ -23,6 +23,7 @@ export const NAV_GROUPS: NavGroup[] = [
   ] },
   { key: "social", label: "Social media", shortLabel: "Social", icon: Calendar03Icon, eyebrow: "Make & publish", description: "From first idea to live post.", items: [
     { href: "/dashboard/social", label: "Content calendar", icon: Calendar03Icon, area: "social", description: "Plan, produce & publish" },
+    { href: "/dashboard/social-profiles", label: "Social profiles", icon: UserIcon, area: "social", description: "Profile details & photos" },
     { href: "/dashboard/social-studio", label: "Social studio", icon: AnalyticsUpIcon, area: "social", description: "Accounts & performance" },
     { href: "/dashboard/reports", label: "Social reports", icon: AnalyticsUpIcon, area: "social", description: "Team work & client results" },
   ] },

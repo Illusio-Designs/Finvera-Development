@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import PageLoading from "@/components/admin/PageLoading";
 import "./social-workspace.css";
 import { useWorkflowDialog, useImportWizard } from "@/lib/useWorkflowDialog";
@@ -1587,6 +1588,7 @@ export default function SocialCalendar() {
           <p>{limited ? "Your brands, your next steps, and the work ready to move forward." : "Plan it, make it, review it, publish it. Every brand, in one clear flow."}</p>
         </div>
         <div className="cal-head-actions">
+            <Link className="cal-btn" href={`/dashboard/social-profiles${client ? `?brand=${encodeURIComponent(client)}` : ""}`}>Social profiles</Link>
           <input ref={fileRef} type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={(e) => { importCsv(e.target.files?.[0]); e.currentTarget.value = ""; }} />
           <button type="button" className="cal-primary" onClick={newPost} disabled={limited && !clientNames.length}>+ New post</button>
           <button type="button" className="cal-btn" onClick={() => fileRef.current?.click()}>Import sheet</button>
