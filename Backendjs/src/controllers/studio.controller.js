@@ -1,3 +1,4 @@
+const { pausedAfter } = require("../utils/socialConnectionMachine");
 /* Social studio: one call returns everything the page needs for the brands
    the caller can see — channels (with follower numbers), publishing jobs
    (with likes / comments read back from Instagram and Facebook) and the
@@ -141,10 +142,9 @@ const pause = asyncHandler(async (req, res) => {
   const saved = await sequelize.transaction(async (transaction) => {
     const acc = await SocialAccount.findOne({ where: { client: req.params.client }, transaction, lock: transaction.LOCK.UPDATE });
     if (!acc) return null;
-    const set = new Set(asArr(acc.paused));
-    if (req.body.paused) set.add(platform); else set.delete(platform);
-    await acc.update({ paused: [...set] }, { transaction });
-    return { client: acc.client, paused: [...set] };
+    const paused = pausedAfter(acc.paused, platform, req.body.paused);
+    await acc.update({ paused }, { transaction });
+    return { client: acc.client, paused };
   });
   if (!saved) return res.status(404).json({ message: "This brand isn't connected." });
   await auto.syncBrand(saved.client);

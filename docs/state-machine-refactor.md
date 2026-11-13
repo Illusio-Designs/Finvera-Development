@@ -14,7 +14,7 @@ rules are checked against the server by contract tests.
 | 2 | Publishing job lifecycle, retry and lease recovery | Complete |
 | 3 | Approval invalidation and multi-platform completion | Complete |
 | 4 | Instagram/Facebook checkpoints and Reel cover retry | Complete |
-| 5 | OAuth selection, account health and channel pause | Pending |
+| 5 | OAuth selection, account health and channel pause | Complete |
 | 6 | Account lifecycle, lockout and authentication | Pending |
 | 7 | Two-factor enrollment, tickets and backup-code consumption | Pending |
 | 8 | Invite/reset links, sessions and required password changes | Pending |
@@ -107,3 +107,13 @@ checkpoint object, serialization fields, persistence order and remote calls are
 unchanged, so existing interrupted-upload and cover-only retry behavior survives.
 Platform regression tests exercise actual publisher functions with fake Meta
 responses; checkpoint tests verify retained result IDs and approval fingerprints.
+
+## 5. Social connections
+
+`socialConnectionMachine.js` names OAuth selection eligibility and Connect/Auth
+failure events, plus channel pause/resume transitions and target selection. The
+controller still consumes the selection row only after saving the connection;
+health-check transport failures still do not change connection status. Channel
+updates retain the existing row lock and subsequent job synchronization. Tests
+cover selection ownership/expiry, empty explicit target lists and independent
+pause/resume behavior.

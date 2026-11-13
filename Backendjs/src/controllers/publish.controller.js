@@ -19,6 +19,7 @@ const { rolesOf } = require("../utils/permissions");
 const { UPLOAD_DIR } = require("../middleware/upload");
 const jobMachine = require("../utils/publishJobMachine");
 const { checkpointOf } = jobMachine;
+const connectionMachine = require("../utils/socialConnectionMachine");
 
 const SEL_TTL_MS = 15 * 60 * 1000;
 const frontendUrl = require("../utils/frontendUrl");
@@ -68,7 +69,7 @@ async function readSelection(id, userId) {
   if (!row) return null;
   let sel = null;
   try { sel = JSON.parse(meta.decrypt(row.value)); } catch { sel = null; }
-  if (!sel || sel.exp < Date.now() || sel.userId !== userId) return null;
+  if (connectionMachine.selectionState(sel, userId) !== "selectable") return null;
   return { sel, row };
 }
 
@@ -85,7 +86,7 @@ const choose = asyncHandler(async (req, res) => {
   if (!page) return res.status(400).json({ message: "Pick one of the Pages listed." });
   const data = {
     client: r.sel.brand, pageId: page.pageId, pageName: page.pageName, pageToken: meta.encrypt(page.pageToken),
-    igUserId: page.igUserId, igUsername: page.igUsername, igAvatar: page.igAvatar, connectedBy: req.user.id, status: "connected", lastError: null,
+    igUserId: page.igUserId, igUsername: page.igUsername, igAvatar: page.igAvatar, connectedBy: req.user.id, ...connectionMachine.connectionEvent("CONNECT"),
   };
   const existing = await SocialAccount.findOne({ where: { client: data.client } });
   const priorStats = existing && existing.pageId === data.pageId ? { ...(typeof existing.stats === "object" ? existing.stats : {}) } : {};

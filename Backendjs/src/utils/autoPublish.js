@@ -26,7 +26,7 @@ const { notifyUsers } = require("./notify");
 const { rolesOf } = require("./permissions");
 const jobMachine = require("./publishJobMachine");
 
-const PLATFORMS = ["instagram", "facebook"];
+const { PLATFORMS, targetsFor, connectionEvent } = require("./socialConnectionMachine");
 const NAMES = { instagram: "Instagram", facebook: "Facebook" };
 const LATE_LIMIT_MS = 6 * 3600 * 1000;
 const LEASE_MS = 10 * 60 * 1000;
@@ -63,14 +63,6 @@ function composeCaption(p) {
 
 /* Platforms this post goes to: the brand's connected ones, narrowed by the
    post's own ticks if it has any. */
-function targetsFor(p, acc) {
-  if (!acc || acc.status !== "connected") return [];
-  const paused = asArr(acc.paused);
-  const connected = ["facebook", ...(acc.igUserId ? ["instagram"] : [])].filter((pl) => !paused.includes(pl));
-  const chosen = p.publishTo == null ? null : asArr(p.publishTo);
-  return PLATFORMS.filter((pl) => connected.includes(pl) && (!chosen || chosen.includes(pl)));
-}
-
 /* Bring a post's jobs in line with its current state. Safe to call often. */
 async function syncJobs(post) {
   try {
@@ -209,7 +201,7 @@ async function runJob(job) {
     const msg = e.message || "Meta returned an error.";
     if ((e.publishStage !== "cover" || [190, 102].includes(Number(e.meta?.code))) && /token|session|OAuthException|permission/i.test(`${e.meta?.type || ""} ${msg}`) && [190, 102, 10, 200].includes(Number(e.meta?.code))) {
       const was = acc.status;
-      await acc.update({ status: "reconnect", lastError: msg }).catch(() => {});
+      await acc.update({ ...connectionEvent("AUTH_FAILURE"), lastError: msg }).catch(() => {});
       if (was === "connected") require("./metaHealth").alertReconnect(acc, msg).catch(() => {});
     }
     if (cp.publishedConfirmed && cp.coverPending && e.publishStage === "cover") { await finish({ remoteId: cp.publishedId, url: cp.publishedUrl }); return fail("failed", msg); }

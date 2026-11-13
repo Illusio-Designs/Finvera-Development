@@ -1,3 +1,4 @@
+const { connectionEvent } = require("./socialConnectionMachine");
 /* Meta (Facebook Page + Instagram) connection health.
 
    Once a day (and on demand: POST /api/social-accounts/check) every connected
@@ -46,7 +47,7 @@ async function checkAccount(acc) {
   let token;
   try { token = meta.decrypt(acc.pageToken); } catch { token = null; }
   const markReconnect = async (msg) => {
-    await acc.update({ status: "reconnect", lastError: msg, lastCheckedAt: new Date() });
+    await acc.update({ ...connectionEvent("AUTH_FAILURE"), lastError: msg, lastCheckedAt: new Date() });
     out.status = "reconnect"; out.ok = false; out.error = msg;
     if (out.before === "connected") await alertReconnect(acc, msg);
   };
