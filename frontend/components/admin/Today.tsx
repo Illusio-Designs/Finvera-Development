@@ -1,4 +1,5 @@
 "use client";
+import { useDisclosure } from "@/lib/useDisclosure";
 import { useResourceState } from "@/lib/useResourceState";
 import PageLoading from "@/components/admin/PageLoading";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -201,7 +202,7 @@ function LazyKpis({ mode }: { mode: "team" | "me" }) {
 
 /* ── Create menu ── */
 function CreateMenu({ items }: { items: { label: string; href: string; icon: Icon }[] }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useDisclosure(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;

@@ -1,4 +1,5 @@
 "use client";
+import { useDisclosure } from "@/lib/useDisclosure";
 import { useState } from "react";
 import Toaster from "./admin/Toaster";
 import { toast } from "@/lib/toast";
@@ -49,7 +50,7 @@ export function TooltipDemo() {
 }
 
 export function ConfirmDemo() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useDisclosure(false);
   return (
     <>
       <button className="btn btn-ghost" data-cursor onClick={() => setOpen(true)}>Open confirm dialog</button>

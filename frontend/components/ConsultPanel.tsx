@@ -1,4 +1,5 @@
 "use client";
+import { useDisclosure } from "@/lib/useDisclosure";
 import { enquiryTransition } from "@/lib/enquiryMachine";
 import { useEffect, useReducer, useState } from "react";
 import { Arrow } from "./icons";
@@ -16,7 +17,7 @@ const endpoint = `${(process.env.NEXT_PUBLIC_API_URL || "https://api.finvera.sol
  * feedback + a success check micro-animation.
  */
 export default function ConsultPanel() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useDisclosure(false);
   const [submission, dispatch] = useReducer(enquiryTransition, "idle");
   const sending = submission === "sending", done = submission === "ok";
   const guard = useSpamGuard();

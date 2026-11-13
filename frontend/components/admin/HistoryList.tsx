@@ -1,4 +1,5 @@
 "use client";
+import { useDisclosure } from "@/lib/useDisclosure";
 /* "History" for one item (lead, renewal, card, post, site content …):
    who changed what and when, newest first, from GET /activity/:entity/:id.
    Collapsed to a button by default so drawers stay light; `open` shows it
@@ -18,7 +19,7 @@ function mediaLinks(value: unknown): { url: string; name?: string }[] {
 export default function HistoryList({ entity, id, open: startOpen = false, refreshKey = 0, title = "History" }: {
   entity: string; id: string | number | null | undefined; open?: boolean; refreshKey?: number | string; title?: string;
 }) {
-  const [open, setOpen] = useState(startOpen);
+  const [open, setOpen] = useDisclosure(startOpen);
   const [rows, setRows] = useState<ActivityRow[] | null>(null);
   const [err, setErr] = useState("");
   const [showAll, setShowAll] = useState(false);

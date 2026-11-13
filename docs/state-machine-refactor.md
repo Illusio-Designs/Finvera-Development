@@ -28,7 +28,7 @@ rules are checked against the server by contract tests.
 | 16 | Public enquiry forms and CAPTCHA | Complete |
 | 17 | Data loading, pagination and connectivity | Complete |
 | 18 | Push, installation, notifications and read status | Complete |
-| 19 | Images, dialogs, navigation and marketing interactions | Pending |
+| 19 | Images, dialogs, navigation and marketing interactions | Complete |
 | 20 | Operational tools and server startup | Pending |
 | 21 | Schedulers, runner locks and alert claims | Pending |
 | 22 | Backup artifacts, studio refresh and shared caches | Pending |
@@ -233,3 +233,13 @@ Installed/Prompt/Instructions/Unavailable states are named in
 notification machine classifies delivered/expired/failed push responses and read
 patches; only expired subscriptions are removed. Service-worker visibility selects
 Quiet/Audible delivery while native install/activate events remain native.
+
+## 19. Presentation and disclosure
+
+`presentationMachine.ts`/`useDisclosure.ts` name Open/Closed events used by dropdowns,
+pickers, navigation, the bell, reports/history and the cookie prompt. Selected
+tabs/options remain their existing explicit values. Image Loading/Ready/Fail
+events retain generation/source guards; dialog confirm/cancel results share a
+pure resolver. Marketing reveal policy keeps one-way reveals visible. Native
+animation/preloader events and existing DOM class/timer effects remain in their
+components. Tests cover toggling, one-way reveals and prompt/confirm/alert results.

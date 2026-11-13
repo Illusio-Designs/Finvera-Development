@@ -1,4 +1,5 @@
 "use client";
+import { useDisclosure } from "@/lib/useDisclosure";
 import { useResourceState } from "@/lib/useResourceState";
 /* Monthly KPI report for the content calendar: pick a month (last month by
    default), see the team and brand tables with the change from the month
@@ -36,7 +37,7 @@ function Change({ now, prev, unit = "", better = "up" }: { now: unknown; prev: u
 }
 
 export function MonthlyReportButton() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useDisclosure(false);
   return (
     <>
       <button type="button" className="exp-reportbtn" onClick={() => setOpen(true)}>Monthly report</button>

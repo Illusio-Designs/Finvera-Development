@@ -1,4 +1,5 @@
 "use client";
+import { useDisclosure } from "@/lib/useDisclosure";
 import { readNotification } from "@/lib/notificationMachine";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -61,7 +62,7 @@ export default function NotificationBell({ announce: _announce = false }: { anno
   const router = useRouter();
   const [items, setItems] = useState<Notif[]>([]);
   const [unread, setUnread] = useState(0);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useDisclosure(false);
   const [sound, setSound] = useState(true);
   const ref = useRef<HTMLDivElement>(null);
   const [push, setPush] = useState<PushState | null>(null);

@@ -11,6 +11,17 @@ const editors = load("editorMachine");
 const enquiries = load("enquiryMachine");
 const resources = load("resourceMachine");
 const notifications = load("notificationMachine");
+const presentation = load("presentationMachine");
+test("disclosure toggles, one-way reveals and dialog results retain their UI contracts", () => {
+  assert.equal(presentation.disclosureTransition("closed", "TOGGLE"), "open");
+  assert.equal(presentation.disclosureTransition("open", "CLOSE"), "closed");
+  assert.equal(presentation.revealState(false, true, true), "visible");
+  assert.equal(presentation.revealState(false, false, true), "hidden");
+  assert.equal(presentation.dialogResult("prompt", true, " text "), "text");
+  assert.equal(presentation.dialogResult("prompt", true, " "), null);
+  assert.equal(presentation.dialogResult("confirm", false, ""), false);
+  assert.equal(presentation.dialogResult("alert", true, ""), undefined);
+});
 test("push permission and install requirements are separate from subscription key replacement", () => {
   const input = { ios: false, standalone: false, supported: true, permission: "granted" };
   assert.equal(notifications.pushEligibility(input), "subscription");

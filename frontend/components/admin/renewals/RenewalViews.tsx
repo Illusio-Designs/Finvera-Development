@@ -1,4 +1,5 @@
 "use client";
+import { useDisclosure } from "@/lib/useDisclosure";
 /* The two views of the renewals list — a month-by-month timeline and a
    compact table — plus the row "⋯" menu. Rows come searched / filtered from
    the page. On phones both views show cards. */
@@ -31,7 +32,7 @@ export const contactLinks = (r: Pick<RenewalRow, "phone" | "email" | "client" | 
 
 /* ── ⋯ menu ── */
 function RowMenu({ r, h }: { r: RenewalRow; h: RowHandlers }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useDisclosure(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const btn = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
