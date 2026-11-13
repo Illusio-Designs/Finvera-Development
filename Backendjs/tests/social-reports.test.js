@@ -4,3 +4,10 @@ test('client reports deduplicate publications, retain missing metrics and exclud
 test('CSV text is quoted and spreadsheet formulas are neutralized',()=>{const csv=csvReport({kind:'client',posts:[{title:'=2+3',channel:'instagram',likes:0,comments:null}]});assert.ok(csv.includes("\"'=2+3\""));assert.ok(csv.includes('Not available'));assert.ok(csv.includes('"0"'));});
 
 test('preview consistency hashes ignore capture time and detect changed metrics',()=>{const{fingerprint}=require('../src/utils/socialReports');const data={kind:'client',totals:{published:2},generatedAt:'old'};assert.equal(fingerprint(data),fingerprint({...data,generatedAt:'new'}));assert.notEqual(fingerprint(data),fingerprint({...data,totals:{published:3}}));});
+
+test('monthly brand activity uses scoped events and India-time boundaries without exposing staff details',()=>{
+ const {contentActivity}=require('../src/utils/socialReports'),period=periodOf('2026-10',new Date('2026-11-07'));
+ const row=(postId,fromStatus,at,client='A')=>({postId,fromStatus,at,client,byUserId:42,private:'secret'});
+ const result=contentActivity([row(1,null,'2026-09-30T18:30:00Z'),row(1,'planned','2026-10-01T00:00:00Z'),row(1,'production','2026-10-01T01:00:00Z'),row(2,'approval','2026-10-31T18:29:59Z'),row(3,'ready','2026-10-31T18:30:00Z'),row(4,null,'2026-10-02T00:00:00Z','B')],'A',period);
+ assert.equal(result.created,1);assert.equal(result.workflowUpdates,3);assert.equal(result.updatedPosts,2);assert.deepEqual(result.daily,[{day:'2026-10-01',created:1,updates:2},{day:'2026-10-31',created:0,updates:1}]);assert.equal(JSON.stringify(result).includes('secret'),false);assert.equal(contentActivity(undefined,'A',period),null);assert.equal(contentActivity([],'A',period).workflowUpdates,0);
+});

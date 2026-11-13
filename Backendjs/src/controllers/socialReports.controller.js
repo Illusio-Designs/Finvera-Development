@@ -1,5 +1,5 @@
 const {Op}=require('sequelize');
-const {sequelize,SocialClient,SocialPost,SocialPublishJob,SocialAccount,SocialStat,SocialReportSnapshot}=require('../models');
+const {sequelize,SocialClient,SocialPost,SocialPublishJob,SocialAccount,SocialStat,SocialPostEvent,SocialReportSnapshot}=require('../models');
 const {asyncHandler}=require('../utils/crud'),{periodOf,clientData,csvReport,fail,fingerprint}=require('../utils/socialReports'),{getKpis}=require('./kpi.controller');
 const audit=require('../utils/audit');
 const names=req=>req.socialScope?[...req.socialScope]:null;
@@ -7,12 +7,13 @@ let schema;async function ensure(){if(!schema)schema=SocialReportSnapshot.sync()
 async function brand(req,value){if(typeof value!=='string'||!value.trim()||req.socialScope&&!req.socialScope.has(value))throw fail(404,'Client not found.');const item=await SocialClient.findOne({where:{name:value},attributes:['id','name']});if(!item)throw fail(404,'Client not found.');return item.name;}
 async function build(req,q){const period=periodOf(q.month);if(q.kind==='client'){
  const client=await brand(req,q.brand);
- return sequelize.transaction(async transaction=>{const options={transaction,raw:true};const [posts,jobs,accounts,followers]=await Promise.all([
+ return sequelize.transaction(async transaction=>{const options={transaction,raw:true};const [posts,jobs,accounts,followers,events]=await Promise.all([
  SocialPost.findAll({...options,where:{client},attributes:['id','theme','format','status','postDate']}),
  SocialPublishJob.findAll({...options,where:{client,status:'published',publishedAt:{[Op.gte]:period.start,[Op.lt]:period.until}},attributes:['postId','platform','status','publishedAt','metrics','metricsAt','url']}),
  SocialAccount.findAll({...options,where:{client},attributes:['stats','statsAt']}),
- SocialStat.findAll({...options,where:{client,day:{[Op.gte]:new Date(+period.start-45*86400000).toISOString().slice(0,10),[Op.lte]:period.to}},order:[['day','ASC']],attributes:['platform','day','followers']})]);
- if(jobs.length>20000||posts.length>50000)throw fail(413,'This report is too large. Contact an administrator.');return clientData({brand:client,period,posts,jobs,accounts,followers});});
+ SocialStat.findAll({...options,where:{client,day:{[Op.gte]:new Date(+period.start-45*86400000).toISOString().slice(0,10),[Op.lte]:period.to}},order:[['day','ASC']],attributes:['platform','day','followers']}),
+ SocialPostEvent.findAll({...options,where:{client,at:{[Op.gte]:period.start,[Op.lt]:period.until}},attributes:['postId','client','fromStatus','at'],limit:50001})]);
+ if(jobs.length>20000||posts.length>50000||events.length>50000)throw fail(413,'This report is too large. Contact an administrator.');return clientData({brand:client,period,posts,jobs,accounts,followers,events});});
  }
  if(q.kind!=='team')throw fail(400,'Choose Team performance or Client report.');
  if(q.brand)await brand(req,q.brand);
