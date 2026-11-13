@@ -1,4 +1,5 @@
 "use client";
+import { useActivity } from "@/lib/useActivity";
 /* Settings card (admins): re-compress images uploaded before compression was
    added. Calls POST /uploads/optimize-existing in batches of 20 until nothing
    is left, with a progress bar and the space saved. */
@@ -13,7 +14,7 @@ const NOT_INSTALLED = "Image compression isn't installed on the server yet — i
 
 export default function ShrinkImages() {
   const [admin, setAdmin] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useActivity();
   const [done, setDone] = useState(0);
   const [left, setLeft] = useState<number | null>(null);
   const [saved, setSaved] = useState(0);

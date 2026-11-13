@@ -1,4 +1,5 @@
 "use client";
+import { useResourceState } from "@/lib/useResourceState";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/adminApi";
@@ -186,9 +187,7 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
   toolbar, rowFilter, drawerExtra, openId, onOpened, beforeSave, historyEntity, exportEntity, exportParams, drawerTitle }: Props) {
   const histEntity = historyEntity === false ? null : historyEntity || HISTORY_ENTITY[resource] || null;
   const expEntity = exportEntity === false ? null : exportEntity || EXPORT_ENTITY[resource] || null;
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { data: rows, setData: setRows, loading, setLoading, error, setError } = useResourceState<any[]>([]);
   const [editing, setEditing] = useState<Record<string, any> | null>(null);
   const [saving, setSaving] = useState(false);
   const [formErr, setFormErr] = useState("");

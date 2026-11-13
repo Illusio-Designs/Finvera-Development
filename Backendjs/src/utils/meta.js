@@ -130,6 +130,7 @@ async function waitForContainer(id, token, maxMs = 5 * 60 * 1000) {
    `cp` is the job's checkpoint: the container id is saved as soon as it
    exists so a retry resumes instead of uploading again, and `publishCalled`
    marks the moment after which the outcome is uncertain on failure. */
+const { advance: advanceCheckpoint } = require("./publishCheckpointMachine");
 async function publishInstagram(acc, media, caption, cp = {}, save = async () => {}, profiles = "", options = {}) {
   const story = /story|stories/i.test(options.format || "");
   if (story && (media.length !== 1 || profiles || media.some(item => imageTags(item).length))) throw new Error("A Story needs one asset and does not support image profile tags.");
@@ -160,9 +161,9 @@ async function publishInstagram(acc, media, caption, cp = {}, save = async () =>
     const c = await graph("POST", `/${ig}/media`, { media_type: "CAROUSEL", children: children.join(","), caption, access_token: token });
     creation = c.id;
   }
-  if (!cp.creationId) { cp.creationId = creation; await save(cp); }
+  if (!cp.creationId) { advanceCheckpoint(cp, "STAGE_INSTAGRAM", { creationId: creation }); await save(cp); }
   await waitForContainer(creation, token);
-  cp.publishCalled = true; await save(cp);
+  advanceCheckpoint(cp, "START_WRITE"); await save(cp);
   const pub = await graph("POST", `/${ig}/media_publish`, { creation_id: creation, access_token: token });
   const info = await graph("GET", `/${pub.id}`, { fields: "permalink", access_token: token }).catch(() => ({}));
   return { id: pub.id, url: info.permalink || null };
@@ -186,7 +187,7 @@ async function publishFacebook(acc, media, caption, cp = {}, save = async () => 
   const page = acc.pageId;
   if (/story|stories|reel/i.test(options.format || "")) return require("./socialMetaFormats").publishFacebookFormat({ page, token, media, caption, format: options.format, checkpoint: cp, save }, { graph, isVideo, waitForPublished: waitForFacebookPublished, uploadHosted: require("./metaUploads").uploadHosted, uploadCover: (id, url, access) => require("./metaUploads").uploadCover(id, url, access, FB_GRAPH) });
   let postId;
-  const mark = async () => { cp.publishCalled = true; await save(cp); };
+  const mark = async () => { advanceCheckpoint(cp, "START_WRITE"); await save(cp); };
   const video = media.find(isVideo);
   if (video && media.length > 1) throw new Error("Facebook video publishing supports one video per post in Finvera. Split the media into separate posts.");
   if (video) {

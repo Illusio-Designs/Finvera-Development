@@ -1,3 +1,4 @@
+const { isPublicationState } = require("../utils/contentMachine");
 const { Logo, sequelize } = require('../models');
 const { asyncHandler } = require('../utils/crud');
 const audit = require('../utils/audit');
@@ -15,7 +16,7 @@ function validate(req, res, next) {
   const body = req.body || {}, invalid = (field, message) => res.status(400).json({ field, message });
   if ((req.method === 'POST' || 'name' in body) && (typeof body.name !== 'string' || !body.name.trim() || body.name.length > 255)) return invalid('name', 'Add a company name of 255 characters or fewer.');
   if (req.method === 'POST' && !body.status) body.status = 'draft';
-  if ('status' in body && !['draft', 'published'].includes(body.status)) return invalid('status', 'Choose Draft or Published.');
+  if ('status' in body && !isPublicationState(body.status)) return invalid('status', 'Choose Draft or Published.');
   if ('position' in body && (!Number.isSafeInteger(Number(body.position)) || Number(body.position) < 0 || Number(body.position) > 2147483647)) return invalid('position', 'Use a non-negative whole display order.');
   if ('image' in body && !validImage(body.image)) return invalid('image', 'Use an uploaded logo or a valid HTTP image URL of 255 characters or fewer.');
   next();

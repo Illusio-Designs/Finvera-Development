@@ -1,4 +1,6 @@
 "use client";
+import { useDisclosure } from "@/lib/useDisclosure";
+import { useResourceState } from "@/lib/useResourceState";
 import PageLoading from "@/components/admin/PageLoading";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -27,26 +29,25 @@ import { visibleInterval } from "@/lib/visibleInterval";
    first. Each card shows its own skeleton, empty state and error. */
 
 type Src<T> = { data: T | null; error: string; loading: boolean };
-const idle = <T,>(): Src<T> => ({ data: null, error: "", loading: false });
 const msg = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong");
 
 function useSource<T>(run: () => Promise<T>, enabled: boolean, key: string) {
-  const [s, setS] = useState<Src<T>>(idle<T>());
+  const { data, error, loading, setData, setError, setLoading } = useResourceState<T | null>(null, false);
   const runRef = useRef(run);
   runRef.current = run;
   const load = useCallback(async () => {
-    setS((p) => ({ ...p, loading: true, error: "" }));
-    try { const data = await runRef.current(); setS({ data, error: "", loading: false }); }
-    catch (e) { setS((p) => ({ ...p, error: msg(e), loading: false })); }
-  }, []);
-  useEffect(() => { if (enabled) load(); else setS(idle<T>()); }, [enabled, key, load]);
+    setLoading(true); setError("");
+    try { const next = await runRef.current(); setData(next); setError(""); setLoading(false); }
+    catch (e) { setError(msg(e)); setLoading(false); }
+  }, [setData, setError, setLoading]);
+  useEffect(() => { if (enabled) load(); else { setData(null); setError(""); setLoading(false); } }, [enabled, key, load, setData, setError, setLoading]);
   useEffect(() => {
     if (!enabled) return;
     const stop = visibleInterval(load, 120000);
     window.addEventListener("fv-badges", load);
     return () => { stop(); window.removeEventListener("fv-badges", load); };
   }, [enabled, key, load]);
-  return { ...s, reload: load, setData: (fn: (d: T) => T) => setS((p) => (p.data ? { ...p, data: fn(p.data) } : p)) };
+  return { data, error, loading, reload: load, setData: (fn: (d: T) => T) => setData(previous => previous ? fn(previous) : previous) };
 }
 
 /* ── formatting ── */
@@ -201,7 +202,7 @@ function LazyKpis({ mode }: { mode: "team" | "me" }) {
 
 /* ── Create menu ── */
 function CreateMenu({ items }: { items: { label: string; href: string; icon: Icon }[] }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useDisclosure(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;

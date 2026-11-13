@@ -1,4 +1,5 @@
 "use client";
+import { dialogResult } from "@/lib/presentationMachine";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { DialogOpts } from "@/lib/dialog";
@@ -27,8 +28,8 @@ export default function DialogHost() {
   const { kind, opts, resolve } = active;
 
   const close = (result: unknown) => { setActive(null); resolve(result); };
-  const onConfirm = () => close(kind === "prompt" ? value.trim() || null : kind === "confirm" ? true : undefined);
-  const onCancel = () => close(kind === "prompt" ? null : kind === "confirm" ? false : undefined);
+  const onConfirm = () => close(dialogResult(kind, true, value));
+  const onCancel = () => close(dialogResult(kind, false, value));
 
   return createPortal(
     <div className="adm-overlay center" style={{ zIndex: 1000 }} onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}>

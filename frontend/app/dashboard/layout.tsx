@@ -1,4 +1,5 @@
 "use client";
+import { useDisclosure } from "@/lib/useDisclosure";
 import "./shell.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -43,9 +44,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const [ready, setReady] = useState(false);
-  const [open, setOpen] = useState(false);          // phone drawer
-  const [collapsed, setCollapsed] = useState(false); // desktop rail
-  const [palette, setPalette] = useState(false);
+  const [open, setOpen] = useDisclosure(false);          // phone drawer
+  const [collapsed, setCollapsed] = useDisclosure(false); // desktop rail
+  const [palette, setPalette] = useDisclosure(false);
   const [mac, setMac] = useState(false);
   const [today, setToday] = useState("");
   const [tip, setTip] = useState<{ text: string; y: number } | null>(null); // rail tooltip (collapsed)

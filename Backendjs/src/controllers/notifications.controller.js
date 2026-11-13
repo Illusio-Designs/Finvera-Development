@@ -1,4 +1,5 @@
 const { Notification } = require("../models");
+const { readPatch } = require("../utils/notificationMachine");
 const { asyncHandler } = require("../utils/crud");
 const { maybeRunDaily } = require("../utils/dailyReminders");
 
@@ -19,12 +20,12 @@ const list = asyncHandler(async (req, res) => {
 const read = asyncHandler(async (req, res) => {
   const n = await Notification.findOne({ where: { id: req.params.id, userId: req.user.id } });
   if (!n) return res.status(404).json({ message: "Not found." });
-  n.isRead = true; await n.save();
+  Object.assign(n, readPatch()); await n.save();
   res.json({ id: n.id, isRead: true });
 });
 
 const readAll = asyncHandler(async (req, res) => {
-  await Notification.update({ isRead: true }, { where: { userId: req.user.id, isRead: false } });
+  await Notification.update(readPatch(), { where: { userId: req.user.id, isRead: false } });
   res.json({ ok: true });
 });
 

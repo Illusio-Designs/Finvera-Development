@@ -1,4 +1,5 @@
 "use client";
+import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 /* The renewal drawer (also "Add renewal"): client / project, status, quick
    actions (Renewed, Terminate / Restore, call, WhatsApp, email) and three
    tabs — Details (every field, Save sends only what changed), Remarks (the
@@ -60,9 +61,7 @@ export default function RenewalDrawer({ row, me, initialTab = "details", onClose
   const [base, setBase] = useState<Draft>(() => (row ? { ...row } : { ...NEW_RENEWAL }));
   const [draft, setDraft] = useState<Draft>(base);
   const [tab, setTab] = useState<Tab>(isNew ? "details" : initialTab);
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState<{ text: string; field?: string } | null>(null);
-  const [conflict, setConflict] = useState(false);
+  const { saving, setSaving, error: err, setError: setErr, conflict, setConflict } = useSaveWorkflow<{ text: string; field?: string } | null>(null);
   const [histKey, setHistKey] = useState(0);
   const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
   const [firstRemark, setFirstRemark] = useState("");

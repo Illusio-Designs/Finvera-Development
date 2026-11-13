@@ -1,8 +1,10 @@
 "use client";
 import PageLoading from "@/components/admin/PageLoading";
 import "./social-workspace.css";
+import { useWorkflowDialog, useImportWizard } from "@/lib/useWorkflowDialog";
+import { hydrateEditor } from "@/lib/socialWorkMachine";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { chainFor, isVideoFormat, makerFor, roleFor, indiaToday, overdueAt, moveArtwork, type SocialRole as Role } from "@/lib/socialWorkflow";
+import { chainFor, isVideoFormat, makerFor, roleFor, nextStage, indiaToday, overdueAt, moveArtwork, type SocialRole as Role, type SocialStage as Stage } from "@/lib/socialWorkflow";
 import { api } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
 import { userRoles } from "@/lib/permissions";
@@ -28,7 +30,6 @@ function CardIcon({ kind }: { kind: "clock" | "format" | "attachment" | "upload"
   </svg>;
 }
 
-type Stage = "planned" | "client" | "production" | "approval" | "ready" | "posted";
 type LogEntry = { id: string; userId?: number | null; minutes: number; note?: string; at: string };
 type Post = {
   id: number; client: string; status: Stage;
@@ -106,13 +107,10 @@ const STEP_AT: Record<Role, { status: Stage; step?: string }> = {
 };
 /* The format-specific maker hands finished work to the social reviewer. */
 function nextHop(p: Pick<Post, "status" | "step" | "team" | "format">): { role: Role; patch: { status?: Stage; step?: string } } | null {
-  if (p.status === "posted" || p.status === "ready") return null; // Ready to post → posts itself (or Mark as posted)
-  // Planned / Need from client → the maker starts work.
-  if (p.status === "planned" || p.status === "client") { const m = makerFor(p.format); return { role: m, patch: STEP_AT[m] }; }
-  // Maker done → Social media manager checks it (Pending approval); approving schedules it.
-  if (p.status === "production") return { role: "social", patch: { status: "approval" } };
-  if (p.status === "approval") return { role: "social", patch: STEP_AT.social };
-  return null;
+  const status = nextStage(p.status);
+  if (!status) return null; // Publication is confirmed separately from a handoff.
+  const role = roleFor(status, p.format);
+  return { role, patch: { status, ...(status === "production" ? { step: makerFor(p.format) } : {}) } };
 }
 const CLIENT_COLORS = ["#3e60ab", "#0f766e", "#be185d", "#a16207", "#7c5cff", "#0369a1", "#c2410c", "#15803d"];
 const FORMATS = ["Post", "Reel", "Carousel", "Video", "Story", "Video Story", "Influencer Reel"];
@@ -331,7 +329,7 @@ export default function SocialCalendar() {
   const [preflight, setPreflight] = useState<{ id: number; version?: string; issues: { field: string; message: string }[]; loading: boolean; error?: string } | null>(null);
   const [editing, setEditing] = useState<Partial<Post> | null>(null);
   const [uploadId, setUploadId] = useState<number | null>(null);
-  const [clientNeed, setClientNeed] = useState<{ post: Post; request: string; date: string; owner: string; busy: boolean } | null>(null);
+  const [clientNeed, setClientNeed] = useWorkflowDialog<{ post: Post; request: string; date: string; owner: string; busy: boolean }>();
   const [viewId, setViewId] = useState<number | null>(null); // read-only details card
   type TeamUser = { id: number; name: string; roles: string[]; socialClients: string[]; active: boolean };
   const [team, setTeam] = useState<TeamUser[]>([]);           // admin only: who holds which role / brands
@@ -440,14 +438,7 @@ export default function SocialCalendar() {
       if (!full?.id) return null;
       full._full = true;
       setPosts((ps) => ps.map((x) => (x.id === id ? { ...x, ...full } : x)));
-      setEditing((e) => {
-        if (e?.id !== id || e._full) return e;
-        const merged = { ...e, ...full };
-        // Load the complete current snapshot, including its version timestamp,
-        // while preserving fields already entered by the person editing.
-        for (const key of dirty.current) Object.assign(merged, { [key]: e[key] });
-        return merged;
-      });
+      setEditing((e) => hydrateEditor<Partial<Post>>(e, full, id, dirty.current));
       return full;
     } catch { return null; }
   }
@@ -745,7 +736,7 @@ export default function SocialCalendar() {
   // Go-live times are India time, whatever timezone the browser is in.
   const hhmm = (d: Date) => d.toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false });
   const istToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
-  const [handoff, setHandoff] = useState<Handoff | null>(null);
+  const [handoff, setHandoff] = useWorkflowDialog<Handoff>();
   const peopleFor = (role: Role) => users.filter((u) => (u.roles || []).includes(role));
   function askHandoff(p: Post, role: Role, patch: Partial<Post>, kind: Handoff["kind"]) {
     const picked = p.team?.[role] ?? null;
@@ -1001,8 +992,10 @@ export default function SocialCalendar() {
   }
 
   /* ── import ── */
-  const [brandPick, setBrandPick] = useState<{ rows: string[][]; value: string; newName: string } | null>(null);
-  const [importTeam, setImportTeam] = useState<{ name: string; parsed: Partial<Post>[]; team: Partial<Record<string, number | null>>; busy: boolean } | null>(null);
+  const { brand: brandPick, setBrand: setBrandPick, team: importTeam, setTeam: setImportTeam } = useImportWizard<
+    { rows: string[][]; value: string; newName: string },
+    { name: string; parsed: Partial<Post>[]; team: Partial<Record<string, number | null>>; busy: boolean }
+  >();
   async function importCsv(file?: File) {
     if (!file) return;
     let rows: string[][];

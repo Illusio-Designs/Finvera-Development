@@ -1,4 +1,6 @@
 "use client";
+import { useResourceState } from "@/lib/useResourceState";
+import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import PageLoading from "@/components/admin/PageLoading";
 import { useEffect, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -13,7 +15,7 @@ type Milestone = { id: number; title: string; year: string | null; description: 
 const FIELDS = ["title", "year", "description", "position", "status"] as const;
 const sorted = (rows: Milestone[]) => [...rows].sort((a, b) => a.position - b.position || String(a.createdAt || "").localeCompare(String(b.createdAt || "")) || a.id - b.id);
 export default function AdminMilestones() {
-  const [rows, setRows] = useState<Milestone[] | null>(null), [busy, setBusy] = useState(true), [error, setError] = useState("");
+  const { data: rows, setData: setRows, loading: busy, setLoading: setBusy, error, setError } = useResourceState<Milestone[] | null>(null, true);
   const [query, setQuery] = useState(""), [status, setStatus] = useState("");
   const [editing, setEditing] = useState<{ row: Milestone | null; key: number } | null>(null), [ordering, setOrdering] = useState(false);
   const orderPending = useRef(false);
@@ -46,7 +48,8 @@ export default function AdminMilestones() {
 }
 function MilestoneEditor({ row, nextPosition, onClose, onSaved, onPatch, onDeleted }: { row: Milestone | null; nextPosition: number; onClose: () => void; onSaved: (row: Milestone) => void; onPatch: (row: Milestone) => void; onDeleted: (id: number) => void }) {
   const [base, setBase] = useState<Partial<Milestone>>(row || { title: "", description: "", year: "", status: "draft", position: nextPosition });
-  const [draft, setDraft] = useState(base), [busy, setBusy] = useState(false), [error, setError] = useState(""), [conflict, setConflict] = useState(false);
+  const [draft, setDraft] = useState(base);
+  const { saving: busy, setSaving: setBusy, error, setError, conflict, setConflict } = useSaveWorkflow();
   const ref = useRef<HTMLElement>(null), dirtyKeys = FIELDS.filter(field => String(draft[field] ?? "") !== String(base[field] ?? ""));
   const set = (field: keyof Milestone, milestone: any) => { if (!busy) setDraft(current => ({ ...current, [field]: milestone })); };
   async function close() { if (busy) return; if (dirtyKeys.length && !(await dialog.confirm({ title: "Discard your changes?", message: "Your milestone changes have not been saved.", confirmText: "Discard", cancelText: "Keep editing", danger: true }))) return; onClose(); }

@@ -1,3 +1,5 @@
+const { createSingleFlight } = require("../utils/asyncMachine");
+const { pausedAfter } = require("../utils/socialConnectionMachine");
 /* Social studio: one call returns everything the page needs for the brands
    the caller can see — channels (with follower numbers), publishing jobs
    (with likes / comments read back from Instagram and Facebook) and the
@@ -65,10 +67,11 @@ async function refreshMetrics(jobs, accounts, max = 30) {
    skipped anyway, so a run with nothing stale costs two DB reads). */
 const MIN_GAP = 60 * 1000;
 const RUN_CAP = 3 * 60 * 1000; // a run never holds the guard longer than this
-let refreshing = null, lastStart = 0, lastDone = null;
+const refreshFlight = createSingleFlight();
+let lastStart = 0, lastDone = null;
 
 function refreshAllStudio({ force = false } = {}) {
-  if (refreshing) return refreshing;
+  if (refreshFlight.busy) return refreshFlight.value;
   if (!meta.configured()) return Promise.resolve();
   if (!force && Date.now() - lastStart < MIN_GAP) return Promise.resolve();
   lastStart = Date.now();
@@ -82,9 +85,8 @@ function refreshAllStudio({ force = false } = {}) {
     });
     await Promise.all([refreshProfiles(accounts), refreshMetrics(jobs, accounts, 60)]);
   })().catch((e) => console.warn("studio refresh:", e.message));
-  refreshing = Promise.race([work, new Promise((r) => setTimeout(r, RUN_CAP).unref())])
-    .finally(() => { refreshing = null; lastDone = new Date(); });
-  return refreshing;
+  return refreshFlight.run(() => Promise.race([work, new Promise((r) => setTimeout(r, RUN_CAP).unref())])
+    .finally(() => { lastDone = new Date(); }));
 }
 
 const latest = (dates) => dates.filter(Boolean).map((d) => new Date(d).getTime()).reduce((a, b) => Math.max(a, b), 0) || null;
@@ -127,7 +129,7 @@ const overview = asyncHandler(async (req, res) => {
     // When Meta numbers were last saved for these brands (ISO) and whether a
     // background refresh is running now — "Updated 12 min ago · refreshing…".
     refreshedAt: savedAt ? new Date(savedAt).toISOString() : null,
-    refreshing: !!refreshing,
+    refreshing: refreshFlight.busy,
     lastRefreshRun: lastDone ? lastDone.toISOString() : null,
   });
 });
@@ -141,10 +143,9 @@ const pause = asyncHandler(async (req, res) => {
   const saved = await sequelize.transaction(async (transaction) => {
     const acc = await SocialAccount.findOne({ where: { client: req.params.client }, transaction, lock: transaction.LOCK.UPDATE });
     if (!acc) return null;
-    const set = new Set(asArr(acc.paused));
-    if (req.body.paused) set.add(platform); else set.delete(platform);
-    await acc.update({ paused: [...set] }, { transaction });
-    return { client: acc.client, paused: [...set] };
+    const paused = pausedAfter(acc.paused, platform, req.body.paused);
+    await acc.update({ paused }, { transaction });
+    return { client: acc.client, paused };
   });
   if (!saved) return res.status(404).json({ message: "This brand isn't connected." });
   await auto.syncBrand(saved.client);

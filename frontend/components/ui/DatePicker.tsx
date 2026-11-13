@@ -1,4 +1,5 @@
 "use client";
+import { useDisclosure } from "@/lib/useDisclosure";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -75,7 +76,7 @@ export default function DatePicker({
   placeholder = "Select a date",
 }: DatePickerProps) {
   const selected = useMemo(() => parseISO(value), [value]);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useDisclosure(false);
   const [viewDate, setViewDate] = useState<Date>(() => selected ?? new Date());
   const rootRef = useRef<HTMLDivElement | null>(null);
 

@@ -1,4 +1,6 @@
 "use client";
+import { useDisclosure } from "@/lib/useDisclosure";
+import { readNotification } from "@/lib/notificationMachine";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, getToken } from "@/lib/adminApi";
@@ -60,7 +62,7 @@ export default function NotificationBell({ announce: _announce = false }: { anno
   const router = useRouter();
   const [items, setItems] = useState<Notif[]>([]);
   const [unread, setUnread] = useState(0);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useDisclosure(false);
   const [sound, setSound] = useState(true);
   const ref = useRef<HTMLDivElement>(null);
   const [push, setPush] = useState<PushState | null>(null);
@@ -128,14 +130,14 @@ export default function NotificationBell({ announce: _announce = false }: { anno
     pushState().then(setPush).catch(() => setPush("unsupported"));
   };
   const markAll = async () => {
-    setItems((xs) => xs.map((n) => ({ ...n, isRead: true }))); setUnread(0);
+    setItems((xs) => xs.map(readNotification)); setUnread(0);
     try { await api.markAllNotifRead(); } catch { /* ignore */ }
   };
 
   const openItem = (n: Notif) => {
     close();
     if (!n.isRead) {
-      setItems((xs) => xs.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)));
+      setItems((xs) => xs.map((x) => (x.id === n.id ? readNotification(x) : x)));
       setUnread((u) => Math.max(0, u - 1));
       api.markNotifRead(n.id).catch(() => {});
     }

@@ -1,4 +1,6 @@
 "use client";
+import { useResourceState } from "@/lib/useResourceState";
+import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import PageLoading from "@/components/admin/PageLoading";
 import { useEffect, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -14,7 +16,7 @@ type ClientLogo = { id: number; name: string; image: string | null; position: nu
 const FIELDS = ["name", "image", "position", "status"] as const;
 const sorted = (rows: ClientLogo[]) => [...rows].sort((a, b) => a.position - b.position || String(a.createdAt || "").localeCompare(String(b.createdAt || "")) || a.id - b.id);
 export default function AdminLogos() {
-  const [rows, setRows] = useState<ClientLogo[] | null>(null), [busy, setBusy] = useState(true), [error, setError] = useState("");
+  const { data: rows, setData: setRows, loading: busy, setLoading: setBusy, error, setError } = useResourceState<ClientLogo[] | null>(null, true);
   const [query, setQuery] = useState(""), [status, setStatus] = useState("");
   const [editing, setEditing] = useState<{ row: ClientLogo | null; key: number } | null>(null), [ordering, setOrdering] = useState(false);
   const orderPending = useRef(false);
@@ -47,7 +49,8 @@ export default function AdminLogos() {
 }
 function LogoEditor({ row, nextPosition, onClose, onSaved, onPatch, onDeleted }: { row: ClientLogo | null; nextPosition: number; onClose: () => void; onSaved: (row: ClientLogo) => void; onPatch: (row: ClientLogo) => void; onDeleted: (id: number) => void }) {
   const [base, setBase] = useState<Partial<ClientLogo>>(row || { name: "", image: "", status: "draft", position: nextPosition });
-  const [draft, setDraft] = useState(base), [busy, setBusy] = useState(false), [error, setError] = useState(""), [conflict, setConflict] = useState(false);
+  const [draft, setDraft] = useState(base);
+  const { saving: busy, setSaving: setBusy, error, setError, conflict, setConflict } = useSaveWorkflow();
   const fileRef = useRef<HTMLInputElement>(null), uploadPending = useRef(false);
   const ref = useRef<HTMLElement>(null), dirtyKeys = FIELDS.filter(field => String(draft[field] ?? "") !== String(base[field] ?? ""));
   const set = (field: keyof ClientLogo, value: any) => { if (!busy) setDraft(current => ({ ...current, [field]: value })); };

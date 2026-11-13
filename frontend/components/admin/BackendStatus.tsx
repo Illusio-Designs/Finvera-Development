@@ -1,4 +1,5 @@
 "use client";
+import { backendState } from "@/lib/resourceMachine";
 import { useEffect, useState } from "react";
 import { API_BASE } from "@/lib/adminApi";
 import { visibleInterval } from "@/lib/visibleInterval";
@@ -17,7 +18,7 @@ export default function BackendStatus({ variant = "pill" }: { variant?: "pill" |
         const data = await res.json().catch(() => null);
         if (!alive) return;
         setInfo(data);
-        setState(res.ok && data?.db === "up" ? "online" : "offline");
+        setState(backendState(res.ok, data?.db));
       } catch {
         if (alive) { setState("offline"); setInfo(null); }
       }

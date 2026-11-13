@@ -1,3 +1,6 @@
+const { createSingleFlight } = require("./asyncMachine");
+const { artifactState } = require("./backupArtifactMachine");
+const { dailyState, claimDate } = require("./taskMachine");
 /* Database backups in pure JS (shared hosting has no mysqldump).
 
    createBackup() writes every base table — DROP + `SHOW CREATE TABLE` + batched
@@ -29,14 +32,13 @@ const DIR = path.resolve(process.env.BACKUP_DIR || path.join(__dirname, "..", ".
 const KEEP = Math.max(1, Number(process.env.BACKUP_KEEP || 14));
 const PAGE = 500;                      // rows per SELECT
 const MAX_STMT = 512 * 1024;           // split INSERTs at ~512 KB (phpMyAdmin / max_allowed_packet friendly)
-const NAME_RE = /^finvera-\d{8}-\d{6}-(auto|manual)(-\d{1,3})?\.sql\.gz$/;
 const RUN_AT_MIN = 2 * 60 + 30;        // 02:30 IST
 const CLAIM_KEY = "backup.lastRun";
 const RESULT_KEY = "backup.lastResult";
 
 /* ── Names / paths (strict: no traversal, only our own file names) ── */
 function isValidName(name) {
-  return typeof name === "string" && name.length < 80 && NAME_RE.test(name) && path.basename(name) === name;
+  return artifactState(name) === "archive" && path.basename(name) === name;
 }
 function fileFor(name) {
   if (!isValidName(name)) return null;
@@ -88,13 +90,8 @@ async function getResult() {
 }
 
 /* ── Create ── */
-let running = null; // in-process: one backup at a time (manual + daily)
-
-function createBackup({ kind = "manual" } = {}) {
-  if (running) return running;
-  running = doBackup(kind).finally(() => { running = null; });
-  return running;
-}
+const backupFlight = createSingleFlight();
+function createBackup({ kind = "manual" } = {}) { return backupFlight.run(() => doBackup(kind)); }
 
 async function doBackup(kind) {
   const started = Date.now();
@@ -280,10 +277,9 @@ async function verifyBackup(name) {
 let checkedFor = null;
 async function maybeRunDailyBackup() {
   const { date, minutes } = istDay();
-  if (minutes < RUN_AT_MIN || checkedFor === date) return { ran: false };
+  if (dailyState(date, minutes, RUN_AT_MIN, checkedFor) !== "eligible") return { ran: false };
   try {
-    await Setting.findOrCreate({ where: { key: CLAIM_KEY }, defaults: { key: CLAIM_KEY, value: "", group: "system", isPublic: false } });
-    const [claimed] = await Setting.update({ value: date }, { where: { key: CLAIM_KEY, [Op.or]: [{ value: null }, { value: { [Op.ne]: date } }] } });
+    const claimed = await claimDate(CLAIM_KEY, date);
     checkedFor = date;
     if (!claimed) return { ran: false };
     const info = await createBackup({ kind: "auto" });
@@ -300,4 +296,4 @@ async function maybeRunDailyBackup() {
   }
 }
 
-module.exports = { DIR, KEEP, isValidName, fileFor, createBackup, listBackups, removeBackup, verifyBackup, prune, maybeRunDailyBackup, getResult, isRunning: () => !!running, sqlValue };
+module.exports = { DIR, KEEP, isValidName, fileFor, createBackup, listBackups, removeBackup, verifyBackup, prune, maybeRunDailyBackup, getResult, isRunning: () => backupFlight.busy, sqlValue };

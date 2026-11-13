@@ -1,4 +1,6 @@
 "use client";
+import { useResourceState } from "@/lib/useResourceState";
+import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import PageLoading from "@/components/admin/PageLoading";
 import { useEffect, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -15,7 +17,7 @@ const ICONS = [["saas", "Product / SaaS"], ["crm", "CRM"], ["cloud", "Cloud"], [
 const FIELDS = ["title", "icon", "description", "position", "status"] as const;
 const sorted = (rows: Service[]) => [...rows].sort((a, b) => a.position - b.position || String(b.createdAt || "").localeCompare(String(a.createdAt || "")) || b.id - a.id);
 export default function AdminServices() {
-  const [rows, setRows] = useState<Service[] | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const { data: rows, setData: setRows, loading: busy, setLoading: setBusy, error, setError } = useResourceState<Service[] | null>(null, false);
   const [query, setQuery] = useState(""), [status, setStatus] = useState("");
   const [editing, setEditing] = useState<{ row: Service | null; key: number } | null>(null), [ordering, setOrdering] = useState(false);
   const orderPending = useRef(false);
@@ -48,7 +50,8 @@ export default function AdminServices() {
 }
 function ServiceEditor({ row, nextPosition, onClose, onSaved, onPatch, onDeleted }: { row: Service | null; nextPosition: number; onClose: () => void; onSaved: (row: Service) => void; onPatch: (row: Service) => void; onDeleted: (id: number) => void }) {
   const [base, setBase] = useState<Partial<Service>>(row || { title: "", description: "", icon: "saas", status: "draft", position: nextPosition });
-  const [draft, setDraft] = useState(base), [busy, setBusy] = useState(false), [error, setError] = useState(""), [conflict, setConflict] = useState(false);
+  const [draft, setDraft] = useState(base);
+  const { saving: busy, setSaving: setBusy, error, setError, conflict, setConflict } = useSaveWorkflow();
   const ref = useRef<HTMLElement>(null), dirtyKeys = FIELDS.filter(field => String(draft[field] ?? "") !== String(base[field] ?? ""));
   const set = (field: keyof Service, value: any) => { if (!busy) setDraft(current => ({ ...current, [field]: value })); };
   async function close() { if (busy) return; if (dirtyKeys.length && !(await dialog.confirm({ title: "Discard your changes?", message: "Your service changes have not been saved.", confirmText: "Discard", cancelText: "Keep editing", danger: true }))) return; onClose(); }

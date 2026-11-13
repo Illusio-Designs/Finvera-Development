@@ -1,3 +1,5 @@
+const { credentialEvent } = require("../utils/credentialMachine");
+const secondFactor = require("../utils/secondFactorMachine");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const { Op } = require("sequelize");
@@ -51,12 +53,7 @@ async function sweepSocial() {
 }
 
 /* invited → never set a password; locked → too many wrong passwords right now. */
-function statusOf(u) {
-  if (!u.active) return "deactivated";
-  if (u.invitePending) return "invited";
-  if (u.lockedUntil && new Date(u.lockedUntil).getTime() > Date.now()) return "locked";
-  return "active";
-}
+const { statusOf, resetFailures } = require("../utils/accountMachine");
 
 const safe = (u) => ({
   id: u.id, name: u.name, email: u.email,
@@ -136,8 +133,7 @@ const update = asyncHandler(async (req, res) => {
   if (mustChangePassword != null) user.mustChangePassword = !!mustChangePassword;
   if (password) {
     user.password = await bcrypt.hash(password, 10);
-    user.passwordChangedAt = new Date(); user.invitePending = false;
-    user.failedLogins = 0; user.firstFailedAt = null; user.lockedUntil = null;
+    Object.assign(user, credentialEvent("ADMIN_SET_PASSWORD"));
   }
   await user.save();
   forgetUser(user.id); forgetScopes();
@@ -255,7 +251,7 @@ const resendInvite = asyncHandler(async (req, res) => {
 /* POST /users/:id/unlock */
 const unlock = asyncHandler(async (req, res) => {
   const user = await findUser(req, res); if (!user) return;
-  user.failedLogins = 0; user.firstFailedAt = null; user.lockedUntil = null;
+  Object.assign(user, resetFailures());
   await user.save({ fields: ["failedLogins", "firstFailedAt", "lockedUntil"] });
   forgetUser(user.id);
   sec.logEvent(req, { userId: user.id, email: user.email, type: "unlocked", actorId: req.user.id });
@@ -266,7 +262,7 @@ const unlock = asyncHandler(async (req, res) => {
 const resetTwoFactor = asyncHandler(async (req, res) => {
   const user = await findUser(req, res); if (!user) return;
   const was = !!user.twoFactorEnabled;
-  user.twoFactorEnabled = false; user.twoFactorSecret = null; user.twoFactorBackup = null;
+  Object.assign(user, secondFactor.configurationEvent("DISABLE"));
   await user.save({ fields: ["twoFactorEnabled", "twoFactorSecret", "twoFactorBackup"] });
   forgetUser(user.id);
   if (was) {

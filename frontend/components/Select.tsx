@@ -1,4 +1,5 @@
 "use client";
+import { useDisclosure } from "@/lib/useDisclosure";
 import { useEffect, useRef, useState } from "react";
 
 type Opt = { value: string; label: string };
@@ -19,7 +20,7 @@ export default function Select({
   disabled?: boolean;
   ariaLabel?: string;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useDisclosure(false);
   const [active, setActive] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
   const opts: Opt[] = options.map((o) => (typeof o === "string" ? { value: o, label: o } : o));

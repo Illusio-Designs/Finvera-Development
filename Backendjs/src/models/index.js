@@ -263,7 +263,7 @@ const Page = sequelize.define("Page", {
 }, { tableName: "pages" });
 
 /* ── Business-development leads (private CRM pipeline) ── */
-const LEAD_STAGE_PROGRESS = { new: 10, contacted: 35, qualified: 60, proposal: 85, won: 100, lost: 0 };
+const leadMachine = require("../utils/leadMachine");
 const Lead = sequelize.define("Lead", {
   name: { type: DataTypes.STRING, allowNull: false },
   company: { type: DataTypes.STRING },
@@ -308,9 +308,9 @@ const Lead = sequelize.define("Lead", {
         lead.ownerId = u ? u.id : null;
       }
       // wonAt follows the stage: stamped when it becomes "won", cleared when it leaves.
-      if (ch("stage") && !ch("wonAt")) lead.wonAt = lead.stage === "won" ? (lead.wonAt || new Date()) : null;
+      if (ch("stage") && !ch("wonAt")) lead.wonAt = leadMachine.wonAtAfter(lead);
       // progress is the stage's score (the stage picker sets it); a new lead always gets one.
-      if (ch("stage") || lead.progress == null) lead.progress = LEAD_STAGE_PROGRESS[lead.stage || "new"] ?? 0;
+      if (ch("stage") || lead.progress == null) lead.progress = leadMachine.progressOfStage(lead.stage);
     },
   },
 });

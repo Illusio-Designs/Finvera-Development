@@ -1,3 +1,4 @@
+const { isPublished } = require("./contentMachine");
 const slugify = require("slugify");
 const pubCache = require("./publicCache");
 
@@ -123,14 +124,14 @@ function crudController(Model, options = {}) {
         // null = missing or unpublished (404); cached too, briefly, like a hit.
         const body = await pubCache.get(`${Model.name}:one:${key}`, async () => {
           const item = await Model.findOne({ where });
-          return item && !(hasStatus && item.status !== "published") ? item : null;
+          return item && !(hasStatus && !isPublished(item)) ? item : null;
         });
         if (body === "null") return res.status(404).json({ message: `${Model.name} not found.` });
         return pubCache.sendPublic(res, body);
       }
       const item = await Model.findOne({ where });
       if (!item) return res.status(404).json({ message: `${Model.name} not found.` });
-      if (hasStatus && !canReadDrafts(req) && item.status !== "published") {
+      if (hasStatus && !canReadDrafts(req) && !isPublished(item)) {
         return res.status(404).json({ message: `${Model.name} not found.` });
       }
       res.json(item);

@@ -1,3 +1,5 @@
+const { claimRepair } = require("../utils/taskMachine");
+const { cacheState } = require("../utils/asyncMachine");
 /* Content calendar performance KPIs.
 
    GET /api/social-kpis?period=week|month|quarter&brand=<name>
@@ -106,8 +108,7 @@ const parseMeta = (m) => (typeof m === "string" ? (() => { try { return JSON.par
 async function backfillOnce() {
   if (backfillChecked) return;
   try {
-    await Setting.findOrCreate({ where: { key: BACKFILL_KEY }, defaults: { key: BACKFILL_KEY, value: "", group: "system", isPublic: false } });
-    const [claimed] = await Setting.update({ value: `running ${new Date().toISOString()}` }, { where: { key: BACKFILL_KEY, [Op.or]: [{ value: null }, { value: "" }] } });
+    const { claimed } = await claimRepair(BACKFILL_KEY, false, `running ${new Date().toISOString()}`);
     backfillChecked = true;
     if (!claimed) return;
     const { stageRole } = require("./social.controller");
@@ -202,7 +203,7 @@ function getKpis({ period = "month", brand = "", scope = null, userId = null, re
   const args = { period: String(period || "month"), brand: brand ? String(brand) : "", scope, userId, reportDetails };
   const key = cacheKey(args);
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < CACHE_MS) return hit.value;
+  if (cacheState(hit, CACHE_MS) === "fresh") return hit.value;
   const gen = generation;
   const value = computeKpis(args);
   if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);

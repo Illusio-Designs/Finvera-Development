@@ -1,3 +1,4 @@
+const { dailyState, claimDate } = require("./taskMachine");
 /* Daily reminders — sent once a day at 10:15 AM India time.
 
    This host has no cron, so maybeRunDaily() is called from three places: a
@@ -38,10 +39,9 @@ let checkedFor = null; // in-process shortcut so polls don't hit the DB once tod
 
 async function maybeRunDaily() {
   const { date, minutes } = istNow();
-  if (minutes < RUN_AT_MIN || checkedFor === date) return { ran: false };
+  if (dailyState(date, minutes, RUN_AT_MIN, checkedFor) !== "eligible") return { ran: false };
   try {
-    await Setting.findOrCreate({ where: { key: KEY }, defaults: { key: KEY, value: "", group: "system", isPublic: false } });
-    const [claimed] = await Setting.update({ value: date }, { where: { key: KEY, [Op.or]: [{ value: null }, { value: { [Op.ne]: date } }] } });
+    const claimed = await claimDate(KEY, date);
     checkedFor = date;
     if (!claimed) return { ran: false };
     const sent = await runDaily(date);
@@ -94,10 +94,10 @@ async function runDaily(today) {
   }
 
   /* ── Renewals: 7 days, tomorrow, today, overdue (day after) ── */
-  const label = (d) => (d === 7 ? "Renewal due in 7 days" : d === 1 ? "Renewal due tomorrow" : d === 0 ? "Renewal due today" : d === -1 ? "Renewal overdue" : null);
+  const { reminderLabel } = require("./renewalMachine");
   const records = await Renewal.findAll({ where: { renewalDate: { [Op.ne]: null }, status: "active" } });
   for (const r of records) {
-    const head = label(daysBetween(today, day(r.renewalDate)));
+    const head = reminderLabel({ status: r.status, renewalDate: day(r.renewalDate) }, today);
     if (!head) continue;
     const owner = r.owner ? nameToId.get(r.owner) : null;
     dig([...adminIds, ...(owner ? [owner] : [])], "renewals", {

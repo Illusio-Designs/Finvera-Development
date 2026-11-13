@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { reviewState } from "@/lib/socialWorkMachine";
 
 type Post = { id: number; theme: string; client: string; format?: string | null; caption?: string; tags?: string; keywords?: string; requirements?: string; remarks?: string; postDate?: string | null; postTime?: string | null; updatedAt?: string; publishTo?: string[] | null; media?: { url: string; type: string; name?: string; thumbUrl?: string | null; coverUrl?: string | null; userTags?: { username: string; x: number; y: number }[] }[] };
 const CHECKS = ["Artwork and media order", "Caption and hashtags", "People to tag and requirements", "Channels and go-live time"];
@@ -19,7 +20,8 @@ export default function SocialReviewPanel({ post, loaded, canReview, reviewer, c
   const media = post.media || [];
   const active = media[Math.min(selected, Math.max(0, media.length - 1))];
   const video = active?.type === "video" || /\.(mp4|mov|m4v)(\?|$)/i.test(active?.url || "");
-  const ready = loaded && canReview && CHECKS.every((_, index) => checks[index]) && media.length > 0 && !preflightLoading && !preflightError && !preflightIssues.length && !busy;
+  const phase = reviewState({ loaded, canReview, checks, required: CHECKS.length, mediaCount: media.length, checking: preflightLoading, error: preflightError, issueCount: preflightIssues.length, busy });
+  const ready = phase === "ready";
   useEffect(() => { setChecks([]); }, [post.id, post.updatedAt]);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;

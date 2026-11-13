@@ -1,4 +1,6 @@
 "use client";
+import { useResourceState } from "@/lib/useResourceState";
+import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import { useEffect, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon, Search01Icon, Refresh01Icon, ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
@@ -19,7 +21,7 @@ function MemberContent({ row, full = false }: { row: Partial<Member>; full?: boo
   return <><div className="wt-portrait">{row.photo && !failed ? <img src={row.photo} alt={row.name || "Profile photo"} onError={() => setFailed(true)} /> : <span>{testimonialInitials(row.name, row.initials)}</span>}</div><div className="wt-person"><h3>{row.name || "Team member"}</h3><span>{row.role || "Role to be added"}</span></div>{full && <p className="wt-bio">{row.bio || "Their story will appear here."}</p>}</>;
 }
 export default function AdminWebsiteTeam() {
-  const [rows, setRows] = useState<Member[] | null>(null), [busy, setBusy] = useState(true), [error, setError] = useState("");
+  const { data: rows, setData: setRows, loading: busy, setLoading: setBusy, error, setError } = useResourceState<Member[] | null>(null, true);
   const [query, setQuery] = useState(""), [status, setStatus] = useState("");
   const [editing, setEditing] = useState<{ row: Member | null; key: number } | null>(null);
   async function load() { setBusy(true); setError(""); try { const data = await api.list("team"); setRows(sorted(Array.isArray(data) ? data : [])); } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t load team."); } finally { setBusy(false); } }
@@ -37,7 +39,8 @@ export default function AdminWebsiteTeam() {
 }
 function MemberEditor({ row, nextPosition, onClose, onSaved, onPatch, onDeleted }: { row: Member | null; nextPosition: number; onClose: () => void; onSaved: (row: Member) => void; onPatch: (row: Member) => void; onDeleted: (id: number) => void }) {
   const [base, setBase] = useState<Partial<Member>>(row || { name: "", bio: "", photo: "", initials: "", role: "", status: "draft", position: nextPosition });
-  const [draft, setDraft] = useState(base), [busy, setBusy] = useState(false), [error, setError] = useState(""), [conflict, setConflict] = useState(false);
+  const [draft, setDraft] = useState(base);
+  const { saving: busy, setSaving: setBusy, error, setError, conflict, setConflict } = useSaveWorkflow();
   const fileRef = useRef<HTMLInputElement>(null), uploadPending = useRef(false);
   const ref = useRef<HTMLElement>(null), dirtyKeys = FIELDS.filter(field => String(draft[field] ?? "") !== String(base[field] ?? ""));
   const set = (field: keyof Member, value: any) => { if (!busy) setDraft(current => ({ ...current, [field]: value })); };

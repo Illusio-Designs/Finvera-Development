@@ -1,3 +1,4 @@
+const { lazyState } = require("./asyncMachine");
 /* Email sending over SMTP (works with a cPanel mailbox, Brevo, Resend, Gmail…).
 
    Settings (all optional — without SMTP_HOST nothing is sent and every call
@@ -17,7 +18,7 @@ const env = (k) => String(process.env[k] || "").trim().replace(/^(["'])(.*)\1$/,
 function configured() { return !!env("SMTP_HOST"); }
 
 function getTransport() {
-  if (transport || loadError) return transport;
+  if (lazyState(transport || undefined, loadError) !== "uninitialized") return transport;
   try {
     const nodemailer = require("nodemailer");
     const port = Number(env("SMTP_PORT") || 465);

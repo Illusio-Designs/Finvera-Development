@@ -14,26 +14,9 @@
 const TTL_MS = Number(process.env.PUBLIC_CACHE_TTL_MS || 60 * 1000);
 const MAX_ENTRIES = 500;
 
-const store = new Map(); // key → { at, body: Promise<string> }
-
-/* Return the cached JSON string for `key`, or build it with `build()` (which
-   resolves to any JSON-serialisable value) and keep it. Concurrent misses for
-   the same key share one build. */
-function get(key, build) {
-  const hit = store.get(key);
-  if (hit && Date.now() - hit.at < TTL_MS) return hit.body;
-  const body = Promise.resolve().then(build).then((v) => JSON.stringify(v));
-  if (store.size >= MAX_ENTRIES) store.clear();
-  store.set(key, { at: Date.now(), body });
-  // A failed build is not kept. (A build still running when clear() is
-  // called was already dropped from the store with everything else.)
-  body.catch(() => { if (store.get(key)?.body === body) store.delete(key); });
-  return body;
-}
-
-function clear() {
-  store.clear();
-}
+const store = require("./asyncMachine").createReadCache(TTL_MS, MAX_ENTRIES);
+function get(key, build) { return store.get(key, () => Promise.resolve().then(build).then(value => JSON.stringify(value))); }
+function clear() { store.clear(); }
 
 /* Headers for a public, cacheable response. Browsers keep it 60 s, shared
    caches (a CDN in front of the API, if one is added) 5 min, and either may

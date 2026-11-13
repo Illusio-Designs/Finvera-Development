@@ -2,7 +2,7 @@ const { Renewal, sequelize } = require('../models');
 const { asyncHandler } = require('../utils/crud');
 const audit = require('../utils/audit');
 const { isDay, todayIst } = require('../utils/leadFollowUp');
-const CYCLES = { monthly: 1, quarterly: 3, 'half-yearly': 6, yearly: 12 };
+const { CYCLES, STATES, addMonths, actionPatch } = require("../utils/renewalMachine");
 const FIELDS = ['client', 'project', 'amount', 'cycle', 'renewalDate', 'lastInvoiced', 'status', 'owner', 'email', 'phone', 'notes', 'position'];
 const failure = (status, message, field) => Object.assign(new Error(message), { status, statusCode: status, field });
 const normalized = (key, value) => value == null || value === '' ? '' : ['amount', 'position'].includes(key) ? String(Number(value)) : String(value);
@@ -11,11 +11,6 @@ function checkExpected(row, expected) {
   if (FIELDS.some(key => Object.hasOwn(expected, key) && normalized(key, row[key]) !== normalized(key, expected[key]))) {
     throw failure(409, 'This renewal changed while you were working. Reload the saved record before applying your changes.');
   }
-}
-function addMonths(iso, count) {
-  const [year, month, day] = iso.split('-').map(Number);
-  const last = new Date(Date.UTC(year, month + count, 0)).getUTCDate();
-  return new Date(Date.UTC(year, month - 1 + count, Math.min(day, last))).toISOString().slice(0, 10);
 }
 const fmt = iso => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 function append(row, what, actor, remark) {
@@ -41,7 +36,7 @@ function validate(req, res, next) {
   let field, message;
   if ((req.method === 'POST' || 'client' in body) && (typeof body.client !== 'string' || !body.client.trim())) [field, message] = ['client', 'Add the client or company name.'];
   else if ('cycle' in body && !Object.hasOwn(CYCLES, body.cycle)) [field, message] = ['cycle', 'Choose a valid billing cycle.'];
-  else if ('status' in body && !['active', 'paused', 'cancelled'].includes(body.status)) [field, message] = ['status', 'Choose a valid renewal status.'];
+  else if ('status' in body && !STATES.includes(body.status)) [field, message] = ['status', 'Choose a valid renewal status.'];
   else if (body.amount != null && (!Number.isSafeInteger(Number(body.amount)) || Number(body.amount) < 0 || Number(body.amount) > 2147483647)) [field, message] = ['amount', 'Enter a non-negative whole amount.'];
   else for (const key of ['renewalDate', 'lastInvoiced']) if (body[key] != null && body[key] !== '' && !isDay(body[key])) { [field, message] = [key, 'Enter a valid date.']; break; }
   if (field) return res.status(400).json({ field, message });
@@ -55,13 +50,12 @@ const action = kind => asyncHandler(async (req, res) => {
   if (kind === 'renew' && req.body?.invoiced !== undefined && typeof req.body.invoiced !== 'boolean') return res.status(400).json({ message: 'Choose whether to record the renewal date as today.' });
   let summary;
   const { item, before } = await locked(req, async (row, transaction) => {
-    const patch = {};
+    const patch = actionPatch(row, kind, { today: todayIst(), renewalDate: picked, invoiced: req.body?.invoiced });
     if (kind === 'renew') {
-      const next = picked || addMonths(row.renewalDate || todayIst(), CYCLES[row.cycle] || 12);
-      Object.assign(patch, { renewalDate: next, status: 'active', ...(req.body?.invoiced === false ? {} : { lastInvoiced: todayIst() }) });
+      const next = patch.renewalDate;
       summary = `Renewed till ${fmt(next)}`;
-    } else if (kind === 'end') { patch.status = 'cancelled'; summary = 'Terminated'; }
-    else if (kind === 'restore') { patch.status = 'active'; summary = 'Restored'; }
+    } else if (kind === 'end') { summary = 'Terminated'; }
+    else if (kind === 'restore') { summary = 'Restored'; }
     else summary = 'Note';
     patch.notes = append(row, summary, req.user?.name, remark);
     await row.update(patch, { transaction });

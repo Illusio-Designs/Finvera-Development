@@ -13,7 +13,7 @@ const ALERT_WINDOW_MS = 30 * 60 * 1000;
 const KEEP_MS = 24 * 3600 * 1000;
 const recent = [];            // { at, status, route, message }
 let lastError = null;
-let alertPending = false;
+let alertPhase = "idle";
 
 function scrub(msg) {
   return String(msg || "")
@@ -37,9 +37,9 @@ function record(req, status, message) {
   recent.push(e);
   lastError = e;
   prune(now);
-  if (!alertPending) {
-    alertPending = true;
-    setTimeout(() => { alertPending = false; sendAlert().catch(() => {}); }, 2000).unref(); // a burst becomes one alert
+  if (alertPhase === "idle") {
+    alertPhase = "pending";
+    setTimeout(() => { alertPhase = "idle"; sendAlert().catch(() => {}); }, 2000).unref(); // a burst becomes one alert
   }
 }
 

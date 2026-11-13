@@ -1,3 +1,5 @@
+function notificationMode(windows) { return windows.some(client => client.visibilityState === "visible") ? "quiet" : "audible"; }
+
 /* Finvera service worker — receives Web Push messages and shows them as
    phone / desktop notifications, even when the dashboard is closed.
    No offline caching: the dashboard always loads fresh from the network. */
@@ -13,7 +15,7 @@ self.addEventListener("push", (event) => {
     const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     // An open dashboard refreshes its bell at once (and plays the Finvera sound).
     wins.forEach((c) => c.postMessage({ type: "fv-push", data: d }));
-    const appOnScreen = wins.some((c) => c.visibilityState === "visible");
+    const appOnScreen = notificationMode(wins) === "quiet";
 
     // Unread count on the app icon (iPhone Home Screen app, installed desktop app).
     if (typeof d.badge === "number" && self.navigator && "setAppBadge" in self.navigator) {

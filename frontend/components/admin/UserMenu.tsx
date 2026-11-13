@@ -1,4 +1,5 @@
 "use client";
+import { useDisclosure } from "@/lib/useDisclosure";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -26,7 +27,7 @@ export function Avatar({ me, size = 36 }: { me: Me; size?: number }) {
 export default function UserMenu({ me, roleText, canUsers, canSettings, onLogout, onPalette, mac }: {
   me: Me; roleText: string; canUsers: boolean; canSettings: boolean; onLogout: () => void; onPalette: () => void; mac: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useDisclosure(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

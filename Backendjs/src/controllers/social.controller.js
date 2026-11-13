@@ -1,3 +1,5 @@
+const { claimRepair } = require("../utils/taskMachine");
+const { cacheState } = require("../utils/asyncMachine");
 const { Op, fn, col, literal } = require("sequelize");
 const { SocialClient, SocialPost, SocialPostEvent, User, Setting } = require("../models");
 
@@ -32,7 +34,7 @@ const scopeCache = new Map(); // "1,2,3" → { at, names: Promise<string[]> }
 function brandNames(ids) {
   const key = [...ids].sort().join(",");
   const hit = scopeCache.get(key);
-  if (hit && Date.now() - hit.at < SCOPE_TTL_MS) return hit.names;
+  if (cacheState(hit, SCOPE_TTL_MS) === "fresh") return hit.names;
   const names = SocialClient.findAll({ attributes: ["name"], where: { id: ids }, order: [["id", "ASC"]], raw: true }).then((rows) => rows.map((c) => c.name));
   if (scopeCache.size > 200) scopeCache.clear();
   scopeCache.set(key, { at: Date.now(), names });
@@ -170,15 +172,7 @@ const listPosts = () => asyncHandler(async (req, res) => {
    The maker uploads the finished work and clicks Done; it goes to the
    Social media manager, who approves it and it's scheduled. */
 const STEPS = ["graphic", "video", "social"];
-const isVideoFormat = (format) => /reel|video/i.test(String(format || ""));
-const makerFor = (format) => (isVideoFormat(format) ? "video" : "graphic");
-function stageRole(status, format, step) {
-  if (status === "ready" || status === "posted" || status === "approval") return "social";
-  if (status === "production") return makerFor(format);
-  return makerFor(format);
-}
-/* The step a post is on inside In production: the maker for its format. */
-const stepFor = (status, step, format) => (status === "production" ? makerFor(format) : null);
+const { makerFor, roleFor: stageRole, stepFor } = require("../utils/socialPostMachine");
 
 /* Least-loaded active user holding `role` who can see `client`, or null.
    `ctx` caches users / brand ids / open-post counts across a bulk import. */
@@ -335,7 +329,7 @@ const UPLOAD_FIX_KEY = "social.uploadedToPlanned.v2";
 let uploadFixDone = false;
 async function moveUploadedToPlannedOnce() {
   if (uploadFixDone) return;
-  const [flag, created] = await Setting.findOrCreate({ where: { key: UPLOAD_FIX_KEY }, defaults: { value: "running", group: "system", isPublic: false } });
+  const { flag, claimed: created } = await claimRepair(UPLOAD_FIX_KEY, true);
   if (!created) { uploadFixDone = true; return; }
   const posts = (await SocialPost.findAll({ where: { status: "posted" } })).filter((p) => !isLive(p));
   const ctx = {};

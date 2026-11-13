@@ -1,23 +1,7 @@
-const crypto = require("crypto");
 const { rolesOf } = require("./permissions");
-const PAYLOAD = ["client", "format", "caption", "media", "tags", "keywords", "keywordHashtags", "publishTo", "postDate", "postTime"];
-const asJSON = (v) => { if (typeof v !== "string") return v; try { return JSON.parse(v); } catch { return v; } };
-function stable(v) {
-  if (Array.isArray(v)) return v.map(stable);
-  if (v && typeof v === "object") return Object.fromEntries(Object.keys(v).sort().map((k) => [k, stable(v[k])]));
-  return v;
-}
-function payload(post) {
-  return Object.fromEntries(PAYLOAD.map((k) => {
-    let v = post[k];
-    if (["media", "publishTo"].includes(k)) v = asJSON(v);
-    if (k === "media") v = v || [];
-    else if (k === "keywordHashtags") v = v !== false && v !== 0;
-    else if (v == null || v === "") v = null;
-    return [k, stable(v)];
-  }));
-}
-const contentHash = (post) => crypto.createHash("sha256").update(JSON.stringify(payload(post))).digest("hex");
+const workflow = require("./socialPostMachine");
+const { contentHash } = require("./socialContent");
+const reviewMachine = require("./socialReviewMachine");
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
 const canApprove = (post, user) => rolesOf(user).includes("admin") || (rolesOf(user).includes("social") && Number(post.assigneeId) === Number(user.id));
 function liveLink(url, platform) {
@@ -37,7 +21,7 @@ function prepareUpdate(post, incoming, user, jobs = [], reviewPlatforms = null) 
   delete data._manualPosted;
   delete data.id;
   if (expected && +new Date(expected) !== +new Date(post.updatedAt)) fail(409, "This post changed since you opened it. Reload before saving.");
-  if (data.status && !["planned", "client", "production", "approval", "ready", "posted"].includes(data.status)) fail(400, "Choose a valid workflow stage.");
+  if (data.status && !workflow.isState(data.status)) fail(400, "Choose a valid workflow stage.");
   if (post.status === "posted" && data.status && data.status !== "posted") fail(409, "Create a new post for revised work after publication.");
   if (data.media != null) {
     if (!Array.isArray(data.media) || data.media.length > 10) fail(400, "Use up to 10 artwork files per post.");
@@ -50,20 +34,11 @@ function prepareUpdate(post, incoming, user, jobs = [], reviewPlatforms = null) 
   }
   if (data.tags != null) { try { require("./instagramTags").profileNames(data.tags); } catch (error) { fail(400, error.message); } }
   const changed = contentHash(post) !== contentHash({ ...post, ...data });
-  if (jobs.some((j) => j.status === "publishing")) fail(409, "Publishing is in progress. Wait for the platform result before changing this post.");
-  // Instagram tags are never sent to Facebook. They may be corrected after
-  // Facebook succeeds, provided Instagram has definitely not published.
-  const withoutInstagramTags = (value) => ({ ...value, tags: null, media: require("./socialPreflight").array(value.media).map((item) => { if (!item || typeof item !== "object") return item; const { userTags, ...rest } = item; return rest; }) });
-  const instagramJobs = jobs.filter((j) => j.platform === "instagram");
-  const safeTagCorrection = post.status !== "posted" && jobs.some((j) => j.platform === "facebook" && j.status === "published") &&
-    jobs.filter((j) => j.status === "published").every((j) => j.platform === "facebook") &&
-    !jobs.some((j) => j.status === "check" || asJSON(j.checkpoint)?.publishCalled && j.status !== "published") &&
-    instagramJobs.length > 0 && instagramJobs.every((j) => ["failed", "cancelled", "missed", "scheduled"].includes(j.status)) &&
-    contentHash(withoutInstagramTags(post)) === contentHash(withoutInstagramTags({ ...post, ...data }));
-  if (changed && (post.status === "posted" || jobs.some((j) => ["published", "check"].includes(j.status) || asJSON(j.checkpoint)?.publishCalled)) && !safeTagCorrection) fail(409, "This post may already be live on a platform. After Facebook publishes, only Instagram profile tags can be corrected here; other content changes require a revised post.");
+  if (reviewMachine.stateOf(post, jobs) === "publishing") fail(409, "Publishing is in progress. Wait for the platform result before changing this post.");
+  const safeTagCorrection = reviewMachine.canCorrectInstagramTags(post, data, jobs);
+  if (changed && reviewMachine.stateOf(post, jobs) === "live" && !safeTagCorrection) fail(409, "This post may already be live on a platform. After Facebook publishes, only Instagram profile tags can be corrected here; other content changes require a revised post.");
   if (data.status && data.status !== post.status && !["ready", "posted"].includes(data.status)) {
-    const allowed = { planned: ["client", "production"], client: ["planned", "production"], production: ["planned", "client", "approval"], approval: ["production"], ready: ["approval"], posted: [] };
-    if (!(allowed[post.status] || []).includes(data.status)) fail(409, "Use Start work, Upload, Review and Schedule in order. This stage cannot be skipped.");
+    if (!workflow.canMove(post.status, data.status)) fail(409, "Use Start work, Upload, Review and Schedule in order. This stage cannot be skipped.");
     const next = { ...post, ...data };
     if (["production", "approval"].includes(data.status) && !next.assigneeId) fail(400, "Choose the person responsible before moving this work.");
     if (data.status === "approval" && !require("./socialPreflight").array(next.media).length) fail(400, "Upload the finished work before sending for review.");
@@ -87,10 +62,7 @@ function prepareUpdate(post, incoming, user, jobs = [], reviewPlatforms = null) 
     if (!manual || post.status !== "ready" || !canApprove(post, user) || !links.length || links.some((u) => !liveLink(u, "instagram") && !liveLink(u, "facebook"))) fail(400, "Confirm the live Instagram/Facebook post links from Ready to post, or use a publishing job’s verification action.");
   }
   if (changed && post.status === "ready") {
-    data.status = "approval";
-    data.step = null;
-    let team = asJSON(post.team) || {};
-    data.assigneeId = team.social || post.assigneeId || null;
+    Object.assign(data, reviewMachine.revokeApproval(post));
   }
   return data;
 }

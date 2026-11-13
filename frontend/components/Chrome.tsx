@@ -1,4 +1,6 @@
 "use client";
+import { revealState } from "@/lib/presentationMachine";
+import { useDisclosure } from "@/lib/useDisclosure";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { gsap } from "gsap";
@@ -7,7 +9,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
 
 export default function Chrome() {
-  const [cookieVisible, setCookieVisible] = useState(false);
+  const [cookieVisible, setCookieVisible] = useDisclosure(false);
   const path = usePathname();
 
   /* ---- Global chrome: bound ONCE (persistent elements) ---- */
@@ -160,10 +162,10 @@ export default function Chrome() {
           trigger: el,
           start: "top 90%",
           end: "bottom 8%",
-          onEnter: () => el.classList.add("in"),
-          onEnterBack: () => el.classList.add("in"),
-          onLeave: oneWay ? undefined : () => el.classList.remove("in"),
-          onLeaveBack: oneWay ? undefined : () => el.classList.remove("in"),
+          onEnter: () => el.classList.toggle("in", revealState(true, oneWay, el.classList.contains("in")) === "visible"),
+          onEnterBack: () => el.classList.toggle("in", revealState(true, oneWay, el.classList.contains("in")) === "visible"),
+          onLeave: oneWay ? undefined : () => el.classList.toggle("in", revealState(false, oneWay, el.classList.contains("in")) === "visible"),
+          onLeaveBack: oneWay ? undefined : () => el.classList.toggle("in", revealState(false, oneWay, el.classList.contains("in")) === "visible"),
         });
         cleanups.push(() => st.kill());
       });

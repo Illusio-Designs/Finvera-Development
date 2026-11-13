@@ -1,5 +1,6 @@
 /* Client-side API helper for the admin — talks to the live backend. */
 "use client";
+import { readCacheState } from "./resourceMachine";
 
 export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "https://api.finvera.solutions").replace(/\/$/, "");
 const TOKEN_KEY = "fv_admin_token";
@@ -40,7 +41,7 @@ export const apiErr = (e: unknown): ApiError => (e instanceof Error ? e : new Er
 const memo = new Map<string, { at: number; p: Promise<any> }>();
 function shared(key: string, ms: number, run: () => Promise<any>): Promise<any> {
   const hit = memo.get(key);
-  if (hit && Date.now() - hit.at < ms) return hit.p;
+  if (readCacheState(hit, ms) === "fresh" && hit) return hit.p;
   const p = run();
   memo.set(key, { at: Date.now(), p });
   p.catch(() => { if (memo.get(key)?.p === p) memo.delete(key); });

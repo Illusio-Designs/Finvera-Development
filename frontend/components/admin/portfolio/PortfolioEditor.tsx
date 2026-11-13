@@ -1,4 +1,5 @@
 "use client";
+import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { api } from "@/lib/adminApi";
@@ -33,8 +34,8 @@ export default function PortfolioEditor({ row, onClose, onSaved, onPatched, onDe
   const [base, setBase] = useState<Record<string, any>>(() => normalize(row || { title: "", status: "draft", featured: false, position: 0 }));
   const [draft, setDraft] = useState<Record<string, any>>(base);
   const [tab, setTab] = useState("details"), [showPreview, setShowPreview] = useState(false);
-  const [saving, setSaving] = useState(false), [uploads, setUploads] = useState(0), [error, setError] = useState("");
-  const [conflict, setConflict] = useState(false);
+  const { saving, setSaving, error, setError, conflict, setConflict } = useSaveWorkflow();
+  const [uploads, setUploads] = useState(0);
   const dirtyKeys = FIELDS.filter(key => JSON.stringify(draft[key] ?? "") !== JSON.stringify(base[key] ?? ""));
   const dirty = dirtyKeys.length > 0;
   const busy = saving || uploads > 0;

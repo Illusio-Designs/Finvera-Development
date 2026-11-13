@@ -1,3 +1,4 @@
+const { isPublicationState } = require("../utils/contentMachine");
 const { Op } = require('sequelize');
 const slugify = require('slugify');
 const { Project, sequelize } = require('../models');
@@ -23,7 +24,7 @@ function validate(req, res, next) {
   const invalid = (field, message) => res.status(400).json({ field, message });
   if ((req.method === 'POST' || 'title' in body) && (typeof body.title !== 'string' || !body.title.trim())) return invalid('title', 'Add the case study title.');
   if (req.method === 'POST' && !body.status) body.status = 'draft';
-  if ('status' in body && !['draft', 'published'].includes(body.status)) return invalid('status', 'Choose Draft or Published.');
+  if ('status' in body && !isPublicationState(body.status)) return invalid('status', 'Choose Draft or Published.');
   for (const field of ['url', 'desktopImage', 'mobileImage', 'coverImage']) if (body[field] && !validUrl(body[field], field !== 'url')) return invalid(field, 'Use a valid HTTP or HTTPS URL.');
   for (const field of ARRAYS) if (field in body && body[field] != null && (!Array.isArray(body[field]) || body[field].some(value => typeof value !== 'string'))) return invalid(field, 'Use a list of text values.');
   if (body.gallery?.some(value => !validUrl(value, true))) return invalid('gallery', 'Use valid image URLs in the gallery.');

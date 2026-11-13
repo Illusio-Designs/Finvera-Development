@@ -17,10 +17,13 @@ process.on("uncaughtException", (err) => {
 });
 
 async function start() {
+  const startup = require("./src/utils/startupMachine").createStartupMachine();
   try {
+    startup.enter("connect");
     await sequelize.authenticate();
     console.log("\x1b[32m✔ MySQL connected\x1b[0m");
 
+    startup.enter("schema");
     // Schema provisioning.
     //   Default boot  → sequelize.sync() : only CREATEs missing tables. Cheap,
     //                   no ALTER scan, so Passenger workers boot fast and don't
@@ -54,13 +57,16 @@ async function start() {
 
     // Self-heal newly added columns (e.g. tasks.startDate, users.roles) without
     // a full ALTER scan or manual SQL — adds only what's missing.
+    startup.enter("columns");
     try { await ensureColumns(sequelize); } catch (e) { console.warn("\x1b[33m⚠ ensureColumns skipped:\x1b[0m", e.message); }
     // Same idea for indexes on existing tables (CREATE INDEX only if missing).
+    startup.enter("indexes");
     try { await ensureIndexes(sequelize); } catch (e) { console.warn("\x1b[33m⚠ ensureIndexes skipped:\x1b[0m", e.message); }
 
     // Seeding must never take the API down — a schema mismatch or seed bug
     // here previously threw to the outer catch → process.exit(1) → Passenger
     // respawn loop → nproc exhaustion. Isolate it so the server still listens.
+    startup.enter("seed");
     try {
       await seed(); // create admin + sample content if empty
     } catch (e) {
@@ -68,9 +74,11 @@ async function start() {
     }
 
     // Reconcile old scheduled data before enabling the worker. No remote writes.
+    startup.enter("reconcile");
     const socialRepair = await require("./src/utils/socialReconcile").reconcile();
     console.log(`Social workflow checked ${socialRepair.checked} ready posts; ${socialRepair.paused} returned to review.`);
 
+    startup.enter("listen");
     const server = app.listen(PORT, () => {
       console.log(`\x1b[36m✔ Finvera API running on http://localhost:${PORT}\x1b[0m`);
     });
@@ -82,6 +90,7 @@ async function start() {
       server.headersTimeout = server.keepAliveTimeout + 5 * 1000;
     }
 
+    startup.enter("workers");
     // Daily reminders (10:15 AM India time) — checked every 5 minutes while
     // the app is awake; claimed once per day so restarts never resend.
     const { maybeRunDaily } = require("./src/utils/dailyReminders");
@@ -112,6 +121,8 @@ async function start() {
   } catch (err) {
     // Only genuine start failures (e.g. DB unreachable) reach here.
     console.error("\x1b[31m✘ Failed to start server:\x1b[0m", err.message);
+    console.error(`  Startup phase: ${startup.phase}`);
+    startup.fail();
     console.error("  Check your MySQL credentials in .env (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME).");
     process.exit(1);
   }

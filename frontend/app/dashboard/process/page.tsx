@@ -1,4 +1,6 @@
 "use client";
+import { useResourceState } from "@/lib/useResourceState";
+import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import PageLoading from "@/components/admin/PageLoading";
 import { useEffect, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -15,7 +17,7 @@ const ICONS = [["rocket", "Momentum"], ["target", "Focus"], ["award", "Craft"], 
 const FIELDS = ["title", "step", "icon", "description", "position", "status"] as const;
 const sorted = (rows: ProcessStep[]) => [...rows].sort((a, b) => a.position - b.position || String(a.createdAt || "").localeCompare(String(b.createdAt || "")) || a.id - b.id);
 export default function AdminProcessSteps() {
-  const [rows, setRows] = useState<ProcessStep[] | null>(null), [busy, setBusy] = useState(true), [error, setError] = useState("");
+  const { data: rows, setData: setRows, loading: busy, setLoading: setBusy, error, setError } = useResourceState<ProcessStep[] | null>(null, true);
   const [query, setQuery] = useState(""), [status, setStatus] = useState("");
   const [editing, setEditing] = useState<{ row: ProcessStep | null; key: number } | null>(null), [ordering, setOrdering] = useState(false);
   const orderPending = useRef(false);
@@ -48,7 +50,8 @@ export default function AdminProcessSteps() {
 }
 function ProcessStepEditor({ row, nextPosition, onClose, onSaved, onPatch, onDeleted }: { row: ProcessStep | null; nextPosition: number; onClose: () => void; onSaved: (row: ProcessStep) => void; onPatch: (row: ProcessStep) => void; onDeleted: (id: number) => void }) {
   const [base, setBase] = useState<Partial<ProcessStep>>(row || { title: "", step: "", description: "", icon: "search", status: "draft", position: nextPosition });
-  const [draft, setDraft] = useState(base), [busy, setBusy] = useState(false), [error, setError] = useState(""), [conflict, setConflict] = useState(false);
+  const [draft, setDraft] = useState(base);
+  const { saving: busy, setSaving: setBusy, error, setError, conflict, setConflict } = useSaveWorkflow();
   const ref = useRef<HTMLElement>(null), dirtyKeys = FIELDS.filter(field => String(draft[field] ?? "") !== String(base[field] ?? ""));
   const set = (field: keyof ProcessStep, value: any) => { if (!busy) setDraft(current => ({ ...current, [field]: value })); };
   async function close() { if (busy) return; if (dirtyKeys.length && !(await dialog.confirm({ title: "Discard your changes?", message: "Your process step changes have not been saved.", confirmText: "Discard", cancelText: "Keep editing", danger: true }))) return; onClose(); }

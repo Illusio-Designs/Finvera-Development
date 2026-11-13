@@ -1,3 +1,4 @@
+const { isPublicationState } = require("../utils/contentMachine");
 const { Faq, sequelize } = require('../models');
 const { asyncHandler } = require('../utils/crud');
 const audit = require('../utils/audit');
@@ -9,7 +10,7 @@ function validate(req, res, next) {
   const body = req.body || {}, invalid = (field, message) => res.status(400).json({ field, message });
   if ((req.method === 'POST' || 'question' in body) && (typeof body.question !== 'string' || !body.question.trim() || body.question.length > 255)) return invalid('question', 'Add a question of 255 characters or fewer.');
   if (req.method === 'POST' && !body.status) body.status = 'draft';
-  if ('status' in body && !['draft', 'published'].includes(body.status)) return invalid('status', 'Choose Draft or Published.');
+  if ('status' in body && !isPublicationState(body.status)) return invalid('status', 'Choose Draft or Published.');
   if ('position' in body && (!Number.isSafeInteger(Number(body.position)) || Number(body.position) < 0 || Number(body.position) > 2147483647)) return invalid('position', 'Use a non-negative whole display order.');
   if (body.answer != null && typeof body.answer !== 'string') return invalid('answer', 'Use text for the FAQ answer.');
   if (req.method === 'POST' && body.status === 'published' && !String(body.answer || '').trim()) return invalid('answer', 'Add an answer before publishing.');

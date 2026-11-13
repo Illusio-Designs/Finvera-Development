@@ -1,4 +1,5 @@
 "use client";
+import { imageTransition } from "@/lib/presentationMachine";
 import { useEffect } from "react";
 import { displayImageUrl } from "@/lib/displayImageUrl";
 import "./image-loading.css";
@@ -47,7 +48,7 @@ export default function ImageLoading() {
     }
     function failed(img: HTMLImageElement, item: Item) {
       if (disposed || !img.isConnected) return;
-      img.dataset.imageState = 'error'; cover(img, item);
+      img.dataset.imageState = imageTransition(img.dataset.imageState, "FAIL"); cover(img, item);
       if (item.overlay) { item.overlay.className = 'image-load-fallback'; const box = img.getBoundingClientRect(); item.overlay.textContent = box.width > 70 && box.height > 50 ? img.alt || 'Image unavailable' : ''; }
     }
     async function loaded(img: HTMLImageElement, item: Item) {
@@ -56,12 +57,12 @@ export default function ImageLoading() {
       try { if (typeof img.decode === 'function') await img.decode(); }
       catch { if (generation === item.generation && source === sourceOf(img)) failed(img, item); return; }
       if (disposed || !img.isConnected || generation !== item.generation || source !== sourceOf(img)) return;
-      img.dataset.imageState = 'ready'; release(item);
+      img.dataset.imageState = imageTransition(img.dataset.imageState, "READY"); release(item);
     }
     function begin(img: HTMLImageElement, item: Item) {
       const attr = img.getAttribute('src');
       if (attr && !img.getAttribute('srcset')) { const display = displayImageUrl(attr); if (display !== attr) img.setAttribute('src', display); }
-      item.source = sourceOf(img); item.generation++; img.dataset.imageState = 'loading'; release(item); reserve(img, item); cover(img, item);
+      item.source = sourceOf(img); item.generation++; img.dataset.imageState = imageTransition(img.dataset.imageState, "LOAD"); release(item); reserve(img, item); cover(img, item);
       if (img.complete) { if (img.naturalWidth) void loaded(img, item); else failed(img, item); }
     }
     function track(img: HTMLImageElement) {

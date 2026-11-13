@@ -1,4 +1,5 @@
 "use client";
+import { useDisclosure } from "@/lib/useDisclosure";
 import { useState, useRef, useEffect } from "react";
 import { usePhoneInput, defaultCountries, parseCountry } from "react-international-phone";
 
@@ -10,7 +11,7 @@ const flagEmoji = (iso2: string) =>
    Headless logic from react-international-phone, styled with our own CSS. */
 export default function PhoneInput({ name = "phone" }: { name?: string; label?: string }) {
   const [focused, setFocused] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useDisclosure(false);
   const [q, setQ] = useState("");
   const wrapRef = useRef<HTMLDivElement>(null);
 

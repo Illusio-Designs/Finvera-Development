@@ -1,5 +1,6 @@
 const { sequelize, SocialPost, SocialPublishJob, SocialAccount, User } = require("../models");
 const { prepareUpdate, contentHash } = require("./socialSafety");
+const jobMachine = require("./publishJobMachine");
 
 async function updateRecord(req) {
   return sequelize.transaction(async (transaction) => {
@@ -36,7 +37,7 @@ async function updateRecord(req) {
     // Return the timestamp actually persisted by MySQL (its precision can
     // differ from Sequelize’s in-memory timestamp used during update).
     await item.reload({ transaction, lock: transaction.LOCK.UPDATE });
-    if (item.status !== "ready") for (const job of jobs) if (["scheduled", "missed", "failed", "cancelled"].includes(job.status)) await job.update({ status: "cancelled", ...(contentHash(before) !== contentHash(item.toJSON()) ? { checkpoint: {} } : {}) }, { transaction });
+    if (item.status !== "ready") for (const job of jobs) if (["scheduled", "missed", "failed", "cancelled"].includes(job.status)) await job.update({ status: jobMachine.transition(job.status, "CANCEL"), ...(contentHash(before) !== contentHash(item.toJSON()) ? { checkpoint: {} } : {}) }, { transaction });
     return { item, before };
   });
 }

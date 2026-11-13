@@ -1,3 +1,4 @@
+const inboxMachine = require("../utils/inboxMachine");
 /* Contact inbox extras (all behind the "contact" area):
      GET  /api/contact/counts          → { all, unread, spam }
      GET  /api/contact/:id             → one submission (deep links ?msg=ID)
@@ -39,7 +40,7 @@ const reply = asyncHandler(async (req, res) => {
   const mailer = require("../utils/mailer");
   const row = await ContactSubmission.findByPk(req.params.id);
   if (!row) return res.status(404).json(NOT_FOUND);
-  if (row.isSpam) return res.status(409).json({ message: "Restore this message from spam before replying." });
+  if (inboxMachine.stateOf(row) === "spam") return res.status(409).json({ message: "Restore this message from spam before replying." });
   const message = String(req.body?.message || "").trim();
   if (!message) return res.status(400).json({ message: "Write a reply first.", field: "message" });
   if (message.length > 10000) return res.status(400).json({ message: "That reply is too long (10,000 characters at most).", field: "message" });
@@ -59,7 +60,7 @@ const reply = asyncHandler(async (req, res) => {
   const replyTo = me.email ? `"${clean(me.name || "Finvera").replace(/["<>]/g, "")}" <${clean(me.email).replace(/[<>]/g, "")}>` : undefined;
 
   const r = await mailer.sendMail({ to: clean(row.email).replace(/[<>]/g, ""), subject, html, text, replyTo });
-  if (!r.sent && (r.reason === "not-configured" || r.reason === "nodemailer-missing")) return res.status(400).json({ message: NO_MAIL, code: "mail-not-configured" });
+  if (inboxMachine.deliveryState(r) === "unavailable") return res.status(400).json({ message: NO_MAIL, code: "mail-not-configured" });
 
   const saved = await ContactReply.create({
     contactId: row.id, userId: me.id || null, userName: me.name || null, subject, message,
@@ -70,7 +71,7 @@ const reply = asyncHandler(async (req, res) => {
     action: "other", entity: "contact", entityId: row.id, entityLabel: row.name,
     summary: r.sent ? `Replied by email: ${subject}` : `Email reply failed: ${String(r.reason || "").slice(0, 200)}`,
   });
-  if (!r.sent) return res.status(502).json({ message: `The email couldn't be sent (${String(r.reason || "unknown error").slice(0, 200)}). Copy the text and reply from your mail app.`, reply: saved, emailed: false });
+  if (inboxMachine.deliveryState(r) === "failed") return res.status(502).json({ message: `The email couldn't be sent (${String(r.reason || "unknown error").slice(0, 200)}). Copy the text and reply from your mail app.`, reply: saved, emailed: false });
   res.status(201).json({ reply: saved, emailed: true });
 });
 
@@ -79,11 +80,11 @@ const toLead = asyncHandler(async (req, res) => {
   let created = false;
   const out = await sequelize.transaction(async (t) => {
     const row = await ContactSubmission.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
-    if (!row) return null;
-    if (row.isSpam) return { spam: true };
+    if (inboxMachine.conversionState(row) === "missing") return null;
+    if (inboxMachine.conversionState(row) === "blocked") return { spam: true };
     if (row.leadId) {
       const existing = await Lead.findByPk(row.leadId, { transaction: t });
-      if (existing) {
+      if (inboxMachine.conversionState(row, existing) === "linked") {
         if (!row.isRead) await row.update({ isRead: true }, { transaction: t });
         return { row, lead: existing };
       }

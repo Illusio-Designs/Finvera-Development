@@ -1,4 +1,6 @@
 "use client";
+import { useResourceState } from "@/lib/useResourceState";
+import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import { useEffect, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon, Search01Icon, Refresh01Icon, ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
@@ -17,7 +19,7 @@ function QuoteContent({ row, full = false }: { row: Partial<Quote>; full?: boole
   return <><span className="qt-stars" role="img" aria-label={`${testimonialRating(row.rating)} out of 5 stars`}>{"★".repeat(testimonialRating(row.rating))}</span><blockquote className={full ? "full" : ""}>{row.quote ? `“${row.quote}”` : "Add your client’s words before publishing."}</blockquote><div className="qt-author"><span className="qt-avatar" aria-hidden="true">{testimonialInitials(row.name, row.avatar)}</span><div><b>{row.name || "Client name"}</b><span>{[row.role, row.company].filter(Boolean).join(" · ") || "Client details"}</span></div></div></>;
 }
 export default function AdminTestimonials() {
-  const [rows, setRows] = useState<Quote[] | null>(null), [busy, setBusy] = useState(true), [error, setError] = useState("");
+  const { data: rows, setData: setRows, loading: busy, setLoading: setBusy, error, setError } = useResourceState<Quote[] | null>(null, true);
   const [query, setQuery] = useState(""), [status, setStatus] = useState("");
   const [editing, setEditing] = useState<{ row: Quote | null; key: number } | null>(null);
   async function load() { setBusy(true); setError(""); try { const data = await api.list("testimonials"); setRows(sorted(Array.isArray(data) ? data : [])); } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t load testimonials."); } finally { setBusy(false); } }
@@ -35,7 +37,8 @@ export default function AdminTestimonials() {
 }
 function QuoteEditor({ row, nextPosition, onClose, onSaved, onPatch, onDeleted }: { row: Quote | null; nextPosition: number; onClose: () => void; onSaved: (row: Quote) => void; onPatch: (row: Quote) => void; onDeleted: (id: number) => void }) {
   const [base, setBase] = useState<Partial<Quote>>(row || { name: "", quote: "", rating: 5, status: "draft", position: nextPosition });
-  const [draft, setDraft] = useState(base), [busy, setBusy] = useState(false), [error, setError] = useState(""), [conflict, setConflict] = useState(false);
+  const [draft, setDraft] = useState(base);
+  const { saving: busy, setSaving: setBusy, error, setError, conflict, setConflict } = useSaveWorkflow();
   const ref = useRef<HTMLElement>(null), dirtyKeys = FIELDS.filter(field => String(draft[field] ?? "") !== String(base[field] ?? ""));
   const set = (field: keyof Quote, value: any) => { if (!busy) setDraft(current => ({ ...current, [field]: value })); };
   async function close() { if (busy) return; if (dirtyKeys.length && !(await dialog.confirm({ title: "Discard your changes?", message: "Your testimonial changes have not been saved.", confirmText: "Discard", cancelText: "Keep editing", danger: true }))) return; onClose(); }

@@ -1,5 +1,6 @@
 "use client";
 import { api } from "@/lib/adminApi";
+import { pushEligibility, subscriptionAction } from "./notificationMachine";
 
 /* Phone / desktop push notifications for this device.
    iPhone/iPad: only works in the Home Screen app (iOS 16.4+), and the
@@ -32,10 +33,8 @@ async function currentSub() {
 
 export async function pushState(): Promise<PushState> {
   if (typeof window === "undefined") return "unsupported";
-  if (isIos() && !isStandalone()) return "ios-install";
-  if (!supported()) return "unsupported";
-  if (Notification.permission === "denied") return "denied";
-  if (Notification.permission !== "granted") return "off";
+  const eligibility = pushEligibility({ ios: isIos(), standalone: isStandalone(), supported: supported(), permission: "Notification" in window ? Notification.permission : "default" });
+  if (eligibility !== "subscription") return eligibility;
   return (await currentSub()) ? "on" : "off";
 }
 
@@ -50,7 +49,7 @@ export async function enablePush(): Promise<{ ok: boolean; reason?: "denied" | "
     const { publicKey } = await api.pushKey();
     const key = keyBytes(publicKey);
     let sub = await reg.pushManager.getSubscription();
-    if (sub && !sameKey(sub.options.applicationServerKey, key)) { await sub.unsubscribe(); sub = null; }
+    if (subscriptionAction(!!sub, sameKey(sub?.options.applicationServerKey, key)) === "replace" && sub) { await sub.unsubscribe(); sub = null; }
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
     await api.pushSubscribe(sub.toJSON());
     return { ok: true };
@@ -76,7 +75,7 @@ export async function syncPush() {
     const sub = await currentSub();
     if (!sub) return;
     const { publicKey } = await api.pushKey();
-    if (!sameKey(sub.options.applicationServerKey, keyBytes(publicKey))) {
+    if (subscriptionAction(true, sameKey(sub.options.applicationServerKey, keyBytes(publicKey))) === "replace") {
       await sub.unsubscribe();
       const reg = await navigator.serviceWorker.ready;
       const fresh = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
