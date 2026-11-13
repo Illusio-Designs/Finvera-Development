@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { dialog } from "@/lib/dialog";
+import { installState } from "@/lib/notificationMachine";
 
 /* "Install app" in the sidebar. Android/desktop Chrome & Edge get the
    browser's own install prompt; iPhone/iPad (Safari has no prompt) get the
@@ -24,7 +25,8 @@ export default function InstallApp({ className = "" }: { className?: string }) {
     return () => { window.removeEventListener("beforeinstallprompt", onPrompt); window.removeEventListener("appinstalled", onInstalled); };
   }, []);
 
-  if (installed || (!evt && !ios)) return null;
+  const phase = installState(installed, !!evt, ios);
+  if (phase === "installed" || phase === "unavailable") return null;
 
   const install = async () => {
     if (evt) {

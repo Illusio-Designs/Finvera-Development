@@ -10,6 +10,16 @@ const work = load("socialWorkMachine");
 const editors = load("editorMachine");
 const enquiries = load("enquiryMachine");
 const resources = load("resourceMachine");
+const notifications = load("notificationMachine");
+test("push permission and install requirements are separate from subscription key replacement", () => {
+  const input = { ios: false, standalone: false, supported: true, permission: "granted" };
+  assert.equal(notifications.pushEligibility(input), "subscription");
+  assert.equal(notifications.pushEligibility({ ...input, permission: "denied" }), "denied");
+  assert.equal(notifications.pushEligibility({ ...input, ios: true }), "ios-install");
+  assert.equal(notifications.subscriptionAction(true, false), "replace");
+  assert.equal(notifications.subscriptionAction(true, true), "reuse");
+  assert.equal(notifications.installState(true, true, true), "installed");
+});
 test("refresh failures retain prior data and paging completion does not end an overlapping refresh", () => {
   let state = { data: [1], request: "idle", error: "" };
   state = resources.resourceTransition(state, { type: "LOADING", value: true });

@@ -1,3 +1,4 @@
+const { pushResult } = require("./notificationMachine");
 /* Notification helpers — create in-app notifications for the right recipients
    and push them to every device each recipient enabled.
    All helpers swallow their own errors so a notification failure can never
@@ -23,8 +24,8 @@ async function pushToUser(userId, message) {
   let sent = 0;
   for (const s of subs) {
     const status = await webpush.send(s, { ...message, badge: unread });
-    if (status >= 200 && status < 300) { sent++; s.update({ lastSuccessAt: new Date() }).catch(() => {}); }
-    else if (status === 404 || status === 410) await s.destroy().catch(() => {});
+    if (pushResult(status) === "delivered") { sent++; s.update({ lastSuccessAt: new Date() }).catch(() => {}); }
+    else if (pushResult(status) === "expired") await s.destroy().catch(() => {});
     else if (status) console.warn(`push ${status} for user ${userId}`);
   }
   return { sent, devices: subs.length };

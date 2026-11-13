@@ -27,7 +27,7 @@ rules are checked against the server by contract tests.
 | 15 | Editor saving, conflicts, report export and inbox composer | Complete |
 | 16 | Public enquiry forms and CAPTCHA | Complete |
 | 17 | Data loading, pagination and connectivity | Complete |
-| 18 | Push, installation, notifications and read status | Pending |
+| 18 | Push, installation, notifications and read status | Complete |
 | 19 | Images, dialogs, navigation and marketing interactions | Pending |
 | 20 | Operational tools and server startup | Pending |
 | 21 | Schedulers, runner locks and alert claims | Pending |
@@ -224,3 +224,12 @@ widgets use the shared state. Existing data survives refresh errors. Overlapping
 pagination/refresh flags are preserved rather than one completion ending both.
 Backend connectivity uses an explicit result classifier. No request cancellation
 or stale-response policy is changed in this extraction.
+
+## 18. Notifications and installation
+
+Browser notification eligibility, subscription Create/Reuse/Replace actions and
+Installed/Prompt/Instructions/Unavailable states are named in
+`notificationMachine.ts`. Read events are shared by bell actions. The backend
+notification machine classifies delivered/expired/failed push responses and read
+patches; only expired subscriptions are removed. Service-worker visibility selects
+Quiet/Audible delivery while native install/activate events remain native.
