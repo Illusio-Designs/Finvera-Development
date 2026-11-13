@@ -170,15 +170,7 @@ const listPosts = () => asyncHandler(async (req, res) => {
    The maker uploads the finished work and clicks Done; it goes to the
    Social media manager, who approves it and it's scheduled. */
 const STEPS = ["graphic", "video", "social"];
-const isVideoFormat = (format) => /reel|video/i.test(String(format || ""));
-const makerFor = (format) => (isVideoFormat(format) ? "video" : "graphic");
-function stageRole(status, format, step) {
-  if (status === "ready" || status === "posted" || status === "approval") return "social";
-  if (status === "production") return makerFor(format);
-  return makerFor(format);
-}
-/* The step a post is on inside In production: the maker for its format. */
-const stepFor = (status, step, format) => (status === "production" ? makerFor(format) : null);
+const { makerFor, roleFor: stageRole, stepFor } = require("../utils/socialPostMachine");
 
 /* Least-loaded active user holding `role` who can see `client`, or null.
    `ctx` caches users / brand ids / open-post counts across a bulk import. */

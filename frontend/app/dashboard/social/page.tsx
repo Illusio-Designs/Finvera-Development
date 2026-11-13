@@ -2,7 +2,7 @@
 import PageLoading from "@/components/admin/PageLoading";
 import "./social-workspace.css";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { chainFor, isVideoFormat, makerFor, roleFor, indiaToday, overdueAt, moveArtwork, type SocialRole as Role } from "@/lib/socialWorkflow";
+import { chainFor, isVideoFormat, makerFor, roleFor, nextStage, indiaToday, overdueAt, moveArtwork, type SocialRole as Role, type SocialStage as Stage } from "@/lib/socialWorkflow";
 import { api } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
 import { userRoles } from "@/lib/permissions";
@@ -28,7 +28,6 @@ function CardIcon({ kind }: { kind: "clock" | "format" | "attachment" | "upload"
   </svg>;
 }
 
-type Stage = "planned" | "client" | "production" | "approval" | "ready" | "posted";
 type LogEntry = { id: string; userId?: number | null; minutes: number; note?: string; at: string };
 type Post = {
   id: number; client: string; status: Stage;
@@ -106,13 +105,10 @@ const STEP_AT: Record<Role, { status: Stage; step?: string }> = {
 };
 /* The format-specific maker hands finished work to the social reviewer. */
 function nextHop(p: Pick<Post, "status" | "step" | "team" | "format">): { role: Role; patch: { status?: Stage; step?: string } } | null {
-  if (p.status === "posted" || p.status === "ready") return null; // Ready to post → posts itself (or Mark as posted)
-  // Planned / Need from client → the maker starts work.
-  if (p.status === "planned" || p.status === "client") { const m = makerFor(p.format); return { role: m, patch: STEP_AT[m] }; }
-  // Maker done → Social media manager checks it (Pending approval); approving schedules it.
-  if (p.status === "production") return { role: "social", patch: { status: "approval" } };
-  if (p.status === "approval") return { role: "social", patch: STEP_AT.social };
-  return null;
+  const status = nextStage(p.status);
+  if (!status) return null; // Publication is confirmed separately from a handoff.
+  const role = roleFor(status, p.format);
+  return { role, patch: { status, ...(status === "production" ? { step: makerFor(p.format) } : {}) } };
 }
 const CLIENT_COLORS = ["#3e60ab", "#0f766e", "#be185d", "#a16207", "#7c5cff", "#0369a1", "#c2410c", "#15803d"];
 const FORMATS = ["Post", "Reel", "Carousel", "Video", "Story", "Video Story", "Influencer Reel"];

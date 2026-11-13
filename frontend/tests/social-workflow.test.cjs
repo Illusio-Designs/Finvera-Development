@@ -9,6 +9,15 @@ const context = { exports: {} };
 vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, context);
 const ui = context.exports;
 const server = require('../../Backendjs/src/controllers/social.controller');
+const machine = require('../../Backendjs/src/utils/socialPostMachine');
+
+test('independently deployed UI and API agree on workflow events, edges and next actions', () => {
+  assert.deepEqual(JSON.parse(JSON.stringify(ui.POST_TRANSITIONS)), machine.TRANSITIONS);
+  for (const from of machine.STATES) {
+    assert.equal(ui.nextStage(from), machine.nextStage(from));
+    for (const to of machine.STATES) assert.equal(ui.canMove(from, to), machine.canMove(from, to), `${from} -> ${to}`);
+  }
+});
 
 for (const [format, maker, staleStep] of [
   ['Static post', 'graphic', 'video'], ['Carousel', 'graphic', 'video'],

@@ -1,4 +1,19 @@
 export type SocialRole = "marketer" | "video" | "graphic" | "admin" | "social";
+export type SocialStage = "planned" | "client" | "production" | "approval" | "ready" | "posted";
+
+// Mirrored across the independently deployed frontend/backend. The workflow
+// contract test verifies both definitions, including every invalid edge.
+export const POST_TRANSITIONS = {
+  planned: { START: "production", REQUEST_CLIENT: "client" },
+  client: { START: "production", RETURN_TO_PLAN: "planned" },
+  production: { SUBMIT: "approval", RETURN_TO_PLAN: "planned", REQUEST_CLIENT: "client" },
+  approval: { APPROVE: "ready", REQUEST_CHANGES: "production" },
+  ready: { REVOKE_APPROVAL: "approval", CONFIRM_PUBLICATION: "posted" },
+  posted: {},
+} as const;
+const NEXT_STAGE: Partial<Record<SocialStage, SocialStage>> = { planned: "production", client: "production", production: "approval", approval: "ready" };
+export const nextStage = (state: SocialStage): SocialStage | null => NEXT_STAGE[state] || null;
+export const canMove = (from: SocialStage, to: SocialStage): boolean => from === to || (Object.values(POST_TRANSITIONS[from]) as string[]).includes(to);
 
 export const isVideoFormat = (format?: string | null) => /reel|video/i.test(format || "");
 export const makerFor = (format?: string | null): SocialRole => isVideoFormat(format) ? "video" : "graphic";

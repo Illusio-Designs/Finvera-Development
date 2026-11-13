@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const { rolesOf } = require("./permissions");
+const workflow = require("./socialPostMachine");
 const PAYLOAD = ["client", "format", "caption", "media", "tags", "keywords", "keywordHashtags", "publishTo", "postDate", "postTime"];
 const asJSON = (v) => { if (typeof v !== "string") return v; try { return JSON.parse(v); } catch { return v; } };
 function stable(v) {
@@ -37,7 +38,7 @@ function prepareUpdate(post, incoming, user, jobs = [], reviewPlatforms = null) 
   delete data._manualPosted;
   delete data.id;
   if (expected && +new Date(expected) !== +new Date(post.updatedAt)) fail(409, "This post changed since you opened it. Reload before saving.");
-  if (data.status && !["planned", "client", "production", "approval", "ready", "posted"].includes(data.status)) fail(400, "Choose a valid workflow stage.");
+  if (data.status && !workflow.isState(data.status)) fail(400, "Choose a valid workflow stage.");
   if (post.status === "posted" && data.status && data.status !== "posted") fail(409, "Create a new post for revised work after publication.");
   if (data.media != null) {
     if (!Array.isArray(data.media) || data.media.length > 10) fail(400, "Use up to 10 artwork files per post.");
@@ -62,8 +63,7 @@ function prepareUpdate(post, incoming, user, jobs = [], reviewPlatforms = null) 
     contentHash(withoutInstagramTags(post)) === contentHash(withoutInstagramTags({ ...post, ...data }));
   if (changed && (post.status === "posted" || jobs.some((j) => ["published", "check"].includes(j.status) || asJSON(j.checkpoint)?.publishCalled)) && !safeTagCorrection) fail(409, "This post may already be live on a platform. After Facebook publishes, only Instagram profile tags can be corrected here; other content changes require a revised post.");
   if (data.status && data.status !== post.status && !["ready", "posted"].includes(data.status)) {
-    const allowed = { planned: ["client", "production"], client: ["planned", "production"], production: ["planned", "client", "approval"], approval: ["production"], ready: ["approval"], posted: [] };
-    if (!(allowed[post.status] || []).includes(data.status)) fail(409, "Use Start work, Upload, Review and Schedule in order. This stage cannot be skipped.");
+    if (!workflow.canMove(post.status, data.status)) fail(409, "Use Start work, Upload, Review and Schedule in order. This stage cannot be skipped.");
     const next = { ...post, ...data };
     if (["production", "approval"].includes(data.status) && !next.assigneeId) fail(400, "Choose the person responsible before moving this work.");
     if (data.status === "approval" && !require("./socialPreflight").array(next.media).length) fail(400, "Upload the finished work before sending for review.");
