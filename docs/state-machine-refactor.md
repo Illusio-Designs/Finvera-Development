@@ -12,7 +12,7 @@ rules are checked against the server by contract tests.
 | --- | --- | --- |
 | 1 | Social post lifecycle and format-based ownership | Complete |
 | 2 | Publishing job lifecycle, retry and lease recovery | Complete |
-| 3 | Approval invalidation and multi-platform completion | Pending |
+| 3 | Approval invalidation and multi-platform completion | Complete |
 | 4 | Instagram/Facebook checkpoints and Reel cover retry | Pending |
 | 5 | OAuth selection, account health and channel pause | Pending |
 | 6 | Account lifecycle, lockout and authentication | Pending |
@@ -86,3 +86,14 @@ Post settlement distinguishes no intended jobs, pending, partially published and
 complete publication. Cancelled jobs do not count as intended results, and an
 empty set never counts as complete. Existing platform and operator regressions
 plus machine tests cover these paths.
+
+## 3. Review validity
+
+`socialReviewMachine.js` makes Draft, Review, Approved, Publishing and Live
+content states explicit. Publishing locks outrank the workflow stage; a remote
+write or published/uncertain result makes content Live for editing purposes.
+The existing Instagram-only tagging exception remains narrow. Approval
+revocation restores the reviewer and is shared by edits and reconciliation.
+Content hashing lives in `socialContent.js`, avoiding a dependency cycle between
+the review policy and API validation. Multi-platform completion uses the job
+machine's None/Pending/Partial/Complete classification from step 2.

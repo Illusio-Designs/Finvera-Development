@@ -3,6 +3,7 @@
 const { sequelize, SocialPost, SocialPublishJob, SocialAccount } = require("../models");
 const { preflight } = require("./socialPreflight");
 const jobMachine = require("./publishJobMachine");
+const reviewMachine = require("./socialReviewMachine");
 async function reconcile({ postIds } = {}) {
   const candidates = await SocialPost.findAll({ where: { status: "ready", ...(postIds ? { id: postIds } : {}) }, attributes: ["id"], raw: true });
   let paused = 0;
@@ -18,9 +19,9 @@ async function reconcile({ postIds } = {}) {
     const platforms = require("./autoPublish").targetsFor(post, account).filter((platform) => !jobs.some((job) => job.platform === platform && job.status === "published"));
     const issues = preflight(post, platforms);
     if (!issues.length) return;
-    const team = typeof post.team === "string" ? (() => { try { return JSON.parse(post.team); } catch { return {}; } })() : post.team || {};
     const before = post.toJSON();
-    await post.update({ status: "approval", assigneeId: team.social || post.assigneeId || null }, { transaction });
+    const { status, assigneeId } = reviewMachine.revokeApproval(post);
+    await post.update({ status, assigneeId }, { transaction });
     for (const job of jobs) if (["scheduled", "missed", "failed", "cancelled"].includes(job.status)) await job.update({ status: jobMachine.transition(job.status, "CANCEL"), error: `Needs review: ${issues.map((issue) => issue.message).join(" ")}`, checkpoint: {} }, { transaction });
     const { SocialPostEvent } = require("../models");
     await SocialPostEvent.create(require("../controllers/social.controller").eventOf(post, { from: before.status, fromAssigneeId: before.assigneeId }), { transaction });
