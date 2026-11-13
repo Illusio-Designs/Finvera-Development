@@ -1,3 +1,4 @@
+const { cacheState } = require("../utils/asyncMachine");
 const { Op, fn, col, literal } = require("sequelize");
 const { SocialClient, SocialPost, SocialPostEvent, User, Setting } = require("../models");
 
@@ -32,7 +33,7 @@ const scopeCache = new Map(); // "1,2,3" → { at, names: Promise<string[]> }
 function brandNames(ids) {
   const key = [...ids].sort().join(",");
   const hit = scopeCache.get(key);
-  if (hit && Date.now() - hit.at < SCOPE_TTL_MS) return hit.names;
+  if (cacheState(hit, SCOPE_TTL_MS) === "fresh") return hit.names;
   const names = SocialClient.findAll({ attributes: ["name"], where: { id: ids }, order: [["id", "ASC"]], raw: true }).then((rows) => rows.map((c) => c.name));
   if (scopeCache.size > 200) scopeCache.clear();
   scopeCache.set(key, { at: Date.now(), names });

@@ -31,7 +31,7 @@ rules are checked against the server by contract tests.
 | 19 | Images, dialogs, navigation and marketing interactions | Complete |
 | 20 | Operational tools and server startup | Complete |
 | 21 | Schedulers, runner locks and alert claims | Complete |
-| 22 | Backup artifacts, studio refresh and shared caches | Pending |
+| 22 | Backup artifacts, studio refresh and shared caches | Complete |
 | 23 | WebP queue, repairs, polling and lazy initialization | Pending |
 | — | Dormant task-board/timer schemas | Document only; no active workflow to refactor |
 
@@ -261,3 +261,14 @@ windowed alert claims retain the existing conditional SQL update and fail-closed
 wrapper. Claims are still consumed before work, so failure does not silently
 introduce a retry. The publisher's force option cannot bypass an active runner.
 Error bursts now explicitly move Idle/Pending before their delayed alert.
+
+## 22. Promises, caches and artifacts
+
+`asyncMachine.js` implements Idle/Running single-flight work and Pending/Ready
+read-cache entries with Missing/Fresh/Expired eligibility. Backups and studio
+refresh share single-flight rules; public reads use the cache directly, while
+auth/scope/KPI caches retain their eviction policies and use the shared freshness
+classifier. Browser API memo reads mirror freshness semantics. Backup artifacts
+are Partial/Archive/Other; incomplete files never become downloadable archives.
+Tests cover rejection/retry, cache invalidation during an in-flight read, expiry,
+and backup-name boundaries.

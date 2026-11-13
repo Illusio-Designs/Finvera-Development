@@ -1,3 +1,4 @@
+const { cacheState } = require("../utils/asyncMachine");
 const { sessionRejection } = require("../utils/credentialMachine");
 const jwt = require("jsonwebtoken");
 const { User, UserSession } = require("../models");
@@ -16,7 +17,7 @@ const userCache = new Map(); // id → { at, row: Promise<User|null> }
 function loadUser(id) {
   const key = Number(id);
   const hit = userCache.get(key);
-  if (hit && Date.now() - hit.at < USER_TTL_MS) return hit.row;
+  if (cacheState(hit, USER_TTL_MS) === "fresh") return hit.row;
   const row = User.findByPk(key);
   if (userCache.size > 500) userCache.clear();
   userCache.set(key, { at: Date.now(), row });
@@ -36,7 +37,7 @@ const sessionCache = new Map(); // jti → { at, userId, row: Promise<{id,userId
 
 function loadSession(jti, userId) {
   const hit = sessionCache.get(jti);
-  if (hit && Date.now() - hit.at < SESSION_TTL_MS) return hit.row;
+  if (cacheState(hit, SESSION_TTL_MS) === "fresh") return hit.row;
   const row = UserSession.findOne({ where: { jti }, attributes: ["id", "userId", "revokedAt", "lastSeenAt", "expiresAt"], raw: true });
   if (sessionCache.size > 2000) sessionCache.clear();
   sessionCache.set(jti, { at: Date.now(), userId: Number(userId), row });

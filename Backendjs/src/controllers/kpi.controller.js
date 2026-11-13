@@ -1,3 +1,4 @@
+const { cacheState } = require("../utils/asyncMachine");
 /* Content calendar performance KPIs.
 
    GET /api/social-kpis?period=week|month|quarter&brand=<name>
@@ -202,7 +203,7 @@ function getKpis({ period = "month", brand = "", scope = null, userId = null, re
   const args = { period: String(period || "month"), brand: brand ? String(brand) : "", scope, userId, reportDetails };
   const key = cacheKey(args);
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < CACHE_MS) return hit.value;
+  if (cacheState(hit, CACHE_MS) === "fresh") return hit.value;
   const gen = generation;
   const value = computeKpis(args);
   if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);

@@ -13,3 +13,4 @@ export function resourcePhase<T, E>(state: ResourceState<T, E>) {
   return state.data == null ? "unloaded" : Array.isArray(state.data) && !state.data.length ? "empty" : "ready";
 }
 export const backendState = (ok: boolean, db?: string) => ok && db === "up" ? "online" : "offline";
+export const readCacheState = (entry: { at: number } | undefined, ttl: number, now = Date.now()) => !entry ? "missing" : now - entry.at < ttl ? "fresh" : "expired";
