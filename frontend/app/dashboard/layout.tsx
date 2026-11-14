@@ -1,6 +1,7 @@
 "use client";
 import { useDisclosure } from "@/lib/useDisclosure";
 import "./shell.css";
+import "@/components/admin/workspace-tokens.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -319,7 +320,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <NotificationBell />
           </header>
 
-          <main className="adm-content sh-page" id="main">{children}</main>
+          <main className="adm-content sh-page fw-surface" id="main">{children}</main>
 
           <footer className="sh-footer">
             <span>© 2026 Finvera Solutions LLP</span>

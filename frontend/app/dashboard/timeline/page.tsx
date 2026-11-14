@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHero } from "@/components/admin/Workspace";
 import { useResourceState } from "@/lib/useResourceState";
 import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import PageLoading from "@/components/admin/PageLoading";
@@ -34,7 +35,7 @@ export default function AdminMilestones() {
     } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t save the order."); }
     finally { orderPending.current = false; setOrdering(false); }
   }
-  return <div className="milestones-workspace"><header className="tlw-header"><div><span className="tlw-eyebrow">THE MOMENTS THAT MOVED YOU FORWARD</span><h1>Company timeline</h1><p>Tell your company’s story, one milestone at a time.</p></div><div className="tlw-header-actions"><a className="sh-btn" href="/about" target="_blank" rel="noopener noreferrer">Open About page <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" disabled={ordering} onClick={() => setEditing({ row: null, key: Date.now() })}><HugeiconsIcon icon={Add01Icon} size={16} />New milestone</button></div></header>
+  return <div className="milestones-workspace"><WorkspaceHero eyebrow="THE MOMENTS THAT MOVED YOU FORWARD" title="Company timeline" description="Tell your company’s story, one milestone at a time." actions={<> <div className="tlw-header-actions"><a className="sh-btn" href="/about" target="_blank" rel="noopener noreferrer">Open About page <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" disabled={ordering} onClick={() => setEditing({ row: null, key: Date.now() })}><HugeiconsIcon icon={Add01Icon} size={16} />New milestone</button></div> </>} />
     {!rows && busy && !error ? <PageLoading label="Loading milestones…" variant="list" /> : <>
     <div className="tlw-toolbar"><div className="tlw-tabs" role="tablist" aria-label="Milestone status">{[["", "All milestones"], ["published", "Published"], ["draft", "Drafts"]].map(([milestone, label]) => <button type="button" role="tab" aria-selected={status === milestone} key={milestone} onClick={() => setStatus(milestone)}>{label}{rows && <small>{rows.filter(row => !milestone || row.status === milestone).length}</small>}</button>)}</div><label className="tlw-search"><HugeiconsIcon icon={Search01Icon} size={16} /><input type="search" aria-label="Search milestones" value={query} onChange={event => setQuery(event.target.value)} placeholder="Find a milestone…" /></label><button type="button" className="sh-icb" aria-label="Refresh milestones" disabled={busy || ordering} onClick={load}><HugeiconsIcon icon={Refresh01Icon} size={17} /></button></div>
     {error && <div className="tlw-error" role="alert">{error}<button type="button" className="sh-btn sm" disabled={busy || ordering} onClick={load}>Try again</button></div>}

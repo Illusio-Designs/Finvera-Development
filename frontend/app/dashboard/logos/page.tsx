@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHero } from "@/components/admin/Workspace";
 import { useResourceState } from "@/lib/useResourceState";
 import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import PageLoading from "@/components/admin/PageLoading";
@@ -35,7 +36,7 @@ export default function AdminLogos() {
     } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t save the order."); }
     finally { orderPending.current = false; setOrdering(false); }
   }
-  return <div className="logos-workspace"><header className="cl-header"><div><span className="cl-eyebrow">THE COMPANIES IN YOUR STORY</span><h1>Client logos</h1><p>Give the companies you work with a place on your website.</p></div><div className="cl-header-actions"><a className="sh-btn" href="/about#clients" target="_blank" rel="noopener noreferrer">Open About page <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" disabled={ordering} onClick={() => setEditing({ row: null, key: Date.now() })}><HugeiconsIcon icon={Add01Icon} size={16} />New logo</button></div></header>
+  return <div className="logos-workspace"><WorkspaceHero eyebrow="THE COMPANIES IN YOUR STORY" title="Client logos" description="Give the companies you work with a place on your website." actions={<> <div className="cl-header-actions"><a className="sh-btn" href="/about#clients" target="_blank" rel="noopener noreferrer">Open About page <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" disabled={ordering} onClick={() => setEditing({ row: null, key: Date.now() })}><HugeiconsIcon icon={Add01Icon} size={16} />New logo</button></div> </>} />
     {!rows && busy && !error ? <PageLoading label="Loading client logos…" variant="list" /> : <>
     <div className="cl-toolbar"><div className="cl-tabs" role="tablist" aria-label="Logo status">{[["", "All logos"], ["published", "Published"], ["draft", "Drafts"]].map(([value, label]) => <button type="button" role="tab" aria-selected={status === value} key={value} onClick={() => setStatus(value)}>{label}{rows && <small>{rows.filter(row => !value || row.status === value).length}</small>}</button>)}</div><label className="cl-search"><HugeiconsIcon icon={Search01Icon} size={16} /><input type="search" aria-label="Search logos" value={query} onChange={event => setQuery(event.target.value)} placeholder="Find a company…" /></label><button type="button" className="sh-icb" aria-label="Refresh logos" disabled={busy || ordering} onClick={load}><HugeiconsIcon icon={Refresh01Icon} size={17} /></button></div>
     {error && <div className="cl-error" role="alert">{error}<button type="button" className="sh-btn sm" disabled={busy || ordering} onClick={load}>Try again</button></div>}

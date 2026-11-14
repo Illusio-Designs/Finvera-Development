@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHero } from "@/components/admin/Workspace";
 import { useResourceState } from "@/lib/useResourceState";
 import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import PageLoading from "@/components/admin/PageLoading";
@@ -36,7 +37,7 @@ export default function AdminServices() {
     } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t save the order."); }
     finally { orderPending.current = false; setOrdering(false); }
   }
-  return <div className="services-workspace"><header className="sv-header"><div><span className="sv-eyebrow">MAKE YOUR EXPERTISE CLEAR</span><h1>Services</h1><p>Keep your service offering clear and current.</p></div><div className="sv-header-actions"><a className="sh-btn" href="/services" target="_blank" rel="noopener noreferrer">Open Services page <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" disabled={ordering} onClick={() => setEditing({ row: null, key: Date.now() })}><HugeiconsIcon icon={Add01Icon} size={16} />New service</button></div></header>
+  return <div className="services-workspace"><WorkspaceHero eyebrow="MAKE YOUR EXPERTISE CLEAR" title="Services" description="Keep your service offering clear and current." actions={<> <div className="sv-header-actions"><a className="sh-btn" href="/services" target="_blank" rel="noopener noreferrer">Open Services page <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" disabled={ordering} onClick={() => setEditing({ row: null, key: Date.now() })}><HugeiconsIcon icon={Add01Icon} size={16} />New service</button></div> </>} />
     {!rows && busy && !error ? <PageLoading label="Loading services…" variant="list" /> : <>
     <div className="sv-toolbar"><div className="sv-tabs" role="tablist" aria-label="Service status">{[["", "All services"], ["published", "Published"], ["draft", "Drafts"]].map(([value, label]) => <button type="button" role="tab" aria-selected={status === value} key={value} onClick={() => setStatus(value)}>{label}{rows && <small>{rows.filter(row => !value || row.status === value).length}</small>}</button>)}</div><label className="sv-search"><HugeiconsIcon icon={Search01Icon} size={16} /><input type="search" aria-label="Search services" value={query} onChange={event => setQuery(event.target.value)} placeholder="Find a service…" /></label><button type="button" className="sh-icb" aria-label="Refresh services" disabled={busy || ordering} onClick={load}><HugeiconsIcon icon={Refresh01Icon} size={17} /></button></div>
     {error && <div className="sv-error" role="alert">{error}<button type="button" className="sh-btn sm" disabled={busy || ordering} onClick={load}>Try again</button></div>}

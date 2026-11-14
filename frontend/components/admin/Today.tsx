@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHero } from "@/components/admin/Workspace";
 import { useDisclosure } from "@/lib/useDisclosure";
 import { useResourceState } from "@/lib/useResourceState";
 import PageLoading from "@/components/admin/PageLoading";
@@ -409,19 +410,12 @@ export default function Today() {
   const content = (["projects", "services", "testimonials", "team", "blog"] as const).map((k) => ({ k, label: k === "blog" ? "Blog posts" : k === "projects" ? "Portfolio" : k === "team" ? "Website team" : k[0].toUpperCase() + k.slice(1), n: o?.counts?.[k] || 0 }));
   const cmax = Math.max(1, ...content.map((c) => c.n));
 
-  if (!ready || (canSocial && !t && !today.error) || ((canContent || canContact || canLeads) && !o && !ov.error) || (teamHome && !mine.data && !mine.error)) return <div className="td td-overview"><div className="td-hello"><div className="td-hello-tx"><h1>Overview</h1></div></div><PageLoading label="Loading your workspace…" /></div>;
+  if (!ready || (canSocial && !t && !today.error) || ((canContent || canContact || canLeads) && !o && !ov.error) || (teamHome && !mine.data && !mine.error)) return <div className="td td-overview"><WorkspaceHero title="Overview" eyebrow="Workspace" /><PageLoading label="Loading your workspace…" /></div>;
   return (
     <div className="td td-overview">
-      <div className="td-hello">
-        <div className="td-hello-tx">
-          <div className="td-eyebrow">{now ? now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: IST }) : " "}</div>
-          <h1>{teamHome ? "My work, in focus." : "Your day, in focus."}</h1>
-          <p>{hello}{first ? `, ${first}` : ""}. {subline || "Your workspace is getting ready."}</p>
-        </div>
-        <div className="td-acts">
+      <WorkspaceHero eyebrow={<>{now ? now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: IST }) : " "}</>} title={<>{teamHome ? "My work, in focus." : "Your day, in focus."}</>} description={<>{hello}{first ? `, ${first}` : ""}. {subline || "Your workspace is getting ready."}</>} actions={<> <div className="td-acts">
           <CreateMenu items={createItems} />
-        </div>
-      </div>
+        </div> </>} />
 
       <div className="td-focus-grid">
         <section className="td-focus-hero" aria-labelledby="td-focus-heading">

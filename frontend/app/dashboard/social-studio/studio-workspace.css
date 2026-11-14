@@ -1,17 +1,17 @@
-.studio-workspace{gap:22px;min-width:0}
+.studio-workspace{gap:var(--ui-page-gap);min-width:0}
 .studio-workspace .ss-hero{padding:26px 28px;background:radial-gradient(ellipse at 95% 0%,#d6d7ff80,transparent 55%),linear-gradient(115deg,#edf3ff,#f8faff);border:1px solid #e0e7f4;box-shadow:0 8px 30px #29477905}
-.studio-workspace .ss-workspace-kicker{display:block;margin-bottom:9px;font-size:10px;font-weight:700;letter-spacing:.17em;color:#6379a9}
-.studio-workspace .ss-hero h1{font-family:var(--display);font-size:30px;letter-spacing:-1px;color:#203564}
+.studio-workspace .ss-workspace-kicker{display:block;margin-bottom:9px;font-size:var(--ui-text-sm);font-weight:700;letter-spacing:.17em;color:#6379a9}
+.studio-workspace .ss-hero h1{font-family:var(--ui-font-heading);font-size:var(--ui-page-title);letter-spacing:-1px;color:#203564}
 .studio-workspace .ss-range{line-height:1.6}
-.studio-workspace .ss-saved-note{font-size:11px;color:#64738f;line-height:1.6;margin:0}
+.studio-workspace .ss-saved-note{font-size:var(--ui-text-sm);color:#64738f;line-height:1.6;margin:0}
 .studio-workspace .ss-weekly-highlights{border-top:1px solid #d9e2f3;padding-top:14px}
-.studio-workspace .ss-weekly-highlights summary{cursor:pointer;font-size:12px;font-weight:600;color:#3e60ab;min-height:28px;align-content:center}
-.studio-workspace .ss-weekly-title{font-size:20px;display:flex;align-items:center;gap:8px;margin:18px 0}
+.studio-workspace .ss-weekly-highlights summary{cursor:pointer;font-size:var(--ui-text-sm);font-weight:600;color:#3e60ab;min-height:28px;align-content:center}
+.studio-workspace .ss-weekly-title{font-size:var(--ui-heading-sm);display:flex;align-items:center;gap:8px;margin:18px 0}
 .studio-workspace .ss-pills{padding:5px;border-radius:16px;background:#eaf0fa;border-color:#e0e7f4}
 .studio-workspace .ss-pills button{border-radius:12px;padding:10px 18px;min-height:42px}
 .studio-workspace .ss-pills button.on{color:#2c4a89;background:#fff;box-shadow:0 3px 12px #2440750c}
 .studio-workspace .ss-panel{border-radius:24px;border-color:#e2e8f2;padding:24px;gap:24px;box-shadow:0 6px 24px #29477904}
-.studio-workspace .ss-panel-h h2{font-family:var(--display);font-size:18px;letter-spacing:-.4px}
+.studio-workspace .ss-panel-h h2{font-family:var(--ui-font-heading);font-size:var(--ui-heading-xs);letter-spacing:-.4px}
 .studio-workspace .ss-tiles{gap:14px}
 .studio-workspace .ss-tiles>div{align-items:flex-start;text-align:left;padding:20px;gap:10px;background:#eff5fc;border:1px solid #e7edf6;border-radius:19px}
 .studio-workspace .ss-tiles>div:first-child{background:linear-gradient(130deg,#3e60ab,#718cdb);border-color:transparent;color:#fff;box-shadow:0 8px 20px #3e60ab25}
@@ -21,7 +21,7 @@
 .studio-workspace .ss-tiles>div:nth-child(3){background:#edf7f4;border-color:#e0eeea}
 .studio-workspace .ss-tiles>div:nth-child(4){background:#fff5e9;border-color:#f4e9da}
 .studio-workspace .ss-tiles p{width:100%;justify-content:space-between}
-.studio-workspace .ss-tiles b{font-family:var(--display);font-size:29px;letter-spacing:-1px}
+.studio-workspace .ss-tiles b{font-family:var(--ui-font-heading);font-size:29px;letter-spacing:-1px}
 .studio-workspace .ss-note{line-height:1.8;max-width:100ch}
 .studio-workspace .ss-ch{padding:22px;border-radius:24px;border-color:#e2e8f2;box-shadow:0 6px 24px #29477906;gap:18px}
 .studio-workspace .ss-ch-n{background:#f3f6fb;padding:16px 8px}
@@ -31,12 +31,12 @@
 .studio-workspace .ss-post{display:flex;flex-direction:column;min-height:0;background:#fff;border:1px solid #e2e8f2;border-radius:22px;overflow:hidden;box-shadow:0 6px 24px #29477906}
 .studio-workspace .ss-post .img{width:100%;aspect-ratio:4/3;border-radius:0;box-shadow:none}
 .studio-workspace .ss-post .card{position:static;width:100%;border:0;box-shadow:none;border-radius:0;padding:18px;gap:12px}
-.studio-workspace .ss-post .card b{font-size:14px;line-height:1.5}
+.studio-workspace .ss-post .card b{font-size:var(--ui-text-md);line-height:1.5}
 .studio-workspace .ss-post .m>*{padding:5px 8px}
-.studio-workspace .ss-load-error{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;background:#fff0ef;color:#9d3430;border:1px solid #f4d0cc;padding:14px 18px;border-radius:16px;font-size:13px;line-height:1.6;overflow-wrap:anywhere}
-.studio-workspace .ss-load-error .ss-btn{width:auto;min-width:90px;font-size:13px;padding:0 12px}
+.studio-workspace .ss-load-error{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;background:#fff0ef;color:#9d3430;border:1px solid #f4d0cc;padding:14px 18px;border-radius:16px;font-size:var(--ui-text-md);line-height:1.6;overflow-wrap:anywhere}
+.studio-workspace .ss-load-error .ss-btn{width:auto;min-width:90px;font-size:var(--ui-text-md);padding:0 12px}
 .studio-workspace button:focus-visible,.studio-workspace summary:focus-visible,.studio-workspace a:focus-visible{outline:3px solid #94b0ee;outline-offset:3px}
 @media(max-width:760px){.studio-workspace .ss-hero,.studio-workspace .ss-panel{padding:20px}.studio-workspace .ss-chs{grid-template-columns:1fr}.studio-workspace .ss-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.studio-workspace .ss-tiles>div{padding:15px}.studio-workspace .ss-tiles b{font-size:25px}.studio-workspace .ss-ch{padding:18px}}
-@media(max-width:440px){.studio-workspace .ss-hero h1{font-size:26px}.studio-workspace .ss-pills{width:100%}.studio-workspace .ss-pills button{padding:8px 11px;flex:1;justify-content:center}.studio-workspace .ss-tiles span{font-size:11px}.studio-workspace .ss-posts{grid-template-columns:1fr}}
+@media(max-width:440px){.studio-workspace .ss-hero h1{font-size:var(--ui-page-title-mobile)}.studio-workspace .ss-pills{width:100%}.studio-workspace .ss-pills button{padding:8px 11px;flex:1;justify-content:center}.studio-workspace .ss-tiles span{font-size:var(--ui-text-sm)}.studio-workspace .ss-posts{grid-template-columns:1fr}}
 
 .studio-workspace .ss-hero-actions{width:350px;max-width:100%;flex-shrink:0}.studio-workspace .ss-dd{flex:1;min-width:0}.studio-workspace .ss-dd-btn{width:100%;min-width:0}.studio-workspace .ss-hero-actions>.ss-btn{flex-shrink:0}

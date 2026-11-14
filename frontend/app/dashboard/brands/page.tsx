@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHero } from "@/components/admin/Workspace";
 import { useResourceState } from "@/lib/useResourceState";
 import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import PageLoading from "@/components/admin/PageLoading";
@@ -37,7 +38,7 @@ export default function AdminBrands() {
     } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t save the order."); }
     finally { orderPending.current = false; setOrdering(false); }
   }
-  return <div className="brands-workspace"><header className="be-header"><div><span className="be-eyebrow">CONNECTED BRANDS. SHARED AMBITION.</span><h1>Brand ecosystem</h1><p>Introduce the brands and products in your ecosystem.</p></div><div className="be-header-actions"><a className="sh-btn" href="/about" target="_blank" rel="noopener noreferrer">Open About page <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" disabled={ordering} onClick={() => setEditing({ row: null, key: Date.now() })}><HugeiconsIcon icon={Add01Icon} size={16} />New brand</button></div></header>
+  return <div className="brands-workspace"><WorkspaceHero eyebrow="CONNECTED BRANDS. SHARED AMBITION." title="Brand ecosystem" description="Introduce the brands and products in your ecosystem." actions={<> <div className="be-header-actions"><a className="sh-btn" href="/about" target="_blank" rel="noopener noreferrer">Open About page <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" disabled={ordering} onClick={() => setEditing({ row: null, key: Date.now() })}><HugeiconsIcon icon={Add01Icon} size={16} />New brand</button></div> </>} />
     {!rows && busy && !error ? <PageLoading label="Loading brands…" variant="list" /> : <>
     <div className="be-toolbar"><div className="be-tabs" role="tablist" aria-label="Brand status">{[["", "All brands"], ["published", "Published"], ["draft", "Drafts"]].map(([brand, label]) => <button type="button" role="tab" aria-selected={status === brand} key={brand} onClick={() => setStatus(brand)}>{label}{rows && <small>{rows.filter(row => !brand || row.status === brand).length}</small>}</button>)}</div><label className="be-search"><HugeiconsIcon icon={Search01Icon} size={16} /><input type="search" aria-label="Search brands" value={query} onChange={event => setQuery(event.target.value)} placeholder="Find a brand…" /></label><button type="button" className="sh-icb" aria-label="Refresh brands" disabled={busy || ordering} onClick={load}><HugeiconsIcon icon={Refresh01Icon} size={17} /></button></div>
     {error && <div className="be-error" role="alert">{error}<button type="button" className="sh-btn sm" disabled={busy || ordering} onClick={load}>Try again</button></div>}

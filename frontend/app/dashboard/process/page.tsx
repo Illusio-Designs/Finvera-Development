@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHero } from "@/components/admin/Workspace";
 import { useResourceState } from "@/lib/useResourceState";
 import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import PageLoading from "@/components/admin/PageLoading";
@@ -36,7 +37,7 @@ export default function AdminProcessSteps() {
     } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t save the order."); }
     finally { orderPending.current = false; setOrdering(false); }
   }
-  return <div className="process-workspace"><header className="ps-header"><div><span className="ps-eyebrow">FROM FIRST CONVERSATION TO LAUNCH</span><h1>Process steps</h1><p>Give visitors a clear path through the way your team works.</p></div><div className="ps-header-actions"><a className="sh-btn" href="/services#process" target="_blank" rel="noopener noreferrer">Open Services page <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" disabled={ordering} onClick={() => setEditing({ row: null, key: Date.now() })}><HugeiconsIcon icon={Add01Icon} size={16} />New step</button></div></header>
+  return <div className="process-workspace"><WorkspaceHero eyebrow="FROM FIRST CONVERSATION TO LAUNCH" title="Process steps" description="Give visitors a clear path through the way your team works." actions={<> <div className="ps-header-actions"><a className="sh-btn" href="/services#process" target="_blank" rel="noopener noreferrer">Open Services page <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" disabled={ordering} onClick={() => setEditing({ row: null, key: Date.now() })}><HugeiconsIcon icon={Add01Icon} size={16} />New step</button></div> </>} />
     {!rows && busy && !error ? <PageLoading label="Loading process steps…" variant="list" /> : <>
     <div className="ps-toolbar"><div className="ps-tabs" role="tablist" aria-label="Step status">{[["", "All steps"], ["published", "Published"], ["draft", "Drafts"]].map(([value, label]) => <button type="button" role="tab" aria-selected={status === value} key={value} onClick={() => setStatus(value)}>{label}{rows && <small>{rows.filter(row => !value || row.status === value).length}</small>}</button>)}</div><label className="ps-search"><HugeiconsIcon icon={Search01Icon} size={16} /><input type="search" aria-label="Search steps" value={query} onChange={event => setQuery(event.target.value)} placeholder="Find a step…" /></label><button type="button" className="sh-icb" aria-label="Refresh steps" disabled={busy || ordering} onClick={load}><HugeiconsIcon icon={Refresh01Icon} size={17} /></button></div>
     {error && <div className="ps-error" role="alert">{error}<button type="button" className="sh-btn sm" disabled={busy || ordering} onClick={load}>Try again</button></div>}

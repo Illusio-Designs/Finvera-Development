@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHero } from "@/components/admin/Workspace";
 import PageLoading from "@/components/admin/PageLoading";
 /* Renewals — recurring maintenance / hosting / retainer invoices.
    One request for the data (GET /api/renewals); totals, filters and the
@@ -243,22 +244,15 @@ function Renewals() {
     </div>
   );
 
-  if (!rows && !error) return <div className="td"><div className="td-hello"><div className="td-hello-tx"><h1>Renewals</h1></div></div><PageLoading label="Loading renewals…" variant="list" /></div>;
+  if (!rows && !error) return <div className="td"><WorkspaceHero title="Renewals" eyebrow="Workspace" /><PageLoading label="Loading renewals…" variant="list" /></div>;
   return (
     <div className="td rn renewals-workspace">
-      <div className="td-hello">
-        <div className="td-hello-tx">
-          <div className="td-eyebrow">KEEP EVERY CLIENT COVERED</div>
-          <h1>Renewals</h1>
-          <p>Know what renews, who owns it and what is due.</p>
-        </div>
-        <div className="td-acts">
+      <WorkspaceHero eyebrow="KEEP EVERY CLIENT COVERED" title="Renewals" description="Know what renews, who owns it and what is due." actions={<> <div className="td-acts">
           <button type="button" className="sh-btn" onClick={doExport} disabled={exporting || !rows} title="Download the renewals you see (current filters) as an Excel file">
             {exporting ? <span className="spin rn-spin" aria-hidden /> : <HugeiconsIcon icon={Download04Icon} size={17} strokeWidth={1.8} />}{exporting ? "Preparing…" : "Export"}
           </button>
           <button type="button" className="sh-btn pri" onClick={addRow}><HugeiconsIcon icon={Add01Icon} size={17} strokeWidth={2} />New renewal</button>
-        </div>
-      </div>
+        </div> </>} />
 
       {error && !rows ? (
         <div className="sh-empty err" role="alert">

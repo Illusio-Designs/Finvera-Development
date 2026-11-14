@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHero } from "@/components/admin/Workspace";
 import { useResourceState } from "@/lib/useResourceState";
 import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import PageLoading from "@/components/admin/PageLoading";
@@ -34,7 +35,7 @@ export default function AdminFaqs() {
     } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t save the order."); }
     finally { orderPending.current = false; setOrdering(false); }
   }
-  return <div className="faqs-workspace"><header className="fq-header"><div><span className="fq-eyebrow">CLEAR ANSWERS. CONFIDENT CLIENTS.</span><h1>FAQs</h1><p>Help visitors find the answers they need before they get in touch.</p></div><div className="fq-header-actions"><a className="sh-btn" href="/#faq" target="_blank" rel="noopener noreferrer">Open Home FAQs <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" disabled={ordering} onClick={() => setEditing({ row: null, key: Date.now() })}><HugeiconsIcon icon={Add01Icon} size={16} />New question</button></div></header>
+  return <div className="faqs-workspace"><WorkspaceHero eyebrow="CLEAR ANSWERS. CONFIDENT CLIENTS." title="FAQs" description="Help visitors find the answers they need before they get in touch." actions={<> <div className="fq-header-actions"><a className="sh-btn" href="/#faq" target="_blank" rel="noopener noreferrer">Open Home FAQs <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" disabled={ordering} onClick={() => setEditing({ row: null, key: Date.now() })}><HugeiconsIcon icon={Add01Icon} size={16} />New question</button></div> </>} />
     {!rows && busy && !error ? <PageLoading label="Loading FAQs…" variant="list" /> : <>
     <div className="fq-toolbar"><div className="fq-tabs" role="tablist" aria-label="FAQ status">{[["", "All questions"], ["published", "Published"], ["draft", "Drafts"]].map(([value, label]) => <button type="button" role="tab" aria-selected={status === value} key={value} onClick={() => setStatus(value)}>{label}{rows && <small>{rows.filter(row => !value || row.status === value).length}</small>}</button>)}</div><label className="fq-search"><HugeiconsIcon icon={Search01Icon} size={16} /><input type="search" aria-label="Search FAQs" value={query} onChange={event => setQuery(event.target.value)} placeholder="Find a question or answer…" /></label><button type="button" className="sh-icb" aria-label="Refresh FAQs" disabled={busy || ordering} onClick={load}><HugeiconsIcon icon={Refresh01Icon} size={17} /></button></div>
     {error && <div className="fq-error" role="alert">{error}<button type="button" className="sh-btn sm" disabled={busy || ordering} onClick={load}>Try again</button></div>}

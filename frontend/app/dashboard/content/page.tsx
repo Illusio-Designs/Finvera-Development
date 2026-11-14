@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHero } from "@/components/admin/Workspace";
 import PageLoading from "@/components/admin/PageLoading";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -46,10 +47,7 @@ export default function ContentHub() {
   const drafts = data?.collections.reduce((sum, collection) => sum + collection.draft, 0);
   return (
     <div className="website-workspace">
-      <header className="wh-header">
-        <div><span className="wh-eyebrow">MAKE EVERY DETAIL CONSIDERED</span><h1>Website overview</h1><p>Everything that appears on your public website, in one place.</p></div>
-        <a className="sh-btn" href="/" target="_blank" rel="noopener noreferrer">Open website <HugeiconsIcon icon={ArrowUpRight01Icon} size={16} /></a>
-      </header>
+      <WorkspaceHero eyebrow="MAKE EVERY DETAIL CONSIDERED" title="Website overview" description="Everything that appears on your public website, in one place." actions={<> <a className="sh-btn" href="/" target="_blank" rel="noopener noreferrer">Open website <HugeiconsIcon icon={ArrowUpRight01Icon} size={16} /></a> </>} />
       {!data && busy && !error ? <PageLoading label="Loading website content…" /> : <>
       <section className="wh-intro" aria-label="Website content summary">
         <span className="wh-intro-icon"><HugeiconsIcon icon={Layers01Icon} size={25} /></span>
