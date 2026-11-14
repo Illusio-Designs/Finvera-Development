@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHero } from "@/components/admin/Workspace";
 import Link from "next/link";
 import SocialAccountHealth from "@/components/admin/SocialAccountHealth";
 import SocialProfileEditor from "@/components/admin/SocialProfileEditor";
@@ -279,7 +280,7 @@ export default function SocialStudio() {
     } catch (e: any) { toast("Couldn't connect", "err", { description: e.message }); }
   }
 
-  if (!data || !v) return <div className="ss studio-workspace"><h1>Social studio</h1>{loadError ? <div className="ss-load-error" role="alert"><p>{loadError}</p><button type="button" className="ss-btn" onClick={() => load()}>Try again</button></div> : <PageLoading label="Loading Social studio…" />}</div>;
+  if (!data || !v) return <div className="ss studio-workspace"><WorkspaceHero eyebrow="Social media" title="Social studio" description="Accounts, publishing and performance." />{loadError ? <div className="ss-load-error" role="alert"><p>{loadError}</p><button type="button" className="ss-btn" onClick={() => load()}>Try again</button></div> : <PageLoading label="Loading Social studio…" />}</div>;
 
   const brandLabel = brand || "All brands";
   const color = (b: string) => colors[b] || COLORS[0];
@@ -306,12 +307,7 @@ export default function SocialStudio() {
       {loadError && <div className="ss-load-error" role="alert"><p>Couldn’t refresh this view: {loadError}</p><button type="button" className="ss-btn" onClick={() => load()}>Try again</button></div>}
       {/* ── Hero ── */}
       <section className="ss-hero">
-        <div className="ss-hero-h">
-          <div>
-            <span className="ss-workspace-kicker">CONNECT. UNDERSTAND. GROW.</span><h1>Social studio</h1>
-            <p className="ss-range">{brandLabel} · Accounts, publishing and performance{busy && " · updating…"}</p>
-          </div>
-          <div className="ss-hero-actions">
+        <WorkspaceHero eyebrow="CONNECT. UNDERSTAND. GROW." title="Social studio" description={<>{brandLabel}· Accounts, publishing and performance{busy && " · updating…"}</>} variant="plain" actions={<> <div className="ss-hero-actions">
             <div className="ss-dd" ref={ddRef}>
               <button type="button" className="ss-dd-btn" aria-haspopup="listbox" aria-expanded={ddOpen} onClick={() => setDdOpen((o) => !o)}>
                 <i style={{ background: brand ? color(brand) : undefined }} className={brand ? "" : "all"}>{brand ? brand[0] : <Icon i={SparklesIcon} size={17} />}</i>
@@ -336,8 +332,7 @@ export default function SocialStudio() {
             </div>
             <Link className="ss-btn" href={`/dashboard/reports?view=client${brand ? `&brand=${encodeURIComponent(brand)}` : ""}`}>Monthly brand report</Link>
             <button type="button" className="ss-btn" onClick={() => load()} aria-label="Refresh saved data" disabled={busy}><Icon i={Refresh01Icon} /></button>
-          </div>
-        </div>
+          </div> </>} />
 
         <p className="ss-saved-note">{data.refreshedAt ? `Platform metrics last saved ${timeAgo(data.refreshedAt)}.` : "Platform metrics have not been saved yet."} {data.refreshing && "A background refresh is running."}</p>
         {tab === "overview" && <details className="ss-weekly-highlights"><summary>Weekly highlights · {weekLabel}</summary><h2 className="ss-weekly-title">{title}</h2><div className="ss-hero-grid">

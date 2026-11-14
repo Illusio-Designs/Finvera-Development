@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHero } from "@/components/admin/Workspace";
 import { useResourceState } from "@/lib/useResourceState";
 import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import PageLoading from "@/components/admin/PageLoading";
@@ -36,7 +37,7 @@ export default function AdminFeatures() {
     } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t save the order."); }
     finally { orderPending.current = false; setOrdering(false); }
   }
-  return <div className="features-workspace"><header className="sfn-header"><div><span className="sfn-eyebrow">THE DETAILS THAT MAKE IT USEFUL</span><h1>Solution features</h1><p>Show visitors what your platform helps them do.</p></div><div className="sfn-header-actions"><a className="sh-btn" href="/#solutions" target="_blank" rel="noopener noreferrer">Open homepage <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" disabled={ordering} onClick={() => setEditing({ row: null, key: Date.now() })}><HugeiconsIcon icon={Add01Icon} size={16} />New feature</button></div></header>
+  return <div className="features-workspace"><WorkspaceHero eyebrow="THE DETAILS THAT MAKE IT USEFUL" title="Solution features" description="Show visitors what your platform helps them do." actions={<> <div className="sfn-header-actions"><a className="sh-btn" href="/#solutions" target="_blank" rel="noopener noreferrer">Open homepage <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" disabled={ordering} onClick={() => setEditing({ row: null, key: Date.now() })}><HugeiconsIcon icon={Add01Icon} size={16} />New feature</button></div> </>} />
     {!rows && busy && !error ? <PageLoading label="Loading solution features…" variant="list" /> : <>
     <div className="sfn-toolbar"><div className="sfn-tabs" role="tablist" aria-label="Feature status">{[["", "All features"], ["published", "Published"], ["draft", "Drafts"]].map(([value, label]) => <button type="button" role="tab" aria-selected={status === value} key={value} onClick={() => setStatus(value)}>{label}{rows && <small>{rows.filter(row => !value || row.status === value).length}</small>}</button>)}</div><label className="sfn-search"><HugeiconsIcon icon={Search01Icon} size={16} /><input type="search" aria-label="Search features" value={query} onChange={event => setQuery(event.target.value)} placeholder="Find a feature…" /></label><button type="button" className="sh-icb" aria-label="Refresh features" disabled={busy || ordering} onClick={load}><HugeiconsIcon icon={Refresh01Icon} size={17} /></button></div>
     {error && <div className="sfn-error" role="alert">{error}<button type="button" className="sh-btn sm" disabled={busy || ordering} onClick={load}>Try again</button></div>}

@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHero } from "@/components/admin/Workspace";
 import PageLoading from "@/components/admin/PageLoading";
 /* Leads — the business-development pipeline.
    One request for the data (GET /api/leads); everything else (totals,
@@ -225,22 +226,15 @@ function Leads() {
     </div>
   );
 
-  if (!rows && !error) return <div className="td"><div className="td-hello"><div className="td-hello-tx"><h1>Leads</h1></div></div><PageLoading label="Loading leads…" variant="board" /></div>;
+  if (!rows && !error) return <div className="td"><WorkspaceHero title="Leads" eyebrow="Workspace" /><PageLoading label="Loading leads…" variant="board" /></div>;
   return (
     <div className="td ld leads-workspace">
-      <div className="td-hello">
-        <div className="td-hello-tx">
-          <div className="td-eyebrow">CONVERSATIONS INTO CLIENTS</div>
-          <h1>Leads</h1>
-          <p>Move the next conversation forward.</p>
-        </div>
-        <div className="td-acts">
+      <WorkspaceHero eyebrow="CONVERSATIONS INTO CLIENTS" title="Leads" description="Move the next conversation forward." actions={<> <div className="td-acts">
           <button type="button" className="sh-btn" onClick={doExport} disabled={exporting} title="Export leads matching the current filters">
             {exporting ? <span className="spin ld-spin" aria-hidden /> : <HugeiconsIcon icon={Download04Icon} size={17} strokeWidth={1.8} />}{exporting ? "Preparing…" : "Export"}
           </button>
           <button type="button" className="sh-btn pri" onClick={addLead}><HugeiconsIcon icon={Add01Icon} size={17} strokeWidth={2} />New lead</button>
-        </div>
-      </div>
+        </div> </>} />
 
       {error && !rows ? (
         <div className="sh-empty err" role="alert">

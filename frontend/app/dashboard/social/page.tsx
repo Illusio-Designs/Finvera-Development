@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHero } from "@/components/admin/Workspace";
 import Link from "next/link";
 import SocialAccountHealth from "@/components/admin/SocialAccountHealth";
 import SocialPostPreview from "@/components/admin/SocialPostPreview";
@@ -1549,12 +1550,12 @@ export default function SocialCalendar() {
 
   if (loading && !posts.length) return (
     <>
-      <div className="adm-top"><div><h1>Content calendar</h1><p>Loading posts…</p></div></div>
+      <WorkspaceHero title="Content calendar" description="Loading posts…" eyebrow="Workspace" />
       <PageLoading label="Loading content calendar…" variant="board" />
     </>
   );
 
-  if (loadError && !posts.length) return <div className="cal-page"><div className="cal-head"><div><span className="cal-eyebrow">Social media</span><h1>Content calendar</h1></div></div><div className="cal-load-error" role="alert"><div><b>Couldn’t load the content calendar</b><p>{loadError}</p></div><button type="button" className="cal-btn" onClick={load}>Try again</button></div></div>;
+  if (loadError && !posts.length) return <div className="cal-page"><WorkspaceHero eyebrow="Social media" title="Content calendar" /><div className="cal-load-error" role="alert"><div><b>Couldn’t load the content calendar</b><p>{loadError}</p></div><button type="button" className="cal-btn" onClick={load}>Try again</button></div></div>;
 
   const t = todayIso(), wk = addDays(t, 7);
   const openList = list.filter((p) => !isDone(p));
@@ -1586,13 +1587,7 @@ export default function SocialCalendar() {
 
   return (
     <div className="cal-page">
-      <div className="cal-head">
-        <div>
-          <span className="cal-eyebrow">Social media</span>
-          <h1>{limited ? "My work" : "Content calendar"}</h1>
-          <p>{limited ? "Your brands, your next steps, and the work ready to move forward." : "Plan it, make it, review it, publish it. Every brand, in one clear flow."}</p>
-        </div>
-        <div className="cal-head-actions">
+      <WorkspaceHero eyebrow="Social media" title={<>{limited ? "My work" : "Content calendar"}</>} description={<>{limited ? "Your brands, your next steps, and the work ready to move forward." : "Plan it, make it, review it, publish it. Every brand, in one clear flow."}</>} actions={<> <div className="cal-head-actions">
             <Link className="cal-btn" href={`/dashboard/reports?view=client${client ? `&brand=${encodeURIComponent(client)}` : ""}${month ? `&month=${month}` : ""}`}>Monthly brand report</Link>
             <button type="button" className="cal-btn" onClick={() => setProfileOpen(true)}>Social profiles</button>
             {profileOpen && <SocialProfileEditor initialClient={client || undefined} onClose={() => setProfileOpen(false)} />}
@@ -1608,8 +1603,7 @@ export default function SocialCalendar() {
                 params={() => ({ client, q: query.trim(), assigneeId: activeView === "mine" ? String(meId ?? "none") : who, postFormat: format, from: month ? `${month}-01` : "", to: month ? iso(new Date(+month.slice(0, 4), +month.slice(5, 7), 0)) : "" })} />
             </div>
           </details>
-        </div>
-      </div>
+        </div> </>} />
 
       {loadError && <div className="cal-load-error" role="alert"><div><b>Couldn’t refresh the content calendar</b><p>{loadError}</p></div><button type="button" className="cal-btn" onClick={load}>Try again</button></div>}
       <SocialAccountHealth accounts={accounts} brand={client} canManage={!limited} onReconnect={connectBrand} />

@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHero } from "@/components/admin/Workspace";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
@@ -112,10 +113,7 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
     finally { if (id === generation.current) setPhotoBusy(false); }
   }
   const content = <div className="social-profiles">
-    <header className="sp-header">
-      <div><small>SOCIAL MEDIA</small><h1>Social profiles</h1><p>Update connected profiles without leaving your workspace.</p></div>
-      {onClose ? <button className="adm-btn ghost" type="button" disabled={busy} onClick={close} aria-label="Close profile editor">Close</button> : <Link className="adm-btn ghost" href={studio}>Manage connections</Link>}
-    </header>
+    <WorkspaceHero eyebrow="SOCIAL MEDIA" title="Social profiles" description="Update connected profiles without leaving your workspace." headingLevel={onClose ? 2 : 1} compact={Boolean(onClose)} actions={<> {onClose ? <button className="adm-btn ghost" type="button" disabled={busy} onClick={close} aria-label="Close profile editor">Close</button> : <Link className="adm-btn ghost" href={studio}>Manage connections</Link>} </>} />
     <div className="sp-controls">
       <div className="adm-field sp-brand"><label htmlFor="profile-brand">Brand</label><Select id="profile-brand" ariaLabel="Brand" value={client} disabled={busy} onChange={brand => switchTo(brand, platform)} options={accounts.map(a => a.client)} /></div>
       <div role="group" aria-label="Platform" className="sp-platforms">{(["facebook", "instagram"] as const).map(p => <button className={"adm-btn " + (platform === p ? "primary" : "ghost")} key={p} aria-pressed={platform === p} disabled={busy} onClick={() => switchTo(client, p)}>{p === "facebook" ? "Facebook" : "Instagram"}</button>)}</div>

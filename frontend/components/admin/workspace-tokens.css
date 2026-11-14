@@ -1,0 +1,53 @@
+/* Shared dashboard scale. Public website typography does not inherit it. */
+:root{
+  --ui-font-body:var(--font-inter),system-ui,sans-serif;
+  --ui-font-heading:var(--font-sora),var(--font-inter),system-ui,sans-serif;
+  --ui-text-xs:11px;--ui-text-sm:12px;--ui-text-md:14px;--ui-text-lg:16px;
+  --ui-heading-xs:18px;--ui-heading-sm:20px;--ui-heading-md:22px;--ui-heading-lg:24px;
+  --ui-page-title:32px;--ui-page-title-mobile:26px;
+  --ui-field-height:42px;--ui-radius:12px;--ui-page-gap:24px;
+}
+.adm.sh .fw-surface{font-family:var(--ui-font-body);font-size:var(--ui-text-md);line-height:1.65}
+.adm.sh .fw-surface :is(.adm-btn,.sh-btn,.cal-btn,.cal-primary,.ss-btn,.sys-btn,button.ss-chip,a.ss-chip),
+.adm-overlay :is(.adm-btn,.cal-btn,.cal-primary),[role=dialog][aria-modal=true] :is(.adm-btn,.sh-btn,.cal-btn,.cal-primary,.ss-btn,button.ss-chip,a.ss-chip),.sr-client-view .adm-btn{
+  font-family:var(--ui-font-body);font-size:var(--ui-text-md);font-weight:600;line-height:1.4;
+  min-height:var(--ui-field-height);min-width:var(--ui-field-height);height:auto;padding:10px 12px;display:inline-flex;align-items:center;justify-content:center;gap:8px;flex-shrink:0;
+}
+.adm.sh .fw-surface :is(.adm-btn,.sh-btn,.cal-btn,.ss-btn).sm{min-height:32px;padding:6px 10px;font-size:var(--ui-text-sm)}
+.adm.sh .fw-surface :is(.adm-field,.field)>label,.adm-overlay .adm-field>label,[role=dialog][aria-modal=true] .adm-field>label{
+  font-family:var(--ui-font-body);font-size:var(--ui-text-sm);line-height:1.5;font-weight:600;
+}
+.adm.sh .fw-surface :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]),textarea,.cselect-btn),
+.adm-overlay :is(.adm-field input:not([type=checkbox]):not([type=radio]),.adm-field textarea,.cselect-btn),[role=dialog][aria-modal=true] :is(.adm-field input:not([type=checkbox]):not([type=radio]),.adm-field textarea,.cselect-btn){
+  font-family:var(--ui-font-body);font-size:var(--ui-text-md);line-height:1.5;
+}
+.adm.sh .fw-surface .cselect-btn,.adm-overlay .cselect-btn{min-height:var(--ui-field-height)}
+.fw-hero .fw-hero-copy>:is(h1,h2){font-family:var(--ui-font-heading);font-size:var(--ui-page-title);font-weight:700;letter-spacing:-.035em;line-height:1.3;margin:12px 0 8px;color:var(--td-ink,var(--ink))}
+.fw-hero .fw-hero-copy>p{font-family:var(--ui-font-body);font-size:var(--ui-text-md);line-height:1.7;color:var(--td-muted,var(--muted-2));margin:0;max-width:65ch}
+.fw-hero .fw-eyebrow{font-family:var(--ui-font-body);font-size:var(--ui-text-xs);line-height:1.5;font-weight:600;letter-spacing:.1em;color:var(--td-muted,var(--muted-2));overflow-wrap:anywhere}
+.fw-hero{overflow:visible;flex-shrink:0;min-width:0}
+.fw-decoration{position:absolute;inset:0;overflow:hidden;border-radius:inherit;z-index:-1;pointer-events:none}
+.fw-hero-plain{background:none;border:0;border-radius:0;padding:0;isolation:auto}
+.fw-hero-compact{padding:20px;gap:16px}
+.fw-hero-compact .fw-hero-copy>:is(h1,h2){font-size:var(--ui-heading-md)}
+.fw-actions,.fw-actions>div{min-width:0;max-width:100%}
+.fw-actions :is(.sh-btn,.cal-btn,.adm-btn){white-space:normal;text-align:center}
+.fw-stat>span:not(.fw-stat-index),.fw-stat>small{font-size:var(--ui-text-sm);line-height:1.6}
+.fw-stat>b{font-size:var(--ui-page-title);font-family:var(--ui-font-heading)}
+.sr-client-view>.adm-btn{align-self:flex-start}
+@media(max-width:760px){
+  .fw-hero .fw-hero-copy>:is(h1,h2){font-size:var(--ui-page-title-mobile)}
+  .fw-hero-compact .fw-hero-copy>:is(h1,h2){font-size:var(--ui-heading-md)}
+  .fw-hero{align-items:flex-start;flex-direction:column;gap:20px;padding:22px}
+  .fw-hero-plain{padding:0}
+  .fw-hero .fw-actions{width:100%}
+  .fw-stat>span:not(.fw-stat-index),.fw-stat>small{font-size:var(--ui-text-sm)}
+  .inbox-workspace.ib-reading>.fw-hero{display:none}
+}
+.adm.sh .fw-surface :is(.sh-card-h,.sr-panel>header,.ss-panel-h,.st-card-h,.sys-card-h,.wh-group-title) h2{
+  font-family:var(--ui-font-heading);font-size:var(--ui-heading-xs);font-weight:600;line-height:1.45;
+}
+
+.adm.sh .fw-surface [role=tablist] [role=tab]{font-family:var(--ui-font-body);font-size:var(--ui-text-md);line-height:1.4;min-height:40px}
+.adm.sh .fw-surface th:not(:is(.tiptap,.ProseMirror) th){font-family:var(--ui-font-body);font-size:var(--ui-text-sm);line-height:1.5}
+.adm.sh .fw-surface td:not(:is(.tiptap,.ProseMirror) td){font-family:var(--ui-font-body);font-size:var(--ui-text-md);line-height:1.55}

@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHero } from "@/components/admin/Workspace";
 import { useResourceState } from "@/lib/useResourceState";
 import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import PageLoading from "@/components/admin/PageLoading";
@@ -312,17 +313,10 @@ export default function AdminContact() {
 
   return (
     <div className={"ib inbox-workspace" + (sel ? " ib-reading" : "")}>
-      <header className="ib-head">
-        <div className="ib-head-tx">
-          <div className="td-eyebrow">EVERY CONVERSATION COUNTS</div>
-          <h1>Contact inbox</h1>
-          <p>Turn incoming messages into the right next step.</p>
-        </div>
-        <div className="ib-head-acts">
+      <WorkspaceHero eyebrow="EVERY CONVERSATION COUNTS" title="Contact inbox" description="Turn incoming messages into the right next step." actions={<> <div className="ib-head-acts">
           {unread != null && <span className={"sh-pill nodot " + (unread ? "blue" : "green")}>{unread ? plural(unread, "unread message") : "All read"}</span>}
           <ExportButton entity="contact" file="contact-inbox" sheet="Contact inbox" label="Export" className="ib-export" params={{ q: q.trim() || undefined, unread: view === "unread" ? 1 : undefined, spam: view === "spam" ? 1 : undefined }} />
-        </div>
-      </header>
+        </div> </>} />
 
       {actionError && <div className="ib-action-error" role="alert">{actionError}</div>}
       {loading && !rows.length && !sel ? <PageLoading label="Loading contact inbox…" variant="list" /> : <div className={"ib-mail" + (sel ? " reading" : "")}>

@@ -1,4 +1,5 @@
 "use client";
+import { WorkspaceHero } from "@/components/admin/Workspace";
 import { useResourceState } from "@/lib/useResourceState";
 import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import PageLoading from "@/components/admin/PageLoading";
@@ -36,7 +37,7 @@ export default function AdminValues() {
     } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t save the order."); }
     finally { orderPending.current = false; setOrdering(false); }
   }
-  return <div className="values-workspace"><header className="vl-header"><div><span className="vl-eyebrow">THE PRINCIPLES BEHIND YOUR WORK</span><h1>Values</h1><p>Show visitors the principles that guide your team.</p></div><div className="vl-header-actions"><a className="sh-btn" href="/about" target="_blank" rel="noopener noreferrer">Open About page <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" disabled={ordering} onClick={() => setEditing({ row: null, key: Date.now() })}><HugeiconsIcon icon={Add01Icon} size={16} />New value</button></div></header>
+  return <div className="values-workspace"><WorkspaceHero eyebrow="THE PRINCIPLES BEHIND YOUR WORK" title="Values" description="Show visitors the principles that guide your team." actions={<> <div className="vl-header-actions"><a className="sh-btn" href="/about" target="_blank" rel="noopener noreferrer">Open About page <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" disabled={ordering} onClick={() => setEditing({ row: null, key: Date.now() })}><HugeiconsIcon icon={Add01Icon} size={16} />New value</button></div> </>} />
     {!rows && busy && !error ? <PageLoading label="Loading values…" variant="list" /> : <>
     <div className="vl-toolbar"><div className="vl-tabs" role="tablist" aria-label="Value status">{[["", "All values"], ["published", "Published"], ["draft", "Drafts"]].map(([value, label]) => <button type="button" role="tab" aria-selected={status === value} key={value} onClick={() => setStatus(value)}>{label}{rows && <small>{rows.filter(row => !value || row.status === value).length}</small>}</button>)}</div><label className="vl-search"><HugeiconsIcon icon={Search01Icon} size={16} /><input type="search" aria-label="Search values" value={query} onChange={event => setQuery(event.target.value)} placeholder="Find a value…" /></label><button type="button" className="sh-icb" aria-label="Refresh values" disabled={busy || ordering} onClick={load}><HugeiconsIcon icon={Refresh01Icon} size={17} /></button></div>
     {error && <div className="vl-error" role="alert">{error}<button type="button" className="sh-btn sm" disabled={busy || ordering} onClick={load}>Try again</button></div>}
