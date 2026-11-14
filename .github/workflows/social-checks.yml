@@ -29,10 +29,10 @@ jobs:
       - run: npm ci --no-audit --no-fund
         working-directory: Backendjs
       - run: npm ci --no-audit --no-fund
-        if: ${{ inputs.backend_only != true }}
+        if: ${{ inputs.backend_only != true && github.base_ref != 'backend' }}
         working-directory: frontend
       - name: Type check frontend
-        if: ${{ inputs.backend_only != true }}
+        if: ${{ inputs.backend_only != true && github.base_ref != 'backend' }}
         run: ./node_modules/.bin/tsc --noEmit --incremental false
         working-directory: frontend
       - name: Backend regression tests
@@ -41,7 +41,7 @@ jobs:
           set -e
           for test_file in tests/*.test.js; do node "$test_file"; done
       - name: Social UI regression tests
-        if: ${{ inputs.backend_only != true }}
+        if: ${{ inputs.backend_only != true && github.base_ref != 'backend' }}
         run: |
           node tests/social-workflow.test.cjs
           node tests/ui-workflows.test.cjs
