@@ -103,12 +103,13 @@ function errorHandler(err, _req, res, _next) {
   if (err.code === "LIMIT_FILE_SIZE") {
     return res.status(413).json({ message: "File too large." });
   }
-  const status = err.status || 500;
+  const candidate = Number(err.status || err.statusCode);
+  const status = Number.isInteger(candidate) && candidate >= 400 && candidate <= 599 ? candidate : 500;
   if (status >= 500) {
     console.error("\x1b[31m[error]\x1b[0m", err);
     res.locals.errorMessage = `${err.name && err.name !== "Error" ? err.name + ": " : ""}${err.message || ""}`;
   }
-  res.status(status).json({ message: err.message || "Something went wrong." });
+  res.status(status).json({ message: status >= 500 && process.env.NODE_ENV === "production" ? "The server could not complete the request. Please try again." : err.message || "Something went wrong." });
 }
 
 module.exports = { notFound, errorHandler, trackErrors, errorStats, _scrub: scrub };
