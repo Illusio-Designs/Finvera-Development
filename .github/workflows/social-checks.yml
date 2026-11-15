@@ -46,6 +46,8 @@ jobs:
           node tests/social-workflow.test.cjs
           node tests/dashboard-ui.test.cjs
           node tests/workspace-access.test.cjs
+          node tests/api-failures.test.cjs
+          node tests/public-content-safety.test.cjs
           node tests/ui-workflows.test.cjs
           node tests/social-media-formats.test.cjs
           node tests/social-studio-metrics.test.cjs

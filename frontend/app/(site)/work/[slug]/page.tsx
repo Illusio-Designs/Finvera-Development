@@ -1,3 +1,4 @@
+import { safeHtml } from "@/lib/safeHtml";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -113,15 +114,15 @@ export default async function ProjectDetail({ params }: { params: Promise<{ slug
       {(p.challenge || p.approach) ? (
         <section className="section" style={{ paddingTop: 0 }}>
           <div className="container pd-narrative">
-            {p.challenge && <div className="reveal"><span className="case-index">The challenge</span><div className="prose" dangerouslySetInnerHTML={{ __html: p.challenge }} /></div>}
-            {p.approach && <div className="reveal d1"><span className="case-index">Our approach</span><div className="prose" dangerouslySetInnerHTML={{ __html: p.approach }} /></div>}
+            {p.challenge && <div className="reveal"><span className="case-index">The challenge</span><div className="prose" dangerouslySetInnerHTML={{ __html: safeHtml(p.challenge) }} /></div>}
+            {p.approach && <div className="reveal d1"><span className="case-index">Our approach</span><div className="prose" dangerouslySetInnerHTML={{ __html: safeHtml(p.approach) }} /></div>}
           </div>
         </section>
       ) : p.content ? (
         <section className="section" style={{ paddingTop: 0 }}>
           <div className="container" style={{ maxWidth: 760 }}>
             <span className="case-index">Overview</span>
-            <div className="prose reveal" dangerouslySetInnerHTML={{ __html: p.content }} />
+            <div className="prose reveal" dangerouslySetInnerHTML={{ __html: safeHtml(p.content) }} />
           </div>
         </section>
       ) : null}

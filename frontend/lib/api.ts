@@ -10,6 +10,7 @@ const API = (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "https://
 
 /** ISR revalidation seconds for API data. 0 = always fresh. */
 const REVALIDATE = Number(process.env.API_REVALIDATE ?? 60);
+const requestSignal = () => typeof AbortSignal === "undefined" ? undefined : AbortSignal.timeout(8000);
 
 /* Coerce a tags value (array | JSON string | comma string | null) to a string[]. */
 function toArray(v: unknown): string[] {
@@ -35,6 +36,7 @@ async function apiGet<T>(path: string, fallback: T): Promise<T> {
   try {
     const res = await fetch(`${API}/api${path}`, {
       next: { revalidate: REVALIDATE },
+      signal: requestSignal(),
       headers: { accept: "application/json" },
     });
     if (!res.ok) return fallback;
@@ -77,7 +79,7 @@ export const getBlog = async () => (await apiGet<BlogPost[]>("/blog", [])).map(n
 
 export async function getProject(slug: string): Promise<Project | undefined> {
   try {
-    const res = await fetch(`${API}/api/projects/${slug}`, { next: { revalidate: REVALIDATE } });
+    const res = await fetch(`${API}/api/projects/${slug}`, { next: { revalidate: REVALIDATE }, signal: requestSignal() });
     if (!res.ok) return undefined;
     return normProject((await res.json()) as Project);
   } catch { return undefined; }
@@ -85,7 +87,7 @@ export async function getProject(slug: string): Promise<Project | undefined> {
 
 export async function getPost(slug: string): Promise<BlogPost | undefined> {
   try {
-    const res = await fetch(`${API}/api/blog/${slug}`, { next: { revalidate: REVALIDATE } });
+    const res = await fetch(`${API}/api/blog/${slug}`, { next: { revalidate: REVALIDATE }, signal: requestSignal() });
     if (!res.ok) return undefined;
     return normPost((await res.json()) as BlogPost);
   } catch { return undefined; }
@@ -95,7 +97,7 @@ export const getPages = async () => apiGet<Page[]>("/pages", []);
 
 export async function getPage(slug: string): Promise<Page | undefined> {
   try {
-    const res = await fetch(`${API}/api/pages/${encodeURIComponent(slug)}`, { cache: "no-store" });
+    const res = await fetch(`${API}/api/pages/${encodeURIComponent(slug)}`, { cache: "no-store", signal: requestSignal() });
     if (!res.ok) return undefined;
     return (await res.json()) as Page;
   } catch { return undefined; }

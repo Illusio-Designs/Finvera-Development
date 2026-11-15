@@ -1,3 +1,4 @@
+import { safeHtml } from "@/lib/safeHtml";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPage } from "@/lib/api";
@@ -29,7 +30,7 @@ export default async function LegalPage({ slug, fallbackTitle }: { slug: string;
         <div
           className="reveal d1 prose"
           style={{ marginTop: 30, color: "var(--muted)", fontSize: 16, lineHeight: 1.8 }}
-          dangerouslySetInnerHTML={{ __html: page.content || "" }}
+          dangerouslySetInnerHTML={{ __html: safeHtml(page.content || "") }}
         />
 
         <div style={{ marginTop: 44 }}>

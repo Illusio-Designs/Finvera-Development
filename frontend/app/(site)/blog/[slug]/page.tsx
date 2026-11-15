@@ -1,3 +1,4 @@
+import { safeHtml } from "@/lib/safeHtml";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -92,7 +93,7 @@ export default async function Post({ params }: { params: Promise<{ slug: string 
       {/* Body */}
       <section className="section" style={{ paddingTop: post.coverImage ? 44 : 34 }}>
         <div className="container" style={{ maxWidth: 760 }}>
-          <div className="prose reveal" dangerouslySetInnerHTML={{ __html: post.content || "" }} />
+          <div className="prose reveal" dangerouslySetInnerHTML={{ __html: safeHtml(post.content || "") }} />
 
           <div className="pd-author reveal">
             <span className="pd-author-av">{(post.author || "F").slice(0, 1)}</span>
