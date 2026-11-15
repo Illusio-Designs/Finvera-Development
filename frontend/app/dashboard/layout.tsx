@@ -17,14 +17,13 @@ import DialogHost from "@/components/admin/DialogHost";
 import CommandPalette, { type PaletteItem } from "@/components/admin/shell/CommandPalette";
 import { ShellContext, type Badges } from "@/components/admin/shell/ShellContext";
 import { NAV_GROUPS, QUICK_ACTIONS, EXTRA_PAGES, matchItem, groupOf, groupFor, type NavItem } from "@/components/admin/shell/nav";
-import { rolesCan, userRoles, ROLE_LABELS } from "@/lib/permissions";
+import { rolesCan, userRoles, dashboardRoles, ROLE_LABELS } from "@/lib/permissions";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon, Menu01Icon, Cancel01Icon, SidebarLeft01Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons";
 
 const COLLAPSE_KEY = "fv_admin_collapsed";
 
-/** Decode the role baked into the JWT (authoritative — set at login), so the
-    nav works even if /auth/me is slow or returns an unexpected shape. */
+/** Loading-only navigation hint. Server roles replace it after /auth/me. */
 function roleFromToken(): string | undefined {
   try {
     const t = getToken();
@@ -56,15 +55,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [sectionsOpen, setSectionsOpen] = useState(false);
   const sidebarRef = useRef<HTMLElement>(null);
   const burgerRef = useRef<HTMLButtonElement>(null);
-  // Roles come from /auth/me when available, unioned with the role in the JWT
-  // (a reliable fallback so admins/users are never locked out of their nav).
+  // An old token cannot restore access removed from the current user.
   const roles = useMemo(() => {
-    const set = new Set(userRoles(me));
-    const tok = roleFromToken();
-    if (tok) set.add(tok);
-    return [...set];
+    return dashboardRoles(me, roleFromToken(), meDone);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me, ready]);
+  }, [me, ready, meDone]);
   const rolesKey = roles.join(",");
 
   useEffect(() => { try { setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1"); } catch { /* storage blocked */ } }, []);
@@ -73,6 +68,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (getToken()) api.me().then((r) => setMe(r?.user ?? r)).catch(() => {}).finally(() => setMeDone(true));
     else setMeDone(true);
   }, []);
+  useEffect(()=>{
+    const refresh=()=>{if(getToken())api.me().then(r=>{setMe(r?.user??r);setMeDone(true);}).catch(()=>{});};
+    return visibleInterval(refresh,60000);
+  },[]);
   /* My account page saved the profile → refresh the name/avatar shown here. */
   useEffect(() => {
     const onMe = (e: Event) => setMe((m) => ({ ...(m || {}), ...((e as CustomEvent).detail || {}) }));

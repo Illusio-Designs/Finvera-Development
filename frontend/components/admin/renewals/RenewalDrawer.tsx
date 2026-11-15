@@ -1,4 +1,5 @@
 "use client";
+import RenewalPayments from "./RenewalPayments";
 import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 /* The renewal drawer (also "Add renewal"): client / project, status, quick
    actions (Renewed, Terminate / Restore, call, WhatsApp, email) and three
@@ -20,7 +21,7 @@ import { toast } from "@/lib/toast";
 import { contactLinks } from "./RenewalViews";
 import { CYCLES, STATUSES, cycleOf, inr, yearlyValue, parseRemarks, remarkLine, prependRemark, dueChip, fmtDay, label, istToday, type Remark } from "./renewalKit";
 
-type Tab = "details" | "remarks" | "history";
+type Tab = "details" | "remarks" | "history" | "payments";
 type Draft = Partial<RenewalRow> & Record<string, unknown>;
 const EDITABLE = ["client", "project", "amount", "cycle", "renewalDate", "lastInvoiced", "status", "owner", "email", "phone", "notes", "position"] as const;
 const norm = (v: unknown) => (v === "" || v === undefined ? null : v);
@@ -57,6 +58,7 @@ export default function RenewalDrawer({ row, me, initialTab = "details", onClose
   /* Renewed / Terminate / Restore through the page (dialogs, Undo); resolves with the saved row or null. */
   onAction: (kind: DrawerAction, row: RenewalRow) => Promise<RenewalRow | null>;
 }) {
+  const [paymentDirty,setPaymentDirty]=useState(false),[paymentBusy,setPaymentBusy]=useState(false);
   const isNew = !row;
   const [base, setBase] = useState<Draft>(() => (row ? { ...row } : { ...NEW_RENEWAL }));
   const [draft, setDraft] = useState<Draft>(base);
@@ -76,11 +78,11 @@ export default function RenewalDrawer({ row, me, initialTab = "details", onClose
 
   const dirtyKeys = useMemo(() => EDITABLE.filter((k) => !sameKey(k, draft[k], base[k])), [draft, base]);
   const dirty = isNew ? !!String(draft.client || "").trim() || !!firstRemark.trim() || dirtyKeys.some((k) => !["cycle", "status", "position"].includes(k)) : dirtyKeys.length > 0;
-  const set = (k: string, v: unknown) => { if (saving || addingRemark) return; setDraft((d) => ({ ...d, [k]: v })); if (err?.field === k) setErr(null); };
+  const set = (k: string, v: unknown) => { if (saving || addingRemark || paymentBusy) return; setDraft((d) => ({ ...d, [k]: v })); if (err?.field === k) setErr(null); };
 
   async function tryClose() {
-    if (saving || addingRemark) return;
-    if (dirty || newRemark.trim()) {
+    if (saving || addingRemark || paymentBusy) return;
+    if (dirty || newRemark.trim() || paymentDirty) {
       const ok = await dialog.confirm({ title: isNew ? "Discard this renewal?" : "Discard your changes?", message: isNew ? "It hasn't been added yet." : "The changes you made here haven't been saved.", confirmText: "Discard", cancelText: "Keep editing", danger: true });
       if (!ok) return;
     }
@@ -113,7 +115,7 @@ export default function RenewalDrawer({ row, me, initialTab = "details", onClose
   }
 
   async function save() {
-    if (saving || addingRemark) return;
+    if (saving || addingRemark || paymentBusy) return;
     const client = String(draft.client || "").trim();
     if (!client) { setTab("details"); setErr({ text: "Add the client or company name.", field: "client" }); clientRef.current?.focus(); return; }
     const email = String(draft.email || "").trim();
@@ -229,7 +231,7 @@ export default function RenewalDrawer({ row, me, initialTab = "details", onClose
 
           {!isNew && (
             <div className="rn-tabs" role="tablist" aria-label="Renewal sections">
-              {([["details", "Summary"], ["remarks", "Remarks"], ["history", "Activity"]] as [Tab, string][]).map(([k, t]) => (
+              {([["details", "Summary"], ["remarks", "Remarks"], ["history", "Activity"], ["payments", "Payments"]] as [Tab, string][]).map(([k, t]) => (
                 <button key={k} type="button" role="tab" id={`rn-tab-${k}`} aria-controls={`rn-pane-${k}`} aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
                   {t}
                   {k === "remarks" && remarks.length > 0 && <em className="rn-tcount">{remarks.length}</em>}
@@ -242,6 +244,7 @@ export default function RenewalDrawer({ row, me, initialTab = "details", onClose
         </header>
 
         <div className="rn-db">
+          {row && <div hidden={tab!=="payments"}><RenewalPayments id={row.id} onDirty={setPaymentDirty} onBusy={setPaymentBusy}/></div>}
           {err && <div className="rn-err" role="alert">{err.text}{conflict && <button type="button" className="sh-btn sm" onClick={reloadSaved}>Reload saved record</button>}</div>}
           {tab === "details" && (
             <div id="rn-pane-details" role="tabpanel" aria-labelledby={isNew ? undefined : "rn-tab-details"} className="rn-form">
@@ -338,11 +341,11 @@ export default function RenewalDrawer({ row, me, initialTab = "details", onClose
         </div>
 
         <footer className="rn-df">
-          {!isNew && <button type="button" className="sh-btn rn-danger" disabled={saving || addingRemark} onClick={remove}><HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.8} />Delete</button>}
+          {!isNew && <button type="button" className="sh-btn rn-danger" disabled={saving || addingRemark || paymentBusy} onClick={remove}><HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.8} />Delete</button>}
           <span className="rn-sp" />
           {!isNew && dirty && <span className="rn-unsaved">Unsaved changes</span>}
           <button type="button" className="sh-btn" onClick={tryClose}>{dirty || isNew ? "Cancel" : "Close"}</button>
-          <button type="button" className="sh-btn pri" onClick={save} disabled={saving || addingRemark || (!isNew && !dirty)}>
+          <button type="button" className="sh-btn pri" onClick={save} disabled={saving || addingRemark || paymentBusy || (!isNew && !dirty)}>
             {saving ? <><span className="spin rn-spin light" aria-hidden /> Saving…</> : <><HugeiconsIcon icon={Tick02Icon} size={16} strokeWidth={2} />{isNew ? "Add renewal" : "Save"}</>}
           </button>
         </footer>

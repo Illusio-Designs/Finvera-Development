@@ -1,4 +1,5 @@
 "use client";
+import { useEffect as useSearchEffect } from "react";
 import { WorkspaceHero } from "@/components/admin/Workspace";
 import PageLoading from "@/components/admin/PageLoading";
 import { useEffect, useMemo, useState } from "react";
@@ -12,6 +13,7 @@ const sortArticles = (rows: BlogItem[]) => [...rows].sort((a, b) => String(b.pub
 export default function AdminBlog() {
   const [rows, setRows] = useState<BlogItem[] | null>(null), [error, setError] = useState("");
   const [query, setQuery] = useState(""), [status, setStatus] = useState(""), [category, setCategory] = useState("");
+  useSearchEffect(()=>{const apply=()=>{const value=new URLSearchParams(window.location.search).get('q');if(value!==null)setQuery(value);};const selected=(event:Event)=>{const target=(event as CustomEvent).detail;if(target?.pathname===window.location.pathname)setQuery(target.query);};apply();window.addEventListener('fv-record-search',selected);window.addEventListener('popstate',apply);return()=>{window.removeEventListener('fv-record-search',selected);window.removeEventListener('popstate',apply);};},[]);
   const [busy, setBusy] = useState(true), [editing, setEditing] = useState<{ row: BlogItem | null; key: number } | null>(null);
   async function load() { setBusy(true); setError(""); try { const result = await api.list("blog"); setRows(Array.isArray(result) ? sortArticles(result) : []); } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t load Blog."); } finally { setBusy(false); } }
   useEffect(() => { load(); }, []);

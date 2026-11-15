@@ -1,4 +1,5 @@
 "use client";
+import DraftPreview from "@/components/admin/DraftPreview";
 import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -80,7 +81,7 @@ export default function PageEditor({ row, onClose, onSaved, onPatched, onDeleted
     <div className="wp-tabs" role="tablist" aria-label="Page sections">{[["details", "Content"], ["publish", "URL & publishing"]].map(([key, label]) => <button type="button" role="tab" disabled={busy} aria-selected={!showPreview && tab === key} key={key} onClick={() => { setTab(key); setShowPreview(false); }}>{label}</button>)}</div>
     {error && <div className="wp-error" role="alert">{error}{conflict && <button type="button" className="sh-btn sm" onClick={reload}>Reload saved version</button>}</div>}
     <div className="wp-editor-body"><main className="wp-edit-fields" inert={saving}>
-      {showPreview ? <><p className="wp-preview-note">Private preview of your current edits. Previewing does not publish or save changes.</p><iframe title="Page preview" sandbox="" srcDoc={preview(draft)} className="wp-preview-frame" /></> : <>
+      {showPreview ? <><p className="wp-preview-note">Private preview of your current edits. Previewing does not publish or save changes.</p><DraftPreview title="Page preview" html={preview(draft)} className="wp-preview-frame" /></> : <>
       {tab === "details" && <div className="wp-form">{text("title", "Page title")}<section className="wp-rich"><h3>Page content</h3><RichText value={draft.content || ""} onChange={value => set("content", value)} onUploadBusy={on => setUploads(count => count + (on ? 1 : -1))} /></section></div>}
       {tab === "publish" && <div className="wp-form"><label className="wp-field"><span>Page URL</span><input aria-label="Page URL" value={draft.slug || ""} disabled={!!row && fixedPageSlug(base.slug)} onChange={event => set("slug", event.target.value)} placeholder="e.g. accessibility" maxLength={200} /><small>{row && fixedPageSlug(base.slug) ? "This address is fixed because the website links to this policy page." : "Use lowercase letters, numbers and single hyphens. Changing a published URL breaks its old links."}</small></label><div className="wp-field"><label htmlFor="wp-status">Publication status</label><Select id="wp-status" ariaLabel="Publication status" value={draft.status} onChange={value => set("status", value)} options={[{ value: "draft", label: "Draft · private" }, { value: "published", label: "Published · visible on website" }]} /></div><p className="wp-help">Published pages are available at their URL. Add links from your website content to help visitors find them.</p>{row && <HistoryList entity="page" id={row.id} />}</div>}
       </>}

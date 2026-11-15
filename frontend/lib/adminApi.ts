@@ -426,3 +426,17 @@ export const reportsApi = {
   update: (id:number,body:unknown) => req(`/social-reports/snapshots/${id}`,{method:'PATCH',body:JSON.stringify(body)}),
   csv: async (id:number) => {const response=await fetch(`${API_BASE}/api/social-reports/snapshots/${id}/csv`,{headers:{Authorization:`Bearer ${getToken()||''}`}});if(response.status===401){clearToken();location.href='/login';throw new Error('Session expired.');}if(!response.ok)throw new Error((await response.json()).message||'Couldn’t export the report.');return response.blob();},
 };
+
+export const workspaceApi={
+ restoreStatus:()=>req('/workspace/restore-status'),
+ restoreDrill:(name:string)=>req(`/workspace/backups/${encodeURIComponent(name)}/restore-drill`,{method:'POST',body:'{}'}),
+ linkCheck:(collection:string)=>req('/workspace/link-check',{method:'POST',body:JSON.stringify({collection})}),
+ pushPrefs:()=>req('/workspace/notification-preferences'),
+ savePushPrefs:(body:Record<string,boolean>)=>req('/workspace/notification-preferences',{method:'PUT',body:JSON.stringify(body)}),
+ payments:(id:number)=>req(`/workspace/renewals/${id}/payments`),
+ recordPayment:(id:number,body:Record<string,unknown>)=>req(`/workspace/renewals/${id}/payments`,{method:'POST',body:JSON.stringify(body)}),
+ voidPayment:(id:number,reason:string)=>req(`/workspace/payments/${id}/void`,{method:'POST',body:JSON.stringify({reason})}),
+ duplicates:(input:Record<string,string>)=>req('/workspace/lead-duplicates?'+new URLSearchParams(input)),
+ search:(q:string)=>req('/workspace/search?'+new URLSearchParams({q})),
+ access:()=>req('/workspace/access'),
+};

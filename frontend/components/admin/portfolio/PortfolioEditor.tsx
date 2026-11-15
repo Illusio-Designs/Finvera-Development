@@ -1,4 +1,5 @@
 "use client";
+import DraftPreview from "@/components/admin/DraftPreview";
 import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -86,7 +87,7 @@ export default function PortfolioEditor({ row, onClose, onSaved, onPatched, onDe
     <div className="pf-tabs" role="tablist" aria-label="Case study sections">{[["details", "Details"], ["story", "Story"], ["media", "Media"], ["publish", "Publishing"]].map(([key, label]) => <button type="button" role="tab" aria-selected={!showPreview && tab === key} key={key} onClick={() => { setTab(key); setShowPreview(false); }}>{label}</button>)}</div>
     {error && <div className="pf-error" role="alert">{error}{conflict && <button type="button" className="sh-btn sm" onClick={reload}>Reload saved version</button>}</div>}
     <div className="pf-editor-body"><main className="pf-edit-fields" inert={saving}>
-      {showPreview ? <><p className="pf-preview-note">Private preview of your current edits. Previewing does not publish or save changes.</p><iframe title="Case study preview" sandbox="" srcDoc={preview(draft)} className="pf-preview-frame" /></> : <>
+      {showPreview ? <><p className="pf-preview-note">Private preview of your current edits. Previewing does not publish or save changes.</p><DraftPreview title="Case study preview" html={preview(draft)} className="pf-preview-frame" /></> : <>
       {tab === "details" && <div className="pf-form"><div className="pf-pair">{text("title", "Case study title")}{text("client", "Client / company")}</div><div className="pf-pair">{text("category", "Category")}{text("url", "Live website URL")}</div>{text("blurb", "Short description", true)}<div className="pf-pair">{text("industry", "Industry")}{text("year", "Year")}</div><div className="pf-pair">{text("duration", "Timeline")}{text("role", "Our role")}</div>{tags("tags", "Services & tags")}</div>}
       {tab === "story" && <div className="pf-form">{[["challenge", "The challenge"], ["approach", "Our approach"], ["content", "Case study story"]].map(([key, label]) => <section className="pf-rich" key={key}><h3>{label}</h3><RichText value={draft[key] || ""} onChange={value => set(key, value)} /></section>)}{tags("results", "Results · enter each as value — label")}{tags("tech", "Tech stack")}{text("testimonialQuote", "Client quote", true)}<div className="pf-pair">{text("testimonialName", "Quote — name")}{text("testimonialRole", "Quote — role")}</div></div>}
       {tab === "media" && <div className="pf-form"><p className="pf-help">The main image appears on Work and Home cards. The cover leads the case study and its sharing preview.</p>{[["desktopImage", "Main image"], ["coverImage", "Cover image"], ["mobileImage", "Mobile screenshot"]].map(([key, label]) => <ImageUpload key={key} label={label} value={draft[key]} onChange={value => set(key, value)} onBusy={on => setUploads(count => count + (on ? 1 : -1))} />)}</div>}

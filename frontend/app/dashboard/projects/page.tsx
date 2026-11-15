@@ -1,4 +1,5 @@
 "use client";
+import { useEffect as useSearchEffect } from "react";
 import { WorkspaceHero } from "@/components/admin/Workspace";
 import PageLoading from "@/components/admin/PageLoading";
 import { useEffect, useMemo, useState } from "react";
@@ -11,6 +12,7 @@ import "./portfolio-workspace.css";
 export default function AdminProjects() {
   const [rows, setRows] = useState<PortfolioItem[] | null>(null), [error, setError] = useState("");
   const [query, setQuery] = useState(""), [status, setStatus] = useState(""), [category, setCategory] = useState("");
+  useSearchEffect(()=>{const apply=()=>{const value=new URLSearchParams(window.location.search).get('q');if(value!==null)setQuery(value);};const selected=(event:Event)=>{const target=(event as CustomEvent).detail;if(target?.pathname===window.location.pathname)setQuery(target.query);};apply();window.addEventListener('fv-record-search',selected);window.addEventListener('popstate',apply);return()=>{window.removeEventListener('fv-record-search',selected);window.removeEventListener('popstate',apply);};},[]);
   const [busy, setBusy] = useState(false), [editing, setEditing] = useState<{ row: PortfolioItem | null; key: number } | null>(null);
   async function load() { setBusy(true); setError(""); try { const result = await api.list("projects"); setRows(Array.isArray(result) ? result : []); } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t load Portfolio."); } finally { setBusy(false); } }
   useEffect(() => { load(); }, []);

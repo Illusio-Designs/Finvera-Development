@@ -1,4 +1,5 @@
 "use client";
+import AccessMatrix from "@/components/admin/AccessMatrix";
 /* Users — who can sign in, what they can open and which brands they see in the
    content planner. Invite by link (email and/or WhatsApp), reset links,
    unlock, two-step login reset, devices, activity, and the security log. */
@@ -230,6 +231,7 @@ export default function AdminUsers() {
         { label: "Invitations", value: users ? counts.invited || 0 : "—", detail: "Waiting to set a password" },
         { label: "Two-step login", value: users ? users.filter(u => u.active && u.twoFactorEnabled).length : "—", detail: "Enabled on active accounts" },
       ]} />
+      <AccessMatrix />
 
       <div className="ss-pills acc-tabs" role="tablist" aria-label="Users sections">
         <button type="button" role="tab" aria-selected={tab === "members"} className={tab === "members" ? "on" : ""} onClick={() => pickTab("members")}>
