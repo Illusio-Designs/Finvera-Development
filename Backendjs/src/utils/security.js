@@ -1,3 +1,4 @@
+const credentialMachine = require("./credentialMachine");
 /* Account security helpers shared by auth + users controllers:
    device summary, security log, sessions, single-use email links, and the
    "something changed on your account" notices. Nothing here throws into the
@@ -6,7 +7,7 @@
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const { Op } = require("sequelize");
-const { UserSession, SecurityEvent, AuthToken, User } = require("../models");
+const { UserSession, SecurityEvent, AuthToken, User, sequelize } = require("../models");
 const { forgetUser, forgetSession, forgetUserSessions } = require("../middleware/auth");
 const { notifyUsers } = require("./notify");
 const mailer = require("./mailer");
@@ -60,31 +61,31 @@ function logEvent(req, { userId = null, email = null, type, actorId = null, meta
 const jwtTtl = () => process.env.JWT_EXPIRES_IN || "7d";
 
 /* Create a session row + its access token. Returns { token, session, isNewDevice }. */
-async function startSession(user, req) {
+async function startSession(user, req, { transaction } = {}) {
   const { ip, userAgent, device } = clientInfo(req);
   const jti = crypto.randomBytes(16).toString("hex");
   const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: jwtTtl(), jwtid: jti });
   const { exp } = jwt.decode(token);
   // A device family never used by this account before (only once it has any history).
   const [seenBefore, anyBefore] = await Promise.all([
-    UserSession.count({ where: { userId: user.id, device } }),
-    UserSession.count({ where: { userId: user.id } }),
+    UserSession.count({ where: { userId: user.id, device }, transaction }),
+    UserSession.count({ where: { userId: user.id }, transaction }),
   ]);
   const now = new Date();
-  const session = await UserSession.create({ userId: user.id, jti, device, userAgent, ip, lastSeenAt: now, expiresAt: new Date(exp * 1000) });
+  const session = await UserSession.create({ userId: user.id, jti, device, userAgent, ip, lastSeenAt: now, expiresAt: new Date(exp * 1000) }, { transaction });
   if (Math.random() < 0.05) prune().catch(() => {});
   return { token, session, isNewDevice: anyBefore > 0 && seenBefore === 0 };
 }
 
 /* Revoke a user's live sessions (optionally keeping one jti). When nothing is
    kept, old-style session-less tokens are cut off too (tokensValidAfter). */
-async function revokeSessions(userId, { exceptJti = null, reason = "revoked", cutLegacy = true } = {}) {
+async function revokeSessions(userId, { exceptJti = null, reason = "revoked", cutLegacy = true, transaction } = {}) {
   const where = { userId, revokedAt: null };
   if (exceptJti) where.jti = { [Op.ne]: exceptJti };
-  const [count] = await UserSession.update({ revokedAt: new Date(), revokedReason: reason }, { where });
+  const [count] = await UserSession.update(credentialMachine.revocation(reason), { where, transaction });
   if (cutLegacy) {
     // Legacy tokens have no jti; anything issued before now stops working.
-    await User.update({ tokensValidAfter: new Date() }, { where: { id: userId }, silent: true, hooks: false });
+    await User.update({ tokensValidAfter: new Date() }, { where: { id: userId }, silent: true, hooks: false, transaction });
     forgetUser(userId);
   }
   forgetUserSessions(userId);
@@ -92,7 +93,7 @@ async function revokeSessions(userId, { exceptJti = null, reason = "revoked", cu
 }
 
 async function revokeOne(sessionRow, reason = "revoked") {
-  if (!sessionRow.revokedAt) await sessionRow.update({ revokedAt: new Date(), revokedReason: reason });
+  if (!sessionRow.revokedAt) await sessionRow.update(credentialMachine.revocation(reason));
   forgetSession(sessionRow.jti);
 }
 
@@ -126,10 +127,13 @@ const sha256 = (s) => crypto.createHash("sha256").update(String(s)).digest("hex"
 /* Kill earlier unused links of that kind, mint a new one, return the raw link. */
 async function issueLink(userId, kind, ttlMs, createdBy = null) {
   const now = new Date();
-  await AuthToken.update({ usedAt: now }, { where: { userId, kind, usedAt: null } });
   const raw = crypto.randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + ttlMs);
-  await AuthToken.create({ userId, kind, tokenHash: sha256(raw), expiresAt, createdBy });
+  await sequelize.transaction(async transaction => {
+    await User.findByPk(userId, { transaction, lock: transaction.LOCK.UPDATE });
+    await AuthToken.update({ usedAt: now }, { where: { userId, kind, usedAt: null }, transaction });
+    await AuthToken.create({ userId, kind, tokenHash: sha256(raw), expiresAt, createdBy }, { transaction });
+  });
   // One page for both: GET /auth/reset-info tells it whether this is an invite.
   const extra = kind === "invite" ? "&invite=1" : "";
   return { token: raw, link: `${frontendUrl()}/reset-password?token=${encodeURIComponent(raw)}${extra}`, expiresAt };
@@ -138,8 +142,8 @@ async function issueLink(userId, kind, ttlMs, createdBy = null) {
 /* Look up a raw token. Returns { row, user } when usable, else null. */
 async function findLink(raw) {
   if (!raw || typeof raw !== "string" || raw.length > 200) return null;
-  const row = await AuthToken.findOne({ where: { tokenHash: sha256(raw) } });
-  if (!row || row.usedAt || new Date(row.expiresAt) < new Date()) return null;
+  const row = await AuthToken.findOne({ where: { tokenHash: sha256(raw), kind: { [Op.in]: ["reset", "invite"] } } });
+  if (credentialMachine.linkState(row) !== "usable") return null;
   const user = await User.findByPk(row.userId);
   if (!user || !user.active) return null;
   return { row, user };

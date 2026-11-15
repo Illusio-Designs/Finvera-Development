@@ -62,6 +62,7 @@ const publicSettingsBody = () => pubCache.get("settings:public", () => loadFlat(
 
 const getSettings = asyncHandler(async (req, res) => {
   if (!req.user) return pubCache.sendPublic(res, await publicSettingsBody());
+  if (!require("../utils/permissions").rolesCan(req.user.roles || [], "settings")) return res.json(JSON.parse(await publicSettingsBody()));
   const hit = flatCache.all;
   if (hit && Date.now() - hit.at < SETTINGS_TTL_MS) return res.json(hit.map);
   const map = await loadFlat(true);
