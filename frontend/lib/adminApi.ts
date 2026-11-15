@@ -19,13 +19,19 @@ async function req(path: string, options: RequestInit = {}, auth = true): Promis
   const res = await fetch(`${API_BASE}/api${path}`, { ...options, headers });
   // Only treat 401 as an expired session for authed requests — NOT for login,
   // where a 401 just means wrong credentials (let the real message through).
-  if (res.status === 401 && auth) {
+  if (res.status === 401 && auth && getToken() === token) {
     clearToken();
     if (typeof window !== "undefined" && location.pathname !== "/login") location.href = "/login";
     throw new Error("Session expired. Please sign in again.");
   }
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  let data: any = null;
+  if (text) {
+    try { data = JSON.parse(text); }
+    catch {
+      throw Object.assign(new Error(res.ok ? "The server returned an invalid response. Please try again." : `The server could not complete the request (${res.status}). Please try again.`), { status: res.status });
+    }
+  }
   if (!res.ok) throw Object.assign(new Error(data?.message || `Request failed (${res.status})`), { status: res.status, field: data?.field as string | undefined, data });
   return data;
 }

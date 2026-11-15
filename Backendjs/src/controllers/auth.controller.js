@@ -3,7 +3,7 @@ const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { Op } = require("sequelize");
-const { User, UserSession, SecurityEvent } = require("../models");
+const { User, UserSession, SecurityEvent, AuthToken, sequelize } = require("../models");
 const { asyncHandler } = require("../utils/crud");
 const { rolesOf } = require("../utils/permissions");
 const { brandIdsOf } = require("./social.controller");
@@ -17,7 +17,7 @@ const accountMachine = require("../utils/accountMachine");
 const { MAX_FAILS, LOCK_MS, isLocked } = accountMachine;
 const TICKET_TTL = "5m";
 const secondFactor = require("../utils/secondFactorMachine");
-const replay = secondFactor.createReplayGuard();
+const factorClaims = require("../utils/secondFactorClaims");
 
 const asArr = (v) => {
   if (Array.isArray(v)) return v;
@@ -49,10 +49,10 @@ function lockedReply(res, u) {
 }
 
 /* Count a wrong password / code. Returns true when this one locked the account. */
-async function registerFailure(user, req, reason) {
+async function registerFailure(user, req, reason, transaction) {
   const { patch, locked } = accountMachine.failureAfter(user);
   Object.assign(user, patch);
-  await user.save({ fields: ["failedLogins", "firstFailedAt", "lockedUntil"], silent: true });
+  await user.save({ fields: ["failedLogins", "firstFailedAt", "lockedUntil"], silent: true, transaction });
   forgetUser(user.id);
   sec.logEvent(req, { userId: user.id, email: user.email, type: reason === "wrong_2fa_code" ? "2fa_failed" : "login_failed", meta: { reason } });
   if (locked) {
@@ -69,11 +69,20 @@ const dummyCompare = async (pw) => { dummyHash = dummyHash || await bcrypt.hash(
 /* Password (and 2FA, if on) passed — open a session and answer like /login always did. */
 async function finishLogin(user, req, res, { method = "password", extra = {} } = {}) {
   const now = new Date();
-  Object.assign(user, accountMachine.resetFailures());
-  user.lastLoginAt = now; user.lastSeenAt = now;
-  await user.save({ fields: ["failedLogins", "firstFailedAt", "lockedUntil", "lastLoginAt", "lastSeenAt"], silent: true });
+  const outcome = await sequelize.transaction(async transaction => {
+    const current = await User.findByPk(user.id, { transaction, lock: transaction.LOCK.UPDATE });
+    if (!current?.active || factorClaims.credentialStamp(current) !== factorClaims.credentialStamp(user)) return null;
+    if (isLocked(current)) return { locked: true, user: current };
+    Object.assign(current, accountMachine.resetFailures());
+    current.lastLoginAt = now; current.lastSeenAt = now;
+    await current.save({ fields: ["failedLogins", "firstFailedAt", "lockedUntil", "lastLoginAt", "lastSeenAt"], silent: true, transaction });
+    return { user: current, ...await sec.startSession(current, req, { transaction }) };
+  });
+  if (!outcome) return res.status(401).json({ message: "Your sign-in step expired. Please enter your password again." });
+  if (outcome.locked) return lockedReply(res, outcome.user);
+  user = outcome.user;
+  const { token, session, isNewDevice } = outcome;
   forgetUser(user.id);
-  const { token, session, isNewDevice } = await sec.startSession(user, req);
   sec.logEvent(req, { userId: user.id, email: user.email, type: "login_success", meta: { sessionId: session.id, method } });
   if (isNewDevice) {
     sec.logEvent(req, { userId: user.id, email: user.email, type: "new_device", meta: { sessionId: session.id } });
@@ -115,7 +124,9 @@ const login = asyncHandler(async (req, res) => {
   }
 
   if (accountMachine.afterPassword(user) === "second-factor") {
-    const ticket = jwt.sign({ kind: "2fa", sub: user.id }, process.env.JWT_SECRET, { expiresIn: TICKET_TTL, jwtid: crypto.randomBytes(8).toString("hex") });
+    const ticket = jwt.sign({ kind: "2fa", sub: user.id, credential: factorClaims.credentialStamp(user) }, process.env.JWT_SECRET, { expiresIn: TICKET_TTL, jwtid: crypto.randomBytes(8).toString("hex") });
+    const payload = jwt.decode(ticket);
+    await AuthToken.create({ userId: user.id, kind: "2fa-ticket", tokenHash: factorClaims.ticketHash(payload.jti), expiresAt: new Date(payload.exp * 1000) });
     return res.json({ twoFactorRequired: true, ticket, message: "Enter the 6-digit code from your authenticator app." });
   }
   return finishLogin(user, req, res);
@@ -123,16 +134,17 @@ const login = asyncHandler(async (req, res) => {
 
 /* Check a TOTP code or a backup code for this user. Returns "totp" | "backup" | null.
    A matched backup code is removed (caller saves the user). */
-function checkSecondFactor(user, code) {
+async function checkSecondFactor(user, code, transaction) {
   const c = String(code || "").trim();
   if (/^\d{6}$/.test(c.replace(/\s/g, ""))) {
     const step = totp.verify(totp.open(user.twoFactorSecret), c);
-    if (!replay.acceptStep(user.id, step)) return null;
+    if (step == null || !await factorClaims.claimProof(user.id, `totp:${user.twoFactorSecret}:${step}`, transaction)) return null;
     return "totp";
   }
   const h = totp.hashBackup(c);
   const list = asArr(user.twoFactorBackup);
   if (totp.normBackup(c).length === 8 && list.includes(h)) {
+    if (!await factorClaims.claimProof(user.id, `backup:${user.twoFactorSecret}:${h}`, transaction)) return null;
     user.twoFactorBackup = secondFactor.consumeBackup(list, h);
     return "backup";
   }
@@ -147,18 +159,23 @@ const login2fa = asyncHandler(async (req, res) => {
   if (!t || t.kind !== "2fa") return res.status(401).json({ message: "Your sign-in step expired. Please enter your password again." });
   if (!code) return res.status(400).json({ message: "Enter the 6-digit code from your authenticator app, or a backup code." });
 
-  const user = await User.findByPk(t.sub);
-  if (!user || !user.active) return res.status(401).json({ message: "Invalid email or password." });
-  if (isLocked(user)) return lockedReply(res, user);
-  if (!user.twoFactorEnabled) return finishLogin(user, req, res); // turned off meanwhile — password already checked
-
-  const how = checkSecondFactor(user, code);
-  if (!how) {
-    const locked = await registerFailure(user, req, "wrong_2fa_code");
-    return locked ? lockedReply(res, user) : res.status(401).json({ message: "That code didn't work. Check your authenticator app and try the newest code." });
-  }
-  if (!replay.spendTicket(t.jti, t.exp)) return res.status(401).json({ message: "Your sign-in step expired. Please enter your password again." });
-  if (how === "backup") await user.save({ fields: ["twoFactorBackup"], silent: true });
+  const outcome = await sequelize.transaction(async transaction => {
+    const user = await User.findByPk(t.sub, { transaction, lock: transaction.LOCK.UPDATE });
+    if (!user || !user.active) return { expired: true };
+    if (!user.twoFactorEnabled || !t.jti || t.credential !== factorClaims.credentialStamp(user)) return { expired: true };
+    const ticketRow = await AuthToken.findOne({ where: { userId: user.id, kind: "2fa-ticket", tokenHash: factorClaims.ticketHash(t.jti) }, transaction, lock: transaction.LOCK.UPDATE });
+    if (!ticketRow || ticketRow.usedAt || new Date(ticketRow.expiresAt).getTime() <= Date.now()) return { expired: true };
+    if (isLocked(user)) return { user, locked: true };
+    const how = await checkSecondFactor(user, code, transaction);
+    if (!how) return { user, bad: true, locked: await registerFailure(user, req, "wrong_2fa_code", transaction) };
+    await ticketRow.update({ usedAt: new Date() }, { transaction });
+    if (how === "backup") await user.save({ fields: ["twoFactorBackup"], silent: true, transaction });
+    return { user, how };
+  });
+  if (outcome.expired) return res.status(401).json({ message: "Your sign-in step expired. Please enter your password again." });
+  const { user, how } = outcome;
+  if (outcome.locked) return lockedReply(res, user);
+  if (outcome.bad) return res.status(401).json({ message: "That code didn't work. Check your authenticator app and try the newest code." });
   const extra = how === "backup" ? { usedBackupCode: true, backupCodesLeft: asArr(user.twoFactorBackup).length } : {};
   return finishLogin(user, req, res, { method: how === "backup" ? "backup_code" : "2fa", extra });
 });
@@ -320,15 +337,21 @@ const reset = asyncHandler(async (req, res) => {
   if (!hit) return res.status(400).json(BAD_LINK);
   const bad = checkPassword(password);
   if (bad) return res.status(400).json(bad);
-  const { row, user } = hit;
-  // Claim the link first so two submits can't both use it.
-  const [claimed] = await row.constructor.update({ usedAt: new Date() }, { where: { id: row.id, usedAt: null } });
-  if (!claimed) return res.status(400).json(BAD_LINK);
-  const wasInvite = row.kind === "invite" || user.invitePending;
-  user.password = await bcrypt.hash(String(password), 10);
-  Object.assign(user, credentialEvent("RESET_PASSWORD"));
-  await user.save();
-  const ended = await sec.revokeSessions(user.id, { reason: "password_reset" });
+  const passwordHash = await bcrypt.hash(String(password), 10);
+  const result = await sequelize.transaction(async transaction => {
+    const user = await User.findByPk(hit.user.id, { transaction, lock: transaction.LOCK.UPDATE });
+    const row = await AuthToken.findByPk(hit.row.id, { transaction, lock: transaction.LOCK.UPDATE });
+    if (!user?.active || !row || row.usedAt || new Date(row.expiresAt).getTime() <= Date.now()) return null;
+    const wasInvite = row.kind === "invite" || user.invitePending;
+    user.password = passwordHash;
+    Object.assign(user, credentialEvent("RESET_PASSWORD"));
+    await user.save({ transaction });
+    await AuthToken.update({ usedAt: new Date() }, { where: { userId: user.id, kind: { [Op.in]: ["reset", "invite"] }, usedAt: null }, transaction });
+    const ended = await sec.revokeSessions(user.id, { reason: "password_reset", transaction });
+    return { row, user, wasInvite, ended };
+  });
+  if (!result) return res.status(400).json(BAD_LINK);
+  const { row, user, wasInvite, ended } = result;
   forgetUser(user.id);
   sec.logEvent(req, { userId: user.id, email: user.email, type: wasInvite ? "invite_accepted" : "password_reset", meta: { sessionsEnded: ended, via: row.kind } });
   if (wasInvite) {
@@ -357,7 +380,7 @@ const twoFactorEnable = asyncHandler(async (req, res) => {
   if (!secret) return res.status(400).json({ message: "Start the setup first (scan the QR code)." });
   const step = totp.verify(secret, req.body?.code);
   if (step == null) return res.status(400).json({ message: "That code didn't work. Check the time on your phone is automatic and try the newest code.", field: "code" });
-  replay.rememberStep(user.id, step);
+  if (!await factorClaims.claimProof(user.id, `totp:${user.twoFactorSecret}:${step}`)) return res.status(400).json({ message: "That code was already used. Enter the newest code.", field: "code" });
   const { codes, hashes } = totp.makeBackupCodes(8);
   Object.assign(user, secondFactor.configurationEvent("ENABLE", { hashes }));
   await user.save({ fields: ["twoFactorEnabled", "twoFactorBackup"] });
@@ -371,7 +394,7 @@ const twoFactorDisable = asyncHandler(async (req, res) => {
   const user = await User.findByPk(req.user.id);
   if (!user.twoFactorEnabled) return res.status(400).json({ message: "Two-step login is already off." });
   if (!(await bcrypt.compare(String(password || ""), user.password))) return res.status(400).json({ message: "Current password is incorrect.", field: "password" });
-  if (!checkSecondFactor(user, code)) return res.status(400).json({ message: "That code didn't work. Enter a code from your authenticator app or a backup code.", field: "code" });
+  if (!await checkSecondFactor(user, code)) return res.status(400).json({ message: "That code didn't work. Enter a code from your authenticator app or a backup code.", field: "code" });
   Object.assign(user, secondFactor.configurationEvent("DISABLE"));
   await user.save({ fields: ["twoFactorEnabled", "twoFactorSecret", "twoFactorBackup"] });
   forgetUser(user.id);
