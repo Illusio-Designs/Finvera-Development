@@ -17,6 +17,9 @@ const asArr = (v) => {
 /* Push one message to all of a user's devices; drop subscriptions the push
    service says are gone (app removed, permission revoked). */
 async function pushToUser(userId, message) {
+  const user=await User.findByPk(userId,{attributes:['id','active','emailPrefs']});
+  const {pushCategory,pushPreferences}=require('./workspaceTools');
+  if(!user||user.active===false||pushPreferences(user)[pushCategory(message)]===false)return {sent:0,devices:0};
   const subs = await PushSubscription.findAll({ where: { userId } });
   if (!subs.length) return { sent: 0, devices: 0 };
   const unread = await Notification.count({ where: { userId, isRead: false } });
