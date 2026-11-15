@@ -1,0 +1,10 @@
+const models=require('../models');
+const {asyncHandler}=require('../utils/crud');
+const {extractLinks,checkLink}=require('../utils/linkAudit');
+const sources={projects:['Project',['content','challenge','approach','website','gallery']],blog:['BlogPost',['content']],pages:['Page',['content']],services:['Service',['description']],brands:['Brand',['website']],team:['TeamMember',['socials']]};
+const audit=asyncHandler(async(req,res)=>{const chosen=String(req.body.collection||'all');if(chosen!=='all'&&!sources[chosen])return res.status(400).json({message:'Choose a valid content collection.'});const records=[];let limited=false;
+ for(const [key,[name,fields]] of Object.entries(sources)){if(chosen!=='all'&&chosen!==key)continue;const Model=models[name],attributes=['id','title','name',...fields].filter(k=>Model.rawAttributes[k]);const rows=await Model.findAll({where:{status:'published'},attributes,order:[['id','DESC']],limit:101,raw:true});if(rows.length>100)limited=true;for(const r of rows.slice(0,100))records.push({title:r.title||r.name||key,href:'/dashboard/'+key+'?q='+encodeURIComponent(r.title||r.name||''),fields:Object.fromEntries(fields.map(f=>[f,r[f]]))});}
+ const links=extractLinks(records),selected=links.slice(0,30),base=process.env.FRONTEND_URL||'https://www.finvera.solutions';let index=0;const results=[];
+ await Promise.all(Array.from({length:Math.min(4,selected.length)},async()=>{while(index<selected.length){const row=selected[index++];const result=await checkLink(row.url,base);let shown=row.url;try{const u=new URL(row.url,base);if([...u.searchParams.keys()].some(k=>/token|secret|password|auth|key/i.test(k)))shown=u.origin+u.pathname+'?…';}catch{}results.push({...row,url:shown,...result});}}));
+ res.set('Cache-Control','no-store').json({checkedAt:new Date().toISOString(),items:results,linksFound:links.length,partial:limited||links.length>30,note:'Published saved content only. Up to 100 records per collection and 30 unique links per run. Private, action, unsupported and timed-out links require manual review.'});});
+module.exports={audit};

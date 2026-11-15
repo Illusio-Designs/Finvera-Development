@@ -138,12 +138,12 @@ const putEmailPrefs = asyncHandler(async (req, res) => {
   const { u, prefs } = await sequelize.transaction(async transaction => {
     const u = await User.findByPk(req.user.id, { transaction, lock: transaction.LOCK.UPDATE });
     if (!u) throw Object.assign(new Error("User not found."), { status: 404 });
-    const prefs = { ...emails.prefsOf(u), ...emails.cleanPrefs(body) };
+    const prefs = { ...require("../utils/workspaceTools").object(u.emailPrefs), ...emails.prefsOf(u), ...emails.cleanPrefs(body) };
     await u.update({ emailPrefs: prefs }, { transaction });
     return { u, prefs };
   });
   try { require("../middleware/auth").forgetUser(u.id); } catch { /* cache only */ }
-  res.json({ prefs, kinds: emails.PREF_KINDS, email: u.email, mailConfigured: mailer.configured() });
+  res.json({ prefs: emails.prefsOf(u), kinds: emails.PREF_KINDS, email: u.email, mailConfigured: mailer.configured() });
 });
 
 /* ── Meta connection check ───────────────────────────── */
