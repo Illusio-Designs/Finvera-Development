@@ -1,7 +1,30 @@
-.page-loading{position:relative;display:grid;align-items:stretch;width:100%;min-width:0;min-height:clamp(360px,60dvh,640px);border-radius:23px;overflow:hidden;background:#f7f9fd;border:1px solid #e4eaf5;padding:20px}
-.page-loading-shapes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;opacity:.8}.page-loading-card{display:flex;flex-direction:column;gap:13px;border:1px solid #e5ebf5;border-radius:18px;padding:20px;background:#fff;min-width:0}.page-loading-card i,.page-loading-card span,.page-loading-card b{display:block;border-radius:8px;background:linear-gradient(105deg,#e9eef7 20%,#f8faff 45%,#e9eef7 70%);background-size:220% 100%;animation:pageLoadingShimmer 1.6s ease-in-out infinite}.page-loading-card i{width:42px;height:42px;border-radius:13px}.page-loading-card span{height:12px;width:80%}.page-loading-card span+span{width:60%}.page-loading-card b{height:25px;width:45%;margin-top:auto}
-.page-loading-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:12px;max-width:calc(100% - 40px);padding:16px 21px;border:1px solid #dfe7f6;border-radius:16px;background:#ffffffed;box-shadow:0 8px 28px #29477912;color:#48679f;font-size:12px;font-weight:600;line-height:1.7;text-align:center;backdrop-filter:blur(7px)}.page-loading-spinner{width:22px;height:22px;flex:none;border:2px solid #dce6fa;border-top-color:#3e60ab;border-radius:50%;animation:pageLoadingSpin .8s linear infinite}
-.page-loading-list .page-loading-shapes{display:flex;flex-direction:column}.page-loading-list .page-loading-card{display:grid;grid-template-columns:42px minmax(0,1fr) 100px;align-items:center;gap:16px;min-height:75px}.page-loading-list .page-loading-card span+span{display:none}.page-loading-list .page-loading-card b{width:100%;height:20px;margin:0}.page-loading-board .page-loading-shapes{grid-template-columns:repeat(6,minmax(110px,1fr))}.page-loading-board .page-loading-card{min-height:300px;padding:16px}
-@keyframes pageLoadingShimmer{from{background-position:180% 0}to{background-position:-40% 0}}@keyframes pageLoadingSpin{to{transform:rotate(360deg)}}
-@media(max-width:700px){.page-loading{padding:14px;min-height:52dvh}.page-loading-shapes{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.page-loading-card{padding:14px}.page-loading-center{padding:14px 17px;font-size:11px}.page-loading-list .page-loading-card{grid-template-columns:36px minmax(0,1fr) 55px;padding:14px;gap:10px}.page-loading-board .page-loading-shapes{grid-template-columns:repeat(6,150px)}}
-@media(prefers-reduced-motion:reduce){.page-loading-card i,.page-loading-card span,.page-loading-card b,.page-loading-spinner{animation:none}}
+/* Skeletons occupy the content grid, never an overlay or a viewport-height panel. */
+.page-loading{width:100%;min-width:0;max-width:100%;box-sizing:border-box;color:var(--muted-2,#7183a4)}
+.page-loading-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+.page-loading-shapes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;align-items:start;min-width:0}
+.page-loading-card{display:flex;flex-direction:column;gap:14px;box-sizing:border-box;min-width:0;min-height:218px;padding:22px;border:1px solid var(--line-2,#e4eaf5);border-radius:20px;background:var(--card,#fff)}
+.page-loading-card i,.page-loading-card span,.page-loading-card b,.page-loading-column-head>*{display:block;flex:none;border-radius:6px;background:linear-gradient(105deg,#e9eef7 20%,#f8faff 45%,#e9eef7 70%);background-size:220% 100%;animation:pageLoadingShimmer 1.6s ease-in-out infinite}
+.page-loading-card i{width:42px;height:42px;border-radius:12px}
+.page-loading-card span{width:80%;height:12px}
+.page-loading-card span+span{width:60%}
+.page-loading-card b{width:45%;height:22px;margin-top:auto}
+/* Rows keep the same height in a full page, drawer or account tab. */
+.page-loading-list .page-loading-shapes{grid-template-columns:minmax(0,1fr);gap:0;border:1px solid var(--line-2,#e4eaf5);border-radius:20px;overflow:hidden;background:var(--card,#fff)}
+.page-loading-list .page-loading-card{display:grid;grid-template-columns:40px minmax(0,1fr) minmax(56px,100px);align-items:center;gap:16px;min-height:80px;padding:18px 22px;border:0;border-radius:0;border-bottom:1px solid var(--line-2,#e4eaf5)}
+.page-loading-list .page-loading-card:last-child{border-bottom:0}
+.page-loading-list .page-loading-card i{width:40px;height:40px}
+.page-loading-list .page-loading-card span{width:min(80%,320px)}
+.page-loading-list .page-loading-card span+span{display:none}
+.page-loading-list .page-loading-card b{width:100%;height:20px;margin:0}
+/* Match real work boards: readable columns with their own horizontal scroll. */
+.page-loading-board{overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin;padding-bottom:12px}
+.page-loading-board .page-loading-shapes{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(272px,1fr);gap:14px}
+.page-loading-column{min-width:0;padding:12px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;border:1px solid var(--line-2,#e4eaf5);border-radius:20px;background:var(--card,#fff)}
+.page-loading-column-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:4px 2px 10px}
+.page-loading-column-head span{width:55%;height:14px}.page-loading-column-head i{width:24px;height:20px;border-radius:10px}
+.page-loading-column .page-loading-card{min-height:156px;padding:16px;border-radius:14px;gap:12px}
+.page-loading-column .page-loading-card i{width:58px;height:18px;border-radius:5px}.page-loading-column .page-loading-card b{height:24px;width:65%}
+@keyframes pageLoadingShimmer{from{background-position:180% 0}to{background-position:-40% 0}}
+@media(max-width:1100px){.page-loading-cards .page-loading-shapes{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.page-loading-cards .page-loading-shapes{grid-template-columns:minmax(0,1fr);gap:14px}.page-loading-cards .page-loading-card{min-height:200px;padding:20px}.page-loading-list .page-loading-card{grid-template-columns:36px minmax(0,1fr) 56px;min-height:72px;padding:16px;gap:12px}.page-loading-list .page-loading-card i{width:36px;height:36px}.page-loading-board .page-loading-shapes{grid-auto-columns:min(320px,calc(100vw - 64px))}}
+@media(prefers-reduced-motion:reduce){.page-loading-card i,.page-loading-card span,.page-loading-card b,.page-loading-column-head>*{animation:none}}
