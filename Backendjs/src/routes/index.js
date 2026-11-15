@@ -218,7 +218,7 @@ renewalRouter.get("/:id", ...canRenewals, renewalCtrl.getOne);
 renewalRouter.post("/", ...canRenewals, renewalActions.validate, renewalCtrl.create);
 renewalRouter.put("/:id", ...canRenewals, renewalActions.validate, renewalCtrl.update);
 renewalRouter.patch("/:id", ...canRenewals, renewalActions.validate, renewalCtrl.update);
-renewalRouter.delete("/:id", ...canRenewals, renewalCtrl.remove);
+renewalRouter.delete("/:id", ...canRenewals, require("../controllers/workspacePayments.controller").guardDelete, renewalCtrl.remove);
 renewalRouter.post("/:id/renew", ...canRenewals, renewalActions.renew);
 renewalRouter.post("/:id/terminate", ...canRenewals, renewalActions.terminate);
 renewalRouter.post("/:id/restore", ...canRenewals, renewalActions.restore);
@@ -584,5 +584,7 @@ router.get("/public/bootstrap", async (_req, res, next) => {
 /* ── Health ──────────────────────────────────────────── */
 const { health } = require("../controllers/health.controller");
 router.get("/health", health);
+
+router.use("/workspace", require("./workspace"));
 
 module.exports = router;
