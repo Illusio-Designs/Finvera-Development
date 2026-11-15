@@ -13,7 +13,7 @@ const list = asyncHandler(async (req, res) => {
     order: [["createdAt", "DESC"]],
     limit: 40,
   });
-  const unread = items.filter((n) => !n.isRead).length;
+  const unread = await Notification.count({ where: { userId: req.user.id, isRead: false } });
   res.json({ items, unread });
 });
 

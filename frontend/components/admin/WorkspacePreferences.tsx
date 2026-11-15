@@ -1,0 +1,8 @@
+"use client";
+import {useEffect,useState} from 'react';
+import {workspaceApi} from '@/lib/adminApi';
+const labels:Record<string,string>={contact:'Website enquiries',leads:'Leads and follow-ups',renewals:'Renewal reminders',calendar:'Content assignments',publishing:'Publishing problems',system:'System and backups',general:'Other updates'};
+export default function WorkspacePreferences(){const [data,setData]=useState<Record<string,boolean>|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);async function load(){try{setError('');const r=await workspaceApi.pushPrefs();setData(r.prefs);}catch(e:any){setError(e.message);}}useEffect(()=>{load();},[]);
+ async function change(key:string,value:boolean){if(busy||!data)return;setBusy(true);setError('');try{setData((await workspaceApi.savePushPrefs({[key]:value})).prefs);}catch(e:any){setError(e.message);}finally{setBusy(false);}}
+ return <section className="sys-card"><header className="sys-card-h"><div><h2>Push notification preferences</h2><p>Choose which categories reach your enabled devices. Updates remain in your in-app inbox. Security alerts stay enabled.</p></div></header>{error&&<p role="alert">{error}<button className="sh-btn" onClick={load}>Retry</button></p>}{!data&&!error&&<p role="status">Loading preferences…</p>}<ul className="ops-prefs">{data&&Object.entries(labels).map(([key,label])=><li key={key}><b id={`push-${key}`}>{label}</b><label className="ops-switch"><input type="checkbox" role="switch" aria-labelledby={`push-${key}`} checked={data[key]!==false} disabled={busy} onChange={e=>change(key,e.target.checked)}/><i aria-hidden="true"/></label></li>)}</ul></section>;
+}

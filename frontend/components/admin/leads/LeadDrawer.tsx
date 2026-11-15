@@ -9,7 +9,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Cancel01Icon, Call02Icon, WhatsappIcon, Mail01Icon, Link04Icon, Calendar03Icon, Delete02Icon, Tick02Icon, Alert02Icon,
 } from "@hugeicons/core-free-icons";
-import { api, leadsApi, type LeadRow, type LeadStage, type LeadTouch } from "@/lib/adminApi";
+import { api, workspaceApi, leadsApi, type LeadRow, type LeadStage, type LeadTouch } from "@/lib/adminApi";
 import Select from "@/components/Select";
 import DatePicker from "@/components/ui/DatePicker";
 import CalendlyButton from "@/components/admin/CalendlyButton";
@@ -90,6 +90,11 @@ export default function LeadDrawer({ lead, defaults, calendlyUrl, initialTab = "
     if (email && !/^\S+@\S+\.\S+$/.test(email)) { setTab("details"); setErr({ text: "That email doesn't look right.", field: "email" }); return; }
     setSaving(true); setErr(null);
     try {
+      if(isNew || dirtyKeys.some(k=>['email','phone','name','company'].includes(k))){
+        const result=await workspaceApi.duplicates({email,phone:String(draft.phone||''),name,company:String(draft.company||''),exclude:String(lead?.id||'')});
+        if(result.items.length && !await dialog.confirm({title:'Possible duplicate leads',message:result.items.map((r:any)=>`${r.name}${r.company?' · '+r.company:''}: ${r.reason}`).join('\n')+'\n\nKeep this as a separate opportunity?',confirmText:'Save separate lead',cancelText:'Keep editing'}))return;
+      }
+
       const keys = isNew ? EDITABLE.filter((k) => norm(draft[k]) !== null) : dirtyKeys;
       const body: Record<string, unknown> = {};
       for (const k of keys) body[k] = norm(typeof draft[k] === "string" ? String(draft[k]).trim() || null : draft[k]);

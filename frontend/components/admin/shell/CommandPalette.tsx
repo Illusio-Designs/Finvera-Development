@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { workspaceApi } from "@/lib/adminApi";
 import { useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon, ArrowUp01Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import type { Icon } from "./nav";
 
-export type PaletteItem = { group: "Pages" | "Actions"; label: string; sub?: string | null; href: string; icon: Icon };
+export type PaletteItem = { group: string; label: string; sub?: string | null; href: string; icon: Icon };
 
 /* Ctrl/⌘ K command palette: every page this user can open plus a few
    quick actions (each goes to the page that does it). Type to filter,
@@ -13,6 +14,14 @@ export type PaletteItem = { group: "Pages" | "Actions"; label: string; sub?: str
 export default function CommandPalette({ open, onClose, items }: { open: boolean; onClose: () => void; items: PaletteItem[] }) {
   const router = useRouter();
   const [q, setQ] = useState("");
+  const [records,setRecords]=useState<PaletteItem[]>([]),[recordLoading,setRecordLoading]=useState(false),[recordError,setRecordError]=useState('');
+  useEffect(()=>{
+    let active=true;setRecords([]);setRecordError('');setRecordLoading(false);
+    if(!open||q.trim().length<2)return;
+    setRecordLoading(true);
+    const timer=setTimeout(()=>{workspaceApi.search(q).then(r=>{if(active)setRecords(r.items.map((item:any)=>({group:item.kind,label:item.label,sub:item.sub,href:item.href,icon:Search01Icon})));}).catch(()=>{if(active)setRecordError('Record search is unavailable. Page search still works.');}).finally(()=>{if(active)setRecordLoading(false);});},250);
+    return()=>{active=false;clearTimeout(timer);};
+  },[q,open]);
   const [sel, setSel] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -28,8 +37,8 @@ export default function CommandPalette({ open, onClose, items }: { open: boolean
 
   const results = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return items.filter((it) => !s || `${it.label} ${it.sub || ""} ${it.group}`.toLowerCase().includes(s));
-  }, [q, items]);
+    return [...items.filter((it) => !s || `${it.label} ${it.sub || ""} ${it.group}`.toLowerCase().includes(s)),...records];
+  }, [q, items, records]);
   useEffect(() => { setSel(0); }, [q]);
   useEffect(() => { list.current?.querySelector(".on")?.scrollIntoView({ block: "nearest" }); }, [sel]);
 
@@ -38,6 +47,8 @@ export default function CommandPalette({ open, onClose, items }: { open: boolean
   const go = (it?: PaletteItem) => {
     if (!it) return;
     onClose();
+    const target=new URL(it.href,window.location.origin);
+    if(target.searchParams.has('q'))window.dispatchEvent(new CustomEvent('fv-record-search',{detail:{pathname:target.pathname,query:target.searchParams.get('q')}}));
     router.push(it.href);
   };
 
@@ -45,23 +56,24 @@ export default function CommandPalette({ open, onClose, items }: { open: boolean
   return (
     <>
       <div className="sh-scrim2" onMouseDown={onClose} />
-      <div className="sh-cmd" role="dialog" aria-modal="true" aria-label="Jump to a page">
+      <div className="sh-cmd" role="dialog" aria-modal="true" aria-label="Search workspace">
         <label className="sh-cmd-search">
-          <span className="sh-sr">Jump to a page or action</span>
+          <span className="sh-sr">Search pages, clients and records</span>
           <HugeiconsIcon icon={Search01Icon} size={18} strokeWidth={1.8} className="hgi" />
-          <input ref={input} value={q} placeholder="Jump to a page or action…" autoComplete="off"
+          <input ref={input} value={q} maxLength={80} placeholder="Search pages, clients, leads, content…" autoComplete="off"
             role="combobox" aria-expanded="true" aria-controls="sh-cmd-list" aria-autocomplete="list"
             aria-activedescendant={results[sel] ? `sh-cmd-${sel}` : undefined}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "ArrowDown") { e.preventDefault(); setSel((n) => Math.min(n + 1, results.length - 1)); }
+              if (e.key === "ArrowDown") { e.preventDefault(); setSel((n) => Math.max(0,Math.min(n + 1, results.length - 1))); }
               else if (e.key === "ArrowUp") { e.preventDefault(); setSel((n) => Math.max(n - 1, 0)); }
               else if (e.key === "Enter") { e.preventDefault(); go(results[sel]); }
               else if (e.key === "Escape") { e.preventDefault(); onClose(); }
             }} />
         </label>
+        {recordLoading&&<p role="status" className="sh-cmd-g">Searching records…</p>}{recordError&&<p role="alert" className="sh-cmd-g">{recordError}</p>}
         <div className="sh-cmd-l" id="sh-cmd-list" role="listbox" ref={list}>
-          {results.length === 0 ? (
+          {results.length === 0 && !recordLoading ? (
             <div className="sh-empty" style={{ margin: 8 }}>
               <HugeiconsIcon icon={Search01Icon} size={20} strokeWidth={1.8} className="hgi" />
               <b>Nothing matches “{q}”</b><span>Try “leads”, “renewals” or “SEO”.</span>

@@ -1,4 +1,5 @@
 "use client";
+import { useEffect as useSearchEffect } from "react";
 import { WorkspaceHero } from "@/components/admin/Workspace";
 import { useResourceState } from "@/lib/useResourceState";
 import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
@@ -20,6 +21,7 @@ const sorted = (rows: Service[]) => [...rows].sort((a, b) => a.position - b.posi
 export default function AdminServices() {
   const { data: rows, setData: setRows, loading: busy, setLoading: setBusy, error, setError } = useResourceState<Service[] | null>(null, false);
   const [query, setQuery] = useState(""), [status, setStatus] = useState("");
+  useSearchEffect(()=>{const apply=()=>{const value=new URLSearchParams(window.location.search).get('q');if(value!==null)setQuery(value);};const selected=(event:Event)=>{const target=(event as CustomEvent).detail;if(target?.pathname===window.location.pathname)setQuery(target.query);};apply();window.addEventListener('fv-record-search',selected);window.addEventListener('popstate',apply);return()=>{window.removeEventListener('fv-record-search',selected);window.removeEventListener('popstate',apply);};},[]);
   const [editing, setEditing] = useState<{ row: Service | null; key: number } | null>(null), [ordering, setOrdering] = useState(false);
   const orderPending = useRef(false);
   async function load() { setBusy(true); setError(""); try { const data = await api.list("services"); setRows(sorted(Array.isArray(data) ? data : [])); } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t load services."); } finally { setBusy(false); } }

@@ -59,3 +59,9 @@ export function userRoles(me: { roles?: string[] | string; role?: string } | nul
 }
 
 export const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+/** Once /auth/me resolves, server roles replace token-era roles. */
+export function dashboardRoles(me: Parameters<typeof userRoles>[0], tokenRole: string | undefined, loaded: boolean): string[] {
+  if(loaded)return userRoles(me);
+  return [...new Set([...userRoles(me),...(tokenRole?[tokenRole]:[])])];
+}

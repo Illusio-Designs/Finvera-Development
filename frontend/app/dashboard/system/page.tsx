@@ -16,6 +16,7 @@ import { fmtBytes, hoursSince, timeAgo, uptime } from "@/lib/opsFormat";
 import PageLoading from "@/components/admin/PageLoading";
 import { WorkspaceHero, WorkspaceStats } from "@/components/admin/Workspace";
 import "./system-workspace.css";
+import RestoreDrill from "@/components/admin/RestoreDrill";
 import SystemBackups from "@/components/admin/SystemBackups";
 import EmailSetup from "@/components/admin/EmailSetup";
 
@@ -92,7 +93,8 @@ export default function SystemPage() {
       {error && <div className="fw-error" role="alert"><span>{error}{s ? " Previous results remain visible." : ""}</span><button type="button" disabled={loading} onClick={refresh}>Retry / reload</button></div>}
       {!s && !error && <PageLoading label="Checking system health…" />}
       {health && <><div className="fw-section-title"><div><h2>Service overview</h2><p>Configuration and recent health signals. Email setup does not confirm mail delivery.</p></div><div className="sys-jumps"><a href="#backups">Backups ↗</a><a href="#email">Email setup ↗</a></div></div><div className="sys-grid">{health.cards}</div><p className="fw-caption">Error counts cover this application process since its last restart. Meta status reflects stored checks; open Social studio to recheck a channel.</p></>}
-      {s && <><SystemBackups offsiteEnabled={s.backups.offsiteEnabled} onChange={load} refreshKey={tick} /><EmailSetup myEmail={myEmail} refreshKey={tick} /></>}
+      {s && <><SystemBackups offsiteEnabled={s.backups.offsiteEnabled} onChange={load} refreshKey={tick} />
+      <RestoreDrill /><EmailSetup myEmail={myEmail} refreshKey={tick} /></>}
     </div>
   );
 }

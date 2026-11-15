@@ -244,6 +244,7 @@ export default function NotificationBell({ announce: _announce = false }: { anno
               </div>
             ))}
           </div>
+          <div className="sh-pop-f"><button type="button" className="sh-link" onClick={()=>{setOpen(false);router.push("/dashboard/account?tab=emails");}}>Notification preferences</button></div>
           {items.length > 0 && (
             <div className="sh-pop-f">
               <button type="button" className="sh-link muted" onClick={clearAll}>Clear all</button>

@@ -19,6 +19,7 @@ import PageLoading from "@/components/admin/PageLoading";
 import { WorkspaceHero } from "@/components/admin/Workspace";
 import { ROLE_LABELS, userRoles } from "@/lib/permissions";
 import "./account-workspace.css";
+import WorkspacePreferences from "@/components/admin/WorkspacePreferences";
 import EmailPrefs from "@/components/admin/EmailPrefs";
 
 type Tab = "profile" | "password" | "twofa" | "devices" | "emails" | "activity";
@@ -27,7 +28,7 @@ const TABS: [Tab, string, any][] = [
   ["password", "Password", LockPasswordIcon],
   ["twofa", "Two-step login", SecurityCheckIcon],
   ["devices", "Devices", ComputerIcon],
-  ["emails", "Emails", Mail01Icon],
+  ["emails", "Notifications", Mail01Icon],
   ["activity", "Activity", Activity01Icon],
 ];
 
@@ -108,7 +109,7 @@ export default function MyAccount() {
           : tab === "password" ? <PasswordTab required={required} onDirty={setDirty} onWorking={setWorking} onDone={() => { setRequired(false); setMe({ ...me, mustChangePassword: false }); announceMe({mustChangePassword:false}); }} />
           : tab === "twofa" ? <TwoFactorTab me={me} onDirty={setDirty} onWorking={setWorking} onChange={(on) => { setMe({ ...me, twoFactorEnabled: on }); announceMe({twoFactorEnabled:on}); }} />
           : tab === "devices" ? <DevicesTab />
-          : tab === "emails" ? <EmailPrefs />
+          : tab === "emails" ? <div className="fw-workspace"><EmailPrefs /><WorkspacePreferences /></div>
           : <ActivityTab />}
       </section></div>
     </div>
