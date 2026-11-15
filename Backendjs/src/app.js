@@ -26,7 +26,7 @@ const origins = (process.env.CORS_ORIGIN || "*").split(",").map((s) => s.trim())
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin || origins.includes("*") || origins.includes(origin)) return cb(null, true);
-    cb(new Error(`Origin ${origin} not allowed by CORS`));
+    cb(Object.assign(new Error("Origin not allowed by CORS."), { status: 403 }));
   },
   credentials: true,
 }));
