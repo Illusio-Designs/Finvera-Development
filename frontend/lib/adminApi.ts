@@ -455,7 +455,7 @@ export const peopleApi = {
     post("/people/leave", data),
   reviewLeave: (id: number, status: Exclude<import("./peopleTypes").LeaveStatus, "pending">) =>
     req(`/people/leave/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }),
-  rules: (month: string, data: import("./peopleTypes").PayrollRules) =>
+  rules: (month: string, data: Pick<import("./peopleTypes").PayrollRules, "holidays">) =>
     req(`/people/${month}/rules`, { method: "PUT", body: JSON.stringify(data) }),
   adjustment: (month: string, id: number, data: import("./peopleTypes").PayrollAdjustment) =>
     req(`/people/${month}/adjustments/${id}`, { method: "PUT", body: JSON.stringify(data) }),

@@ -23,6 +23,7 @@ export type PayrollRules = {
   basis: "calendar" | "working" | "fixed30";
   weeklyOff: number[];
   holidays: string[];
+  paidLeaveDays?: number;
 };
 export type PayrollAdjustment = { bonus: number; deduction: number; note: string };
 export type PayrollRow = PayrollAdjustment & {
