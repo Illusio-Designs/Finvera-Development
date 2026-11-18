@@ -17,7 +17,7 @@ type Save = (run: () => Promise<unknown>, message: string, close?: () => void) =
 const currency = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
 const inr = (paise: number) => currency.format(paise / 100);
 const displayDate = (day: string) => new Date(day + "T00:00:00Z").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const weekdayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const bases = [{ value: "calendar", label: "Actual calendar days" }, { value: "working", label: "Working days" }, { value: "fixed30", label: "Fixed 30 days" }];
 const formData = (event: FormEvent<HTMLFormElement>) => {
   event.preventDefault();
@@ -72,7 +72,7 @@ function LeaveEditor({ data, busy, save, close }: { data: PeopleMonth; busy: boo
   return <form onSubmit={submit}>
     <fieldset className="people-fields" disabled={busy}>
       <div className="adm-field"><label>Employee</label><Select ariaLabel="Employee" value={person} onChange={setPerson} disabled={busy} options={data.employees.map(row => ({ value: String(row.id), label: row.name }))} /></div>
-      <div className="adm-field"><label>Leave type</label><Select ariaLabel="Leave type" value={kind} onChange={setKind} disabled={busy} options={[{ value: "paid", label: "Paid leave" }, { value: "unpaid", label: "Unpaid leave" }]} /></div>
+      <div className="adm-field"><label>Leave type</label><Select ariaLabel="Leave type" value={kind} onChange={setKind} disabled={busy} options={[{ value: "paid", label: "Use paid leave allowance" }, { value: "unpaid", label: "Unpaid leave" }]} /></div>
       <label className="adm-field">From<input type="date" name="from" required defaultValue={data.month + "-01"} /></label>
       <label className="adm-field">To<input type="date" name="to" required defaultValue={data.month + "-01"} /></label>
       <label className="adm-field">Reason<input name="reason" required maxLength={255} /></label>
@@ -83,26 +83,26 @@ function LeaveEditor({ data, busy, save, close }: { data: PeopleMonth; busy: boo
 }
 
 function RulesEditor({ data, busy, save }: { data: PeopleMonth; busy: boolean; save: Save }) {
-  const [basis, setBasis] = useState(data.rules.basis);
   const [holidays, setHolidays] = useState(data.rules.holidays);
   const [holiday, setHoliday] = useState("");
   const disabled = busy || !!data.finalizedAt;
   function submit(event: FormEvent<HTMLFormElement>) {
-    const form = formData(event);
-    void save(() => peopleApi.rules(data.month, { basis, holidays, weeklyOff: form.getAll("weeklyOff").map(Number) }), "Monthly rules saved.");
+    event.preventDefault();
+    void save(() => peopleApi.rules(data.month, { holidays }), "Monthly holidays saved.");
   }
-  return <Panel title="Monthly rules" detail="Weekly days off and holidays are excluded from leave days. The salary basis sets the daily pay rate.">
+  return <Panel title="Monthly rules" detail={data.rules.paidLeaveDays == null ? "Rules recorded when this payroll was finalized." : "Each employee gets one paid leave day per month, up to 12 per year. Unused days expire at month end."}>
+    <dl className="people-breakdown">
+      <div><dt>Salary basis</dt><dd>{bases.find(basis => basis.value === data.rules.basis)?.label}</dd></div>
+      <div><dt>Weekly days off</dt><dd>{data.rules.weeklyOff.map(day => weekdayNames[day]).join(", ") || "None"}</dd></div>
+      {data.rules.paidLeaveDays != null && <div><dt>Monthly paid leave</dt><dd>{data.rules.paidLeaveDays} day</dd></div>}
+    </dl>
     <form onSubmit={submit}><fieldset className="people-fields" disabled={disabled}>
-      <div className="adm-field"><label>Salary basis</label><Select ariaLabel="Salary basis" value={basis} disabled={disabled} options={bases} onChange={value => setBasis(value as typeof basis)} /></div>
-      <div className="adm-field"><label>Weekly days off</label><div className="people-actions">{weekdayNames.map((day, index) =>
-        <label className="people-check" key={day}><input type="checkbox" name="weeklyOff" value={index} defaultChecked={data.rules.weeklyOff.includes(index)} />{day}</label>
-      )}</div></div>
       <div className="adm-field people-wide"><label htmlFor="people-holiday">Holidays in this month</label>
         <div className="people-actions"><input id="people-holiday" type="date" value={holiday} min={data.month + "-01"} onChange={event => setHoliday(event.target.value)} />
           <button type="button" className="sh-btn" disabled={!holiday.startsWith(data.month + "-") || holidays.includes(holiday)} onClick={() => { setHolidays([...holidays, holiday].sort()); setHoliday(""); }}>Add holiday</button></div>
         {holidays.length > 0 && <ul className="people-holidays">{holidays.map(day => <li key={day}>{displayDate(day)} {!disabled && <button type="button" className="sh-btn sm" aria-label={`Remove ${displayDate(day)}`} onClick={() => setHolidays(holidays.filter(date => date !== day))}>Remove</button>}</li>)}</ul>}
       </div>
-      {!data.finalizedAt && <div className="people-wide"><button className="sh-btn pri" type="submit">Save rules</button></div>}
+      {!data.finalizedAt && <div className="people-wide"><button className="sh-btn pri" type="submit">Save holidays</button></div>}
     </fieldset></form>
   </Panel>;
 }
@@ -110,7 +110,8 @@ function RulesEditor({ data, busy, save }: { data: PeopleMonth; busy: boolean; s
 function SalaryDetail({ row, data, save, busy }: { row: PayrollRow; data: PeopleMonth; save: Save; busy: boolean }) {
   const lines = [
     ["Monthly salary", inr(row.salary)], ["Day basis", row.divisor], ["Eligible days", row.eligible],
-    ["Approved paid leave days", row.paidDays], ["Approved unpaid leave days", row.unpaidDays],
+    ["Paid leave days used", row.paidDays], ["Unpaid leave days", row.unpaidDays],
+    ...(data.rules.paidLeaveDays != null ? [["Paid leave days remaining", Math.max(0, data.rules.paidLeaveDays - row.paidDays)]] : []),
     ["Earned salary", inr(row.earned)], ["Unpaid leave deduction", inr(row.unpaidDeduction)],
     ["Bonus / additions", inr(row.bonus)], ["Advance / other deductions", inr(row.deduction)],
     ["Net salary", inr(row.net)],
@@ -195,11 +196,11 @@ function PeopleWorkspace({ month, changeMonth, tab, setTab }: { month: string; c
           <td><button type="button" className="sh-btn sm" disabled={busy} aria-label={`Edit ${employee.name}`} onClick={() => setEditing(employee)}>Edit</button></td>
         </tr>)}</Table> : !editing && <p className="people-empty">Add the first employee to start tracking leave and salary.</p>}
       </Panel>}
-      {tab === "Leave management" && <Panel title="Leave register" detail="Approved unpaid leave is deducted from the draft salary." action={!locked && <button type="button" className="sh-btn pri" disabled={busy || !data.employees.length} onClick={() => setRecording(true)}>Record leave</button>}>
+      {tab === "Leave management" && <Panel title="Leave register" detail={data.rules.paidLeaveDays == null ? "Leave records for this finalized month." : "Approved leave marked for the paid allowance uses up to one day per month. Additional days and explicitly unpaid leave reduce draft salary."} action={!locked && <button type="button" className="sh-btn pri" disabled={busy || !data.employees.length} onClick={() => setRecording(true)}>Record leave</button>}>
         {recording && !locked && <LeaveEditor data={data} busy={busy} save={save} close={() => setRecording(false)} />}
         {data.leaves.length ? <Table headers={["Employee", "Leave", "Days this month", "Status", "Review"]}>{data.leaves.map(leave => <tr key={leave.id}>
           <td><strong>{names.get(leave.employeeId)}</strong></td>
-          <td><strong>{leave.kind === "paid" ? "Paid" : "Unpaid"}{leave.half ? " · Half day" : ""}</strong><small>{displayDate(leave.from)}{leave.to !== leave.from && ` – ${displayDate(leave.to)}`}</small><small>{leave.reason}</small></td>
+          <td><strong>{leave.kind === "paid" ? (data.rules.paidLeaveDays == null ? "Paid" : "Paid allowance") : "Unpaid"}{leave.half ? " · Half day" : ""}</strong><small>{displayDate(leave.from)}{leave.to !== leave.from && ` – ${displayDate(leave.to)}`}</small><small>{leave.reason}</small></td>
           <td>{leave.days}</td><td className="people-status">{leave.status}{leave.reviewedAt && <small>{displayDate(leave.reviewedAt.slice(0, 10))}</small>}</td>
           <td>{!locked && leave.status === "pending" ? <div className="people-actions">
             <button type="button" className="sh-btn sm pri" disabled={busy} onClick={() => void review(leave, "approved")}>Approve</button>
