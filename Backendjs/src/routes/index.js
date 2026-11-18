@@ -586,5 +586,6 @@ const { health } = require("../controllers/health.controller");
 router.get("/health", health);
 
 router.use("/workspace", require("./workspace"));
+router.use("/people", require("./people"));
 
 module.exports = router;
