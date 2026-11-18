@@ -20,6 +20,7 @@ const sections: NavItem[] = [
 export const NAV_GROUPS: NavGroup[] = [
   { key: "home", label: "Workspace", shortLabel: "Today", icon: DashboardSquare01Icon, eyebrow: "Your daily perspective", description: "A little clarity. Better work.", items: [
     { href: "/dashboard", label: "Overview", icon: DashboardSquare01Icon, area: null, description: "What needs you today" },
+    { href: "/dashboard/people", label: "People", icon: UserGroupIcon, area: "users", description: "Employees, leave and salary" },
   ] },
   { key: "social", label: "Social media", shortLabel: "Social", icon: Calendar03Icon, eyebrow: "Make & publish", description: "From first idea to live post.", items: [
     { href: "/dashboard/social", label: "Content calendar", icon: Calendar03Icon, area: "social", description: "Plan, produce & publish" },
