@@ -446,3 +446,18 @@ export const workspaceApi={
  search:(q:string)=>req('/workspace/search?'+new URLSearchParams({q})),
  access:()=>req('/workspace/access'),
 };
+
+export const peopleApi = {
+  month: (month: string): Promise<import("./peopleTypes").PeopleMonth> => req(`/people/${month}`),
+  employee: (data: Omit<import("./peopleTypes").Employee, "id">, id?: number) =>
+    req(id ? `/people/employees/${id}` : "/people/employees", { method: id ? "PUT" : "POST", body: JSON.stringify(data) }),
+  recordLeave: (data: Pick<import("./peopleTypes").Leave, "employeeId" | "from" | "to" | "kind" | "half" | "reason">) =>
+    post("/people/leave", data),
+  reviewLeave: (id: number, status: Exclude<import("./peopleTypes").LeaveStatus, "pending">) =>
+    req(`/people/leave/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  rules: (month: string, data: import("./peopleTypes").PayrollRules) =>
+    req(`/people/${month}/rules`, { method: "PUT", body: JSON.stringify(data) }),
+  adjustment: (month: string, id: number, data: import("./peopleTypes").PayrollAdjustment) =>
+    req(`/people/${month}/adjustments/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  finalize: (month: string) => post(`/people/${month}/finalize`),
+};
