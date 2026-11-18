@@ -68,7 +68,7 @@ async function loadMonth(month, transaction) {
     Employee.findAll({ order: [["name", "ASC"], ["id", "ASC"]], transaction }),
     Leave.findAll({ where: hasDate(from, to), order: [["from", "ASC"], ["id", "ASC"]], transaction }),
   ]);
-  const rules = period?.rules || defaultRules();
+  const rules = period?.finalizedAt && period.rules ? period.rules : defaultRules(period?.rules?.holidays);
   const days = daysBetween(from, to);
   const leaveList = leaves.map(row => {
     const leave = row.get({ plain: true });
@@ -124,7 +124,7 @@ router.post("/leave", asyncHandler(async (req, res) => {
     const days = daysBetween(from, to);
     const months = [...new Set(days.map(day => day.date.slice(0, 7)))];
     const periods = await Period.findAll({ where: { month: months }, transaction });
-    const rulesByMonth = new Map(periods.map(period => [period.month, period.rules || defaultRules()]));
+    const rulesByMonth = new Map(periods.map(period => [period.month, defaultRules(period.rules?.holidays)]));
     if (!days.some(day => leaveDays(data, [day], rulesByMonth.get(day.date.slice(0, 7)) || defaultRules()))) {
       throw fail(400, "Choose a range that includes a working day.");
     }
@@ -159,7 +159,6 @@ router.put("/:month/rules", asyncHandler(async (req, res) => {
   const month = req.params.month;
   monthBounds(month);
   const rules = rulesInput(req.body, month);
-  payrollRows([], [], month, rules);
   await write(async transaction => {
     const period = await openPeriod(month, transaction);
     await period.update({ rules }, { transaction });

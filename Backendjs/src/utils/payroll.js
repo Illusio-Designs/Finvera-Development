@@ -1,7 +1,6 @@
 const { isDay } = require("./leadFollowUp");
 
-const bases = ["calendar", "working", "fixed30"];
-const defaultRules = () => ({ basis: "calendar", weeklyOff: [0], holidays: [] });
+const defaultRules = (holidays = []) => ({ basis: "fixed30", weeklyOff: [0], holidays, paidLeaveDays: 1 });
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const validMonth = value => typeof value === "string" && /^[2-9]\d{3}-(0[1-9]|1[0-2])$/.test(value);
 
@@ -20,13 +19,12 @@ function monthBounds(month) {
 }
 
 function rulesInput(input, month) {
-  const { basis, weeklyOff, holidays } = input || {};
-  if (!bases.includes(basis) || !Array.isArray(weeklyOff) || weeklyOff.length > 6 ||
-      weeklyOff.some(day => !Number.isInteger(day) || day < 0 || day > 6) ||
-      !Array.isArray(holidays) || holidays.length > 31 || holidays.some(day => !isDay(day) || day.slice(0, 7) !== month)) {
-    throw fail(400, "Choose a salary basis, up to six weekly days off, and valid holidays in this month.");
+  const { holidays } = input || {};
+  if (!Array.isArray(holidays) || holidays.length > 31 ||
+      holidays.some(day => !isDay(day) || day.slice(0, 7) !== month)) {
+    throw fail(400, "Choose valid holidays in this month.");
   }
-  return { basis, weeklyOff: [...new Set(weeklyOff)].sort(), holidays: [...new Set(holidays)].sort() };
+  return defaultRules([...new Set(holidays)].sort());
 }
 
 const isWorkday = (day, rules) => !rules.weeklyOff.includes(day.weekday) && !rules.holidays.includes(day.date);
@@ -37,9 +35,7 @@ function leaveDays(leave, days, rules) {
 
 function payrollRows(employees, leaves, month, rules, adjustments = {}) {
   const days = daysBetween(...monthBounds(month));
-  const periodDays = rules.basis === "working" ? days.filter(day => isWorkday(day, rules)) : days;
-  const divisor = rules.basis === "fixed30" ? 30 : periodDays.length;
-  if (!divisor) throw fail(400, "Working-day payroll requires at least one working day in the month.");
+  const divisor = 30;
 
   const byEmployee = new Map();
   for (const leave of leaves) {
@@ -50,19 +46,21 @@ function payrollRows(employees, leaves, month, rules, adjustments = {}) {
   }
   return employees.flatMap(employee => {
     const employed = day => day.date >= employee.startsOn && (!employee.endsOn || day.date <= employee.endsOn);
-    if (!days.some(employed)) return [];
-    const eligible = periodDays.filter(employed).length;
     const employeeDays = days.filter(employed);
-    let paidDays = 0;
+    const eligible = employeeDays.length;
+    if (!eligible) return [];
+    let allowanceDays = 0;
     let unpaidDays = 0;
     for (const leave of byEmployee.get(employee.id) || []) {
       const count = leaveDays(leave, employeeDays, rules);
-      if (leave.kind === "paid") paidDays += count;
+      if (leave.kind === "paid") allowanceDays += count;
       else unpaidDays += count;
     }
+    const paidDays = Math.min(allowanceDays, rules.paidLeaveDays);
+    unpaidDays += allowanceDays - paidDays;
     const { bonus = 0, deduction = 0, note = "" } = adjustments[employee.id] || {};
     // Store paise and round each line to the nearest paise.
-    const earned = Math.round(employee.salary * (eligible === periodDays.length && eligible > 0 ? divisor : Math.min(eligible, divisor)) / divisor);
+    const earned = Math.round(employee.salary * (eligible === days.length ? divisor : Math.min(eligible, divisor)) / divisor);
     const unpaidDeduction = Math.min(earned, Math.round(employee.salary * unpaidDays / divisor));
     return [{
       employeeId: employee.id, name: employee.name, salary: employee.salary, divisor, eligible,
