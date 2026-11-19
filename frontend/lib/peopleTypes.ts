@@ -46,3 +46,11 @@ export type PeopleMonth = {
   rows: PayrollRow[];
   finalizedAt: string | null;
 };
+
+export type EmployeeLinkSelection = { userId: number | null; teamMemberId: number | null };
+export type EmployeeLinks = {
+  employees: Pick<Employee, "id" | "name" | "title" | "endsOn">[];
+  users: { id: number; name: string; email: string; roles: string[]; active: boolean }[];
+  profiles: { id: number; name: string; role: string | null; status: "draft" | "published" }[];
+  links: (EmployeeLinkSelection & { employeeId: number })[];
+};
