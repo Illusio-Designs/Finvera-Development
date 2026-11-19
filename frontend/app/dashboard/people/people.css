@@ -39,3 +39,7 @@
 
 .people-link-match { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 8px; }
 .people-link-match p { margin: 0; overflow-wrap: anywhere; }
+.people-fields > h3 { margin: 0; color: #3c567f; font-size: var(--ui-text-lg); }
+.people-fields .acc-linkrow input { width: 100%; }
+.people-holiday-picker { width: 230px; max-width: 100%; }
+.people-month { width: 230px; max-width: 100%; }

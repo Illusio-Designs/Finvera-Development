@@ -290,7 +290,7 @@ export default function AdminSettings() {
           <b>Couldn&apos;t load the settings</b><span>{loadErr}</span>
           <button type="button" className="sh-btn sm" onClick={load}><HugeiconsIcon icon={Refresh01Icon} size={15} strokeWidth={1.8} />Try again</button>
         </div>
-      ) : !orig ? <PageLoading label="Loading settings & tracking…" variant="list" /> : (
+      ) : !orig ? <PageLoading label="Loading settings & tracking…" variant="form" /> : (
         <div className="st-grid">
           <nav className="st-nav" aria-label="Settings sections">
             <div className="st-nav-secs" ref={chipsRef}>

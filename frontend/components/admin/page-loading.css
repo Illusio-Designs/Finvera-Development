@@ -28,3 +28,19 @@
 @media(max-width:1100px){.page-loading-cards .page-loading-shapes{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.page-loading-cards .page-loading-shapes{grid-template-columns:minmax(0,1fr);gap:14px}.page-loading-cards .page-loading-card{min-height:200px;padding:20px}.page-loading-list .page-loading-card{grid-template-columns:36px minmax(0,1fr) 56px;min-height:72px;padding:16px;gap:12px}.page-loading-list .page-loading-card i{width:36px;height:36px}.page-loading-board .page-loading-shapes{grid-auto-columns:min(320px,calc(100vw - 64px))}}
 @media(prefers-reduced-motion:reduce){.page-loading-card i,.page-loading-card span,.page-loading-card b,.page-loading-column-head>*{animation:none}}
+
+.page-shimmer{display:block;max-width:100%;min-width:0;flex:none;border-radius:8px;background:linear-gradient(105deg,#e9eef7 20%,#f8faff 45%,#e9eef7 70%);background-size:220% 100%;animation:pageLoadingShimmer 1.6s ease-in-out infinite}
+.page-loading-toolbar{display:flex;justify-content:space-between;gap:12px;padding:12px;margin-bottom:18px;border:1px solid var(--line-2,#e4eaf5);border-radius:16px;background:var(--card,#fff)}
+.page-loading-media-card{min-width:0;border:1px solid var(--line-2,#e4eaf5);border-radius:23px;overflow:hidden;background:var(--card,#fff)}
+.page-loading-media-card .page-loading-art{width:100%;aspect-ratio:4/3;border-radius:0}
+.page-loading-media-body{padding:20px;display:grid;gap:14px}
+.wt-grid .page-loading-media-card{padding:14px}
+.wt-grid .page-loading-art{border-radius:16px}
+.page-loading-form .page-loading-shapes{grid-template-columns:repeat(2,minmax(0,1fr));padding:20px;border:1px solid var(--line-2,#e4eaf5);border-radius:16px;background:var(--card,#fff);gap:18px}
+.page-loading-field{display:grid;gap:8px;min-width:0}
+.page-loading-panel .page-loading-shapes{grid-template-columns:minmax(0,1fr)}
+.page-loading-panel .page-loading-card{min-height:130px}
+.page-loading-calendar .page-loading-shapes{grid-template-columns:repeat(7,minmax(0,1fr));gap:0;border:1px solid var(--line-2,#e4eaf5);border-radius:16px;overflow:hidden;align-items:stretch}
+.page-loading-day{display:flex;flex-direction:column;gap:10px;padding:10px;min-width:0;min-height:106px;border:1px solid var(--line-2,#e4eaf5);background:var(--card,#fff)}
+@media(max-width:600px){.page-loading-form .page-loading-shapes{grid-template-columns:minmax(0,1fr);padding:16px}.page-loading-day{min-height:67px;padding:5px}.page-loading-media-body{padding:16px}}
+@media(prefers-reduced-motion:reduce){.page-shimmer{animation:none}}

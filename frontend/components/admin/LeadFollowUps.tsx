@@ -1,4 +1,5 @@
 "use client";
+import PageLoading from "@/components/admin/PageLoading";
 /* Lead follow-ups on the Leads page:
    - FollowUpStrip: Overdue / Today / This week counts that filter the list.
    - LeadTouchPanel (inside the lead drawer): call / WhatsApp / email the lead,
@@ -190,7 +191,7 @@ export function LeadTouchPanel({ lead, patch, reload, showContact = true, preset
 
       <div className="fu-touches">
         <div className="fu-log-head"><b>Touches</b>{list.length > 0 && <span>{list.length}</span>}</div>
-        {!touches ? <div className="fu-empty">Loading…</div>
+        {!touches ? <PageLoading label="Loading follow-up activity…" variant="list" count={3} rowHeight={62} />
           : !list.length ? <div className="fu-empty">No calls or notes yet. Log the first one above.</div>
           : (
             <ol className="fu-tlist">

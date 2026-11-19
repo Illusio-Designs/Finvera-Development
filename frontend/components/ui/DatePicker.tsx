@@ -9,6 +9,12 @@ interface DatePickerProps {
   id?: string;
   name?: string;
   placeholder?: string;
+  defaultValue?: string;
+  mode?: "date" | "month";
+  min?: string;
+  max?: string;
+  disabled?: boolean;
+  clearable?: boolean;
 }
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -73,19 +79,34 @@ export default function DatePicker({
   onChange,
   id,
   name,
-  placeholder = "Select a date",
+  placeholder,
+  defaultValue = "",
+  mode = "date",
+  min,
+  max,
+  disabled,
+  clearable = true,
 }: DatePickerProps) {
-  const selected = useMemo(() => parseISO(value), [value]);
+  const [localValue, setLocalValue] = useState(defaultValue);
+  const current = value ?? localValue;
+  const monthOnly = mode === "month";
+  const selected = useMemo(() => parseISO(monthOnly ? current + "-01" : current), [current, monthOnly]);
+  const valid = (choice: string) => (!min || choice >= min) && (!max || choice <= max);
+  const change = (choice: string) => {
+    if (value === undefined) setLocalValue(choice);
+    onChange?.(choice);
+  };
   const [open, setOpen] = useDisclosure(false);
   const [viewDate, setViewDate] = useState<Date>(() => selected ?? new Date());
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const trigger = useRef<HTMLButtonElement | null>(null);
 
   // When the popover opens, sync the visible month to the selected date.
   useEffect(() => {
     if (open) {
-      setViewDate(selected ?? new Date());
+      setViewDate(selected ?? parseISO(min && (monthOnly ? min + "-01" : min)) ?? new Date());
     }
-  }, [open, selected]);
+  }, [open, selected, min, monthOnly]);
 
   // Close on outside mousedown / Escape.
   useEffect(() => {
@@ -96,7 +117,7 @@ export default function DatePicker({
       }
     }
     function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") { setOpen(false); trigger.current?.focus(); }
     }
     document.addEventListener("mousedown", handlePointer);
     document.addEventListener("keydown", handleKey);
@@ -121,12 +142,15 @@ export default function DatePicker({
   }, [viewDate]);
 
   const commit = (d: Date) => {
-    onChange?.(toISO(d));
+    const choice = monthOnly ? toISO(d).slice(0, 7) : toISO(d);
+    if (!valid(choice)) return;
+    change(choice);
     setOpen(false);
+    trigger.current?.focus();
   };
 
   const goMonth = (delta: number) => {
-    setViewDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
+    setViewDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta * (monthOnly ? 12 : 1), 1));
   };
 
   const handleButtonKey = (e: React.KeyboardEvent<HTMLButtonElement>) => {
@@ -141,6 +165,8 @@ export default function DatePicker({
       <button
         type="button"
         id={id}
+        ref={trigger}
+        disabled={disabled}
         className="dp-trigger"
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -155,7 +181,7 @@ export default function DatePicker({
           </svg>
         </span>
         <span className={selected ? "dp-value" : "dp-value dp-placeholder"}>
-          {selected ? formatLabel(selected) : placeholder}
+          {selected ? monthOnly ? MONTHS[selected.getMonth()] + " " + selected.getFullYear() : formatLabel(selected) : placeholder || (monthOnly ? "Select a month" : "Select a date")}
         </span>
         <span className={open ? "dp-caret dp-caret-open" : "dp-caret"} aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" width="14" height="14">
@@ -164,15 +190,15 @@ export default function DatePicker({
         </span>
       </button>
 
-      {name ? <input type="hidden" name={name} value={value ?? ""} /> : null}
+      {name ? <input type="hidden" name={name} value={current} /> : null}
 
       {open && (
-        <div className="dp-pop" role="dialog" aria-label="Choose date">
+        <div className="dp-pop" role="dialog" aria-label={monthOnly ? "Choose month" : "Choose date"}>
           <div className="dp-head">
             <button
               type="button"
               className="dp-nav"
-              aria-label="Previous month"
+              aria-label={monthOnly ? "Previous year" : "Previous month"}
               onClick={() => goMonth(-1)}
             >
               <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
@@ -180,12 +206,12 @@ export default function DatePicker({
               </svg>
             </button>
             <div className="dp-title">
-              {MONTHS[viewDate.getMonth()]} {viewDate.getFullYear()}
+              {!monthOnly && MONTHS[viewDate.getMonth()] + " "}{viewDate.getFullYear()}
             </div>
             <button
               type="button"
               className="dp-nav"
-              aria-label="Next month"
+              aria-label={monthOnly ? "Next year" : "Next month"}
               onClick={() => goMonth(1)}
             >
               <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
@@ -194,6 +220,14 @@ export default function DatePicker({
             </button>
           </div>
 
+          {monthOnly ? <div className="dp-month-grid">
+            {MONTHS.map((month, index) => {
+              const date = new Date(viewDate.getFullYear(), index, 1);
+              const choice = toISO(date).slice(0, 7);
+              return <button key={month} type="button" className={choice === current ? "dp-day dp-selected" : "dp-day"}
+                aria-pressed={choice === current} disabled={!valid(choice)} onClick={() => commit(date)}>{month.slice(0, 3)}</button>;
+            })}
+          </div> : <>
           <div className="dp-weekdays">
             {WEEKDAYS.map((w) => (
               <span key={w} className="dp-weekday">
@@ -220,6 +254,7 @@ export default function DatePicker({
                   type="button"
                   className={cls}
                   aria-pressed={isSelected}
+                  disabled={!valid(toISO(cell))}
                   onClick={() => commit(cell)}
                 >
                   {cell.getDate()}
@@ -228,24 +263,21 @@ export default function DatePicker({
             })}
           </div>
 
+          </>}
           <div className="dp-foot">
             <button
               type="button"
               className="dp-foot-btn"
+              disabled={!valid(monthOnly ? toISO(today).slice(0, 7) : toISO(today))}
               onClick={() => commit(new Date())}
             >
-              Today
+              {monthOnly ? "This month" : "Today"}
             </button>
-            <button
-              type="button"
-              className="dp-foot-btn"
-              onClick={() => {
-                onChange?.("");
-                setOpen(false);
-              }}
-            >
-              Clear
-            </button>
+            {clearable && <button type="button" className="dp-foot-btn" onClick={() => {
+              change("");
+              setOpen(false);
+              trigger.current?.focus();
+            }}>Clear</button>}
           </div>
         </div>
       )}
@@ -307,7 +339,7 @@ export default function DatePicker({
           top: calc(100% + 8px);
           left: 0;
           z-index: 1000;
-          width: 288px;
+          width: min(288px, calc(100vw - 32px));
           padding: 14px;
           border-radius: 14px;
           background: var(--panel);
@@ -316,6 +348,9 @@ export default function DatePicker({
             0 0 0 1px rgba(16, 30, 60, 0.03);
           animation: dpIn 0.16s var(--ease);
         }
+        .dp-month-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+        .dp-month-grid .dp-day { aspect-ratio: auto; min-height: 38px; }
+        button:disabled { opacity: .45; cursor: default; }
         @keyframes dpIn {
           from {
             opacity: 0;

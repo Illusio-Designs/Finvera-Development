@@ -1,4 +1,5 @@
 "use client";
+import PageLoading from "@/components/admin/PageLoading";
 import DraftPreview from "@/components/admin/DraftPreview";
 import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import { useEffect, useRef, useState } from "react";
@@ -9,7 +10,7 @@ import { toast } from "@/lib/toast";
 import Select from "@/components/Select";
 import { validPageSlug, fixedPageSlug } from "@/lib/websitePages";
 import HistoryList from "@/components/admin/HistoryList";
-const RichText = dynamic(() => import("@/components/admin/RichText"), { ssr: false, loading: () => <p role="status">Loading editor…</p> });
+const RichText = dynamic(() => import("@/components/admin/RichText"), { ssr: false, loading: () => <PageLoading label="Loading editor…" variant="panel" count={1} /> });
 export type WebsitePage = Record<string, any> & { id: number; title: string; slug: string; status: string };
 const FIELDS = ["title", "slug", "content", "status"];
 const normalize = (row: Record<string, any>) => ({ ...row });

@@ -244,7 +244,7 @@ function Renewals() {
     </div>
   );
 
-  if (!rows && !error) return <div className="td"><WorkspaceHero title="Renewals" eyebrow="Workspace" /><PageLoading label="Loading renewals…" variant="list" /></div>;
+  if (!rows && !error) return <div className="td"><WorkspaceHero title="Renewals" eyebrow="Workspace" /><PageLoading label="Loading renewals…" variant="list" rowHeight={94} /></div>;
   return (
     <div className="td rn renewals-workspace">
       <WorkspaceHero eyebrow="KEEP EVERY CLIENT COVERED" title="Renewals" description="Know what renews, who owns it and what is due." actions={<> <div className="td-acts">

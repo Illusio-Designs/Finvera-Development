@@ -151,7 +151,7 @@ export default function RecordLinks() {
     </header>
     {error && <p role="alert" className="fw-error">{error}</p>}
     {message && <p role="status" className="people-empty">{message}</p>}
-    {!data && !error && <PageLoading label="Loading record links…" variant="list" />}
+    {!data && !error && <PageLoading label="Loading record links…" variant="form" count={3} />}
     {data && !person && <p className="people-empty">Add an employee in the Employees tab to create a link.</p>}
     {data && person && <>
       <div className="people-fields"><div className="adm-field">

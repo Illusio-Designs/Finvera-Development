@@ -104,7 +104,7 @@ export default function MyAccount() {
       </div>
       <section id="acc-panel" role="tabpanel" aria-labelledby={`acc-tab-${tab}`}>
         {!me ? (
-          !loadErr ? <PageLoading label="Loading your account…" variant="list" /> : <div className="ss-empty">Your account could not be loaded. Retry above to continue.</div>
+          !loadErr ? <PageLoading label="Loading your account…" variant="form" /> : <div className="ss-empty">Your account could not be loaded. Retry above to continue.</div>
         ) : tab === "profile" ? <ProfileTab me={me} onDirty={setDirty} onWorking={setWorking} onSaved={(u) => { setMe(u); announceMe(u); }} />
           : tab === "password" ? <PasswordTab required={required} onDirty={setDirty} onWorking={setWorking} onDone={() => { setRequired(false); setMe({ ...me, mustChangePassword: false }); announceMe({mustChangePassword:false}); }} />
           : tab === "twofa" ? <TwoFactorTab me={me} onDirty={setDirty} onWorking={setWorking} onChange={(on) => { setMe({ ...me, twoFactorEnabled: on }); announceMe({twoFactorEnabled:on}); }} />

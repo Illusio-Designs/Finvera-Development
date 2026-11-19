@@ -1,4 +1,5 @@
 "use client";
+import PageLoading from "@/components/admin/PageLoading";
 import { useDisclosure } from "@/lib/useDisclosure";
 /* "History" for one item (lead, renewal, card, post, site content …):
    who changed what and when, newest first, from GET /activity/:entity/:id.
@@ -48,7 +49,7 @@ export default function HistoryList({ entity, id, open: startOpen = false, refre
       </button>
       {open && (
         <div className="act-hist-body">
-          {!rows ? <div className="act-hist-empty">Loading…</div>
+          {!rows ? <PageLoading label="Loading history…" variant="list" count={3} rowHeight={62} />
             : err ? <div className="act-hist-empty">{err}</div>
             : !list.length ? <div className="act-hist-empty">No changes yet.</div>
             : (

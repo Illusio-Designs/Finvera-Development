@@ -4,11 +4,13 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { WorkspaceHero } from "@/components/admin/Workspace";
 import PageLoading from "@/components/admin/PageLoading";
 import { useShell } from "@/components/admin/shell/ShellContext";
+import DatePicker from "@/components/ui/DatePicker";
 import Select from "@/components/Select";
 import { apiErr, peopleApi } from "@/lib/adminApi";
 import { dialog } from "@/lib/dialog";
 import { indiaToday } from "@/lib/socialWorkflow";
 import type { Employee, Leave, PayrollRow, PeopleMonth } from "@/lib/peopleTypes";
+import EmployeeOnboarding from "./EmployeeOnboarding";
 import RecordLinks from "./RecordLinks";
 import "./people.css";
 
@@ -39,21 +41,21 @@ function Table({ headers, children }: { headers: string[]; children: ReactNode }
   return <div className="people-table"><table><thead><tr>{headers.map(label => <th scope="col" key={label}>{label}</th>)}</tr></thead><tbody>{children}</tbody></table></div>;
 }
 
-function EmployeeEditor({ row, busy, save, close }: { row?: Employee; busy: boolean; save: Save; close: () => void }) {
+function EmployeeEditor({ row, busy, save, close }: { row: Employee; busy: boolean; save: Save; close: () => void }) {
   function submit(event: FormEvent<HTMLFormElement>) {
     const form = formData(event);
     void save(() => peopleApi.employee({
       name: string(form, "name"), title: string(form, "title"), startsOn: string(form, "startsOn"),
       endsOn: string(form, "endsOn") || null, salary: paise(form, "salary"),
-    }, row?.id), row ? "Employee updated." : "Employee added.", close);
+    }, row.id), "Employee updated.", close);
   }
   return <form onSubmit={submit}>
     <fieldset className="people-fields" disabled={busy}>
-      <label className="adm-field">Employee name<input name="name" autoFocus required maxLength={120} defaultValue={row?.name} /></label>
-      <label className="adm-field">Job title<input name="title" maxLength={120} defaultValue={row?.title} /></label>
-      <label className="adm-field">Joining date<input type="date" name="startsOn" required defaultValue={row?.startsOn || indiaToday()} /></label>
-      <label className="adm-field">Last working date <small>(optional)</small><input type="date" name="endsOn" defaultValue={row?.endsOn || ""} /></label>
-      <label className="adm-field">Monthly salary (₹)<input name="salary" {...amountProps} defaultValue={row ? row.salary / 100 : undefined} /></label>
+      <label className="adm-field">Employee name<input name="name" autoFocus required maxLength={120} defaultValue={row.name} /></label>
+      <label className="adm-field">Job title<input name="title" maxLength={120} defaultValue={row.title} /></label>
+      <div className="adm-field"><label htmlFor="edit-starts-on">Joining date</label><DatePicker id="edit-starts-on" name="startsOn" defaultValue={row.startsOn} clearable={false} /></div>
+      <div className="adm-field"><label htmlFor="edit-ends-on">Last working date <small>(optional)</small></label><DatePicker id="edit-ends-on" name="endsOn" defaultValue={row.endsOn || ""} /></div>
+      <label className="adm-field">Monthly salary (₹)<input name="salary" {...amountProps} defaultValue={row.salary / 100} /></label>
       <p className="fw-caption">Salary edits apply to draft months. Finalized payroll keeps its recorded amounts.</p>
       <div className="people-actions people-wide"><button className="sh-btn pri" type="submit">Save employee</button><button className="sh-btn" type="button" onClick={close}>Cancel</button></div>
     </fieldset>
@@ -74,8 +76,8 @@ function LeaveEditor({ data, busy, save, close }: { data: PeopleMonth; busy: boo
     <fieldset className="people-fields" disabled={busy}>
       <div className="adm-field"><label>Employee</label><Select ariaLabel="Employee" value={person} onChange={setPerson} disabled={busy} options={data.employees.map(row => ({ value: String(row.id), label: row.name }))} /></div>
       <div className="adm-field"><label>Leave type</label><Select ariaLabel="Leave type" value={kind} onChange={setKind} disabled={busy} options={[{ value: "paid", label: "Use paid leave allowance" }, { value: "unpaid", label: "Unpaid leave" }]} /></div>
-      <label className="adm-field">From<input type="date" name="from" required defaultValue={data.month + "-01"} /></label>
-      <label className="adm-field">To<input type="date" name="to" required defaultValue={data.month + "-01"} /></label>
+      <div className="adm-field"><label htmlFor="leave-from">From</label><DatePicker id="leave-from" name="from" defaultValue={data.month + "-01"} clearable={false} /></div>
+      <div className="adm-field"><label htmlFor="leave-to">To</label><DatePicker id="leave-to" name="to" defaultValue={data.month + "-01"} clearable={false} /></div>
       <label className="adm-field">Reason<input name="reason" required maxLength={255} /></label>
       <label className="people-check"><input type="checkbox" name="half" /> Half day on one date</label>
       <div className="people-actions people-wide"><button className="sh-btn pri" type="submit">Add to review</button><button className="sh-btn" type="button" onClick={close}>Cancel</button></div>
@@ -99,7 +101,7 @@ function RulesEditor({ data, busy, save }: { data: PeopleMonth; busy: boolean; s
     </dl>
     <form onSubmit={submit}><fieldset className="people-fields" disabled={disabled}>
       <div className="adm-field people-wide"><label htmlFor="people-holiday">Holidays in this month</label>
-        <div className="people-actions"><input id="people-holiday" type="date" value={holiday} min={data.month + "-01"} onChange={event => setHoliday(event.target.value)} />
+        <div className="people-actions"><div className="people-holiday-picker"><DatePicker id="people-holiday" value={holiday} min={data.month + "-01"} max={data.month + "-31"} onChange={setHoliday} /></div>
           <button type="button" className="sh-btn" disabled={!holiday.startsWith(data.month + "-") || holidays.includes(holiday)} onClick={() => { setHolidays([...holidays, holiday].sort()); setHoliday(""); }}>Add holiday</button></div>
         {holidays.length > 0 && <ul className="people-holidays">{holidays.map(day => <li key={day}>{displayDate(day)} {!disabled && <button type="button" className="sh-btn sm" aria-label={`Remove ${displayDate(day)}`} onClick={() => setHolidays(holidays.filter(date => date !== day))}>Remove</button>}</li>)}</ul>}
       </div>
@@ -181,16 +183,17 @@ function PeopleWorkspace({ month, changeMonth, tab, setTab }: { month: string; c
     }
   };
   return <div className="fw-workspace">
-    <WorkspaceHero eyebrow="Admin only" title="People" description="Manage employees, review leave and calculate monthly salary."
-      actions={<label className="adm-field">Payroll month<input type="month" value={month} min="2000-01" max="9999-12" disabled={busy} onChange={event => { if (event.target.value) changeMonth(event.target.value); }} /></label>} />
+    <WorkspaceHero eyebrow="Admin only" title="People" description="Manage employees, review leave and calculate monthly salary." />
+    <div className="adm-field people-month"><label htmlFor="payroll-month">Payroll month</label><DatePicker id="payroll-month" mode="month" value={month} min="2000-01" max="9999-12" disabled={busy} clearable={false} onChange={changeMonth} /></div>
     {error && <div role="alert" className="fw-error">{error}{!data && <button type="button" onClick={() => { setError(""); setAttempt(value => value + 1); }}>Retry</button>}</div>}
     {message && <p className="fw-caption" role="status">{message}</p>}
-    {!data && !error && <PageLoading label="Loading People…" variant="list" />}
+    {!data && !error && <PageLoading label="Loading People…" variant="list" rowHeight={68} />}
     {data && <>
       <nav className="people-actions" aria-label="People sections">{tabs.map(value => <button key={value} type="button" className={`sh-btn${tab === value ? " pri" : ""}`} aria-pressed={tab === value} disabled={busy} onClick={() => { setTab(value); setMessage(""); setError(""); }}>{value}</button>)}</nav>
       {locked && <p className="fw-caption">Payroll finalized for {month}. Salary figures and rules are locked.</p>}
-      {tab === "Employees" && <Panel title="Employees" detail="Manage employee records and link them to existing accounts in Record links." action={<button type="button" className="sh-btn pri" disabled={busy} onClick={() => setEditing("new")}>Add employee</button>}>
-        {editing && <EmployeeEditor key={editing === "new" ? "new" : editing.id} row={editing === "new" ? undefined : editing} busy={busy} save={save} close={() => setEditing(null)} />}
+      {tab === "Employees" && <Panel title="Employees" detail="Set up employment, salary, login and website profile together." action={<button type="button" className="sh-btn pri" disabled={busy} onClick={() => setEditing("new")}>Add employee</button>}>
+        {editing === "new" && <EmployeeOnboarding busy={busy} save={save} close={() => setEditing(null)} />}
+        {editing && editing !== "new" && <EmployeeEditor key={editing.id} row={editing} busy={busy} save={save} close={() => setEditing(null)} />}
         {data.employees.length ? <Table headers={["Employee", "Joining date", "Last working date", "Monthly salary", "Action"]}>{data.employees.map(employee => <tr key={employee.id}>
           <td><strong>{employee.name}</strong>{employee.title && <small>{employee.title}</small>}</td>
           <td>{displayDate(employee.startsOn)}</td><td>{employee.endsOn ? displayDate(employee.endsOn) : "—"}</td><td>{inr(employee.salary)}</td>

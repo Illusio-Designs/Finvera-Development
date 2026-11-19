@@ -226,7 +226,7 @@ function Leads() {
     </div>
   );
 
-  if (!rows && !error) return <div className="td"><WorkspaceHero title="Leads" eyebrow="Workspace" /><PageLoading label="Loading leads…" variant="board" /></div>;
+  if (!rows && !error) return <div className="td"><WorkspaceHero title="Leads" eyebrow="Workspace" /><PageLoading label="Loading leads…" variant={view === "board" ? "board" : "list"} toolbar /></div>;
   return (
     <div className="td ld leads-workspace">
       <WorkspaceHero eyebrow="CONVERSATIONS INTO CLIENTS" title="Leads" description="Move the next conversation forward." actions={<> <div className="td-acts">

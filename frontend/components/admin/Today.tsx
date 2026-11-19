@@ -410,7 +410,7 @@ export default function Today() {
   const content = (["projects", "services", "testimonials", "team", "blog"] as const).map((k) => ({ k, label: k === "blog" ? "Blog posts" : k === "projects" ? "Portfolio" : k === "team" ? "Website team" : k[0].toUpperCase() + k.slice(1), n: o?.counts?.[k] || 0 }));
   const cmax = Math.max(1, ...content.map((c) => c.n));
 
-  if (!ready || (canSocial && !t && !today.error) || ((canContent || canContact || canLeads) && !o && !ov.error) || (teamHome && !mine.data && !mine.error)) return <div className="td td-overview"><WorkspaceHero title="Overview" eyebrow="Workspace" /><PageLoading label="Loading your workspace…" /></div>;
+  if (!ready || (canSocial && !t && !today.error) || ((canContent || canContact || canLeads) && !o && !ov.error) || (teamHome && !mine.data && !mine.error)) return <div className="td td-overview"><WorkspaceHero title="Overview" eyebrow="Workspace" /><PageLoading label="Loading your workspace…" variant="panel" count={3} /></div>;
   return (
     <div className="td td-overview">
       <WorkspaceHero eyebrow={<>{now ? now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: IST }) : " "}</>} title={<>{teamHome ? "My work, in focus." : "Your day, in focus."}</>} description={<>{hello}{first ? `, ${first}` : ""}. {subline || "Your workspace is getting ready."}</>} actions={<> <div className="td-acts">

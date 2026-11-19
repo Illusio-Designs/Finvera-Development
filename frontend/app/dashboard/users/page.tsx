@@ -264,7 +264,7 @@ export default function AdminUsers() {
 
           <div className="fw-section-title"><div><h2>Team directory</h2><p>Roles define pages. Brand access defines the content each member can work on.</p></div>{users && <span>{shown.length} of {users.length} members</span>}</div>
           {!users ? (
-            loading ? <PageLoading label="Loading users & access…" /> : <div className="ss-empty">The directory could not be loaded. Use Retry / reload above.</div>
+            loading ? <PageLoading label="Loading users & access…" variant="list" rowHeight={90} toolbar /> : <div className="ss-empty">The directory could not be loaded. Use Retry / reload above.</div>
           ) : !shown.length ? (
             <div className="ss-empty">{users.length ? "No users match." : "No users yet. Invite your first team member."}</div>
           ) : (

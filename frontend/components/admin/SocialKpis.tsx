@@ -1,4 +1,5 @@
 "use client";
+import PageLoading from "@/components/admin/PageLoading";
 import { useResourceState } from "@/lib/useResourceState";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -99,7 +100,7 @@ export default function SocialKpis({ mode }: { mode: "team" | "me" }) {
   );
 
   if (error) return <section className="kp">{head}<div className="kp-empty">Couldn&apos;t load the numbers. Refresh to try again.</div></section>;
-  if (!data || !data.team) return <section className="kp">{head}<div className="kp-empty">Loading…</div></section>;
+  if (!data || !data.team) return <section className="kp">{head}<PageLoading label="Loading team KPIs…" variant="list" count={4} /></section>;
 
   const t = data.team;
   const completionNote = "Completed assignments credit the outgoing assignee once per post. Starting work and scheduling are not completion. Deadlines use the go-live date in India time; undated work is excluded from the on-time rate.";

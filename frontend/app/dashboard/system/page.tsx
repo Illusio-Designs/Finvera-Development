@@ -91,7 +91,7 @@ export default function SystemPage() {
         {label:"Server uptime",value:s ? uptime(s.uptimeSec) : "—",detail:"Current application process"},
       ]} />
       {error && <div className="fw-error" role="alert"><span>{error}{s ? " Previous results remain visible." : ""}</span><button type="button" disabled={loading} onClick={refresh}>Retry / reload</button></div>}
-      {!s && !error && <PageLoading label="Checking system health…" />}
+      {!s && !error && <PageLoading label="Checking system health…" variant="panel" count={3} />}
       {health && <><div className="fw-section-title"><div><h2>Service overview</h2><p>Configuration and recent health signals. Email setup does not confirm mail delivery.</p></div><div className="sys-jumps"><a href="#backups">Backups ↗</a><a href="#email">Email setup ↗</a></div></div><div className="sys-grid">{health.cards}</div><p className="fw-caption">Error counts cover this application process since its last restart. Meta status reflects stored checks; open Social studio to recheck a channel.</p></>}
       {s && <><SystemBackups offsiteEnabled={s.backups.offsiteEnabled} onChange={load} refreshKey={tick} />
       <RestoreDrill /><EmailSetup myEmail={myEmail} refreshKey={tick} /></>}
