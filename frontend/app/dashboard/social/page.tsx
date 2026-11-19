@@ -4,7 +4,8 @@ import Link from "next/link";
 import SocialAccountHealth from "@/components/admin/SocialAccountHealth";
 import SocialPostPreview from "@/components/admin/SocialPostPreview";
 import SocialProfileEditor from "@/components/admin/SocialProfileEditor";
-import PageLoading from "@/components/admin/PageLoading";
+import { LoadingRegion, Shimmer } from "@/components/admin/PageLoading";
+import { useShell } from "@/components/admin/shell/ShellContext";
 import "./social-workspace.css";
 import { useWorkflowDialog, useImportWizard } from "@/lib/useWorkflowDialog";
 import { hydrateEditor } from "@/lib/socialWorkMachine";
@@ -12,7 +13,6 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { chainFor, isVideoFormat, makerFor, roleFor, nextStage, indiaToday, overdueAt, moveArtwork, type SocialRole as Role, type SocialStage as Stage } from "@/lib/socialWorkflow";
 import { api } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
-import { userRoles } from "@/lib/permissions";
 import { instagramSafeAll } from "@/lib/igImage";
 import { dialog } from "@/lib/dialog";
 import Select from "@/components/Select";
@@ -311,17 +311,18 @@ function sheetToPosts(rows: string[][], client: string): Partial<Post>[] {
 function initials(name = "") { return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"; }
 
 export default function SocialCalendar() {
+  const { roles, rolesReady, me } = useShell();
+  const limited = !roles.includes("admin");
+  const meId = me?.id ?? null;
   const [profileOpen, setProfileOpen] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
   const [clientRows, setClientRows] = useState<Client[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [meId, setMeId] = useState<number | null>(null);
-  // Brand access set by an admin: false = every brand (admin), true = only assigned brands + own posts.
-  const [limited, setLimited] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
   const [client, setClient] = useState("");
-  const [view, setView] = useState<View>("board");
+  const [view, setView] = useState<View | null>(null);
+  const [preferencesReady, setPreferencesReady] = useState(false);
   const [month, setMonth] = useState("");
   const [format, setFormat] = useState("");
   const [who, setWho] = useState("");
@@ -367,6 +368,7 @@ export default function SocialCalendar() {
   const firstLoadDone = useRef(false);
   // Auto-publishing
   const [accounts, setAccounts] = useState<SocialAcc[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(true);
   const [metaOk, setMetaOk] = useState<boolean | null>(null);
   const [jobs, setJobs] = useState<PubJob[]>([]);
   const [metaPick, setMetaPick] = useState<{ sel: string; brand: string; pages: { pageId: string; pageName: string; igUsername: string | null }[]; chosen: string } | null>(null);
@@ -380,8 +382,10 @@ export default function SocialCalendar() {
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   async function loadPublishing() {
-    const [a, j, st] = await Promise.all([api.socialAccounts().catch(() => []), api.publishJobs().catch(() => []), api.metaStatus().catch(() => null)]);
-    setAccounts(Array.isArray(a) ? a : []); setJobs(Array.isArray(j) ? j : []); setMetaOk(st ? !!st.configured : null);
+    const accountsRequest = api.socialAccounts().then(rows => setAccounts(Array.isArray(rows) ? rows : []))
+      .catch(() => {}).finally(() => setAccountsLoading(false));
+    const [j, st] = await Promise.all([api.publishJobs().catch(() => []), api.metaStatus().catch(() => null), accountsRequest]);
+    setJobs(Array.isArray(j) ? j : []); setMetaOk(st ? !!st.configured : null);
   }
   /* Back from Facebook's login: pick which Page (and its Instagram) is this brand's. */
   useEffect(() => {
@@ -398,10 +402,11 @@ export default function SocialCalendar() {
 
   async function load() {
     setLoadError("");
+    if (!firstLoadDone.current) setLoading(true);
     try {
-      const [p, c, u, me] = await Promise.all([
+      const [p, c, u] = await Promise.all([
         api.listSocialPosts({ fields: "card" }), api.list("social-clients"),
-        api.listUsers().catch(() => []), api.me().catch(() => null),
+        api.listUsers().catch(() => []),
       ]);
       // Light card posts. Heavy fields already fetched for a post are kept so an
       // open details card doesn't flicker; it is re-fetched (it's no longer _full).
@@ -414,22 +419,24 @@ export default function SocialCalendar() {
       });
       setClientRows(Array.isArray(c) ? c : []);
       setUsers(Array.isArray(u) ? u : []);
-      setMeId((me?.user ?? me)?.id ?? null);
-      const isLimited = !userRoles(me?.user ?? me).includes("admin");
-      setLimited(isLimited);
-      // Team members start on My work — only when the page first opens, not
-      // on the reload after every save (that would yank them off Board).
-      if (isLimited && !firstLoadDone.current) setView((v) => (v === "board" ? "mine" : v));
+      if (firstLoadDone.current) void loadPublishing();
       firstLoadDone.current = true;
-      if (!isLimited) api.list("users").then((t) => setTeam(Array.isArray(t) ? t : [])).catch(() => {});
-      loadPublishing();
     } catch (e: any) { setLoadError(e.message || "Check your connection and try again."); toast("Couldn't load the content calendar", "err", { description: e.message || "Check your connection and refresh the page." }); }
     finally { setLoading(false); }
   }
   useEffect(() => {
-    load();
-    try { setView((localStorage.getItem("fv_social_view") as View) || "board"); setClient(localStorage.getItem("fv_social_client") || ""); } catch { /* ignore */ }
+    try {
+      const saved = localStorage.getItem("fv_social_view");
+      if (saved === "board" || saved === "calendar" || saved === "mine" || saved === "schedule") setView(saved);
+      setClient(localStorage.getItem("fv_social_client") || "");
+    } catch { /* unavailable storage */ }
+    setPreferencesReady(true);
+    void load();
+    void loadPublishing();
   }, []);
+  useEffect(() => {
+    if (rolesReady && !limited) api.list("users").then(rows => setTeam(Array.isArray(rows) ? rows : [])).catch(() => {});
+  }, [rolesReady, limited]);
   // Re-render every 30s so "Goes live in…" / overdue labels stay current — only while the tab is visible.
   useEffect(() => visibleInterval(() => setTick((n) => n + 1), 30000), []);
 
@@ -530,7 +537,13 @@ export default function SocialCalendar() {
     document.addEventListener("keydown", onKey);
     return () => { document.body.style.overflow = beforeOverflow; document.removeEventListener("keydown", onKey); previous?.focus(); };
   }, [uploadId]);
-  useEffect(() => { try { localStorage.setItem("fv_social_view", view); localStorage.setItem("fv_social_client", client); } catch { /* ignore */ } }, [view, client]);
+  useEffect(() => {
+    if (!preferencesReady) return;
+    try {
+      if (view) localStorage.setItem("fv_social_view", view);
+      localStorage.setItem("fv_social_client", client);
+    } catch { /* unavailable storage */ }
+  }, [view, client, preferencesReady]);
 
   const clientNames = useMemo(
     () => [...new Set([...clientRows.map((c) => c.name), ...posts.map((p) => p.client)].filter(Boolean))].sort((a, b) => a.localeCompare(b)),
@@ -1160,9 +1173,9 @@ export default function SocialCalendar() {
     );
   }
 
-  function renderBoard() {
+  function renderBoard(pending = false) {
     return (
-      <div className="cal-board-scroll" tabIndex={0} aria-label="Workflow board; scroll to see all stages">
+      <div className="cal-board-scroll" tabIndex={pending ? undefined : 0} aria-label="Workflow board; scroll to see all stages">
         <div className="cal-board">
           {STAGES.map((s) => {
             const items = list.filter((p) => p.status === s.id);
@@ -1174,15 +1187,27 @@ export default function SocialCalendar() {
                 onDragLeave={() => setOverStage((o) => (o === s.id ? null : o))}
                 onDrop={() => { setOverStage(null); if (dragId.current != null) moveTo(dragId.current, s.id); dragId.current = null; }}>
                 <div className="cal-col-head">
-                  <span className="cal-col-title"><h2>{s.title}</h2><b className={"fvc-n " + tintOf(s.id)}>{items.length}</b><small>{s.owner}</small></span>
+                  <span className="cal-col-title"><h2>{s.title}</h2><b className={"fvc-n " + tintOf(s.id)}>{pending ? <span className="cal-shimmer-number">00<Shimmer /></span> : items.length}</b><small>{s.owner}</small></span>
                 </div>
-                {items.slice(0, shown).map(renderCard)}
+                {pending ? Array.from({ length: 2 }, (_, index) => (
+                  <div key={index} className={`fvc-card cal-card-shimmer ${tintOf(s.id)}`}>
+                    <span className="fvc-stage cal-shimmer-slot">Planned<Shimmer /></span>
+                    <div className="fvc-brand-row"><Shimmer width={38} height={38} /><Shimmer width="38%" height={15} /><Shimmer width="26%" height={21} /></div>
+                    <Shimmer className="fvc-title" width="87%" height="1.25em" />
+                    <Shimmer className="fvc-next-action" width="64%" height="1.6em" />
+                    <div className="fvc-deadline"><Shimmer width="70%" height="1.5em" /></div>
+                    <div className="fvc-foot"><Shimmer width={32} height={32} className="cal-shimmer-avatar" />
+                      <span className="fvc-owner-copy cal-shimmer-owner"><Shimmer width="100%" height="1.4em" /><Shimmer width="72%" height="1.4em" /></span>
+                    </div>
+                    <Shimmer height={42} className="cal-shimmer-card-action" />
+                  </div>
+                )) : items.slice(0, shown).map(renderCard)}
                 {more > 0 && (
                   <button type="button" className="cal-btn sm" onClick={() => setColShown((c) => ({ ...c, [s.id]: shown + more }))}>
                     Show {more} more
                   </button>
                 )}
-                {!items.length && <div className="cal-col-empty">Nothing here</div>}
+                {!pending && !items.length && <div className="cal-col-empty">Nothing here</div>}
               </section>
             );
           })}
@@ -1204,7 +1229,7 @@ export default function SocialCalendar() {
   }
 
   /* Week calendar: posts placed at their go-live time, tinted by stage. */
-  function renderCalendar() {
+  function renderCalendar(pending = false) {
     const t = todayIso();
     const base = calDay || t;
     const d0 = new Date(base + "T00:00:00"); d0.setDate(d0.getDate() - ((d0.getDay() + 6) % 7));
@@ -1241,10 +1266,10 @@ export default function SocialCalendar() {
     return (
       <div className="fvw">
         <div className="fvw-bar">
-          <button type="button" className="cal-icon" onClick={() => shift(-1)} aria-label="Previous week">‹</button>
+          <button type="button" className="cal-icon" onClick={() => shift(-1)} disabled={pending} aria-label="Previous week">‹</button>
           <b>{fmtShort(days[0])} – {fmtShort(days[6])}</b>
-          <button type="button" className="cal-icon" onClick={() => shift(1)} aria-label="Next week">›</button>
-          <button type="button" className="cal-btn" onClick={() => { setMonth(""); setCalDay(t); }}>This week</button>
+          <button type="button" className="cal-icon" onClick={() => shift(1)} disabled={pending} aria-label="Next week">›</button>
+          <button type="button" className="cal-btn" disabled={pending} onClick={() => { setMonth(""); setCalDay(t); }}>This week</button>
           <span className="fvw-legend">{STAGES.map((st) => <span key={st.id}><i className={tintOf(st.id)} />{st.title}</span>)}</span>
         </div>
         <div className="fvw-scroll">
@@ -1261,6 +1286,7 @@ export default function SocialCalendar() {
                   const { pos } = layoutFor(ps);
                   return (
                     <div key={ds} className={"fvw-day" + (ds === t ? " today" : "")}>
+                      {pending && <div className="cal-week-shimmer"><Shimmer height={66} /></div>}
                       {ps.map((p) => {
                         const at = pos.get(p.id)!;
                         const js = jobsFor(p.id);
@@ -1281,11 +1307,11 @@ export default function SocialCalendar() {
                   );
                 })}
               </div>
-              {days.includes(t) && nowH >= H0 && nowH <= H1 && <div className="fvw-now" style={{ top: (nowH - H0) * PX }} />}
+              {!pending && days.includes(t) && nowH >= H0 && nowH <= H1 && <div className="fvw-now" style={{ top: (nowH - H0) * PX }} />}
             </div>
           </div>
         </div>
-        {!inWeek.length && <div className="cal-empty sm">Nothing goes live this week{client ? ` for ${client}` : ""}. Use the arrows to see other weeks.</div>}
+        {!pending && !inWeek.length && <div className="cal-empty sm">Nothing goes live this week{client ? ` for ${client}` : ""}. Use the arrows to see other weeks.</div>}
       </div>
     );
   }
@@ -1548,15 +1574,6 @@ export default function SocialCalendar() {
     );
   }
 
-  if (loading && !posts.length) return (
-    <>
-      <WorkspaceHero title="Content calendar" eyebrow="Workspace" />
-      <PageLoading label="Loading content calendar…" variant={view === "calendar" ? "calendar" : view === "mine" ? "list" : "board"} toolbar />
-    </>
-  );
-
-  if (loadError && !posts.length) return <div className="cal-page"><WorkspaceHero eyebrow="Social media" title="Content calendar" /><div className="cal-load-error" role="alert"><div><b>Couldn’t load the content calendar</b><p>{loadError}</p></div><button type="button" className="cal-btn" onClick={load}>Try again</button></div></div>;
-
   const t = todayIso(), wk = addDays(t, 7);
   const openList = list.filter((p) => !isDone(p));
   const tiles: [string, string | number, string, string][] = [
@@ -1574,7 +1591,11 @@ export default function SocialCalendar() {
   const set = (patch: Partial<Post>) => { Object.keys(patch).forEach((k) => dirty.current.add(k as keyof Post)); setEditing((e) => ({ ...e, ...patch })); };
   const txt = (k: keyof Post) => String(editing?.[k] ?? "");
   const views: [View, string][] = limited ? [["mine", "My work"], ["board", "Board"], ["calendar", "Calendar"]] : [["board", "Board"], ["calendar", "Calendar"]];
-  const activeView: View = (!limited && view === "mine") || view === "schedule" ? "board" : view;
+  const preferredView = view || (limited ? "mine" : "board");
+  const activeView: View = (!limited && preferredView === "mine") || preferredView === "schedule" ? "board" : preferredView;
+  const initialLoading = loading || !rolesReady || !preferencesReady;
+  const hasLoadFailure = !!loadError && !firstLoadDone.current;
+  const controlsDisabled = initialLoading || hasLoadFailure;
 
   // Editor: who the post goes to at its stage, and whether the start date is automatic.
   const edRole = editing ? roleFor((editing.status || "planned") as Stage, editing.format, editing.step) : "graphic";
@@ -1592,9 +1613,9 @@ export default function SocialCalendar() {
             <button type="button" className="cal-btn" onClick={() => setProfileOpen(true)}>Social profiles</button>
             {profileOpen && <SocialProfileEditor initialClient={client || undefined} onClose={() => setProfileOpen(false)} />}
           <input ref={fileRef} type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={(e) => { importCsv(e.target.files?.[0]); e.currentTarget.value = ""; }} />
-          <button type="button" className="cal-primary" onClick={newPost} disabled={limited && !clientNames.length}>+ New post</button>
-          <button type="button" className="cal-btn" onClick={() => fileRef.current?.click()}>Import sheet</button>
-          <details className="cal-tools">
+          <button type="button" className="cal-primary" onClick={newPost} disabled={controlsDisabled || (limited && !clientNames.length)}>+ New post</button>
+          <button type="button" className="cal-btn" disabled={controlsDisabled} onClick={() => fileRef.current?.click()}>Import sheet</button>
+          <details className="cal-tools" inert={controlsDisabled}>
             <summary>Calendar tools</summary>
             <div className="cal-tools-menu">
               {!limited && <button type="button" className="cal-btn" onClick={openUploads}>Upload history</button>}
@@ -1605,16 +1626,16 @@ export default function SocialCalendar() {
           </details>
         </div> </>} />
 
-      {loadError && <div className="cal-load-error" role="alert"><div><b>Couldn’t refresh the content calendar</b><p>{loadError}</p></div><button type="button" className="cal-btn" onClick={load}>Try again</button></div>}
-      <SocialAccountHealth accounts={accounts} brand={client} canManage={!limited} onReconnect={connectBrand} />
+      {loadError && <div className="cal-load-error" role="alert"><div><b>{hasLoadFailure ? "Couldn’t load the content calendar" : "Couldn’t refresh the content calendar"}</b><p>{loadError}</p></div><button type="button" className="cal-btn" onClick={load}>Try again</button></div>}
+      <SocialAccountHealth accounts={accounts} loading={accountsLoading} expandOnAttention={false} brand={client} canManage={rolesReady && !limited} onReconnect={connectBrand} />
       <div className="cal-intro" aria-label="Calendar overview">
-        <span><b>{list.length}</b> posts in this view</span>
-        <span className="review"><i /><b>{list.filter((post) => post.status === "approval").length}</b> ready for review</span>
-        <span className="attention"><i /><b>{openList.filter(isOverdue).length}</b> go-live overdue</span>
-        <details className="cal-workload"><summary>Workload summary</summary><div className="cal-tiles">{tiles.map(([key, value, hint, cls]) => <div key={key} className={"cal-tile " + cls}><span>{key}</span><b>{value}</b><small>{hint}</small></div>)}</div></details>
+        <span><b>{initialLoading ? <Shimmer width="3ch" height={15} /> : list.length}</b> posts in this view</span>
+        <span className="review"><i /><b>{initialLoading ? <Shimmer width="3ch" height={15} /> : list.filter((post) => post.status === "approval").length}</b> ready for review</span>
+        <span className="attention"><i /><b>{initialLoading ? <Shimmer width="3ch" height={15} /> : openList.filter(isOverdue).length}</b> go-live overdue</span>
+        <details className="cal-workload" inert={controlsDisabled}><summary>Workload summary</summary><div className="cal-tiles">{tiles.map(([key, value, hint, cls]) => <div key={key} className={"cal-tile " + cls}><span>{key}</span><b>{value}</b><small>{hint}</small></div>)}</div></details>
       </div>
 
-      <div className="cal-toolbar">
+      <div className="cal-toolbar" inert={controlsDisabled}>
         <div className="cal-seg" role="group" aria-label="View">
           {views.map(([v, label]) => (
             <button type="button" key={v} aria-pressed={activeView === v} className={activeView === v ? "on" : ""} onClick={() => { setView(v); if (v === "mine") setWho(""); }}>{label}</button>
@@ -1635,7 +1656,14 @@ export default function SocialCalendar() {
         <span className="cal-today">Today · {fmtDay(t)}</span>
       </div>
 
-      {!posts.length && activeView !== "mine" ? (
+      {initialLoading ? <LoadingRegion label="Loading content calendar…">
+        {activeView === "board" ? renderBoard(true) : activeView === "calendar" ? renderCalendar(true) :
+          <div className="cal-sched"><div className="cal-group-head"><Shimmer width={96} height={20} /></div>
+            <div className="cal-mine">{[0, 1, 2].map(index => <article key={index} className="cal-task cal-card-shimmer"><div className="cal-task-main">
+              <Shimmer width={68} height={20} /><Shimmer width="76%" height={24} /><Shimmer width="54%" height={16} />
+            </div><Shimmer width={100} height={38} /></article>)}</div>
+          </div>}
+      </LoadingRegion> : hasLoadFailure ? null : !posts.length && activeView !== "mine" ? (
         <div className="cal-empty">{limited && !clientNames.length
           ? "No brands assigned to you yet. Ask an admin to give you access under Users → Social media brands."
           : limited ? "Nothing is assigned to you right now. Posts appear here when they reach your stage."

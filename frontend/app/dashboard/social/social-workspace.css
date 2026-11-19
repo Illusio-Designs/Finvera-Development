@@ -39,3 +39,18 @@
 .cal-page .fvc-more>summary{color:#58688b;border-radius:5px}
 .cal-page .fvc-more>summary:focus-visible,.cal-page .cal-task-actions>button:focus-visible{outline:2px solid #3e60ab;outline-offset:3px}
 @media(max-width:700px){.cal-page .cal-board{grid-template-columns:repeat(6,min(310px,84vw));min-width:max-content}.cal-page .fvc-card{padding:14px}.cal-page .fvc-title{font-size:var(--ui-heading-xs)}}
+
+/* Keep the same flow, board columns and scroll container while posts arrive. */
+.cal-page .cal-intro > span > b { min-width: 3ch; font-variant-numeric: tabular-nums; }
+.cal-page .cal-intro > span > b .page-shimmer { display: inline-block; vertical-align: middle; }
+.cal-page .cal-card-shimmer { cursor: default; pointer-events: none; }
+.cal-page .cal-shimmer-slot, .cal-shimmer-number { position: relative; color: transparent; }
+.cal-shimmer-slot > .page-shimmer, .cal-shimmer-number > .page-shimmer { position: absolute; inset: 0; }
+.cal-page .cal-shimmer-owner { width: 48%; font-size: var(--ui-text-sm); }
+.cal-shimmer-avatar { border-radius: 50%; }
+.cal-shimmer-card-action { margin-top: 5px; width: 100%; }
+.cal-week-shimmer { position: absolute; top: 100px; inset-inline: 8px; }
+.cal-page .cal-task-main:has(.page-shimmer) { display: grid; gap: 8px; width: 100%; }
+@media (max-width: 480px) {
+  .cal-page .sah-panel > summary small { min-height: 3.2em; }
+}
