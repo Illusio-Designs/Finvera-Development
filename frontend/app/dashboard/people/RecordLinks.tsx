@@ -5,6 +5,7 @@ import Link from "next/link";
 import PageLoading from "@/components/admin/PageLoading";
 import Select from "@/components/Select";
 import { apiErr, peopleApi } from "@/lib/adminApi";
+import { dialog } from "@/lib/dialog";
 import { ROLE_LABELS } from "@/lib/permissions";
 import type { EmployeeLinks, EmployeeLinkSelection } from "@/lib/peopleTypes";
 
@@ -19,12 +20,13 @@ function nameSuggestions<T extends { id: number; name: string }>(person: Person,
   return candidates.filter(candidate => nameKey(candidate.name) === key);
 }
 
-function LinkEditor({ data, person, original, busy, save }: {
+function LinkEditor({ data, person, original, busy, save, createTeamProfile }: {
   data: EmployeeLinks;
   person: Person;
   original: EmployeeLinkSelection;
   busy: boolean;
   save: (next: EmployeeLinkSelection, expected: EmployeeLinkSelection) => Promise<void>;
+  createTeamProfile: () => Promise<void>;
 }) {
   const [userId, setUserId] = useState(original.userId);
   const [teamMemberId, setTeamMemberId] = useState(original.teamMemberId);
@@ -59,6 +61,11 @@ function LinkEditor({ data, person, original, busy, save }: {
           options={[{ value: "", label: "No linked website profile" }, ...profiles.map(profile => ({ value: String(profile.id), label: profileLabel(profile) }))]} />
         {teamMatches.length === 1 && teamMemberId == null && <div className="people-link-match"><p className="fw-caption">Suggested by name: {profileLabel(teamMatches[0])}</p><button className="sh-btn sm" type="button" onClick={() => setTeamMemberId(teamMatches[0].id)}>Select suggested profile</button></div>}
         {teamMatches.length > 1 && <p className="fw-caption">{teamMatches.length} profiles match this name. Review them in Website Team before selecting.</p>}
+        {original.teamMemberId && <div><Link className="sh-btn sm" href={`/dashboard/team?profile=${original.teamMemberId}`}>Open linked profile</Link></div>}
+        {!original.teamMemberId && teamMemberId == null && <div>
+          <button type="button" className="sh-btn sm" disabled={busy || changed} onClick={() => void createTeamProfile()}>Create team profile</button>
+          {changed && <p className="fw-caption">Save your link changes before creating a profile.</p>}
+        </div>}
       </div>
       <div className="people-actions people-wide">
         <button type="submit" className="sh-btn pri" disabled={!changed || busy}>{busy ? "Saving…" : "Save links"}</button>
@@ -110,6 +117,33 @@ export default function RecordLinks() {
       setBusy(false);
     }
   }
+  async function createTeamProfile() {
+    if (!person || busy || original?.teamMemberId) return;
+    const confirmed = await dialog.confirm({
+      title: `Create a team profile for ${person.name}?`,
+      message: "Finvera will use their name and job title to create a linked private draft. You can add a photo and bio in Website Team.",
+      confirmText: "Create draft profile",
+    });
+    if (!confirmed) return;
+    setError("");
+    setMessage("");
+    setBusy(true);
+    try {
+      const { profile, link } = await peopleApi.createTeamProfile(person.id);
+      setData(current => current && ({
+        ...current,
+        profiles: [...current.profiles, profile],
+        links: [...current.links.filter(entry => entry.employeeId !== person.id), link],
+      }));
+      setMessage("Draft team profile created and linked.");
+    } catch (failure) {
+      const err = apiErr(failure);
+      if (err.status === 403) setData(null);
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
   return <section className="people-panel">
     <header className="fw-section-title people-panel-head">
       <div><h2>Record links</h2><p>Connect an employee to their login and website profile. Review name matches before saving.</p></div>
@@ -130,7 +164,7 @@ export default function RecordLinks() {
             return { value: String(employee.id), label: `${employee.name}${employee.title ? " · " + employee.title : ""} · #${employee.id} · ${count}/2 linked` };
           })} />
       </div></div>
-      <LinkEditor key={`${person.id}:${original?.userId}:${original?.teamMemberId}`} data={data} person={person} original={original || unlinked} busy={busy} save={save} />
+      <LinkEditor key={`${person.id}:${original?.userId}:${original?.teamMemberId}`} data={data} person={person} original={original || unlinked} busy={busy} save={save} createTeamProfile={createTeamProfile} />
     </>}
   </section>;
 }

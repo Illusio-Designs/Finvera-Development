@@ -27,6 +27,18 @@ export default function AdminWebsiteTeam() {
   const [editing, setEditing] = useState<{ row: Member | null; key: number } | null>(null);
   async function load() { setBusy(true); setError(""); try { const data = await api.list("team"); setRows(sorted(Array.isArray(data) ? data : [])); } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t load team."); } finally { setBusy(false); } }
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!rows) return;
+    const url = new URL(window.location.href);
+    const profileId = url.searchParams.get("profile");
+    if (!profileId) return;
+    // Consume the deep link once so refreshes of the list don't reopen the editor.
+    url.searchParams.delete("profile");
+    window.history.replaceState(null, "", url);
+    const row = rows.find(member => String(member.id) === profileId);
+    if (row) setEditing({ row, key: Date.now() });
+    else setError("This team profile is no longer available.");
+  }, [rows, setError]);
   const shown = (rows || []).filter(row => (!status || row.status === status) && (!query.trim() || [row.name, row.role, row.bio].join(" ").toLowerCase().includes(query.trim().toLowerCase())));
   const patch = (row: Member) => setRows(current => sorted(current?.some(item => item.id === row.id) ? current.map(item => item.id === row.id ? row : item) : [row, ...(current || [])]));
   return <div className="team-workspace"><WorkspaceHero eyebrow="THE PEOPLE BEHIND THE WORK" title="Website team" description="Introduce the people behind your work on the About page." actions={<> <div className="wt-header-actions"><a className="sh-btn" href="/about" target="_blank" rel="noopener noreferrer">Open About page <HugeiconsIcon icon={ArrowUpRight01Icon} size={15} /></a><button type="button" className="sh-btn pri" onClick={() => setEditing({ row: null, key: Date.now() })}><HugeiconsIcon icon={Add01Icon} size={16} />New member</button></div> </>} />
