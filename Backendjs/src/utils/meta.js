@@ -21,17 +21,18 @@ const FB_AUTH_URL = `https://www.facebook.com/${VERSION}/dialog/oauth`;
 // META_GRAPH_URL only exists so tests can point at a fake Graph API.
 const FB_GRAPH = (process.env.META_GRAPH_URL || `https://graph.facebook.com/${VERSION}`).replace(/\/$/, "");
 
-// Read Pages + linked Instagram accounts, and publish to both.
-const SCOPES = [
+// Manage Facebook Pages and publish to Pages and linked Instagram accounts.
+const SCOPES = [...new Set([
   "pages_show_list",
   "pages_read_engagement",
+  "pages_manage_metadata",
   "pages_manage_posts",
   "instagram_basic",
   "instagram_content_publish",
   "business_management",
-  // Extra permissions once added to the Meta app, e.g. META_EXTRA_SCOPES=pages_manage_metadata (edit Page details)
+  // Optional permissions approved for this deployment.
   ...String(process.env.META_EXTRA_SCOPES || "").split(",").map((x) => x.trim()).filter(Boolean),
-];
+])];
 
 const configured = () => !!(process.env.META_APP_ID && process.env.META_APP_SECRET);
 function redirectUri() {
