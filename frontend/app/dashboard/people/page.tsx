@@ -9,9 +9,10 @@ import { apiErr, peopleApi } from "@/lib/adminApi";
 import { dialog } from "@/lib/dialog";
 import { indiaToday } from "@/lib/socialWorkflow";
 import type { Employee, Leave, PayrollRow, PeopleMonth } from "@/lib/peopleTypes";
+import RecordLinks from "./RecordLinks";
 import "./people.css";
 
-const tabs = ["Employees", "Leave management", "Salary calculation", "Rules"] as const;
+const tabs = ["Employees", "Record links", "Leave management", "Salary calculation", "Rules"] as const;
 type Tab = typeof tabs[number];
 type Save = (run: () => Promise<unknown>, message: string, close?: () => void) => Promise<void>;
 const currency = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
@@ -188,7 +189,7 @@ function PeopleWorkspace({ month, changeMonth, tab, setTab }: { month: string; c
     {data && <>
       <nav className="people-actions" aria-label="People sections">{tabs.map(value => <button key={value} type="button" className={`sh-btn${tab === value ? " pri" : ""}`} aria-pressed={tab === value} disabled={busy} onClick={() => { setTab(value); setMessage(""); setError(""); }}>{value}</button>)}</nav>
       {locked && <p className="fw-caption">Payroll finalized for {month}. Salary figures and rules are locked.</p>}
-      {tab === "Employees" && <Panel title="Employees" detail="Employee records are separate from Finvera sign-in accounts." action={<button type="button" className="sh-btn pri" disabled={busy} onClick={() => setEditing("new")}>Add employee</button>}>
+      {tab === "Employees" && <Panel title="Employees" detail="Manage employee records and link them to existing accounts in Record links." action={<button type="button" className="sh-btn pri" disabled={busy} onClick={() => setEditing("new")}>Add employee</button>}>
         {editing && <EmployeeEditor key={editing === "new" ? "new" : editing.id} row={editing === "new" ? undefined : editing} busy={busy} save={save} close={() => setEditing(null)} />}
         {data.employees.length ? <Table headers={["Employee", "Joining date", "Last working date", "Monthly salary", "Action"]}>{data.employees.map(employee => <tr key={employee.id}>
           <td><strong>{employee.name}</strong>{employee.title && <small>{employee.title}</small>}</td>
@@ -196,6 +197,7 @@ function PeopleWorkspace({ month, changeMonth, tab, setTab }: { month: string; c
           <td><button type="button" className="sh-btn sm" disabled={busy} aria-label={`Edit ${employee.name}`} onClick={() => setEditing(employee)}>Edit</button></td>
         </tr>)}</Table> : !editing && <p className="people-empty">Add the first employee to start tracking leave and salary.</p>}
       </Panel>}
+      {tab === "Record links" && <RecordLinks />}
       {tab === "Leave management" && <Panel title="Leave register" detail={data.rules.paidLeaveDays == null ? "Leave records for this finalized month." : "Approved leave marked for the paid allowance uses up to one day per month. Additional days and explicitly unpaid leave reduce draft salary."} action={!locked && <button type="button" className="sh-btn pri" disabled={busy || !data.employees.length} onClick={() => setRecording(true)}>Record leave</button>}>
         {recording && !locked && <LeaveEditor data={data} busy={busy} save={save} close={() => setRecording(false)} />}
         {data.leaves.length ? <Table headers={["Employee", "Leave", "Days this month", "Status", "Review"]}>{data.leaves.map(leave => <tr key={leave.id}>

@@ -448,6 +448,9 @@ export const workspaceApi={
 };
 
 export const peopleApi = {
+  links: (): Promise<import("./peopleTypes").EmployeeLinks> => req("/people/links"),
+  saveLinks: (id: number, values: import("./peopleTypes").EmployeeLinkSelection, expected: import("./peopleTypes").EmployeeLinkSelection) =>
+    req(`/people/links/${id}`, { method: "PUT", body: JSON.stringify({ ...values, expected }) }),
   month: (month: string): Promise<import("./peopleTypes").PeopleMonth> => req(`/people/${month}`),
   employee: (data: Omit<import("./peopleTypes").Employee, "id">, id?: number) =>
     req(id ? `/people/employees/${id}` : "/people/employees", { method: id ? "PUT" : "POST", body: JSON.stringify(data) }),
