@@ -319,7 +319,7 @@ export default function AdminContact() {
         </div> </>} />
 
       {actionError && <div className="ib-action-error" role="alert">{actionError}</div>}
-      {loading && !rows.length && !sel ? <PageLoading label="Loading contact inbox…" variant="list" /> : <div className={"ib-mail" + (sel ? " reading" : "")}>
+      {loading && !rows.length && !sel ? <PageLoading label="Loading contact inbox…" variant="list" rowHeight={88} toolbar /> : <div className={"ib-mail" + (sel ? " reading" : "")}>
         <aside className="ib-list" aria-label="Messages">
           <div className="ib-tools">
             <div className="ib-list-title"><b>Conversations</b><button type="button" className="sh-icb sm" aria-label="Refresh messages" disabled={loading} onClick={() => { if (view) load(view, q, 1); loadCounts(); }}><I i={Refresh01Icon} size={15} /></button></div>

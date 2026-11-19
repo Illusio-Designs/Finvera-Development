@@ -1,4 +1,5 @@
 "use client";
+import PageLoading from "@/components/admin/PageLoading";
 import DraftPreview from "@/components/admin/DraftPreview";
 import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import { useEffect, useRef, useState } from "react";
@@ -9,7 +10,7 @@ import { toast } from "@/lib/toast";
 import Select from "@/components/Select";
 import TagsInput from "@/components/ui/TagsInput";
 import HistoryList from "@/components/admin/HistoryList";
-const RichText = dynamic(() => import("@/components/admin/RichText"), { ssr: false, loading: () => <p role="status">Loading editor…</p> });
+const RichText = dynamic(() => import("@/components/admin/RichText"), { ssr: false, loading: () => <PageLoading label="Loading editor…" variant="panel" count={1} /> });
 export type BlogItem = Record<string, any> & { id: number; title: string; slug: string; status: string };
 const FIELDS = ["title", "category", "excerpt", "content", "coverImage", "author", "tags", "publishedAt", "status", "seoTitle", "seoDescription", "seoKeywords"];
 const list = (value: any): string[] => { if (Array.isArray(value)) return value; if (!value) return []; try { const parsed = JSON.parse(value); if (Array.isArray(parsed)) return parsed; } catch {} return String(value).split(",").map(part => part.trim()).filter(Boolean); };

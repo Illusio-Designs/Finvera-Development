@@ -1,4 +1,5 @@
 "use client";
+import PageLoading from "@/components/admin/PageLoading";
 import { useDisclosure } from "@/lib/useDisclosure";
 import { useResourceState } from "@/lib/useResourceState";
 /* Monthly KPI report for the content calendar: pick a month (last month by
@@ -93,7 +94,7 @@ export default function MonthlyReport({ onClose }: { onClose: () => void }) {
         </div>
 
         {error ? <div className="adm-msg err">{error}</div>
-          : loading || !data ? <div className="exp-loading">Loading {label}…</div>
+          : loading || !data ? <PageLoading label={`Loading ${label}…`} variant="list" count={4} />
           : (
             <>
               {t && (

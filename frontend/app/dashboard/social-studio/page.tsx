@@ -280,7 +280,7 @@ export default function SocialStudio() {
     } catch (e: any) { toast("Couldn't connect", "err", { description: e.message }); }
   }
 
-  if (!data || !v) return <div className="ss studio-workspace"><WorkspaceHero eyebrow="Social media" title="Social studio" description="Accounts, publishing and performance." />{loadError ? <div className="ss-load-error" role="alert"><p>{loadError}</p><button type="button" className="ss-btn" onClick={() => load()}>Try again</button></div> : <PageLoading label="Loading Social studio…" />}</div>;
+  if (!data || !v) return <div className="ss studio-workspace"><WorkspaceHero eyebrow="Social media" title="Social studio" description="Accounts, publishing and performance." />{loadError ? <div className="ss-load-error" role="alert"><p>{loadError}</p><button type="button" className="ss-btn" onClick={() => load()}>Try again</button></div> : <PageLoading label="Loading Social studio…" variant="panel" count={3} />}</div>;
 
   const brandLabel = brand || "All brands";
   const color = (b: string) => colors[b] || COLORS[0];

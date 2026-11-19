@@ -448,6 +448,7 @@ export const workspaceApi={
 };
 
 export const peopleApi = {
+  onboard: (data: import("./peopleTypes").EmployeeOnboardingInput): Promise<import("./peopleTypes").EmployeeOnboardingResult> => post("/people/onboard", data),
   links: (): Promise<import("./peopleTypes").EmployeeLinks> => req("/people/links"),
   createTeamProfile: (id: number): Promise<{
     profile: import("./peopleTypes").EmployeeLinks["profiles"][number];

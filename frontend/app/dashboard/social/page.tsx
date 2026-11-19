@@ -1550,8 +1550,8 @@ export default function SocialCalendar() {
 
   if (loading && !posts.length) return (
     <>
-      <WorkspaceHero title="Content calendar" description="Loading posts…" eyebrow="Workspace" />
-      <PageLoading label="Loading content calendar…" variant="board" />
+      <WorkspaceHero title="Content calendar" eyebrow="Workspace" />
+      <PageLoading label="Loading content calendar…" variant={view === "calendar" ? "calendar" : view === "mine" ? "list" : "board"} toolbar />
     </>
   );
 
@@ -1662,7 +1662,7 @@ export default function SocialCalendar() {
             <div className="cal-vtop"><h2>Need from client</h2><button type="button" className="cal-x" disabled={clientNeed.busy} onClick={() => setClientNeed(null)} aria-label="Close">×</button></div>
             <p>{clientNeed.post.theme} · {clientNeed.post.client}</p>
             <div className="adm-field"><label htmlFor="client-request">What is missing?</label><textarea id="client-request" disabled={clientNeed.busy} value={clientNeed.request} onChange={(e) => setClientNeed({ ...clientNeed, request: e.target.value })} placeholder="Logo, product images, approved offer, access…" /></div>
-            <div className="adm-field"><label htmlFor="client-follow-up">Follow-up date</label><input id="client-follow-up" type="date" disabled={clientNeed.busy} value={clientNeed.date} onChange={(e) => setClientNeed({ ...clientNeed, date: e.target.value })} /></div>
+            <div className="adm-field"><label htmlFor="client-follow-up">Follow-up date</label><DatePicker id="client-follow-up" disabled={clientNeed.busy} value={clientNeed.date} onChange={(date) => setClientNeed({ ...clientNeed, date })} /></div>
             <div className="adm-field"><label>Who follows up?</label><Select disabled={clientNeed.busy} ariaLabel="Client follow-up owner" value={clientNeed.owner} onChange={(owner) => setClientNeed({ ...clientNeed, owner })} options={[{ value: "", label: "Choose person" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]} /></div>
             <button type="button" className="cal-primary" disabled={clientNeed.busy || !clientNeed.request.trim() || !clientNeed.date || !clientNeed.owner} onClick={saveClientNeed}>{clientNeed.busy ? "Saving…" : "Save client request"}</button>
           </div>

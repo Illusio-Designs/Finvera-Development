@@ -54,3 +54,14 @@ export type EmployeeLinks = {
   profiles: { id: number; name: string; role: string | null; status: "draft" | "published" }[];
   links: (EmployeeLinkSelection & { employeeId: number })[];
 };
+
+type ExistingRecord = { mode: "existing"; id: number };
+type SkipRecord = { mode: "none" };
+export type EmployeeOnboardingInput = Omit<Employee, "id"> & {
+  login: ExistingRecord | SkipRecord | { mode: "create"; email: string; roles: string[]; brandIds: number[] };
+  team: ExistingRecord | SkipRecord | { mode: "create"; name: string; role: string; bio: string; initials: string; photo: string };
+};
+export type EmployeeOnboardingResult = EmployeeLinkSelection & {
+  employeeId: number;
+  invite: { link: string; email: string; expiresAt: string } | null;
+};

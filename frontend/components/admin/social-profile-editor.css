@@ -6,3 +6,11 @@
 .sp-drawer{width:min(820px,100%)}.sp-drawer .social-profiles{padding:0}.sp-drawer .sp-grid{grid-template-columns:1fr}.sp-drawer .sp-identity{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.sp-drawer .sp-identity h2{margin:0}.sp-drawer .sp-identity p{margin:3px 0}.sp-drawer .sp-identity .sp-note{flex-basis:100%}
 @media(max-width:700px){.social-profiles{padding:18px}.sp-header{gap:12px}.sp-grid{grid-template-columns:1fr}.social-profiles section{padding:18px}.social-profiles h1{font-size:var(--ui-heading-lg)}.sp-controls{gap:16px}.sp-brand{width:100%}.sp-header .adm-btn{padding:8px 12px}}
 .social-profiles>.fw-hero{margin-bottom:var(--ui-page-gap)}
+
+.sp-loading-identity .sp-loading-avatar{border-radius:20px}
+.sp-loading-lines,.sp-loading-note{display:grid;gap:7px;margin:16px 0;min-width:0}
+.sp-loading-note{flex-basis:100%}
+.sp-drawer .sp-loading-lines{min-width:140px;flex:1;margin:0}
+.sp-loading-details{display:grid;gap:16px}
+.sp-loading-details .adm-field{display:grid;gap:7px;margin:0}
+@media(max-width:700px){.social-profiles .sp-loading-details{padding-bottom:42px}}

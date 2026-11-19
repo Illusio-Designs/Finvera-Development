@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { api } from "@/lib/adminApi";
 import { userRoles } from "@/lib/permissions";
 import ChannelAvatar from "@/components/admin/ChannelAvatar";
+import { LoadingRegion, Shimmer } from "@/components/admin/PageLoading";
 import Select from "@/components/Select";
 import { dialog } from "@/lib/dialog";
 import "./social-profile-editor.css";
@@ -119,7 +120,21 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
       <div role="group" aria-label="Platform" className="sp-platforms">{(["facebook", "instagram"] as const).map(p => <button className={"adm-btn " + (platform === p ? "primary" : "ghost")} key={p} aria-pressed={platform === p} disabled={busy} onClick={() => switchTo(client, p)}>{p === "facebook" ? "Facebook" : "Instagram"}</button>)}</div>
     </div>
     {error && <p className="sp-error" role="alert">{error}</p>}{notice && <p className="sp-success" role="status">{notice}</p>}
-    {status === "loading" && <p role="status">Loading profile…</p>}
+    {status === "loading" && <LoadingRegion label="Loading profile…"><div className="sp-grid">
+      <section className="sp-identity sp-loading-identity">
+        <Shimmer width={80} height={80} className="sp-loading-avatar" />
+        <div className="sp-loading-lines"><Shimmer width="82%" height={22} /><Shimmer width="60%" height={14} /><Shimmer width="68%" height={14} /></div>
+        <Shimmer width={123} height={40} /><div className="sp-loading-note"><Shimmer width="100%" height={14} /><Shimmer width="72%" height={14} /></div>
+      </section>
+      <section className="sp-loading-details">
+        <Shimmer width="38%" height={22} />
+        {platform === "facebook" && <Shimmer width="87%" height={16} />}
+        {(platform === "facebook" ? fields : ["bio", "website"]).map(field => <div className="adm-field" key={field}>
+          <Shimmer width={80} height={15} /><Shimmer height={field === "description" || field === "bio" ? 100 : "var(--ui-field-height, 42px)"} />
+        </div>)}
+        {platform === "facebook" && <Shimmer width={130} height={40} />}
+      </section>
+    </div></LoadingRegion>}
     {!accounts.length && status === "ready" && <section><h2>No connected profiles</h2><p>Connect a Facebook Page and its Instagram account to manage their details.</p><Link href={studio}>Open channel connections</Link></section>}
     {status === "error" && <p>Could not load this profile. {client && <Link href={studio}>Check this brand’s connection</Link>}</p>}
     {profile && <div className="sp-grid">

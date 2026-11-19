@@ -50,7 +50,7 @@ export default function ContentHub() {
     <div className="website-workspace">
       <WorkspaceHero eyebrow="MAKE EVERY DETAIL CONSIDERED" title="Website overview" description="Everything that appears on your public website, in one place." actions={<> <a className="sh-btn" href="/" target="_blank" rel="noopener noreferrer">Open website <HugeiconsIcon icon={ArrowUpRight01Icon} size={16} /></a> </>} />
       <WebsiteLinkAudit />
-      {!data && busy && !error ? <PageLoading label="Loading website content…" /> : <>
+      {!data && busy && !error ? <PageLoading label="Loading website content…" gridClassName="wh-grid" toolbar /> : <>
       <section className="wh-intro" aria-label="Website content summary">
         <span className="wh-intro-icon"><HugeiconsIcon icon={Layers01Icon} size={25} /></span>
         <div><h2>A place for every part of your website.</h2><p>Open a collection to edit its content. Drafts stay private until you publish them.</p></div>
