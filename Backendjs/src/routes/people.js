@@ -136,6 +136,34 @@ router.put("/links/:id", asyncHandler(async (req, res) => {
   res.json(saved);
 }));
 
+router.post("/links/:id/team-profile", asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0 || id > 2147483647) throw fail(404, "Employee not found.");
+  const result = await write(async transaction => {
+    const person = await employee(id, transaction);
+    const current = await EmployeeLink.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
+    if (current?.teamMemberId) throw fail(409, "This employee already has a website profile. Reload links to open it.");
+    const lastPosition = await TeamMember.max("position", { transaction });
+    const profile = await TeamMember.create({
+      name: person.name,
+      role: person.title || null,
+      status: "draft",
+      position: Math.min(lastPosition == null ? 0 : lastPosition + 1, 2147483647),
+    }, { transaction });
+    if (current) await current.update({ teamMemberId: profile.id }, { transaction });
+    else await EmployeeLink.create({ employeeId: id, teamMemberId: profile.id }, { transaction });
+    return {
+      profile: { id: profile.id, name: profile.name, role: profile.role, status: profile.status },
+      link: { employeeId: id, userId: current?.userId ?? null, teamMemberId: profile.id },
+    };
+  });
+  require("../utils/audit").record(req, {
+    action: "create", entity: "team-member", entityId: result.profile.id, entityLabel: result.profile.name,
+    summary: "Created a private website team profile from People.",
+  });
+  res.status(201).json(result);
+}));
+
 router.get("/:month", asyncHandler(async (req, res) => {
   res.json(await sequelize.transaction(transaction => loadMonth(req.params.month, transaction)));
 }));
