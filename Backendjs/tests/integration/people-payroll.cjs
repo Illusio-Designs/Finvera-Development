@@ -6,9 +6,9 @@ if (process.env.FINVERA_PEOPLE_TESTS !== "1" || process.env.DB_HOST !== "127.0.0
 const assert = require("node:assert/strict");
 const jwt = require("jsonwebtoken");
 const app = require("../../src/app");
-const { sequelize, User, TeamMember } = require("../../src/models");
+const { sequelize, User, TeamMember, SocialClient } = require("../../src/models");
 const auth = require("../../src/middleware/auth");
-const { Period } = require("../../src/models/people");
+const { Period, Employee, EmployeeLink } = require("../../src/models/people");
 
 async function run() {
   await sequelize.sync({ force: true });
@@ -118,6 +118,54 @@ async function run() {
     assert.equal((await User.findByPk(viewer.id)).role, "graphic");
     assert.equal((await draft()).rows[0].net, 2900000);
     console.log("PASS admin link authorization, explicit linking and unlinking, stale and duplicate writes, deleted profiles, and public data isolation.");
+    const brand = await SocialClient.create({ name: "Onboarding Fixture Brand" });
+    const onboardData = {
+      ...inputs, name: "Onboarding Fixture",
+      login: { mode: "create", email: "onboarding@example.test", roles: ["graphic", "content"], brandIds: [brand.id] },
+      team: { mode: "create", name: "Public Fixture", role: "Public designer", bio: "Fixture biography", initials: "PF" },
+    };
+    assert.equal((await call("/onboard", "POST", onboardData, viewer)).status, 403);
+    const onboarded = await call("/onboard", "POST", onboardData);
+    assert.equal(onboarded.status, 201, JSON.stringify(onboarded.body));
+    const createdUser = await User.findByPk(onboarded.body.userId);
+    assert.deepEqual(createdUser.roles, ["graphic", "content"]);
+    assert.deepEqual(createdUser.socialClients, [brand.id]);
+    assert.equal(createdUser.invitePending, true);
+    const setup = new URL(onboarded.body.invite.link);
+    const info = await fetch(base.replace(/people$/, "auth/reset-info") + setup.search);
+    assert.equal(info.status, 200);
+    assert.equal((await info.json()).kind, "invite");
+    const createdTeam = await TeamMember.findByPk(onboarded.body.teamMemberId);
+    assert.equal(createdTeam.name, "Public Fixture");
+    assert.equal(createdTeam.bio, "Fixture biography");
+    assert.equal(createdTeam.status, "draft");
+    assert.equal((await EmployeeLink.findByPk(onboarded.body.employeeId)).userId, createdUser.id);
+    assert.equal((await call("/onboard", "POST", onboardData)).status, 409);
+    assert.equal(await Employee.count({ where: { name: onboardData.name } }), 1);
+
+    const oldError = console.error;
+    TeamMember.addHook("beforeCreate", "fixture-onboard-fail", () => { throw new Error("Fixture draft creation failure"); });
+    try {
+      console.error = () => {};
+      const failed = await call("/onboard", "POST", {
+        ...onboardData, name: "Rollback Fixture", login: { ...onboardData.login, email: "rollback@example.test" },
+      });
+      assert.equal(failed.status, 500);
+    } finally {
+      console.error = oldError;
+      TeamMember.removeHook("beforeCreate", "fixture-onboard-fail");
+    }
+    assert.equal(await Employee.count({ where: { name: "Rollback Fixture" } }), 0);
+    assert.equal(await User.count({ where: { email: "rollback@example.test" } }), 0);
+    const standalone = await call("/onboard", "POST", { ...inputs, login: { mode: "none" }, team: { mode: "none" } });
+    assert.equal(standalone.status, 201);
+    assert.deepEqual([standalone.body.userId, standalone.body.teamMemberId, standalone.body.invite], [null, null, null]);
+    const existingTeam = await TeamMember.create({ name: "Unlinked website profile", status: "draft" });
+    const existingLogin = await User.create({ name: "Unlinked login", email: "unlinked@example.test", password: "fixture", role: "graphic", roles: ["graphic"] });
+    const linked = await call("/onboard", "POST", { ...inputs, login: { mode: "existing", id: existingLogin.id }, team: { mode: "existing", id: existingTeam.id } });
+    assert.equal(linked.status, 201);
+    assert.deepEqual([linked.body.userId, linked.body.teamMemberId, linked.body.invite], [existingLogin.id, existingTeam.id, null]);
+    console.log("PASS atomic employee setup, login roles and brands, working invite, draft profile, existing selections and rollback.");
     await auth.loadUser(admin.id);
     await User.update({ roles: ["graphic"], role: "graphic" }, { where: { id: admin.id } });
     assert.equal((await call("/" + month)).status, 403);
