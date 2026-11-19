@@ -32,4 +32,16 @@ const Period = sequelize.define("PayrollPeriod", {
   finalizedBy: DataTypes.INTEGER,
 }, { tableName: "payroll_periods" });
 
-module.exports = { Employee, Leave, Period };
+// Keep associations private. Public Team and generic User reads never select this table.
+const EmployeeLink = sequelize.define("PayrollEmployeeLink", {
+  employeeId: { type: DataTypes.INTEGER, primaryKey: true, allowNull: false },
+  userId: { type: DataTypes.INTEGER, unique: true },
+  teamMemberId: { type: DataTypes.INTEGER, unique: true },
+}, { tableName: "payroll_employee_links" });
+
+const { User, TeamMember } = require("./index");
+EmployeeLink.belongsTo(Employee, { foreignKey: "employeeId", onDelete: "CASCADE" });
+EmployeeLink.belongsTo(User, { foreignKey: "userId", onDelete: "SET NULL" });
+EmployeeLink.belongsTo(TeamMember, { foreignKey: "teamMemberId", onDelete: "SET NULL" });
+
+module.exports = { Employee, Leave, Period, EmployeeLink };
