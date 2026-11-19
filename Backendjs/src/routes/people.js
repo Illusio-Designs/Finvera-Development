@@ -2,8 +2,8 @@ const express = require("express");
 const { Op } = require("sequelize");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const { rolesOf } = require("../utils/permissions");
-const { sequelize, Setting, User } = require("../models");
-const { Employee, Leave, Period } = require("../models/people");
+const { sequelize, Setting, User, TeamMember } = require("../models");
+const { Employee, Leave, Period, EmployeeLink } = require("../models/people");
 const { asyncHandler } = require("../utils/crud");
 const { isDay, todayIst } = require("../utils/leadFollowUp");
 const { fail, defaultRules, monthBounds, rulesInput, daysBetween, leaveDays, payrollRows } = require("../utils/payroll");
@@ -81,6 +81,60 @@ async function loadMonth(month, transaction) {
     finalizedBy: period?.finalizedBy || null,
   };
 }
+
+router.get("/links", asyncHandler(async (_req, res) => {
+  const payload = await sequelize.transaction(async transaction => {
+    const [employees, users, profiles, links] = await Promise.all([
+      Employee.findAll({ attributes: ["id", "name", "title", "endsOn"], order: [["name", "ASC"], ["id", "ASC"]], transaction }),
+      User.findAll({ attributes: ["id", "name", "email", "roles", "role", "active"], order: [["name", "ASC"], ["id", "ASC"]], transaction }),
+      TeamMember.findAll({ attributes: ["id", "name", "role", "status"], order: [["name", "ASC"], ["id", "ASC"]], transaction }),
+      EmployeeLink.findAll({ attributes: ["employeeId", "userId", "teamMemberId"], transaction }),
+    ]);
+    return {
+      employees, profiles, links,
+      users: users.map(user => ({ id: user.id, name: user.name, email: user.email, roles: rolesOf(user), active: user.active })),
+    };
+  });
+  res.json(payload);
+}));
+
+function linkValues(input) {
+  const { userId, teamMemberId } = input || {};
+  if (![userId, teamMemberId].every(id => id === null || (Number.isSafeInteger(id) && id > 0 && id <= 2147483647))) {
+    throw fail(400, "Choose an existing login and website profile, or leave either unlinked.");
+  }
+  return { userId, teamMemberId };
+}
+
+router.put("/links/:id", asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0 || id > 2147483647) throw fail(404, "Employee not found.");
+  const next = linkValues(req.body);
+  const expected = linkValues(req.body?.expected);
+  const saved = await write(async transaction => {
+    await employee(id, transaction);
+    const current = await EmployeeLink.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
+    if ((current?.userId ?? null) === next.userId && (current?.teamMemberId ?? null) === next.teamMemberId) {
+      return { employeeId: id, ...next };
+    }
+    if ((current?.userId ?? null) !== expected.userId || (current?.teamMemberId ?? null) !== expected.teamMemberId) {
+      throw fail(409, "These links changed since you opened the record. Reload links and review the current selections.");
+    }
+    for (const [field, Model, label] of [["userId", User, "login"], ["teamMemberId", TeamMember, "website profile"]]) {
+      if (next[field] === null) continue;
+      if (!await Model.findByPk(next[field], { attributes: ["id"], transaction, lock: transaction.LOCK.UPDATE })) {
+        throw fail(404, `That ${label} no longer exists.`);
+      }
+      if (await EmployeeLink.findOne({ where: { [field]: next[field], employeeId: { [Op.ne]: id } }, transaction })) {
+        throw fail(409, `That ${label} is already linked to another employee.`);
+      }
+    }
+    if (current) await current.update(next, { transaction });
+    else await EmployeeLink.create({ employeeId: id, ...next }, { transaction });
+    return { employeeId: id, ...next };
+  });
+  res.json(saved);
+}));
 
 router.get("/:month", asyncHandler(async (req, res) => {
   res.json(await sequelize.transaction(transaction => loadMonth(req.params.month, transaction)));
