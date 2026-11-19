@@ -1,8 +1,8 @@
 const express = require("express");
 const { Op } = require("sequelize");
 const { requireAuth, requireRole } = require("../middleware/auth");
-const { rolesOf } = require("../utils/permissions");
-const { sequelize, Setting, User, TeamMember } = require("../models");
+const { ALL_ROLES, rolesOf } = require("../utils/permissions");
+const { sequelize, Setting, User, TeamMember, SocialClient } = require("../models");
 const { Employee, Leave, Period, EmployeeLink } = require("../models/people");
 const { asyncHandler } = require("../utils/crud");
 const { isDay, todayIst } = require("../utils/leadFollowUp");
@@ -143,13 +143,7 @@ router.post("/links/:id/team-profile", asyncHandler(async (req, res) => {
     const person = await employee(id, transaction);
     const current = await EmployeeLink.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
     if (current?.teamMemberId) throw fail(409, "This employee already has a website profile. Reload links to open it.");
-    const lastPosition = await TeamMember.max("position", { transaction });
-    const profile = await TeamMember.create({
-      name: person.name,
-      role: person.title || null,
-      status: "draft",
-      position: Math.min(lastPosition == null ? 0 : lastPosition + 1, 2147483647),
-    }, { transaction });
+    const profile = await createDraftTeamProfile({ name: person.name, role: person.title || null }, transaction);
     if (current) await current.update({ teamMemberId: profile.id }, { transaction });
     else await EmployeeLink.create({ employeeId: id, teamMemberId: profile.id }, { transaction });
     return {
@@ -168,10 +162,24 @@ router.get("/:month", asyncHandler(async (req, res) => {
   res.json(await sequelize.transaction(transaction => loadMonth(req.params.month, transaction)));
 }));
 
-const saveEmployee = asyncHandler(async (req, res) => {
-  const { name, title = "", startsOn, endsOn = null, salary } = req.body || {};
+async function createDraftTeamProfile(fields, transaction) {
+  const lastPosition = await TeamMember.max("position", { transaction });
+  return TeamMember.create({
+    ...fields,
+    status: "draft",
+    position: Math.min(lastPosition == null ? 0 : lastPosition + 1, 2147483647),
+  }, { transaction });
+}
+
+function employeeInput(body) {
+  const { name, title = "", startsOn, endsOn = null, salary } = body || {};
   if (!isDay(startsOn) || (endsOn !== null && (!isDay(endsOn) || endsOn < startsOn))) throw fail(400, "Enter a valid joining and optional last working date.");
-  const data = { name: text(name, 120, true), title: text(title, 120), startsOn, endsOn, salary: money(salary) };
+  return { name: text(name, 120, true), title: text(title, 120), startsOn, endsOn, salary: money(salary) };
+}
+
+const saveEmployee = asyncHandler(async (req, res) => {
+  const data = employeeInput(req.body);
+  const { startsOn, endsOn } = data;
   const row = await write(async transaction => {
     if (!req.params.id) return Employee.create(data, { transaction });
     const current = await employee(req.params.id, transaction);
@@ -187,6 +195,85 @@ const saveEmployee = asyncHandler(async (req, res) => {
 });
 router.post("/employees", saveEmployee);
 router.put("/employees/:id", saveEmployee);
+
+function onboardingChoice(value, label) {
+  if (!value || !["none", "existing", "create"].includes(value.mode)) throw fail(400, `Choose how to set up the ${label}.`);
+  if (value.mode === "existing" && (!Number.isSafeInteger(value.id) || value.id < 1 || value.id > 2147483647)) {
+    throw fail(400, `Select an existing ${label}.`);
+  }
+  return value;
+}
+
+async function availableRecord(Model, field, id, label, transaction) {
+  const row = await Model.findByPk(id, { attributes: ["id"], transaction, lock: transaction.LOCK.UPDATE });
+  if (!row) throw fail(404, `That ${label} no longer exists.`);
+  if (await EmployeeLink.findOne({ where: { [field]: id }, transaction })) throw fail(409, `That ${label} is already linked to another employee.`);
+  return row.id;
+}
+
+router.post("/onboard", asyncHandler(async (req, res) => {
+  const data = employeeInput(req.body);
+  const login = onboardingChoice(req.body?.login, "login");
+  const team = onboardingChoice(req.body?.team, "website profile");
+  let newUser, newProfile;
+
+  if (login.mode === "create") {
+    const email = text(login.email, 255, true).toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw fail(400, "Enter a valid login email.");
+    if (!Array.isArray(login.roles) || !login.roles.length || login.roles.some(role => !ALL_ROLES.includes(role))) {
+      throw fail(400, "Choose at least one valid login role.");
+    }
+    if (!Array.isArray(login.brandIds) || login.brandIds.some(id => !Number.isSafeInteger(id) || id < 1 || id > 2147483647)) {
+      throw fail(400, "Choose valid brands.");
+    }
+    const crypto = require("node:crypto");
+    const password = await require("bcryptjs").hash(crypto.randomBytes(24).toString("hex"), 10);
+    const roles = [...new Set(login.roles)];
+    newUser = {
+      name: data.name, title: data.title || null, email, roles, role: roles[0], password,
+      socialClients: roles.includes("admin") ? [] : [...new Set(login.brandIds)], invitePending: true, invitedAt: new Date(),
+    };
+  }
+  if (team.mode === "create") {
+    const photo = text(team.photo ?? "", 255);
+    if (photo && !/^https?:\/\/[^\s]+$/i.test(photo) && !/^\/uploads\/[^\s]+$/.test(photo)) throw fail(400, "Enter an HTTP image URL or an uploaded photo path.");
+    newProfile = {
+      name: text(team.name ?? "", 255) || data.name,
+      role: text(team.role ?? "", 255) || data.title || null,
+      bio: text(team.bio ?? "", 5000) || null,
+      initials: text(team.initials ?? "", 8) || null,
+      photo: photo || null,
+    };
+  }
+
+  const sec = require("../utils/security");
+  const result = await write(async transaction => {
+    const person = await Employee.create(data, { transaction });
+    let userId = null, teamMemberId = null, invite = null;
+    if (login.mode === "existing") userId = await availableRecord(User, "userId", login.id, "login", transaction);
+    if (team.mode === "existing") teamMemberId = await availableRecord(TeamMember, "teamMemberId", team.id, "website profile", transaction);
+    if (newUser) {
+      if (await User.count({ where: { email: newUser.email }, transaction })) throw fail(409, "That email already has a login. Choose Link existing login.");
+      if (newUser.socialClients.length && await SocialClient.count({ where: { id: newUser.socialClients }, transaction }) !== newUser.socialClients.length) throw fail(400, "A selected brand no longer exists.");
+      const user = await User.create(newUser, { transaction });
+      userId = user.id;
+      const { link, expiresAt } = await sec.issueLink(userId, "invite", sec.INVITE_TTL_MS, req.user.id, { transaction });
+      invite = { link, expiresAt, email: user.email };
+    }
+    if (newProfile) {
+      const profile = await createDraftTeamProfile(newProfile, transaction);
+      teamMemberId = profile.id;
+    }
+    if (userId || teamMemberId) await EmployeeLink.create({ employeeId: person.id, userId, teamMemberId }, { transaction });
+    return { employeeId: person.id, userId, teamMemberId, invite };
+  });
+  if (result.invite) sec.logEvent(req, { userId: result.userId, email: result.invite.email, type: "user_created", actorId: req.user.id, meta: { roles: newUser.roles } });
+  if (newProfile) require("../utils/audit").record(req, {
+    action: "create", entity: "team-member", entityId: result.teamMemberId, entityLabel: newProfile.name,
+    summary: "Created a private website team profile during employee setup.",
+  });
+  res.status(201).json(result);
+}));
 
 router.post("/leave", asyncHandler(async (req, res) => {
   const { employeeId, from, to, kind, half = false, reason } = req.body || {};

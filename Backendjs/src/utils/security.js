@@ -125,15 +125,17 @@ const INVITE_TTL_MS = 72 * 60 * 60 * 1000;
 const sha256 = (s) => crypto.createHash("sha256").update(String(s)).digest("hex");
 
 /* Kill earlier unused links of that kind, mint a new one, return the raw link. */
-async function issueLink(userId, kind, ttlMs, createdBy = null) {
+async function issueLink(userId, kind, ttlMs, createdBy = null, { transaction: outerTransaction } = {}) {
   const now = new Date();
   const raw = crypto.randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + ttlMs);
-  await sequelize.transaction(async transaction => {
+  const persist = async transaction => {
     await User.findByPk(userId, { transaction, lock: transaction.LOCK.UPDATE });
     await AuthToken.update({ usedAt: now }, { where: { userId, kind, usedAt: null }, transaction });
     await AuthToken.create({ userId, kind, tokenHash: sha256(raw), expiresAt, createdBy }, { transaction });
-  });
+  };
+  if (outerTransaction) await persist(outerTransaction);
+  else await sequelize.transaction(persist);
   // One page for both: GET /auth/reset-info tells it whether this is an invite.
   const extra = kind === "invite" ? "&invite=1" : "";
   return { token: raw, link: `${frontendUrl()}/reset-password?token=${encodeURIComponent(raw)}${extra}`, expiresAt };
