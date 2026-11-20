@@ -41,7 +41,8 @@ const start = asyncHandler(async (req, res) => {
   const brand = String(req.query.brand || "").trim();
   if (!brand) return res.status(400).json({ message: "Which brand?" });
   const state = jwt.sign({ kind: "meta-connect", sub: req.user.id, brand }, process.env.JWT_SECRET, { expiresIn: "10m" });
-  res.json({ authUrl: meta.buildAuthUrl(state) });
+  const existing = await SocialAccount.findOne({ where: { client: brand }, attributes: ["id"] });
+  res.json({ authUrl: meta.buildAuthUrl(state, { reconnect: Boolean(existing) }) });
 });
 
 const callback = async (req, res) => {

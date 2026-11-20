@@ -90,8 +90,9 @@ function graph(method, path, params = {}) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* ── Connect (from Collabhype) ── */
-function buildAuthUrl(state) {
+function buildAuthUrl(state, { reconnect = false } = {}) {
   const p = new URLSearchParams({ client_id: process.env.META_APP_ID, redirect_uri: redirectUri(), scope: SCOPES.join(","), response_type: "code", state });
+  if (reconnect) p.set("auth_type", "rerequest");
   return `${FB_AUTH_URL}?${p.toString()}`;
 }
 
