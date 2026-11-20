@@ -29,7 +29,6 @@
 .ld-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0}
 .ld-fsel{width:150px;min-width:0}
 .ld-fsel .cselect-btn{height:42px;padding:0 12px;border-color:var(--td-line);border-radius:12px;font-size:13.5px;color:var(--td-ink)}
-.ld-fsel .cselect-drop{min-width:190px}
 .ld-clearall{font-size:13px}
 .ld-seg{display:inline-flex;background:var(--td-soft2);border-radius:13px;padding:4px;gap:2px;flex:none;margin-left:auto}
 .ld-seg button{border:0;background:transparent;border-radius:10px;padding:0 14px;height:34px;font-size:13px;font-weight:600;color:var(--td-muted);white-space:nowrap;display:inline-flex;align-items:center;gap:7px;cursor:pointer}
