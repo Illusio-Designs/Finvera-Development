@@ -3,7 +3,8 @@ const { Op } = require("sequelize");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const { ALL_ROLES, rolesOf } = require("../utils/permissions");
 const { sequelize, Setting, User, TeamMember, SocialClient } = require("../models");
-const { Employee, Leave, Period, EmployeeLink } = require("../models/people");
+const { Employee, EmployeeDocument, Leave, Period, EmployeeLink } = require("../models/people");
+const documents = require("../utils/employeeDocuments");
 const { asyncHandler } = require("../utils/crud");
 const { isDay, todayIst } = require("../utils/leadFollowUp");
 const { fail, defaultRules, monthBounds, rulesInput, daysBetween, leaveDays, payrollRows } = require("../utils/payroll");
@@ -177,11 +178,42 @@ function employeeInput(body) {
   return { name: text(name, 120, true), title: text(title, 120), startsOn, endsOn, salary: money(salary) };
 }
 
+async function saveDocuments(employeeId, files, transaction) {
+  for (const file of files) {
+    const { kind, mimeType } = file;
+    await EmployeeDocument.upsert({ employeeId, kind, mimeType,
+      contents: documents.encryptDocument(employeeId, file),
+    }, { transaction });
+  }
+}
+
+router.get("/employees/:id/documents", asyncHandler(async (req, res) => {
+  const person = await employee(req.params.id);
+  const rows = await EmployeeDocument.findAll({
+    where: { employeeId: person.id }, attributes: ["kind", "mimeType", "updatedAt"],
+  });
+  res.json(rows);
+}));
+
+router.get("/employees/:id/documents/:kind", asyncHandler(async (req, res) => {
+  const { kind } = req.params;
+  if (!documents.kinds.includes(kind)) throw fail(404, "Employee document not found.");
+  const row = await EmployeeDocument.findOne({ where: { employeeId: req.params.id, kind } });
+  if (!row) throw fail(404, "Employee document not found.");
+  const bytes = documents.decryptDocument(row);
+  res.attachment(`${kind}.${documents.extensions[row.mimeType]}`).type(row.mimeType).send(bytes);
+}));
+
 const saveEmployee = asyncHandler(async (req, res) => {
   const data = employeeInput(req.body);
+  const files = documents.readFiles(req.files);
   const { startsOn, endsOn } = data;
   const row = await write(async transaction => {
-    if (!req.params.id) return Employee.create(data, { transaction });
+    if (!req.params.id) {
+      const created = await Employee.create(data, { transaction });
+      await saveDocuments(created.id, files, transaction);
+      return created;
+    }
     const current = await employee(req.params.id, transaction);
     const outside = [{ from: { [Op.lt]: startsOn } }];
     if (endsOn) outside.push({ to: { [Op.gt]: endsOn } });
@@ -189,12 +221,14 @@ const saveEmployee = asyncHandler(async (req, res) => {
         await Leave.count({ where: { employeeId: current.id, status: liveLeave, [Op.or]: outside }, transaction })) {
       throw fail(409, "Review the employee’s leave before changing their employment dates.");
     }
-    return current.update(data, { transaction });
+    const updated = await current.update(data, { transaction });
+    await saveDocuments(updated.id, files, transaction);
+    return updated;
   });
   res.status(req.params.id ? 200 : 201).json(row);
 });
-router.post("/employees", saveEmployee);
-router.put("/employees/:id", saveEmployee);
+router.post("/employees", documents.receiveDocuments, saveEmployee);
+router.put("/employees/:id", documents.receiveDocuments, saveEmployee);
 
 function onboardingChoice(value, label) {
   if (!value || !["none", "existing", "create"].includes(value.mode)) throw fail(400, `Choose how to set up the ${label}.`);
@@ -211,8 +245,9 @@ async function availableRecord(Model, field, id, label, transaction) {
   return row.id;
 }
 
-router.post("/onboard", asyncHandler(async (req, res) => {
+router.post("/onboard", documents.receiveDocuments, asyncHandler(async (req, res) => {
   const data = employeeInput(req.body);
+  const files = documents.readFiles(req.files);
   const login = onboardingChoice(req.body?.login, "login");
   const team = onboardingChoice(req.body?.team, "website profile");
   let newUser, newProfile;
@@ -265,6 +300,7 @@ router.post("/onboard", asyncHandler(async (req, res) => {
       teamMemberId = profile.id;
     }
     if (userId || teamMemberId) await EmployeeLink.create({ employeeId: person.id, userId, teamMemberId }, { transaction });
+    await saveDocuments(person.id, files, transaction);
     return { employeeId: person.id, userId, teamMemberId, invite };
   });
   if (result.invite) sec.logEvent(req, { userId: result.userId, email: result.invite.email, type: "user_created", actorId: req.user.id, meta: { roles: newUser.roles } });

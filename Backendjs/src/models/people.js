@@ -9,6 +9,14 @@ const Employee = sequelize.define("PayrollEmployee", {
   salary: { type: DataTypes.INTEGER, allowNull: false },
 }, { tableName: "payroll_employees" });
 
+const EmployeeDocument = sequelize.define("PayrollEmployeeDocument", {
+  employeeId: { type: DataTypes.INTEGER, primaryKey: true, allowNull: false },
+  kind: { type: DataTypes.ENUM("aadhaar", "pan", "cheque", "offerLetter"), primaryKey: true, allowNull: false },
+  mimeType: { type: DataTypes.STRING(32), allowNull: false },
+  contents: { type: DataTypes.BLOB("medium"), allowNull: false },
+}, { tableName: "payroll_employee_documents" });
+EmployeeDocument.belongsTo(Employee, { foreignKey: "employeeId", onDelete: "CASCADE" });
+
 const Leave = sequelize.define("PayrollLeave", {
   employeeId: { type: DataTypes.INTEGER, allowNull: false },
   from: { type: DataTypes.DATEONLY, allowNull: false },
@@ -44,4 +52,4 @@ EmployeeLink.belongsTo(Employee, { foreignKey: "employeeId", onDelete: "CASCADE"
 EmployeeLink.belongsTo(User, { foreignKey: "userId", onDelete: "SET NULL" });
 EmployeeLink.belongsTo(TeamMember, { foreignKey: "teamMemberId", onDelete: "SET NULL" });
 
-module.exports = { Employee, Leave, Period, EmployeeLink };
+module.exports = { Employee, EmployeeDocument, Leave, Period, EmployeeLink };
