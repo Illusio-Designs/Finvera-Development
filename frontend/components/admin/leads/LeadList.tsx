@@ -5,8 +5,8 @@ import { useMemo, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowUp01Icon, ArrowDown01Icon, UnfoldMoreIcon, Clock01Icon } from "@hugeicons/core-free-icons";
 import type { LeadRow } from "@/lib/adminApi";
-import { initials, avatarColor, relative, istToday, whenOf } from "@/lib/activityText";
-import { STAGES, stageOf, progressOf, inr, followChip, followDay, byPosition } from "./leadKit";
+import { initials, avatarColor, relative, istToday } from "@/lib/activityText";
+import { STAGES, stageOf, inr, followChip, followDay, byPosition } from "./leadKit";
 
 type Key = "name" | "company" | "stage" | "value" | "owner" | "followup" | "lastContactedAt" | "source";
 const COLS: { k: Key; label: string; num?: boolean }[] = [

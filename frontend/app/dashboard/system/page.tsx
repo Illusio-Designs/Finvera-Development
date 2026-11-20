@@ -8,7 +8,7 @@ import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ServerStack01Icon, DatabaseIcon, Mail01Icon, DatabaseBackupIcon, Notification03Icon, Clock01Icon,
-  InstagramIcon, Bug01Icon, Shield01Icon, Refresh01Icon, Alert02Icon,
+  InstagramIcon, Bug01Icon, Shield01Icon, Refresh01Icon,
 } from "@hugeicons/core-free-icons";
 import { opsApi } from "@/lib/adminApi";
 import { visibleInterval } from "@/lib/visibleInterval";

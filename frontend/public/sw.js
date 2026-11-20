@@ -13,20 +13,20 @@ self.addEventListener("push", (event) => {
 
   event.waitUntil((async () => {
     const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    // An open dashboard refreshes its bell at once (and plays the Finvera sound).
-    wins.forEach((c) => c.postMessage({ type: "fv-push", data: d }));
     const appOnScreen = notificationMode(wins) === "quiet";
 
     // Unread count on the app icon (iPhone Home Screen app, installed desktop app).
     if (typeof d.badge === "number" && self.navigator && "setAppBadge" in self.navigator) {
       try { d.badge > 0 ? await self.navigator.setAppBadge(d.badge) : await self.navigator.clearAppBadge(); } catch { /* not supported */ }
     }
+    // Apply the push count first. An open dashboard then reconciles it with the server.
+    wins.forEach((c) => c.postMessage({ type: "fv-push", data: d }));
 
     // Browsers require every push to show a notification. When the app is open
     // on screen it stays quiet, because the app plays its own sound.
     await self.registration.showNotification(d.title || "Finvera", {
       body: d.body || "",
-      icon: "/icons/icon-192.png?v=2",
+      icon: "/icons/icon-192.png?v=3",
       badge: "/icons/badge-96.png",
       tag: d.tag || undefined,
       data: { url: d.url || "/dashboard" },

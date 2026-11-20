@@ -8,7 +8,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Add01Icon, Building03Icon, Clock01Icon, MoreHorizontalIcon, ArrowRight01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 import type { LeadRow, LeadStage } from "@/lib/adminApi";
 import { initials, avatarColor, relative, istToday } from "@/lib/activityText";
-import { STAGES, stageOf, progressOf, inr, inrShort, sumValue, firstName, followChip, byPosition, type StageDef } from "./leadKit";
+import { STAGES, stageOf, progressOf, inr, inrShort, sumValue, firstName, followChip, byPosition } from "./leadKit";
 
 type MoveFn = (id: number, to: LeadStage, beforeId: number | null) => void;
 
@@ -57,7 +57,7 @@ export default function LeadBoard({ leads, onOpen, onMove, onAdd, filtered }: {
             {ls.map((l, i) => (
               <div key={l.id} className="ld-slot">
                 {over?.stage === s.id && over.before === l.id && dragId !== l.id && <div className="ld-ph" aria-hidden />}
-                <LeadCard lead={l} stage={s} today={today} dragging={dragId === l.id}
+                <LeadCard lead={l} today={today} dragging={dragId === l.id}
                   onOpen={() => onOpen(l)}
                   onMenu={(el) => {
                     const r = el.getBoundingClientRect();
@@ -94,8 +94,8 @@ export default function LeadBoard({ leads, onOpen, onMove, onAdd, filtered }: {
   );
 }
 
-function LeadCard({ lead: l, stage: s, today, dragging, onOpen, onMenu, onDragStart, onDragEnd, onDragOver }: {
-  lead: LeadRow; stage: StageDef; today: string; dragging: boolean; onOpen: () => void; onMenu: (el: HTMLElement) => void;
+function LeadCard({ lead: l, today, dragging, onOpen, onMenu, onDragStart, onDragEnd, onDragOver }: {
+  lead: LeadRow; today: string; dragging: boolean; onOpen: () => void; onMenu: (el: HTMLElement) => void;
   onDragStart: (e: React.DragEvent<HTMLElement>) => void; onDragEnd: () => void; onDragOver: (e: React.DragEvent<HTMLElement>) => void;
 }) {
   const chip = followChip(l, today);

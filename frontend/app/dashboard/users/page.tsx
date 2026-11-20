@@ -17,6 +17,7 @@ import { WorkspaceHero, WorkspaceStats } from "@/components/admin/Workspace";
 import "./users-workspace.css";
 import Select from "@/components/Select";
 import ExportButton from "@/components/admin/ExportButton";
+import WorkspaceActionMenu from "@/components/admin/WorkspaceActionMenu";
 import Toggle from "@/components/ui/Toggle";
 import DatePicker from "@/components/ui/DatePicker";
 import { ROLE_LABELS } from "@/lib/permissions";
@@ -242,9 +243,11 @@ export default function AdminUsers() {
     <div className="acc-users fw-workspace users-workspace">
       <WorkspaceHero eyebrow="People & permissions" title="Users & access" description="Manage team accounts, roles and content planner access."
         actions={tab === "members" && <>
-          <ExportButton entity="users" />
-          <button type="button" className="adm-btn ghost" disabled={!users || loading} onClick={() => setEdit("new")}><Icon i={PlusSignIcon} size={16} />Add with password</button>
           <button type="button" className="adm-btn primary" disabled={!users || loading} onClick={() => setInvite(true)}><Icon i={UserAdd01Icon} size={16} />Invite member</button>
+          <WorkspaceActionMenu label="Member tools">
+            <button type="button" disabled={!users || loading} onClick={() => setEdit("new")}><Icon i={PlusSignIcon} size={16} />Add with password</button>
+            <ExportButton entity="users" />
+          </WorkspaceActionMenu>
         </>} />
       <WorkspaceStats items={[
         { label: "Team directory", value: users ? users.length : "—", detail: "All member accounts", accent: true },
@@ -343,10 +346,8 @@ export default function AdminUsers() {
                           onClick={(e) => { setMenuUp(window.innerHeight - e.currentTarget.getBoundingClientRect().bottom < 400 && e.currentTarget.getBoundingClientRect().top > 420); setMenu(menu === u.id ? null : u.id); }}><Icon i={MoreVerticalIcon} size={16} /></button>
                         {menu === u.id && (
                           <div className={"acc-menu" + (menuUp ? " up" : "")} role="menu">
-                            {u.status === "invited" && <button role="menuitem" onClick={() => act(u, "resend")}><Icon i={Mail01Icon} />Resend invite</button>}
                             {u.status !== "invited" && u.status !== "deactivated" && <button role="menuitem" onClick={() => act(u, "reset")}><Icon i={Key01Icon} />Send reset link</button>}
                             {u.status !== "invited" && <button role="menuitem" onClick={() => act(u, "require")}><Icon i={LockPasswordIcon} />{u.mustChangePassword ? "Don't require password change" : "Require password change"}</button>}
-                            {u.status === "locked" && <button role="menuitem" onClick={() => act(u, "unlock")}><Icon i={SquareUnlock02Icon} />Unlock</button>}
                             {u.twoFactorEnabled && <button role="menuitem" onClick={() => act(u, "2fa")}><Icon i={SecurityCheckIcon} />Turn off two-step login</button>}
                             <button role="menuitem" onClick={() => act(u, "devices")}><Icon i={ComputerIcon} />See devices</button>
                             <button role="menuitem" onClick={() => act(u, "activity")}><Icon i={Activity01Icon} />See activity</button>

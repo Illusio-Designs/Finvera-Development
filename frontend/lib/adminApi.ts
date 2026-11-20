@@ -1,6 +1,7 @@
 /* Client-side API helper for the admin — talks to the live backend. */
 "use client";
 import { readCacheState } from "./resourceMachine";
+import { syncAppBadge } from "./appBadge";
 import { employeeDocumentLabels, type EmployeeDocument, type EmployeeDocumentKind } from "./peopleTypes";
 
 export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "https://api.finvera.solutions").replace(/\/$/, "");
@@ -8,7 +9,10 @@ const TOKEN_KEY = "fv_admin_token";
 
 export const getToken = () => (typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null);
 export const setToken = (t: string) => localStorage.setItem(TOKEN_KEY, t);
-export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
+export const clearToken = () => {
+  localStorage.removeItem(TOKEN_KEY);
+  void syncAppBadge(0);
+};
 export const hasApi = () => Boolean(API_BASE);
 
 async function req(path: string, options: RequestInit = {}, auth = true, responseType: "json" | "blob" = "json"): Promise<any> {
@@ -230,7 +234,6 @@ export const api = {
   /* Social media calendar — bulk import rows parsed from a client's sheet */
   importSocialPosts: (posts: any[], preview = false) => req(`/social-posts/bulk${preview ? "?preview=1" : ""}`, { method: "POST", body: JSON.stringify({ posts }) }),
   /* Auto-publishing (Instagram / Facebook) */
-  metaStatus: () => req(`/social-connect/meta/status`),
   metaStart: (brand: string) => req(`/social-connect/meta/start?brand=${encodeURIComponent(brand)}`),
   metaPages: (sel: string) => req(`/social-connect/meta/pages?sel=${encodeURIComponent(sel)}`),
   metaChoose: (sel: string, pageId: string) => req(`/social-connect/meta/choose`, { method: "POST", body: JSON.stringify({ sel, pageId }) }),

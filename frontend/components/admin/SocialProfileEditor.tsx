@@ -137,7 +137,12 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
       const p = await api.updatePageProfile(client, form);
       if (id !== generation.current) return;
       setProfile(p); setForm(draft(p)); setStatus("ready"); setNotice("Page details saved to Facebook.");
-    } catch (e: any) { if (id === generation.current) { setError(e.message); setStatus("ready"); } }
+    } catch (error) {
+      if (id !== generation.current) return;
+      const message = error instanceof Error ? error.message : "Could not save Page details.";
+      setError(message.replace("Readiness & actions", "Studio → Channels → Connection checks"));
+      setStatus("ready");
+    }
   }
   async function reconnect() {
     if (!admin || !client || busy || !await discardChanges()) return;

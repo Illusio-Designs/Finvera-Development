@@ -12,7 +12,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter, useSearchParams } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Add01Icon, Search01Icon, Download04Icon, Alert02Icon, Refresh01Icon, Cancel01Icon, Clock01Icon, RupeeIcon, StopCircleIcon,
+  Add01Icon, Search01Icon, Download04Icon, Alert02Icon, Refresh01Icon, Cancel01Icon, Clock01Icon, RupeeIcon,
   Calendar03Icon, Table02Icon, RepeatIcon,
 } from "@hugeicons/core-free-icons";
 import { api, renewalsApi, type RenewalRow } from "@/lib/adminApi";
@@ -22,7 +22,7 @@ import { Timeline, RenewalTable, type RowHandlers } from "@/components/admin/ren
 import RenewalDrawer, { type DrawerAction } from "@/components/admin/renewals/RenewalDrawer";
 import { RenewDialog, EndDialog, type RenewChoice } from "@/components/admin/renewals/RenewalDialogs";
 import {
-  CYCLES, STATUSES, cycleOf, inr, inrShort, sumAmount, yearlyValue, day10, daysBetween, fmtDay, label, remarkLine, prependRemark, istToday, addDays,
+  CYCLES, STATUSES, cycleOf, inr, sumAmount, yearlyValue, day10, daysBetween, fmtDay, label, istToday, addDays,
 } from "@/components/admin/renewals/renewalKit";
 import { dialog } from "@/lib/dialog";
 import { toast } from "@/lib/toast";

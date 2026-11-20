@@ -11,6 +11,7 @@ import {downloadXlsx} from '@/lib/xlsxWrite';
 import {toast} from '@/lib/toast';
 import {dialog} from '@/lib/dialog';
 import {WorkspaceHero,WorkspaceStats} from '@/components/admin/Workspace';
+import WorkspaceActionMenu from '@/components/admin/WorkspaceActionMenu';
 import PageLoading from '@/components/admin/PageLoading';
 import Select from '@/components/Select';
 import DatePicker from '@/components/ui/DatePicker';
@@ -64,7 +65,19 @@ export default function SocialReports({initialView = 'client', workspaceBrand, w
  async function act(kind:'save'|'review'|'csv'|'excel'|'pdf'){if(lock.current||!data)return;lock.current=true;setWorking(true);setError('');const popup=kind==='pdf'?window.open('','_blank'):null;try{if(kind==='pdf'&&!popup)throw new Error('Allow the print window, then try again.');const captured=await capture(kind==='review'?'reviewed':undefined);const result={...captured,data:clientFacingReport(captured.data)};if(kind==='csv'){const url=URL.createObjectURL(await reportsApi.csv(result.id)),a=document.createElement('a');a.href=url;a.download=`finvera-${result.kind}-${(result.client||result.kind).replace(/[^a-z0-9]+/gi,'-').slice(0,45)}-${result.period}-${result.id}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}if(kind==='excel')downloadXlsx(`finvera-${result.kind}-${(result.client||result.kind).replace(/[^a-z0-9]+/gi,'-').slice(0,45)}-${result.period}-${result.id}.xlsx`,[...reportSheets(result.data),{name:'Report details',columns:['Field','Value'],rows:[['Report',result.title],['Snapshot',result.id],['Revision',result.version],['Status',result.status],['From',result.data.period.from],['To',result.data.period.to],['Snapshot IST',indiaTime(result.data.generatedAt)],['Commentary',result.summary],...Object.entries(result.data.totals).filter(([,v])=>v===null||typeof v==='number').map(([k,v])=>[k,v??'Not available']),['Metrics',result.data.kind==='client'?result.data.coverage.metricTimeBasis:'Go-live deadline; completed handoffs in period; current open queue']]}]);if(kind==='pdf'&&popup){popup.document.open();popup.document.write(printableReport(result));popup.document.close();popup.focus();popup.print();}toast(kind==='review'?'Report marked reviewed':kind==='save'?'Report snapshot saved':'Report prepared','ok');}catch(e){popup?.close();setError(e instanceof Error?e.message:'Couldn’t save this report.');}finally{lock.current=false;setWorking(false)}}
  const rawData=saved?.data||data;
  const shownData=rawData?clientFacingReport(rawData):null;
- const toolbar=<div className="sr-actions"><button className="adm-btn ghost" disabled={working||!data||busy} onClick={()=>act('save')}>{working?'Preparing…':saved?dirty?'Save commentary':'Snapshot saved':'Save report'}</button><button className="adm-btn ghost" disabled={working||!data||busy} onClick={()=>act('excel')}>Excel ↓</button><button className="adm-btn ghost" disabled={working||!data||busy} onClick={()=>act('csv')}>CSV ↓</button><button className="adm-btn primary" disabled={working||!data||busy} onClick={()=>act('pdf')}>Print / save PDF</button></div>;
+ const actionsDisabled = working || !data || busy;
+ const toolbar = <div className="sr-actions" aria-busy={working}>
+  {!clientView && (saved && !dirty
+   ? <span className="sr-pill green" role="status">Snapshot saved</span>
+   : <button type="button" className="adm-btn primary" disabled={actionsDisabled} onClick={() => act('save')}>
+    {saved ? 'Save commentary' : 'Save report'}
+   </button>)}
+  <WorkspaceActionMenu label="Export" disabled={actionsDisabled}>
+   <button type="button" onClick={() => act('excel')}>Excel</button>
+   <button type="button" onClick={() => act('csv')}>CSV</button>
+   <button type="button" onClick={() => act('pdf')}>Print / save PDF</button>
+  </WorkspaceActionMenu>
+ </div>;
  return <div className={'reports-workspace'+(clientView?' sr-client-view':'')}>
  {embedded && !clientView ? <header className="sr-meta">
   <div><h2>Monthly brand report</h2><p>Published content and available Meta results.</p></div>{toolbar}

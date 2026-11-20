@@ -1,7 +1,7 @@
 "use client";
 import { revealState } from "@/lib/presentationMachine";
 import { useDisclosure } from "@/lib/useDisclosure";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";

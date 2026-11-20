@@ -8,7 +8,7 @@ import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Cancel01Icon, Call02Icon, WhatsappIcon, Mail01Icon, Delete02Icon, Tick02Icon, Alert02Icon, Refresh01Icon, Note01Icon,
+  Cancel01Icon, Call02Icon, WhatsappIcon, Mail01Icon, Delete02Icon, Tick02Icon, Refresh01Icon, Note01Icon,
   CheckmarkCircle02Icon, StopCircleIcon, PencilEdit02Icon,
 } from "@hugeicons/core-free-icons";
 import { api, renewalsApi, type RenewalRow } from "@/lib/adminApi";
@@ -19,7 +19,7 @@ import { initials, avatarColor } from "@/lib/activityText";
 import { dialog } from "@/lib/dialog";
 import { toast } from "@/lib/toast";
 import { contactLinks } from "./RenewalViews";
-import { CYCLES, STATUSES, cycleOf, inr, yearlyValue, parseRemarks, remarkLine, prependRemark, dueChip, fmtDay, label, istToday, type Remark } from "./renewalKit";
+import { CYCLES, STATUSES, cycleOf, inr, yearlyValue, parseRemarks, remarkLine, dueChip, fmtDay, label, istToday, type Remark } from "./renewalKit";
 
 type Tab = "details" | "remarks" | "history" | "payments";
 type Draft = Partial<RenewalRow> & Record<string, unknown>;
