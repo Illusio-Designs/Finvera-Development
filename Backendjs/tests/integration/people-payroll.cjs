@@ -8,7 +8,7 @@ const jwt = require("jsonwebtoken");
 const app = require("../../src/app");
 const { sequelize, User, TeamMember, SocialClient } = require("../../src/models");
 const auth = require("../../src/middleware/auth");
-const { Period, Employee, EmployeeLink } = require("../../src/models/people");
+const { Period, Employee, EmployeeDocument, EmployeeLink } = require("../../src/models/people");
 
 async function run() {
   await sequelize.sync({ force: true });
@@ -166,6 +166,55 @@ async function run() {
     assert.equal(linked.status, 201);
     assert.deepEqual([linked.body.userId, linked.body.teamMemberId, linked.body.invite], [existingLogin.id, existingTeam.id, null]);
     console.log("PASS atomic employee setup, login roles and brands, working invite, draft profile, existing selections and rollback.");
+    const fixtureBytes = Buffer.from("%PDF-1.4\nEmployee document fixture\n%%EOF");
+    function multipart(details, files) {
+      const form = new FormData();
+      form.append("details", JSON.stringify(details));
+      for (const [kind, bytes] of files) form.append(kind, new Blob([bytes], { type: "application/pdf" }), "employee-fixture.pdf");
+      return form;
+    }
+    async function documentRequest(path, method = "GET", body, user = admin) {
+      return fetch(base + path, { method, body, headers: user ? { Authorization: "Bearer " + token(user) } : {} });
+    }
+    const fileKinds = ["aadhaar", "pan", "cheque", "offerLetter"];
+    const allFiles = fileKinds.map(kind => [kind, fixtureBytes]);
+    const documentInput = { ...inputs, name: "Employee With Files", login: { mode: "none" }, team: { mode: "none" } };
+    assert.equal((await documentRequest("/onboard", "POST", multipart(documentInput, allFiles), viewer)).status, 403);
+    assert.equal((await documentRequest("/onboard", "POST", multipart(documentInput, [["pan", Buffer.from("not a document")]]))).status, 400);
+    assert.equal(await Employee.count({ where: { name: documentInput.name } }), 0);
+    const uploaded = await documentRequest("/onboard", "POST", multipart(documentInput, allFiles));
+    assert.equal(uploaded.status, 201, await uploaded.clone().text());
+    const { employeeId } = await uploaded.json();
+    const endpoint = `/employees/${employeeId}/documents`;
+    const list = await documentRequest(endpoint);
+    assert.match(list.headers.get("cache-control"), /private, no-store/);
+    const metadata = await list.json();
+    assert.deepEqual(metadata.map(doc => doc.kind).sort(), [...fileKinds].sort());
+    assert(metadata.every(doc => !Object.hasOwn(doc, "contents")));
+    const raw = await EmployeeDocument.findOne({ where: { employeeId, kind: "aadhaar" } });
+    assert(!raw.contents.includes(fixtureBytes));
+    assert.equal((await documentRequest(endpoint, "GET", undefined, viewer)).status, 403);
+    assert.equal((await documentRequest(endpoint + "/aadhaar", "GET", undefined, viewer)).status, 403);
+    assert.equal((await documentRequest(endpoint + "/aadhaar", "GET", undefined, null)).status, 401);
+    const downloaded = await documentRequest(endpoint + "/aadhaar");
+    assert.match(downloaded.headers.get("content-disposition"), /attachment.*aadhaar\.pdf/);
+    assert.deepEqual(Buffer.from(await downloaded.arrayBuffer()), fixtureBytes);
+    const revised = Buffer.from("%PDF-1.4\nUpdated fixture\n%%EOF");
+    assert.equal((await documentRequest(`/employees/${employeeId}`, "PUT", multipart(documentInput, [["pan", revised]]))).status, 200);
+    assert.deepEqual(Buffer.from(await (await documentRequest(endpoint + "/pan")).arrayBuffer()), revised);
+    assert.deepEqual(Buffer.from(await (await documentRequest(endpoint + "/aadhaar")).arrayBuffer()), fixtureBytes);
+    EmployeeDocument.addHook("beforeUpsert", "fixture-doc-fail", () => { throw new Error("Fixture document write failure"); });
+    try {
+      console.error = () => {};
+      const rollback = { ...onboardData, name: "Rollback With File", login: { ...onboardData.login, email: "document-rollback@example.test" } };
+      assert.equal((await documentRequest("/onboard", "POST", multipart(rollback, allFiles))).status, 500);
+      assert.equal(await Employee.count({ where: { name: rollback.name } }), 0);
+      assert.equal(await User.count({ where: { email: rollback.login.email } }), 0);
+    } finally {
+      console.error = oldError;
+      EmployeeDocument.removeHook("beforeUpsert", "fixture-doc-fail");
+    }
+    console.log("PASS private multipart onboarding, encrypted storage, admin-only file lists and downloads, replacement and rollback.");
     await auth.loadUser(admin.id);
     await User.update({ roles: ["graphic"], role: "graphic" }, { where: { id: admin.id } });
     assert.equal((await call("/" + month)).status, 403);
