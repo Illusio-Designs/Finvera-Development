@@ -10,7 +10,8 @@ import { createPortal } from "react-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Download04Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { trackApi, type KpiReport } from "@/lib/adminApi";
-import Select from "@/components/Select";
+import DatePicker from "@/components/ui/DatePicker";
+import { indiaToday } from "@/lib/socialWorkflow";
 import { downloadXlsx } from "@/lib/xlsxWrite";
 import { toast } from "@/lib/toast";
 
@@ -87,7 +88,7 @@ export default function MonthlyReport({ onClose }: { onClose: () => void }) {
           <button type="button" className="exp-x" onClick={onClose} aria-label="Close"><HugeiconsIcon icon={Cancel01Icon} size={18} /></button>
         </div>
         <div className="exp-rbar">
-          <div className="exp-month"><Select value={month} onChange={setMonth} options={options} ariaLabel="Month" /></div>
+          <div className="exp-month"><DatePicker mode="month" value={month} onChange={setMonth} min={options.at(-1)?.value} max={options[0].value} today={indiaToday()} clearable={false} ariaLabel="Month" /></div>
           <button type="button" className="adm-btn primary" onClick={download} disabled={!data || loading}>
             <HugeiconsIcon icon={Download04Icon} size={16} strokeWidth={1.8} />Download Excel
           </button>

@@ -234,7 +234,7 @@ export default function LeadDrawer({ lead, defaults, calendlyUrl, initialTab = "
                   <DatePicker id="ld-next" value={String(draft.nextFollowUpAt || "").slice(0, 10)} onChange={(v) => set("nextFollowUpAt", v)} placeholder="Pick a date" />
                   {draft.nextFollowUpAt && <button type="button" className="sh-link muted ld-clear" onClick={() => set("nextFollowUpAt", null)}>Clear date</button>}</div>
                 <div className="ld-field"><label htmlFor="ld-meetat">Meeting time</label>
-                  <input id="ld-meetat" type="datetime-local" value={toLocalInput(draft.meetingAt)} onChange={(e) => set("meetingAt", e.target.value ? new Date(e.target.value).toISOString() : null)} /></div>
+                  <DatePicker id="ld-meetat" mode="datetime" value={toLocalInput(draft.meetingAt)} onChange={(v) => set("meetingAt", v ? new Date(v).toISOString() : null)} /></div>
               </div>
               <div className="ld-field"><label htmlFor="ld-funote">Follow-up note</label>
                 <input id="ld-funote" value={String(draft.followUpNote || "")} onChange={(e) => set("followUpNote", e.target.value)} placeholder="What to do next, e.g. Send the revised quote" /></div>

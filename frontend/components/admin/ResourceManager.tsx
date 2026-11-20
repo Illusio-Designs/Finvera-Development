@@ -483,8 +483,8 @@ export default function ResourceManager({ resource, title, subtitle, columns, fi
                   <DatePicker id={f.name} name={f.name} value={String(editing[f.name] ?? "").slice(0, 10)}
                     onChange={(v) => setField(f.name, v)} placeholder={f.placeholder || "Select a date"} />
                 ) : f.type === "datetime" ? (
-                  <input id={f.name} type="datetime-local" value={toLocalInput(editing[f.name])}
-                    onChange={(e) => setField(f.name, e.target.value ? new Date(e.target.value).toISOString() : "")} />
+                  <DatePicker id={f.name} mode="datetime" value={toLocalInput(editing[f.name])}
+                    onChange={(v) => setField(f.name, v ? new Date(v).toISOString() : "")} />
                 ) : f.type === "link" ? (
                   <div className="fu-linkrow">
                     <input id={f.name} type="url" inputMode="url" value={editing[f.name] ?? ""} placeholder={f.placeholder}

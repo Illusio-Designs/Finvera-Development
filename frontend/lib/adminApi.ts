@@ -1,6 +1,7 @@
 /* Client-side API helper for the admin — talks to the live backend. */
 "use client";
 import { readCacheState } from "./resourceMachine";
+import { employeeDocumentLabels, type EmployeeDocument, type EmployeeDocumentKind } from "./peopleTypes";
 
 export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "https://api.finvera.solutions").replace(/\/$/, "");
 const TOKEN_KEY = "fv_admin_token";
@@ -10,7 +11,7 @@ export const setToken = (t: string) => localStorage.setItem(TOKEN_KEY, t);
 export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
 export const hasApi = () => Boolean(API_BASE);
 
-async function req(path: string, options: RequestInit = {}, auth = true): Promise<any> {
+async function req(path: string, options: RequestInit = {}, auth = true, responseType: "json" | "blob" = "json"): Promise<any> {
   const headers: Record<string, string> = { ...(options.headers as Record<string, string>) };
   if (!(options.body instanceof FormData)) headers["Content-Type"] = "application/json";
   const token = getToken();
@@ -24,6 +25,7 @@ async function req(path: string, options: RequestInit = {}, auth = true): Promis
     if (typeof window !== "undefined" && location.pathname !== "/login") location.href = "/login";
     throw new Error("Session expired. Please sign in again.");
   }
+  if (res.ok && responseType === "blob") return res.blob();
   const text = await res.text();
   let data: any = null;
   if (text) {
@@ -447,8 +449,20 @@ export const workspaceApi={
  access:()=>req('/workspace/access'),
 };
 
+function peopleBody(details: unknown, form?: FormData) {
+  const uploads = new FormData();
+  for (const kind of Object.keys(employeeDocumentLabels)) {
+    const file = form?.get(kind);
+    if (file instanceof File && file.name) uploads.append(kind, file, kind);
+  }
+  if (Array.from(uploads.keys()).length === 0) return JSON.stringify(details);
+  uploads.set("details", JSON.stringify(details));
+  return uploads;
+}
+
 export const peopleApi = {
-  onboard: (data: import("./peopleTypes").EmployeeOnboardingInput): Promise<import("./peopleTypes").EmployeeOnboardingResult> => post("/people/onboard", data),
+  onboard: (data: import("./peopleTypes").EmployeeOnboardingInput, form?: FormData): Promise<import("./peopleTypes").EmployeeOnboardingResult> =>
+    req("/people/onboard", { method: "POST", body: peopleBody(data, form) }),
   links: (): Promise<import("./peopleTypes").EmployeeLinks> => req("/people/links"),
   createTeamProfile: (id: number): Promise<{
     profile: import("./peopleTypes").EmployeeLinks["profiles"][number];
@@ -457,8 +471,11 @@ export const peopleApi = {
   saveLinks: (id: number, values: import("./peopleTypes").EmployeeLinkSelection, expected: import("./peopleTypes").EmployeeLinkSelection) =>
     req(`/people/links/${id}`, { method: "PUT", body: JSON.stringify({ ...values, expected }) }),
   month: (month: string): Promise<import("./peopleTypes").PeopleMonth> => req(`/people/${month}`),
-  employee: (data: Omit<import("./peopleTypes").Employee, "id">, id?: number) =>
-    req(id ? `/people/employees/${id}` : "/people/employees", { method: id ? "PUT" : "POST", body: JSON.stringify(data) }),
+  employee: (data: Omit<import("./peopleTypes").Employee, "id">, id?: number, form?: FormData) =>
+    req(id ? `/people/employees/${id}` : "/people/employees", { method: id ? "PUT" : "POST", body: peopleBody(data, form) }),
+  documents: (id: number): Promise<EmployeeDocument[]> => req(`/people/employees/${id}/documents`),
+  downloadDocument: (id: number, kind: EmployeeDocumentKind): Promise<Blob> =>
+    req(`/people/employees/${id}/documents/${kind}`, {}, true, "blob"),
   recordLeave: (data: Pick<import("./peopleTypes").Leave, "employeeId" | "from" | "to" | "kind" | "half" | "reason">) =>
     post("/people/leave", data),
   reviewLeave: (id: number, status: Exclude<import("./peopleTypes").LeaveStatus, "pending">) =>

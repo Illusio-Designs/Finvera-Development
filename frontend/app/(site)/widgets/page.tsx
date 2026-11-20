@@ -166,7 +166,7 @@ const WIDGETS: { id: string; name: string; comp: string; node: ReactNode; note?:
     node: <TableDemo />,
   },
   {
-    id: "datepicker", name: "Date picker", comp: 'type="date"',
+    id: "datepicker", name: "Date picker", comp: "<DatePicker />",
     node: <DatePickerDemo />,
   },
   {

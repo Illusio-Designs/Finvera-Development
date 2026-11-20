@@ -1,4 +1,5 @@
 "use client";
+import DatePicker from "@/components/ui/DatePicker";
 import { useDisclosure } from "@/lib/useDisclosure";
 import { useState } from "react";
 import Toaster from "./admin/Toaster";
@@ -163,8 +164,8 @@ export function DatePickerDemo() {
   const [date, setDate] = useState("");
   return (
     <div className="adm-field" style={{ maxWidth: 260, width: "100%" }}>
-      <label>Pick a date</label>
-      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      <label htmlFor="widget-date">Pick a date</label>
+      <DatePicker id="widget-date" value={date} onChange={setDate} />
       {date && <p style={{ marginTop: 8, fontSize: 13, color: "var(--muted)" }}>Selected: <b style={{ color: "var(--ink)" }}>{date}</b></p>}
     </div>
   );

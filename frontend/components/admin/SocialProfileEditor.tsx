@@ -40,6 +40,8 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
   const [status, setStatus] = useState<"loading" | "ready" | "saving" | "error">("loading");
   const [profile, setProfile] = useState<Profile | null>(null), [form, setForm] = useState<Record<string, string>>({});
   const [error, setError] = useState(""), [notice, setNotice] = useState(""), [photoBusy, setPhotoBusy] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
+  const leavingForMeta = useRef(false);
   const [readiness, setReadiness] = useState<ProfileReadiness | null>(null);
   const [readinessError, setReadinessError] = useState(false);
   const access = readiness?.actions.find(action => action.id === "edit")?.state ?? "unknown";
@@ -79,10 +81,10 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
     return () => { generation.current++; };
   }, [client, platform, accountsLoaded]);
   useEffect(() => {
-    const guard = (e: BeforeUnloadEvent) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } };
+    const guard = (e: BeforeUnloadEvent) => { if (dirty && !leavingForMeta.current) { e.preventDefault(); e.returnValue = ""; } };
     window.addEventListener("beforeunload", guard); return () => window.removeEventListener("beforeunload", guard);
   }, [dirty]);
-  const busy = status === "saving";
+  const busy = status === "saving" || reconnecting;
   async function discardChanges() {
     return !dirty || await dialog.confirm({ title: "Discard profile changes?", message: "Your unsaved changes will be lost.", confirmText: "Discard changes", danger: true });
   }
@@ -135,6 +137,20 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
       setProfile(p); setForm(draft(p)); setStatus("ready"); setNotice("Page details saved to Facebook.");
     } catch (e: any) { if (id === generation.current) { setError(e.message); setStatus("ready"); } }
   }
+  async function reconnect() {
+    if (!admin || !client || busy || !await discardChanges()) return;
+    setReconnecting(true);
+    setError("");
+    try {
+      const { authUrl } = await api.metaStart(client);
+      leavingForMeta.current = true;
+      window.location.assign(authUrl);
+    } catch (error) {
+      leavingForMeta.current = false;
+      setError(error instanceof Error ? error.message : "Could not start the Meta connection.");
+      setReconnecting(false);
+    }
+  }
   async function refreshPhoto() {
     const id = generation.current;
     setPhotoBusy(true); setError(""); setNotice("");
@@ -151,6 +167,8 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
     <div className="sp-controls">
       {!workspace && <div className="adm-field sp-brand"><label htmlFor="profile-brand">Brand</label><Select id="profile-brand" ariaLabel="Brand" value={client} disabled={busy} onChange={brand => switchTo(brand, platform)} options={accounts.map(a => a.client)} /></div>}
       <div role="group" aria-label="Platform" className="sp-platforms">{(["facebook", "instagram"] as const).map(p => <button className={"adm-btn " + (platform === p ? "primary" : "ghost")} key={p} aria-pressed={platform === p} disabled={busy || !client} onClick={() => switchTo(client, p)}>{p === "facebook" ? "Facebook" : "Instagram"}</button>)}</div>
+      {admin && client && <button type="button" className="adm-btn ghost" disabled={busy}
+        onClick={reconnect}>{reconnecting ? "Opening Meta…" : "Reconnect Meta"}</button>}
     </div>
     {error && <p className="sp-error" role="alert">{error}</p>}{notice && <p className="sp-success" role="status">{notice}</p>}
     {status === "loading" && <LoadingRegion label="Loading profile…"><div className="sp-grid">
@@ -176,7 +194,7 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
       <section><h2>{platform === "facebook" ? "Page details" : "Instagram details"}</h2>
         {platform === "instagram" ? <><div className="adm-field"><label htmlFor="profile-bio">Bio</label><textarea id="profile-bio" rows={4} value={profile.biography || ""} readOnly /></div><div className="adm-field"><label htmlFor="profile-website">Website</label><input id="profile-website" value={profile.website || ""} readOnly /></div><p className="sp-note">Instagram profile editing is unavailable through the connected Meta API. These details are read-only; publishing and scheduling posts remain available in Finvera.</p></> : <form onSubmit={e => { e.preventDefault(); void save(); }}>
           {!admin && <p className="sp-note">An administrator can update these Page details.</p>}
-          {admin && access !== "permission_granted" && <p className="sp-note">Meta has not confirmed Page editing access. A save may require permission approval and reconnecting this brand.</p>}
+          {admin && access !== "permission_granted" && <p className="sp-note">Meta has not confirmed Page editing access. Approve the permission in Meta, then reconnect this brand.</p>}
           {fields.map(k => <div className="adm-field" key={k}><label htmlFor={`profile-${k}`}>{k.charAt(0).toUpperCase() + k.slice(1)}</label>{k === "description" ? <textarea id={`profile-${k}`} rows={4} maxLength={5000} value={form[k] || ""} disabled={!admin || busy} onChange={e => setForm({ ...form, [k]: e.target.value })}/> : <input id={`profile-${k}`} type={k === "email" ? "email" : k === "website" ? "url" : "text"} maxLength={255} value={form[k] || ""} disabled={!admin || busy} onChange={e => setForm({ ...form, [k]: e.target.value })}/>}</div>)}
           <div className="adm-drawer-actions">
             {onClose && <button className="adm-btn ghost" type="button" disabled={busy} onClick={close}>Cancel</button>}

@@ -65,3 +65,12 @@ export type EmployeeOnboardingResult = EmployeeLinkSelection & {
   employeeId: number;
   invite: { link: string; email: string; expiresAt: string } | null;
 };
+
+export const employeeDocumentLabels = {
+  aadhaar: "Aadhaar",
+  pan: "PAN",
+  cheque: "Bank cheque",
+  offerLetter: "Offer letter",
+};
+export type EmployeeDocumentKind = keyof typeof employeeDocumentLabels;
+export type EmployeeDocument = { kind: EmployeeDocumentKind; mimeType: string; updatedAt: string };

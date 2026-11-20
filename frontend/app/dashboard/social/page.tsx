@@ -1642,8 +1642,8 @@ export default function SocialCalendar() {
           ))}
         </div>
         <div className="sm-filter cal-brand-select"><Select value={client} onChange={(value) => { setClient(value); setMonth(""); setCalMonth(""); }} ariaLabel="Brand" options={[{ value: "", label: "All brands" }, ...clientNames.map((name) => ({ value: name, label: name }))]} /></div>
-        <div className="sm-filter"><Select value={month} onChange={(v) => { setMonth(v); setCalMonth(""); }} ariaLabel="Month"
-          options={[{ value: "", label: "All months" }, ...months.map((m) => ({ value: m, label: `${MONTHS[+m.slice(5) - 1]} ${m.slice(0, 4)}` }))]} /></div>
+        <div className="sm-filter"><DatePicker mode="month" value={month} onChange={(v) => { setMonth(v); setCalMonth(""); }} ariaLabel="Month"
+          placeholder="All months" allowedMonths={months} min={months.at(-1)} max={months[0]} today={todayIso()} /></div>
         <details className="cal-advanced-filters"><summary>Filters{(format || who) && <span className="cal-filter-count">{Number(!!format) + Number(!!who)}</span>}</summary><div className="cal-filter-menu">        <div className="sm-filter"><Select value={format} onChange={setFormat} ariaLabel="Format"
           options={[{ value: "", label: "All formats" }, ...formats.map((f) => ({ value: f, label: f }))]} /></div>
         {activeView !== "mine" && <div className="sm-filter"><Select value={who} onChange={setWho} ariaLabel="Assigned to"
@@ -1690,7 +1690,7 @@ export default function SocialCalendar() {
             <div className="cal-vtop"><h2>Need from client</h2><button type="button" className="cal-x" disabled={clientNeed.busy} onClick={() => setClientNeed(null)} aria-label="Close">×</button></div>
             <p>{clientNeed.post.theme} · {clientNeed.post.client}</p>
             <div className="adm-field"><label htmlFor="client-request">What is missing?</label><textarea id="client-request" disabled={clientNeed.busy} value={clientNeed.request} onChange={(e) => setClientNeed({ ...clientNeed, request: e.target.value })} placeholder="Logo, product images, approved offer, access…" /></div>
-            <div className="adm-field"><label htmlFor="client-follow-up">Follow-up date</label><DatePicker id="client-follow-up" disabled={clientNeed.busy} value={clientNeed.date} onChange={(date) => setClientNeed({ ...clientNeed, date })} /></div>
+            <div className="adm-field"><label htmlFor="client-follow-up">Follow-up date</label><DatePicker id="client-follow-up" today={todayIso()} disabled={clientNeed.busy} value={clientNeed.date} onChange={(date) => setClientNeed({ ...clientNeed, date })} /></div>
             <div className="adm-field"><label>Who follows up?</label><Select disabled={clientNeed.busy} ariaLabel="Client follow-up owner" value={clientNeed.owner} onChange={(owner) => setClientNeed({ ...clientNeed, owner })} options={[{ value: "", label: "Choose person" }, ...users.map((u) => ({ value: String(u.id), label: u.name }))]} /></div>
             <button type="button" className="cal-primary" disabled={clientNeed.busy || !clientNeed.request.trim() || !clientNeed.date || !clientNeed.owner} onClick={saveClientNeed}>{clientNeed.busy ? "Saving…" : "Save client request"}</button>
           </div>
@@ -1756,8 +1756,8 @@ export default function SocialCalendar() {
                     <span><b>New date &amp; time</b><small>Scheduled for later; the calendar moves with it.</small></span></label>
                   {h.when === "pick" && (
                     <div className="cal-late-row">
-                      <DatePicker value={h.newDate || ""} onChange={(v) => setHandoff({ ...h, newDate: v })} placeholder="New go-live date" />
-                      <input type="time" value={h.newTime || "10:00"} onChange={(e) => setHandoff({ ...h, newTime: e.target.value })} aria-label="New go-live time" />
+                      <DatePicker today={todayIso()} ariaLabel="New go-live date" value={h.newDate || ""} onChange={(v) => setHandoff({ ...h, newDate: v })} placeholder="New go-live date" />
+                      <DatePicker mode="time" value={h.newTime || "10:00"} onChange={(v) => setHandoff({ ...h, newTime: v })} ariaLabel="New go-live time" clearable={false} />
                     </div>
                   )}
                 </div>
@@ -1887,16 +1887,16 @@ export default function SocialCalendar() {
               <legend>When</legend>
               <div className="field row" style={{ gap: 12 }}>
                 <div className="adm-field" style={{ flex: 1 }}><label>Goes live on</label>
-                  <DatePicker value={txt("postDate").slice(0, 10)} onChange={(v) => {
+                  <DatePicker today={todayIso()} ariaLabel="Go-live date" value={txt("postDate").slice(0, 10)} onChange={(v) => {
                     const auto = !editing.dueDate || String(editing.dueDate).slice(0, 10) === weekBefore(editing.postDate);
                     set({ postDate: v, ...(auto && v ? { dueDate: weekBefore(v) } : {}) });
                   }} placeholder="Goes live on" /></div>
                 <div className="adm-field" style={{ flex: 1 }}><label>At</label>
-                  <input aria-label="Go-live time" type="time" value={txt("postTime")} onChange={(e) => set({ postTime: e.target.value })} /></div>
+                  <DatePicker mode="time" ariaLabel="Go-live time" value={txt("postTime")} onChange={(v) => set({ postTime: v })} /></div>
               </div>
               {edPlanning && <>              <div className="field row" style={{ gap: 12 }}>
                 <div className="adm-field" style={{ flex: 1 }}><label>Start work on</label>
-                  <DatePicker value={txt("dueDate").slice(0, 10)} onChange={(v) => set({ dueDate: v })} placeholder="Start date" /></div>
+                  <DatePicker today={todayIso()} ariaLabel="Start work on" value={txt("dueDate").slice(0, 10)} onChange={(v) => set({ dueDate: v })} placeholder="Start date" /></div>
               </div>
               <div className="cal-note">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
