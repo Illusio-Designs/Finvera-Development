@@ -13,7 +13,8 @@ const settingsCtrl = require("../controllers/settings.controller");
 const uploadCtrl = require("../controllers/upload.controller");
 const usersCtrl = require("../controllers/users.controller");
 const notifCtrl = require("../controllers/notifications.controller");
-const { notifyRoles, notifyUsers, notifyByName, notifyAdmins, brandUserIds } = require("../utils/notify");
+const { notifyRoles, notifyUsers, notifyByName, notifyAdmins } = require("../utils/notify");
+const { notifyAssignments, postLink } = require("../utils/socialNotifications");
 const audit = require("../utils/audit");                           // activity history
 const leadsCtrl = require("../controllers/leads.controller");     // lead follow-ups / touches
 
@@ -176,7 +177,7 @@ router.use("/renewals", renewalRouter);
 // Every social route also resolves the caller's brand scope (admin-set per user).
 const social = require("../controllers/social.controller");
 const autoPublish = require("../utils/autoPublish");
-const { postChanges, when, fmtDate, day, STAGES } = require("../utils/changeNotes");
+const { postChanges, day, STAGES } = require("../utils/changeNotes");
 const canSocial = [requireAuth, requireArea("social"), social.withScope];
 const reports = require("../controllers/socialReports.controller");
 router.get("/social-reports/options", ...canSocial, reports.options);
@@ -206,7 +207,6 @@ socialClientRouter.patch("/:id", ...canSocial, social.requireAllBrands, scopeBum
 socialClientRouter.delete("/:id", ...canSocial, social.requireAllBrands, scopeBump, socialClientCtrl.remove);
 router.use("/social-clients", socialClientRouter);
 
-const socialAssigned = (p) => ({ type: "assigned", title: p.status === "approval" ? `Approval needed: ${p.theme}` : `Social post assigned to you: ${p.theme}`, body: p.client, link: "/dashboard/social", meta: { socialPostId: p.id } });
 const socialPostCtrl = crudController(SocialPost, {
   entity: "social-post",
   updateRecord: require("../utils/socialUpdate").updateRecord,
@@ -219,10 +219,7 @@ const socialPostCtrl = crudController(SocialPost, {
     await social.recordEvents([social.eventOf(p, { byUserId: req.user?.id })]);
     kpiCtrl.bumpKpiCache();
     await autoPublish.syncJobs(p);
-    if (p.assigneeId) await notifyUsers([p.assigneeId], socialAssigned(p), req.user?.id);
-    // Everyone who works on this brand hears about the new post.
-    const team = (await brandUserIds(p.client)).filter((id) => id !== p.assigneeId);
-    await notifyUsers(team, { type: "info", title: `New post for ${p.client}: ${p.theme}`, body: p.postDate ? `Goes live ${when(p.postDate, p.postTime)}` : undefined, link: "/dashboard/social", meta: { socialPostId: p.id } }, req.user?.id);
+    await notifyAssignments([p], req.user?.id);
   },
   onUpdate: async (p, req, before) => {
     // Brand access only changes when who works on it (or the brand) changes.
@@ -237,18 +234,18 @@ const socialPostCtrl = crudController(SocialPost, {
     if (before.status !== p.status || (before.step || null) !== (p.step || null) || before.assigneeId !== p.assigneeId || day(before.postDate) !== day(p.postDate))
       kpiCtrl.bumpKpiCache();
     const reassigned = p.assigneeId && p.assigneeId !== before.assigneeId;
-    if (reassigned) await notifyUsers([p.assigneeId], socialAssigned(p), req.user?.id);
+    if (reassigned) await notifyAssignments([p], req.user?.id);
     // Changes by someone else → the person who has it (unless they just got it, above).
     const { kind, notes } = postChanges(before, p);
     if (kind && p.assigneeId && !reassigned) {
       const head = kind === "stage" ? `Moved to ${STAGES[p.status] || p.status}` : kind === "date" ? "Date changed" : "Post edited";
       const render = (ns) => `${p.client} · ${ns.join("; ")} · by ${req.user?.name || "someone"}`;
-      await notifyUsers([p.assigneeId], { type: "update", title: `${head}: ${p.theme}`, body: render(notes), link: "/dashboard/social", meta: { socialPostId: p.id } },
+      await notifyUsers([p.assigneeId], { type: "update", title: `${head}: ${p.theme}`, body: render(notes), link: postLink(p.id), meta: { socialPostId: p.id } },
         req.user?.id, kind === "edit" ? { merge: { key: `post-${p.id}`, minutes: 15, notes, render } } : undefined); // only plain edits merge
     }
     if (p.status === "posted" && before.status !== "posted") {
       try { await require("../utils/purgeMedia").purgeMedia(p); } catch (e) { console.warn("purge media:", e.message); } // live → delete our copies
-      await notifyAdmins({ type: "done", title: `Posted: ${p.theme}`, body: `${p.client} · by ${req.user?.name || "someone"}`, link: "/dashboard/social", meta: { socialPostId: p.id } }, req.user?.id);
+      await notifyAdmins({ type: "done", title: `Posted: ${p.theme}`, body: `${p.client} · by ${req.user?.name || "someone"}`, link: postLink(p.id), meta: { socialPostId: p.id } }, req.user?.id);
     }
   },
 });
@@ -310,17 +307,6 @@ socialPostRouter.post("/bulk", ...canSocial, social.guardBody, kpiBump, async (r
     res.status(201).json(result);
     audit.record(req, { action: "other", entity: "social-post", entityId: null, entityLabel: brands.join(", ").slice(0, 250), changes: null,
       summary: `Sheet upload: ${result.created ?? 0} new, ${result.updated ?? 0} updated` });
-    // One alert per brand for the whole upload, to everyone on that brand.
-    for (const name of brands) {
-      const rowsOf = clean.filter((r) => r.client === name);
-      const dates = rowsOf.map((r) => day(r.postDate)).filter(Boolean).sort();
-      const range = dates.length ? `${fmtDate(dates[0])} – ${fmtDate(dates[dates.length - 1])}` : "";
-      const team = await brandUserIds(name);
-      const created = result.createdBy?.[name] ?? null, updated = result.updatedBy?.[name] ?? null;
-      const title = created ? `${created} new post${created === 1 ? "" : "s"} added to ${name}` : `${name} calendar updated`;
-      const body = [range && `Calendar ${range}`, updated ? `${updated} post${updated === 1 ? "" : "s"} updated` : "", `by ${req.user?.name || "someone"}`].filter(Boolean).join(" · ");
-      await notifyUsers(team, { type: "info", title, body, link: "/dashboard/social" }, req.user?.id);
-    }
   } catch (e) { next(e); }
 });
 socialPostRouter.put("/:id", ...canSocial, social.guardPost, social.deadlineDefaults, social.assignOnStageChange, socialPostCtrl.update);

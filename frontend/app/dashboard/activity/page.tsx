@@ -127,7 +127,7 @@ export default function ActivityPage() {
         {!loading && !error && (total ? <>Showing <b>{items.length.toLocaleString("en-IN")}</b> of {total.toLocaleString("en-IN")} change{total === 1 ? "" : "s"}</> : null)}
       </div>
 
-      <div className="fw-section-title"><div><h2>The workspace trail</h2><p>Open a change to compare before and after. Date filters include the full day in India time.</p></div></div>
+      <div className="fw-section-title"><div><h2>Recent changes</h2><p>Expand an entry to view its details. Dates and times are in IST.</p></div></div>
       {loading ? (
         <PageLoading label="Loading activity history…" variant="list" />
       ) : error && !items.length ? null : !items.length ? (
@@ -151,10 +151,11 @@ export default function ActivityPage() {
                     <li key={r.id} className={"act-row a-" + r.action + (isOpen ? " open" : "")}>
                       <span className="act-av" style={{ background: avatarColor(r.userName) }} aria-hidden>{initials(r.userName)}</span>
                       <div className="act-body">
-                        <button type="button" className="act-sum" onClick={() => canOpen && toggle(r.id)} aria-expanded={canOpen ? isOpen : undefined} disabled={!canOpen}>
+                        <button type="button" className="act-sum" onClick={() => canOpen && toggle(r.id)} aria-expanded={canOpen ? isOpen : undefined}
+                          aria-controls={isOpen ? `activity-detail-${r.id}` : undefined} disabled={!canOpen}>
                           <span className="act-text">
                             <b>{s.who}</b> {s.verb}{s.verb ? " " : ""}{s.noun}{s.label ? <> <strong>{s.label}</strong></> : null}
-                            {s.tail && <span className="act-tail"> — {s.tail}</span>}
+                            {s.tail && <span className="act-tail">{s.tail}</span>}
                           </span>
                           <span className="act-sub">
                             <span className={"act-pill a-" + r.action}>{s.pill}</span>
@@ -163,8 +164,7 @@ export default function ActivityPage() {
                           </span>
                         </button>
                         {isOpen && (
-                          <div className="act-detail">
-                            {r.summary && r.action !== "other" && <p className="act-note">{r.summary}</p>}
+                          <div className="act-detail" id={`activity-detail-${r.id}`}>
                             {s.lines.length > 0 && (
                               <ul className="act-changes">
                                 {s.lines.map((l) => (

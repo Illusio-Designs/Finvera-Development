@@ -5,15 +5,9 @@ const { pushResult } = require("./notificationMachine");
    break the underlying action (creating a lead, posting a comment, etc.). */
 
 const { Op } = require("sequelize");
-const { Notification, User, PushSubscription, SocialClient } = require("../models");
+const { Notification, User, PushSubscription } = require("../models");
 const { rolesOf } = require("./permissions");
 const webpush = require("./webpush");
-
-const asArr = (v) => {
-  if (Array.isArray(v)) return v;
-  if (typeof v === "string" && v.trim().startsWith("[")) { try { return JSON.parse(v); } catch { return []; } }
-  return [];
-};
 
 /* Push one message to all of a user's devices; drop subscriptions the push
    service says are gone (app removed, permission revoked). */
@@ -116,18 +110,6 @@ async function notifyByName(name, payload, exceptUserId, opts) {
   } catch (e) { console.warn("notifyByName:", e.message); }
 }
 
-/* Active non-admin users who were given this social brand (by name) by an
-   admin. Users store brand ids, so resolve the name first. */
-async function brandUserIds(brandName) {
-  const brand = await SocialClient.findOne({ where: { name: brandName } });
-  if (!brand) return [];
-  const id = String(brand.id);
-  const users = await User.findAll({ where: { active: true } });
-  return users
-    .filter((u) => !rolesOf(u).includes("admin") && asArr(u.socialClients).map(String).includes(id))
-    .map((u) => u.id);
-}
-
 /* Write already-built notification rows (e.g. daily reminders) and push them. */
 async function createRows(rows) {
   if (!rows.length) return;
@@ -135,4 +117,4 @@ async function createRows(rows) {
   pushLater(saved.map((r) => r.toJSON()));
 }
 
-module.exports = { notifyRoles, notifyAdmins, notifyUsers, notifyByName, brandUserIds, createRows, pushToUser };
+module.exports = { notifyRoles, notifyAdmins, notifyUsers, notifyByName, createRows, pushToUser };
