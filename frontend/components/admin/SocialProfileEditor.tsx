@@ -1,5 +1,5 @@
 "use client";
-import { DisclosureSummary, WorkspaceHero } from "@/components/admin/Workspace";
+import { WorkspaceHero } from "@/components/admin/Workspace";
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
@@ -13,8 +13,6 @@ import "./social-profile-editor.css";
 
 type Platform = "facebook" | "instagram";
 type Profile = Record<string, any>;
-type ReadinessAction = { id: string; label: string; state: string; detail: string; url?: string };
-type ProfileReadiness = { actions: ReadinessAction[]; scopes?: string[] | null; checkedAt?: string | null };
 type Account = { client: string; pageId?: string; igUserId?: string; igUsername?: string; status: string };
 const fields = ["about", "description", "website", "phone", "email"] as const;
 const instagramEditUrl = "https://www.instagram.com/accounts/edit/";
@@ -44,9 +42,7 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
   const [detailsBusy, setDetailsBusy] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const leavingForMeta = useRef(false);
-  const [readiness, setReadiness] = useState<ProfileReadiness | null>(null);
-  const [readinessError, setReadinessError] = useState(false);
-  const access = readiness?.actions.find(action => action.id === "edit")?.state ?? "unknown";
+  const [missingPagePermission, setMissingPagePermission] = useState(false);
   const generation = useRef(0);
   const dirty = platform === "facebook" && !!profile && fields.some(k => form[k] !== (profile[k] || ""));
   const studio = `/dashboard/social-studio?tab=channels&brand=${encodeURIComponent(client)}`;
@@ -71,17 +67,21 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
       return;
     }
     const id = ++generation.current;
-    setStatus("loading"); setProfile(null); setError(""); setNotice(""); setReadiness(null); setReadinessError(false); setPhotoBusy(false); setDetailsBusy(false);
+    setStatus("loading"); setProfile(null); setError(""); setNotice(""); setMissingPagePermission(false); setPhotoBusy(false); setDetailsBusy(false);
     if (!onClose && !workspace) window.history.replaceState(null, "", `?brand=${encodeURIComponent(client)}&platform=${platform}`);
     api.channelProfile(client, platform).then(p => {
       if (generation.current !== id) return;
       setProfile(p); setForm(draft(p)); setStatus("ready");
     }).catch(e => { if (generation.current === id) { setError(e.message); setStatus("error"); } });
-    api.channelCapabilities(client, platform).then(r => {
-      if (generation.current === id) setReadiness({ ...r, actions: r.actions || [] });
-    }).catch(() => { if (generation.current === id) setReadinessError(true); });
+    if (admin && platform === "facebook") {
+      api.channelCapabilities(client, platform).then(r => {
+        if (generation.current !== id) return;
+        setMissingPagePermission(r.actions?.some((action: { id: string; state: string }) =>
+          action.id === "edit" && action.state === "missing_permission") ?? false);
+      }).catch(() => { /* Saving reports any Meta access errors directly. */ });
+    }
     return () => { generation.current++; };
-  }, [client, platform, accountsLoaded]);
+  }, [client, platform, accountsLoaded, admin]);
   useEffect(() => {
     const guard = (e: BeforeUnloadEvent) => { if (dirty && !leavingForMeta.current) { e.preventDefault(); e.returnValue = ""; } };
     window.addEventListener("beforeunload", guard); return () => window.removeEventListener("beforeunload", guard);
@@ -183,7 +183,7 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
   const content = <div className={workspace ? "social-profiles sp-inline" : "social-profiles"}>
     {!workspace && <WorkspaceHero eyebrow="SOCIAL MEDIA" title="Social profiles" description="Update connected profiles without leaving your workspace." headingLevel={onClose ? 2 : 1} compact={Boolean(onClose)} actions={<> {onClose ? <button className="adm-btn ghost" type="button" disabled={busy} onClick={close} aria-label="Close profile editor">Close</button> : <Link className="adm-btn ghost" href={studio}>Manage connections</Link>} </>} />
     }
-    {workspace && <div><h2>Connected profiles</h2><p className="adm-hint">Review profile details and Meta permissions.</p></div>}
+    {workspace && <div><h2>Connected profiles</h2></div>}
     <div className="sp-controls">
       {!workspace && <div className="adm-field sp-brand"><label htmlFor="profile-brand">Brand</label><Select id="profile-brand" ariaLabel="Brand" value={client} disabled={busy} onChange={brand => switchTo(brand, platform)} options={accounts.map(a => a.client)} /></div>}
       <div role="group" aria-label="Platform" className="sp-platforms">{(["facebook", "instagram"] as const).map(p => <button className={"adm-btn " + (platform === p ? "primary" : "ghost")} key={p} aria-pressed={platform === p} disabled={busy || !client} onClick={() => switchTo(client, p)}>{p === "facebook" ? "Facebook" : "Instagram"}</button>)}</div>
@@ -235,7 +235,7 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
       </section> : <section><h2>Page details</h2>
         <form onSubmit={e => { e.preventDefault(); void save(); }}>
           {!admin && <p className="sp-note">An administrator can update these Page details.</p>}
-          {admin && access !== "permission_granted" && <p className="sp-note">Meta has not confirmed Page editing access. Approve the permission in Meta, then reconnect this brand.</p>}
+          {admin && missingPagePermission && <p className="sp-note">This connection is missing permission to edit Page details. Approve the permission in Meta, then reconnect this brand.</p>}
           {fields.map(k => <div className="adm-field" key={k}><label htmlFor={`profile-${k}`}>{k.charAt(0).toUpperCase() + k.slice(1)}</label>{k === "description" ? <textarea id={`profile-${k}`} rows={4} maxLength={5000} value={form[k] || ""} disabled={!admin || busy} onChange={e => setForm({ ...form, [k]: e.target.value })}/> : <input id={`profile-${k}`} type={k === "email" ? "email" : k === "website" ? "url" : "text"} maxLength={255} value={form[k] || ""} disabled={!admin || busy} onChange={e => setForm({ ...form, [k]: e.target.value })}/>}</div>)}
           <div className="adm-drawer-actions">
             {onClose && <button className="adm-btn ghost" type="button" disabled={busy} onClick={close}>Cancel</button>}
@@ -244,21 +244,6 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
         </form>
       </section>}
     </div>}
-    {workspace && client && <details className="sp-readiness" key={`${client}-${platform}`}>
-      <DisclosureSummary>Readiness &amp; actions</DisclosureSummary>
-      {readinessError ? <p>Could not verify Meta permissions. Check the brand’s connection.</p>
-        : !readiness ? <LoadingRegion label="Checking Meta permissions…"><Shimmer width="55%" height={16} /></LoadingRegion>
-        : !readiness.actions.length ? <p>No permission details available.</p>
-        : <dl>{readiness.actions.map(action => <div key={action.id}>
-          <dt>{action.label}</dt><dd><strong>{action.state.replace(/_/g, " ")}</strong> · {action.detail}
-            {action.url && <a className="adm-btn ghost" href={action.url} target="_blank" rel="noopener noreferrer">{action.id === "edit" ? "Edit on platform" : "Open profile"}</a>}
-          </dd>
-        </div>)}</dl>}
-      {readiness?.scopes && <details className="sp-grants"><DisclosureSummary>Granted scopes</DisclosureSummary>
-        <p>{readiness.scopes.length ? readiness.scopes.join(", ") : "No scopes reported."}</p>
-      </details>}
-      <button type="button" className="adm-btn ghost" onClick={workspace.onConnections}>Open channel connections</button>
-    </details>}
   </div>;
   return onClose && typeof document !== "undefined" ? createPortal(<div className="adm-overlay" onMouseDown={event => { if (event.target === event.currentTarget) void close(); }}><div className="adm-drawer sp-drawer" role="dialog" aria-modal="true" aria-label="Edit social profile" tabIndex={-1} ref={drawer}>{content}</div></div>, document.body) : <main>{content}</main>;
 }

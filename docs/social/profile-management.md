@@ -12,7 +12,7 @@ Confirm where the app is missing:
 - Another Business Portfolio's Apps list: check Business Settings → Accounts → Apps, app ownership and shared/requested access using the app ID. Connecting a client Page does not make that business an app owner.
 - Other clients cannot connect through Finvera: check publishing status where applicable, App Review/Permissions and features or the relevant use case, approved access for external users, business verification requirements, and the connecting person's access to the selected Page and Instagram account. Reconnect after permissions change. Giving every client app administrator access is not a production onboarding solution.
 
-Finvera requests `pages_manage_metadata` by default for Facebook Page detail editing. After Meta approves access for the applicable users, reconnect the brand with an account that can manage the Page. Open Readiness & actions to verify the connected Page received the grant. Meta also checks whether the requested field can be updated through the configured Graph API version.
+Finvera requests `pages_manage_metadata` by default for Facebook Page detail editing. After Meta approves access for the applicable users, reconnect the brand with an account that can manage the Page. In the Social workspace, open **Studio → Channels → Readiness & actions** on the Facebook channel to verify the grant. Meta also checks whether the requested field can be updated through the configured Graph API version.
 
 App review, ownership, mode and verification cannot be confirmed from repository code. Check privately in https://developers.facebook.com/apps/ and https://business.facebook.com/settings/.
 
