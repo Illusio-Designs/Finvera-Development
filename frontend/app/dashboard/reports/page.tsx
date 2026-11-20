@@ -1,6 +1,8 @@
 "use client";
 import {reportCaptureAction} from "@/lib/editorMachine";
 import {useEffect,useRef,useState} from 'react';
+import {HugeiconsIcon} from '@hugeicons/react';
+import {Image01Icon} from '@hugeicons/core-free-icons';
 import {reportsApi} from '@/lib/adminApi';
 import {type ReportData,type ReportPerson,type SavedReport,numberOrNA as fmt,indiaTime,reportSheets,printableReport,clientFacingReport} from '@/lib/socialReports';
 import {ROLE_LABELS} from '@/lib/permissions';
@@ -53,8 +55,64 @@ export default function SocialReports(){
 function ReportBody({data,onPerson}:{data:ReportData;onPerson:(p:ReportPerson)=>void}){const t=data.totals;
  if(data.kind==='team'){const weeks=new Map<string,{onTime:number;late:number;undated:number}>();for(const p of data.people||[])for(const row of p.completed){const week=Math.floor((Date.parse(row.day)-Date.parse(data.period.from))/604800000);const key=new Date(Date.parse(data.period.from)+week*604800000).toISOString().slice(0,10);const w=weeks.get(key)||{onTime:0,late:0,undated:0};w[row.onTime===null?'undated':row.onTime?'onTime':'late']++;weeks.set(key,w)}const bars=[...weeks].sort(([a],[b])=>a.localeCompare(b));const max=Math.max(1,...bars.map(([,v])=>v.onTime+v.late+v.undated));return <><div className="sr-metrics"><Metric label="Completed work" value={fmt(t.delivered)} note="Completed handoffs in the selected period" primary/><Metric label="On-time completion" value={t.onTime===null?'Not available':`${t.onTime}%`} note={`${t.dated} dated completions · ${t.undated} undated`}/><Metric label="Open work now" value={fmt(t.open)} note="Current assignments, not a period total"/><Metric label="Overdue now" value={fmt(t.overdue)} note="Open work past the go-live deadline"/></div><div className="sr-split"><Panel title="Delivery rhythm" note="Completed handoffs by week in this report period"><div className="sr-chart">{bars.map(([day,v])=><div key={day}><div className="sr-bars" aria-label={`${day}: ${v.onTime} on time, ${v.late} late, ${v.undated} undated`}><i style={{height:Math.max(0,120*v.onTime/max)}}/><i className="late" style={{height:Math.max(0,120*v.late/max)}}/><i className="undated" style={{height:Math.max(0,120*v.undated/max)}}/></div><small>{day.slice(5)}</small></div>)}{!bars.length&&<p>No completed handoffs in this period.</p>}</div><p className="sr-note">Blue: on time · amber: late · grey: undated. Starting, scheduling and reassignment are not completions.</p></Panel><Panel title="Where work is waiting" note="Current assignment snapshot"><div className="sr-stages">{data.stages?.map(row=><div key={row.status}><span>{STAGES[row.status]}</span><i><b style={{width:`${t.open?100*row.count/t.open:0}%`}}/></i><strong>{row.count}</strong></div>)}</div></Panel></div><Panel title="People & progress" note={data.scope==='own'?'Your work in your authorized brands.':'Includes inactive contributors with historical work.'}><div className="sr-table-scroll"><table><thead><tr>{['Team member','Recorded assigned*','Completed','On time','Open now','Overdue now','Hours',''].map((h,i)=><th key={i}>{h}</th>)}</tr></thead><tbody>{data.people?.map(p=><tr key={p.id}><td><b>{p.name}</b><small>{p.role}{!p.active?' · Inactive':''}</small></td><td>{fmt(p.assigned)}</td><td>{p.delivered}</td><td>{p.onTime===null?'Not available':`${p.onTime}%`}</td><td>{p.open}</td><td><span className={p.overdue?'sr-pill amber':''}>{p.overdue}</span></td><td>{p.hours} h</td><td><button className="sr-text-btn" onClick={()=>onPerson(p)} aria-label={`View work for ${p.name}`}>View work ↗</button></td></tr>)}{!data.people?.length&&<tr><td colSpan={8}>No people match this report.</td></tr>}</tbody></table></div></Panel><p className="sr-note">* Distinct recorded assignments in this period; unavailable when history does not cover the full period. Assignment and completion dates differ. Open/overdue are current snapshots. Go-live date/time determines on-time completion; legacy date-only events keep day-level precision. Credit stays with the outgoing assignee.</p></>}
  const changes=(data.channels||[]).map(c=>c.followerChange);const followerChange=changes.length&&changes.every(v=>typeof v==='number')?changes.reduce((a,b)=>a+b,0):null;
- return <><WorkspaceStats items={[{label:'Posts published',value:fmt(t.published),detail:'Unique confirmed posts published in this month',accent:true},{label:'Reported interactions',value:fmt(t.interactions),detail:'Available likes + comments + shares'},{label:'Follower change',value:followerChange===null?'Not available':`${followerChange>0?'+':''}${fmt(followerChange)}`,detail:'Comparable channel snapshots; not unique people'},{label:'Channel publications',value:fmt(t.publications),detail:'Confirmed Facebook and Instagram publications'}]}/><div className="sr-split"><Panel title="Channel snapshot" note="Unique posts and channel publications have different counts."><div className="sr-channels">{data.channels?.map(c=><article key={c.platform}><span className="sr-channel-icon">{c.platform==='instagram'?'◎':'f'}</span><div><b>{c.platform==='instagram'?'Instagram':'Facebook'}</b><small>Reported interactions: {fmt(c.metrics.interactions)}</small><small>Follower snapshots: {c.baselineDay||"Not available"} → {c.latestDay||"Not available"}</small></div><strong>{c.publications}<small>publications</small></strong></article>)}</div></Panel><Panel title="Data coverage" note="Unavailable metrics stay unavailable."><div className="sr-coverage"><b>{data.coverage.reportedRows} of {data.coverage.publicationRows} publication rows have metrics</b><p>Last reported metrics: {indiaTime(data.refreshedAt)} IST</p><p>Likes: {t.coverage.likes} rows · comments: {t.coverage.comments} · shares: {t.coverage.shares}</p></div></Panel></div><ClientContentHighlights data={data}/><Panel title="Published content" note="Only confirmed publications in this reporting period."><div className="sr-table-scroll"><table><thead><tr>{['Content','Channel','Published · IST','Likes','Comments','Shares','Reported interactions',''].map((h,i)=><th key={i}>{h}</th>)}</tr></thead><tbody>{data.posts?.map(p=><tr key={`${p.id}-${p.channel}`}><td><div className="sr-content-cell"><span className="sr-post-thumb">{p.picture?<img src={p.picture} alt={p.title} loading="lazy"/>:<span>{(p.format||"Post").slice(0,1).toUpperCase()}</span>}</span><span><b>{p.title}</b><small>{p.format}</small></span></div></td><td>{p.channel}</td><td>{indiaTime(p.publishedAt)}</td><td>{fmt(p.likes)}</td><td>{fmt(p.comments)}</td><td>{fmt(p.shares)}</td><td>{fmt(p.interactions)}</td><td>{p.url&&<a href={p.url} target="_blank" rel="noopener noreferrer">View post ↗</a>}</td></tr>)}{!data.posts?.length&&<tr><td colSpan={8}>No confirmed publications in this period.</td></tr>}</tbody></table></div></Panel><p className="sr-note">{data.coverage.metricTimeBasis} Missing values are not zero. Reach is not summed across channels. Follower account totals may include the same person on more than one channel.</p></>;
+ return <><WorkspaceStats items={[{label:'Posts published',value:fmt(t.published),detail:'Unique confirmed posts published in this month',accent:true},{label:'Reported interactions',value:fmt(t.interactions),detail:'Available likes + comments + shares'},{label:'Follower change',value:followerChange===null?'Not available':`${followerChange>0?'+':''}${fmt(followerChange)}`,detail:'Comparable channel snapshots; not unique people'},{label:'Channel publications',value:fmt(t.publications),detail:'Confirmed Facebook and Instagram publications'}]}/><div className="sr-split"><Panel title="Channel snapshot" note="Unique posts and channel publications have different counts."><div className="sr-channels">{data.channels?.map(c=><article key={c.platform}><span className="sr-channel-icon">{c.platform==='instagram'?'◎':'f'}</span><div><b>{c.platform==='instagram'?'Instagram':'Facebook'}</b><small>Reported interactions: {fmt(c.metrics.interactions)}</small><small>Follower snapshots: {c.baselineDay||"Not available"} → {c.latestDay||"Not available"}</small></div><strong>{c.publications}<small>publications</small></strong></article>)}</div></Panel><Panel title="Meta data coverage"><div className="sr-coverage"><b>{data.coverage.reportedRows} of {data.coverage.publicationRows} publication rows have metrics</b><p>Last Meta refresh: {data.refreshedAt ? `${indiaTime(data.refreshedAt)} IST` : "Pending"}</p><p>Likes: {t.coverage.likes} rows · comments: {t.coverage.comments} · shares: {t.coverage.shares}</p></div></Panel></div><ClientContentHighlights data={data}/><PublishedContent posts={data.posts || []}/><p className="sr-note">{data.coverage.metricTimeBasis} Follower account totals may include the same person on more than one channel.</p></>;
 }
+type Publication = {
+ id: number;
+ channel: 'facebook' | 'instagram';
+ title: string;
+ format?: string | null;
+ publishedAt: string;
+ picture?: string | null;
+ url?: string | null;
+ likes?: number | null;
+ comments?: number | null;
+ shares?: number | null;
+ interactions?: number | null;
+};
+
+const publicationMetrics = [
+ ['likes', 'Likes'],
+ ['comments', 'Comments'],
+ ['shares', 'Shares'],
+ ['interactions', 'Reported interactions'],
+] as const;
+
+function PublicationThumbnail({src}: {src?: string | null}) {
+ const [failed, setFailed] = useState(false);
+ return <span className="sr-post-thumb" aria-hidden="true">
+  {src && !failed ? <img src={src} alt="" loading="lazy" onError={() => setFailed(true)}/> :
+   <HugeiconsIcon icon={Image01Icon} size={20} strokeWidth={1.5}/>}
+ </span>;
+}
+
+function PublishedContent({posts}: {posts: Publication[]}) {
+ return <Panel title="Published content" note="Each row shows one channel publication. A dash means Meta did not return that metric.">
+  {posts.length ? <ul className="sr-publications" role="list">
+   {posts.map(post => <li className="sr-publication" key={`${post.id}-${post.channel}`}>
+    <div className="sr-publication-content">
+     <PublicationThumbnail key={post.picture} src={post.picture}/>
+     <div>
+      <strong>{post.title}</strong>
+      {post.format && <small>{post.format}</small>}
+      {post.url && <a href={post.url} target="_blank" rel="noopener noreferrer" aria-label={`View ${post.title} on ${post.channel === 'instagram' ? 'Instagram' : 'Facebook'}`}>View post ↗</a>}
+     </div>
+    </div>
+    <div className="sr-publication-channel">
+     <span className={`sr-pill sr-platform-${post.channel}`}>{post.channel === 'instagram' ? 'Instagram' : 'Facebook'}</span>
+     <time dateTime={post.publishedAt}>{indiaTime(post.publishedAt)} IST</time>
+    </div>
+    <dl className="sr-publication-metrics">
+     {publicationMetrics.map(([field, label]) => <div key={field}>
+      <dt>{label}</dt>
+      <dd>{post[field] == null ? <><span aria-hidden="true">—</span><span className="sr-publication-sr-only">Unavailable</span></> : fmt(post[field])}</dd>
+     </div>)}
+    </dl>
+   </li>)}
+  </ul> : <p className="sr-note">No confirmed publications in this period.</p>}
+ </Panel>;
+}
+
 function ClientContentHighlights({data}:{data:ReportData}) {
  const best=(data.posts||[]).filter(p=>typeof p.interactions==='number').slice().sort((a,b)=>b.interactions-a.interactions).slice(0,3);
  const formats=new Map<string,number>();

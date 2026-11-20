@@ -58,7 +58,8 @@ async function refreshMetrics(jobs, accounts, max = 30) {
   await pool(stale, 4, async (j) => {
     const metrics = await meta.fetchPostMetrics(accBy.get(j.client), j.platform, j.remoteId);
     // A denied or failed read returns no data; retain the last successful snapshot.
-    if (metrics && Object.keys(metrics).length) await j.update({ metrics, metricsAt: new Date() });
+    const received = Object.fromEntries(Object.entries(metrics || {}).filter(([, value]) => value != null));
+    if (Object.keys(received).length) await j.update({ metrics: { ...asObj(j.metrics), ...received }, metricsAt: new Date() });
   });
 }
 

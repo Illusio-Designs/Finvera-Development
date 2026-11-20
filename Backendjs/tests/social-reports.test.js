@@ -3,6 +3,22 @@ test('report periods use India-time month boundaries and reject future/invalid m
 test('client reports deduplicate publications, retain missing metrics and exclude private fields',()=>{const period=periodOf('2026-10',new Date('2026-11-07')),base={postId:1,status:'published',publishedAt:'2026-10-06T05:00:00Z',metricsAt:'2026-11-07T05:00:00Z',error:'secret',pageToken:'secret'};const r=clientData({brand:'A',period,posts:[{id:1,theme:'Content',format:'reel',status:'posted',postDate:'2026-10-06',assigneeId:99,timeLog:['private']}],jobs:[{...base,platform:'instagram',metrics:{likes:5,comments:2}},{...base,platform:'instagram',metrics:{likes:5,comments:2}},{...base,platform:'facebook',metrics:{}},{...base,postId:2,platform:'instagram',status:'failed'}],accounts:[],followers:[]});assert.equal(r.totals.published,1);assert.equal(r.totals.publications,2);assert.equal(r.totals.interactions,7);assert.equal(r.totals.shares,null);assert.equal(r.coverage.reportedRows,1);assert.equal(r.totals.reach,null);for(const key of ['assigneeId','timeLog','pageToken','secret'])assert.equal(JSON.stringify(r).includes(key),false);assert.equal(metricSummary([]).interactions,null);});
 test('CSV text is quoted and spreadsheet formulas are neutralized',()=>{const csv=csvReport({kind:'client',posts:[{title:'=2+3',channel:'instagram',publishedAt:'2026-10-01T00:00:00Z',likes:0,comments:null}]});assert.ok(csv.includes("\"'=2+3\""));assert.ok(csv.includes('Not available'));assert.ok(csv.includes('"0"'));});
 
+test('client report reuses artwork only from confirmed publications of the same post', () => {
+ const period = periodOf('2026-10', new Date('2026-11-07'));
+ const base = {postId:1,status:'published',publishedAt:'2026-10-06T05:00:00Z'};
+ const picture = 'https://scontent.cdninstagram.com/sample.jpg';
+ const report = clientData({brand:'A', period, posts:[], accounts:[], followers:[], jobs:[
+  {...base,platform:'instagram',metrics:{picture,likes:2}},
+  {...base,platform:'facebook',metrics:{url:'https://www.facebook.com/123'},url:'https://www.facebook.com/456'},
+  {...base,postId:2,platform:'facebook',metrics:{}},
+  {...base,postId:2,platform:'instagram',status:'failed',metrics:{picture}},
+ ]});
+ assert.equal(report.posts[1].picture, picture);
+ assert.equal(report.posts[1].likes, null);
+ assert.equal(report.posts[1].url, 'https://www.facebook.com/123');
+ assert.equal(report.posts[2].picture, null);
+});
+
 test('preview consistency hashes ignore capture time and detect changed metrics',()=>{const{fingerprint}=require('../src/utils/socialReports');const data={kind:'client',totals:{published:2},generatedAt:'old'};assert.equal(fingerprint(data),fingerprint({...data,generatedAt:'new'}));assert.notEqual(fingerprint(data),fingerprint({...data,totals:{published:3}}));});
 
 test('client snapshots and CSV exclude legacy internal fields and unpublished/out-of-period content',()=>{
