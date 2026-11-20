@@ -239,10 +239,27 @@ async function fetchPostMetrics(acc, platform, remoteId) {
   const token = decrypt(acc.pageToken);
   if (platform === "instagram") {
     const m = await graph("GET", `/${remoteId}`, { fields: "like_count,comments_count,media_type,media_url,thumbnail_url,permalink", access_token: token });
-    return { likes: m.like_count ?? 0, comments: m.comments_count ?? 0, picture: m.thumbnail_url || m.media_url || null, url: m.permalink || null };
+    return {
+      ...(m.like_count != null && { likes: m.like_count }),
+      ...(m.comments_count != null && { comments: m.comments_count }),
+      picture: m.thumbnail_url || (m.media_type !== "VIDEO" ? m.media_url : null),
+      url: m.permalink || null,
+    };
   }
-  const m = await graph("GET", `/${remoteId}`, { fields: "reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0),shares,full_picture,permalink_url", access_token: token });
-  return { likes: m.reactions?.summary?.total_count ?? 0, comments: m.comments?.summary?.total_count ?? 0, shares: m.shares?.count ?? 0, picture: m.full_picture || null, url: m.permalink_url || null };
+  const fields = ["reactions.limit(0).summary(true)", "comments.limit(0).summary(true)", "shares", "full_picture,permalink_url"];
+  const read = (fields) => graph("GET", `/${remoteId}`, { fields, access_token: token });
+  let m;
+  try {
+    m = await read(fields.join(","));
+  } catch (error) {
+    // A field denied by Meta can fail the entire request. Keep the fields the Page can read.
+    if (![10, 100, 200].includes(Number(error.meta?.code))) throw error;
+    const results = await Promise.allSettled(fields.map(read));
+    m = Object.assign({}, ...results.filter(result => result.status === "fulfilled").map(result => result.value));
+    if (!Object.keys(m).length) throw error;
+  }
+  const values = { likes: m.reactions?.summary?.total_count, comments: m.comments?.summary?.total_count, shares: m.shares?.count, picture: m.full_picture, url: m.permalink_url };
+  return Object.fromEntries(Object.entries(values).filter(([, value]) => value != null));
 }
 
 /* Full profile of one channel, for the Profile panel. */
