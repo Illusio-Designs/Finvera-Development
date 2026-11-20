@@ -3,7 +3,7 @@ import { DisclosureSummary, WorkspaceHero } from "@/components/admin/Workspace";
 import Link from "next/link";
 import SocialPostPreview from "@/components/admin/SocialPostPreview";
 import SocialProfileEditor from "@/components/admin/SocialProfileEditor";
-import PageLoading, { LoadingRegion, Shimmer } from "@/components/admin/PageLoading";
+import { LoadingRegion, Shimmer } from "@/components/admin/PageLoading";
 import { useShell } from "@/components/admin/shell/ShellContext";
 import "./social-workspace.css";
 import { useWorkflowDialog, useImportWizard } from "@/lib/useWorkflowDialog";
@@ -310,19 +310,20 @@ function sheetToPosts(rows: string[][], client: string): Partial<Post>[] {
 
 function initials(name = "") { return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"; }
 
-export default function SocialCalendarPage() {
-  return <Suspense fallback={<PageLoading label="Loading content calendar…" variant="board" count={4} />}>
-    <SocialCalendar />
-  </Suspense>;
+type CalendarLink = { post: string | null; assignedToMe: boolean };
+function CalendarLinkReader({ onChange }: { onChange: (link: CalendarLink) => void }) {
+  const params = useSearchParams();
+  const post = params.get("post");
+  const assignedToMe = params.get("assigned") === "me";
+  useEffect(() => onChange({ post, assignedToMe }), [post, assignedToMe, onChange]);
+  return null;
 }
 
-function SocialCalendar() {
+export default function SocialCalendar() {
   const { roles, rolesReady, me } = useShell();
   const limited = !roles.includes("admin");
   const meId = me?.id ?? null;
-  const params = useSearchParams();
-  const linkedPost = params.get("post");
-  const assignedToMe = params.get("assigned") === "me";
+  const [{ post: linkedPost, assignedToMe }, setCalendarLink] = useState<CalendarLink>({ post: null, assignedToMe: false });
   const [profileOpen, setProfileOpen] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
   const [clientRows, setClientRows] = useState<Client[]>([]);
@@ -359,7 +360,7 @@ function SocialCalendar() {
     try {
       const result = await api.create("social-posts/reassign-pending", { fromId: move.from === "unassigned" ? null : Number(move.from), toId: Number(move.to), brand: move.brand, role: move.role, preview, ...(!preview ? { postIds: move.posts?.map((p) => p.id) } : {}) });
       if (preview) setBulkMove({ ...move, posts: result.posts, skipped: result.skipped, busy: false });
-      else { setBulkMove(null); await load(); window.dispatchEvent(new Event("fv-badges")); toast(`${result.transferred} pending posts reassigned`, "ok"); }
+      else { setBulkMove(null); await load(); window.dispatchEvent(new Event("fv-badges")); toast(`${result.transferred} pending ${result.transferred === 1 ? "post" : "posts"} reassigned`, "ok"); }
     } catch (e: any) {
       setBulkMove({ ...move, posts: null, busy: false });
       toast(preview ? "Couldn't preview pending work" : "Transfer not completed", "err", { description: e.message });
@@ -1633,6 +1634,7 @@ function SocialCalendar() {
 
   return (
     <div className="cal-page">
+      <Suspense fallback={null}><CalendarLinkReader onChange={setCalendarLink} /></Suspense>
       <WorkspaceHero eyebrow="Social media" title={<>{limited ? "My work" : "Content calendar"}</>} description={<>{limited ? "Your brands, your next steps, and the work ready to move forward." : "Plan it, make it, review it, publish it. Every brand, in one clear flow."}</>} actions={<> <div className="cal-head-actions">
             <Link className="cal-btn" href={`/dashboard/social-studio?tab=report${client ? `&brand=${encodeURIComponent(client)}` : ""}${month ? `&month=${month}` : ""}`}>Monthly brand report</Link>
             <button type="button" className="cal-btn" onClick={() => setProfileOpen(true)}>Social profiles</button>
@@ -1747,10 +1749,10 @@ function SocialCalendar() {
               <div className="adm-field"><label>Work type</label><Select ariaLabel="Transfer work type" value={bulkMove.role} onChange={(role) => setBulkMove({ ...bulkMove, role, posts: null })} options={[{ value: "", label: "All eligible work" }, ...(["graphic", "video", "social"] as Role[]).map((role) => ({ value: role, label: ROLE_META[role].label }))]} /></div>
             </fieldset>
             <p className="adm-hint">Use Unassigned for older posts without an owner. The replacement must have the role for each post’s current stage.</p>
-            {bulkMove.posts && <div className="cal-vsec"><h4>{bulkMove.posts.length} posts to transfer</h4><p>{bulkMove.skipped} excluded by work type, role or publishing state.</p><ul>{bulkMove.posts.map((p) => <li key={p.id}>{p.theme} · {p.client} · {STAGES.find((s) => s.id === p.status)?.title}</li>)}</ul></div>}
+            {bulkMove.posts && <div className="cal-vsec"><h4>{bulkMove.posts.length} {bulkMove.posts.length === 1 ? "post" : "posts"} to transfer</h4><p>{bulkMove.skipped} excluded by work type, role or publishing state.</p><ul>{bulkMove.posts.map((p) => <li key={p.id}>{p.theme} · {p.client} · {STAGES.find((s) => s.id === p.status)?.title}</li>)}</ul></div>}
             <div className="adm-drawer-actions cal-actions">
               <button type="button" className="cal-btn" disabled={bulkMove.busy || !bulkMove.from || !bulkMove.to || bulkMove.from === bulkMove.to} onClick={() => transferPending(true)}>{bulkMove.busy ? "Working…" : "Preview pending posts"}</button>
-              <button type="button" className="cal-primary" disabled={bulkMove.busy || !bulkMove.posts?.length} onClick={() => transferPending(false)}>Transfer {bulkMove.posts?.length || 0} pending posts</button>
+              <button type="button" className="cal-primary" disabled={bulkMove.busy || !bulkMove.posts?.length} onClick={() => transferPending(false)}>Transfer {bulkMove.posts?.length || 0} pending {bulkMove.posts?.length === 1 ? "post" : "posts"}</button>
             </div>
           </div>
         </div>

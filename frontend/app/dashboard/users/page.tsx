@@ -105,10 +105,14 @@ function Drawer({ title, sub, onClose, children, wide }: { title: string; sub?: 
   useEffect(() => {
     const before = document.activeElement as HTMLElement | null, overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const focusable = () => Array.from(panel.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled):not([type=hidden]),textarea:not(:disabled),select:not(:disabled),a[href],[tabindex="0"]') || []).filter(e => e.getClientRects().length);
+    const focusable = () => Array.from(panel.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled):not([type=hidden]),textarea:not(:disabled),select:not(:disabled),a[href],[tabindex="0"]') || []).filter(e => e.tabIndex >= 0 && e.getClientRects().length);
     (panel.current?.querySelector<HTMLElement>('[autofocus]') || focusable()[0] || panel.current)?.focus();
     const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); closeRef.current(); }
+      if (e.defaultPrevented) return;
+      if (e.key === "Escape") {
+        if ((e.target as HTMLElement | null)?.closest(".cselect.open")) return;
+        e.preventDefault(); closeRef.current();
+      }
       if (e.key !== "Tab") return;
       const list = focusable(), first = list[0], last = list[list.length - 1];
       if (!first) { e.preventDefault(); panel.current?.focus(); }
