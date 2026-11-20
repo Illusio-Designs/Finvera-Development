@@ -1,5 +1,6 @@
 "use client";
 import { useDisclosure } from "@/lib/useDisclosure";
+import { positionPopover } from "@/lib/positionPopover";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -136,31 +137,9 @@ export default function DatePicker({
   useEffect(() => {
     if (!open) return;
     const panel = popover.current;
-    if (!panel || !trigger.current) return;
-    // The top layer keeps the picker visible inside scrolling drawers and filters.
-    panel.showPopover?.();
-    const viewport = window.visualViewport;
-    function position() {
-      const anchor = trigger.current?.getBoundingClientRect();
-      if (!anchor || !panel) return;
-      const left = viewport?.offsetLeft ?? 0;
-      const top = viewport?.offsetTop ?? 0;
-      const width = viewport?.width ?? document.documentElement.clientWidth;
-      const height = viewport?.height ?? window.innerHeight;
-      const gap = 8;
-      const panelWidth = Math.min(timeOnly ? 248 : 288, width - 2 * gap);
-      const below = top + height - anchor.bottom - 2 * gap;
-      const above = anchor.top - top - 2 * gap;
-      const opensUp = below < panel.scrollHeight && above > below;
-      Object.assign(panel.style, {
-        width: `${panelWidth}px`,
-        left: `${Math.max(left + gap, Math.min(anchor.left, left + width - panelWidth - gap))}px`,
-        top: opensUp ? "auto" : `${Math.max(top + gap, anchor.bottom + gap)}px`,
-        bottom: opensUp ? `${Math.max(gap, window.innerHeight - anchor.top + gap)}px` : "auto",
-        maxHeight: `${Math.max(0, opensUp ? above : below)}px`,
-      });
-    }
-    position();
+    const button = trigger.current;
+    if (!panel || !button) return;
+    const cleanup = positionPopover(panel, button, { width: timeOnly ? 248 : 288 });
     function handlePointer(event: PointerEvent) {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     }
@@ -172,17 +151,10 @@ export default function DatePicker({
     }
     document.addEventListener("pointerdown", handlePointer);
     document.addEventListener("keydown", handleKey, true);
-    window.addEventListener("resize", position);
-    window.addEventListener("scroll", position, true);
-    viewport?.addEventListener("resize", position);
-    viewport?.addEventListener("scroll", position);
     return () => {
+      cleanup();
       document.removeEventListener("pointerdown", handlePointer);
       document.removeEventListener("keydown", handleKey, true);
-      window.removeEventListener("resize", position);
-      window.removeEventListener("scroll", position, true);
-      viewport?.removeEventListener("resize", position);
-      viewport?.removeEventListener("scroll", position);
     };
   }, [open, timeOnly]);
 

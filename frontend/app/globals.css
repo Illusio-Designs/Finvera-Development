@@ -1408,11 +1408,14 @@ section{position:relative;z-index:2}
 .cselect-caret{color:var(--muted-2);flex:none;transition:transform .25s var(--ease)}
 .cselect.open .cselect-caret{transform:rotate(180deg)}
 .cselect.disabled{opacity:.6;pointer-events:none}
-.cselect-drop{position:absolute;left:0;top:calc(100% + 6px);z-index:60;width:100%;list-style:none;margin:0;
+.cselect-drop{position:fixed;inset:auto;z-index:60;box-sizing:border-box;list-style:none;margin:0;
   padding:6px;max-height:264px;overflow-y:auto;overscroll-behavior:contain;background:#fff;
   border:1px solid var(--line-2);border-radius:12px;box-shadow:0 26px 60px -20px rgba(23,43,92,.4);
   animation:errIn .16s var(--ease)}
 .cselect-drop li{margin:0}
+.cselect-drop:focus-visible{outline:none}
+.cselect-opt > span{min-width:0;overflow-wrap:anywhere}
+.cselect-empty{padding:10px 12px;color:var(--muted-2);font-size:var(--ui-text-sm)}
 .cselect-opt{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
   padding:10px 12px;border-radius:9px;background:transparent;cursor:pointer;text-align:left;
   font-family:inherit;font-size:14px;color:var(--ink);transition:background .12s}
