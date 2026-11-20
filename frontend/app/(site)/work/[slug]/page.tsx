@@ -5,7 +5,6 @@ import { notFound } from "next/navigation";
 import { Arrow } from "@/components/icons";
 import SiteShot from "@/components/SiteShot";
 import { getProject, getProjects } from "@/lib/api";
-import type { Project } from "@/lib/types";
 
 export async function generateStaticParams() {
   try {

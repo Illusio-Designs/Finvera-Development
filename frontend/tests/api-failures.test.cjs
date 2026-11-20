@@ -1,11 +1,28 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),path=require('node:path');
 function compile(file){return ts.transpileModule(fs.readFileSync(path.join(__dirname,'../lib',file),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;}
 const people={exports:{}};vm.runInNewContext(compile('peopleTypes.ts'),people);
-function client(fetch){let token='original-token';const location={pathname:'/dashboard',href:'/dashboard'};const storage={getItem:()=>token,removeItem:()=>{token=null;},setItem:(_k,v)=>{token=v;}};const ctx={exports:{},process:{env:{}},window:{localStorage:storage},localStorage:storage,location,fetch,File,FormData,URLSearchParams,require:name=>{if(name==='./peopleTypes')return people.exports;assert.equal(name,'./resourceMachine');return{readCacheState:()=> 'stale'};}};vm.runInNewContext(compile('adminApi.ts'),ctx);return{...ctx.exports,location,token:()=>token};}
+function client(fetch) {
+  let token = 'original-token', iconBadge = 3;
+  const location = { pathname: '/dashboard', href: '/dashboard' };
+  const storage = { getItem: () => token, removeItem: () => { token = null; }, setItem: (_k, value) => { token = value; } };
+  const badge = { exports: {}, navigator: { clearAppBadge: async () => { iconBadge = 0; } } };
+  vm.runInNewContext(compile('appBadge.ts'), badge);
+  const ctx = {
+    exports: {}, process: { env: {} }, window: { localStorage: storage }, localStorage: storage, location, fetch, File, FormData, URLSearchParams,
+    require(name) {
+      if (name === './peopleTypes') return people.exports;
+      if (name === './appBadge') return badge.exports;
+      assert.equal(name, './resourceMachine');
+      return { readCacheState: () => 'stale' };
+    },
+  };
+  vm.runInNewContext(compile('adminApi.ts'), ctx);
+  return { ...ctx.exports, location, token: () => token, iconBadge: () => iconBadge };
+}
 test('HTML gateway failures preserve HTTP status without showing HTML or a JSON parser exception',async()=>{const c=client(async()=>new Response('<html>Proxy failure</html>',{status:502}));await assert.rejects(c.api.list('leads'),e=>e.status===502&&/502/.test(e.message)&&!e.message.includes('<html>')&&!e.message.includes('JSON'));});
 test('invalid successful responses report a recoverable server-response error',async()=>{const c=client(async()=>new Response('not-json',{status:200}));await assert.rejects(c.api.list('leads'),e=>e.status===200&&/invalid response/.test(e.message));});
-test('a late 401 from an old session cannot clear a newly stored login',async()=>{let c;c=client(async()=>{c.setToken('new-token');return new Response('{"message":"Expired"}',{status:401});});await assert.rejects(c.api.list('leads'),e=>e.status===401);assert.equal(c.token(),'new-token');assert.equal(c.location.href,'/dashboard');});
-test('a current-session 401 still clears the session and redirects to login',async()=>{const c=client(async()=>new Response('{}',{status:401}));await assert.rejects(c.api.list('leads'),/Session expired/);assert.equal(c.token(),null);assert.equal(c.location.href,'/login');});
+test('a late 401 from an old session cannot clear a newly stored login',async()=>{let c;c=client(async()=>{c.setToken('new-token');return new Response('{"message":"Expired"}',{status:401});});await assert.rejects(c.api.list('leads'),e=>e.status===401);assert.equal(c.token(),'new-token');assert.equal(c.location.href,'/dashboard');assert.equal(c.iconBadge(),3);});
+test('a current-session 401 clears the session and icon badge and redirects to login',async()=>{const c=client(async()=>new Response('{}',{status:401}));await assert.rejects(c.api.list('leads'),/Session expired/);assert.equal(c.token(),null);assert.equal(c.location.href,'/login');assert.equal(c.iconBadge(),0);});
 
 test('employee uploads send multipart while existing JSON callers keep working',async()=>{
  const calls=[];

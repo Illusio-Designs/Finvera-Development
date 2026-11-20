@@ -1,6 +1,6 @@
 "use client";
 import { useDisclosure } from "@/lib/useDisclosure";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { UserIcon, UserMultipleIcon, Settings02Icon, CommandIcon, Logout03Icon } from "@hugeicons/core-free-icons";

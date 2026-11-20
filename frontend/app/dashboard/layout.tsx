@@ -17,7 +17,7 @@ import DialogHost from "@/components/admin/DialogHost";
 import CommandPalette, { type PaletteItem } from "@/components/admin/shell/CommandPalette";
 import { ShellContext, type Badges } from "@/components/admin/shell/ShellContext";
 import { NAV_GROUPS, QUICK_ACTIONS, EXTRA_PAGES, matchItem, groupOf, groupFor, type NavItem } from "@/components/admin/shell/nav";
-import { rolesCan, userRoles, dashboardRoles, ROLE_LABELS } from "@/lib/permissions";
+import { rolesCan, dashboardRoles, ROLE_LABELS } from "@/lib/permissions";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon, Menu01Icon, Cancel01Icon, SidebarLeft01Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons";
 
@@ -151,7 +151,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const canLeads = rolesCan(roles, "leads");
     if (!canContact && !canSocial && !canLeads) return;
     const legacy = async () => {
-      const today = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
       const next: Record<string, number> = {};
       if (canContact) {
         try { next["/dashboard/contact"] = (await api.listContact()).filter((m: { isRead?: boolean }) => !m.isRead).length; } catch { /* ignore */ }

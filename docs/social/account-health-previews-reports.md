@@ -2,7 +2,7 @@
 
 ## Account health
 
-Open **Social workspace → Studio → Channels** to see the Account health panel for the selected brand. Saved connection status, token expiry and channel pause status provide immediate warnings. **Check all accounts** or **Check access** on one channel runs the read-only Meta capabilities endpoint, with at most three concurrent checks and independent failure handling.
+Open **Social workspace → Studio → Channels → Connection checks**. **Check channel permissions** checks the channels in the current view, with at most three concurrent checks. Use **Check access** on an individual channel, and expand **Permission details** for its results and granted scopes. Administrators can use **Check saved logins** to refresh login status for all connected brands.
 
 Access verified requires a current token, a successful asset read and publishing permission evidence. Results become stale after 15 minutes. This does not certify app review, account eligibility or a successful media publish. Expired access, missing publishing permissions and paused publishing are separate states. Administrators can reconnect the brand; scoped members see an administrator action request.
 
@@ -14,7 +14,7 @@ Preview-only channels are explicitly identified, including disconnected or desel
 
 ## Monthly brand reports
 
-Use Monthly brand report from the calendar or Studio. Authorized brand and reporting month deep links preselect the existing Reports filters. Current months are month-to-date; all period boundaries use India time.
+Open **Monthly brand report** from **Calendar tools** or use the **Monthly report** tab in the Social workspace. The report’s **Export** menu offers Excel, CSV, and Print / save PDF. Authorized brand and reporting month deep links preselect the report filters. Current months are month-to-date and all period boundaries use India time.
 
 The client report is the default Reports view and uses the shared WorkspaceHero, WorkspaceStats, Select, dashboard buttons and fields. It shows unique confirmed posts, per-channel publications, available likes/comments/shares, follower snapshots/change, content mix and top content ranked by available interactions. Only published content in the selected month and brand is included.
 

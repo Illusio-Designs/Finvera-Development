@@ -1,5 +1,5 @@
 export type HealthAccount = { client: string; pageId?: string; igUserId?: string | null; igUsername?: string | null; status: string; lastError?: string | null; tokenExpiresAt?: string | null; lastCheckedAt?: string | null; paused?: string[] };
-export type HealthCheck = { checkedAt: string; expiresAt?: string | null; actions: { id: string; label: string; state: string; detail: string }[] };
+export type HealthCheck = { checkedAt: string; expiresAt?: string | null; scopes?: string[] | null; actions: { id: string; label: string; state: string; detail: string; url?: string }[] };
 export type HealthResult = { data?: HealthCheck; error?: string };
 export function channelHealth(account: HealthAccount, platform: string, result?: HealthResult, now = Date.now()) {
   const token = result?.data?.actions.find(a => a.id === "token");

@@ -115,8 +115,6 @@ type StudioPanelProps = {
 export default function StudioPanel({ brand, tab, onTabChange, onBrandChange, onOpenProfile, onMetaReturn }: StudioPanelProps) {
   const [data, setData] = useState<Data | null>(null);
   const [colors, setColors] = useState<Record<string, string>>({});
-  const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
-  const [limited, setLimited] = useState(true);
   const [postFilter, setPostFilter] = useState<"published" | "scheduled">("published");
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -125,21 +123,14 @@ export default function StudioPanel({ brand, tab, onTabChange, onBrandChange, on
   const [metaPick, setMetaPick] = useState<{ sel: string; brand: string; pages: { pageId: string; pageName: string; igUsername: string | null }[]; chosen: string } | null>(null);
   const [pageQ, setPageQ] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
+  const limited = !isAdmin;
   const [checking, setChecking] = useState(false);
-  type Capability = { id: string; label: string; state: string; detail: string; url?: string };
-  type Readiness = { checkedAt: string; expiresAt: string | null; scopes: string[] | null; actions: Capability[] };
-  const [readiness, setReadiness] = useState<{ client: string; platform: Platform; data: Readiness | null; error: string | null } | null>(null);
-  async function checkReadiness(client: string, platform: Platform) {
-    setReadiness({ client, platform, data: null, error: null });
-    try { const data = await api.channelCapabilities(client, platform); setReadiness((r) => r?.client === client && r.platform === platform ? { ...r, data } : r); }
-    catch (e: any) { setReadiness((r) => r?.client === client && r.platform === platform ? { ...r, error: e.message } : r); }
-  }
   async function load(quiet = false) {
     if (!quiet) setBusy(true);
     setLoadError("");
     try {
-      const [d, c, me, u, health] = await Promise.all([
-        api.socialStudio(), api.list("social-clients").catch(() => []), api.me().catch(() => null), api.listUsers().catch(() => []),
+      const [d, c, me, health] = await Promise.all([
+        api.socialStudio(), api.list("social-clients").catch(() => []), api.me().catch(() => null),
         api.socialAccounts().catch(() => []),
       ]);
       // Login expiry / last check come from /social-accounts.
@@ -149,8 +140,6 @@ export default function StudioPanel({ brand, tab, onTabChange, onBrandChange, on
       const cols: Record<string, string> = {};
       (d.brands as string[]).forEach((b, i) => { cols[b] = (Array.isArray(c) ? c.find((x: any) => x.name === b)?.color : null) || COLORS[i % COLORS.length]; });
       setColors(cols);
-      setLimited(!userRoles(me?.user ?? me).includes("admin"));
-      setUsers(Array.isArray(u) ? u : []);
     } catch (e: any) { setLoadError(e.message || "Check your connection and try again."); toast("Couldn't load Social studio", "err", { description: e.message }); }
     finally { setBusy(false); }
   }
@@ -292,12 +281,13 @@ export default function StudioPanel({ brand, tab, onTabChange, onBrandChange, on
   const thumb = (j?: Job | null, p?: Post | null) => j?.metrics?.picture || p?.picture?.thumbUrl || p?.picture?.url || null;
   const hasMetrics = v.month.some((j) => hasReportedMetrics(j.metrics));
   const activity = [...v.upcoming.slice(0, 2), ...v.published.slice(0, 3)];
+  const unconnectedBrands = v.brands.filter(b => !v.accounts.some(account => account.client === b));
 
   return (
     <div className="ss studio-workspace">
       {loadError && <div className="ss-load-error" role="alert"><p>Couldn’t refresh this view: {loadError}</p><button type="button" className="adm-btn ghost" onClick={() => load()}>Try again</button></div>}
       {/* ── Hero ── */}
-      <section className="ss-hero">
+      {tab !== "channels" && <section className="ss-hero">
         <div className="ss-refresh-row">
           <p className="ss-saved-note" role="status">{data.refreshedAt ? `Platform metrics last saved ${timeAgo(data.refreshedAt)}.` : "Platform metrics have not been saved yet."} {data.refreshing && "A background refresh is running."}</p>
           <button type="button" className="adm-btn ghost" onClick={() => load()} disabled={busy}>
@@ -333,13 +323,13 @@ export default function StudioPanel({ brand, tab, onTabChange, onBrandChange, on
             ) : <p className="ss-empty-s">Nothing scheduled. Posts in Ready to post appear here.</p>}
           </div>
         </div></details>}
-      </section>
+      </section>}
 
-      {v.attention.length > 0 && (
+      {tab !== "channels" && v.attention.length > 0 && (
         <div className="ss-attn" role="status">
           <Icon i={Alert02Icon} size={20} />
           <span><b>{[...new Set(v.attention.map((c) => c.client))].join(", ")} need{v.attention.length === 1 ? "s" : ""} reconnecting.</b> The Facebook login expired, so posts for {v.attention.length === 1 ? "this channel" : "these channels"} are on hold.</span>
-          {!limited && <button type="button" className="ss-chip" onClick={() => connect(v.attention[0].client)}>Reconnect</button>}
+          <button type="button" className="ss-chip" onClick={() => onTabChange("channels")}>View channels</button>
         </div>
       )}
       {v.failed.length > 0 && (
@@ -398,13 +388,13 @@ export default function StudioPanel({ brand, tab, onTabChange, onBrandChange, on
 
       {/* ── Channels ── */}
       {tab === "channels" && <>
-        <SocialAccountHealth accounts={data.accounts} brand={brand} canManage={!limited} onReconnect={connect} />
+        <SocialAccountHealth accounts={data.accounts} brand={brand}
+          onCheckLogins={isAdmin ? checkConnections : undefined} checkingLogins={checking} />
         <section className="ss-groups">
           {!limited && (
             <div className="ss-groups-h">
               <span>{v.channels.length} channel{v.channels.length === 1 ? "" : "s"} for {brandLabel.toLowerCase() === "all brands" ? "all brands" : brand}</span>
-              {isAdmin && <button type="button" className="ss-chip" onClick={checkConnections} disabled={checking}>{checking ? <span className="sys-spin" aria-hidden="true" /> : <Icon i={CheckmarkCircle02Icon} size={14} />}{checking ? "Checking…" : "Check connections"}</button>}
-              <button type="button" className="ss-chip dark" onClick={() => setConnectFor(brand || data.brands.find((b) => !data.accounts.some((a) => a.client === b)) || data.brands[0] || "")}><Icon i={PlusSignIcon} />Connect channel</button>
+              {unconnectedBrands.length > 0 && <button type="button" className="ss-chip dark" onClick={() => setConnectFor(unconnectedBrands[0])}><Icon i={PlusSignIcon} />Connect channel</button>}
             </div>
           )}
           {v.brands.map((b) => {
@@ -454,15 +444,14 @@ export default function StudioPanel({ brand, tab, onTabChange, onBrandChange, on
                           ) : <span key={i} className="empty" />;
                         })}
                       </div>
-                      {!limited && (
+                      {(!limited || c.state !== "reconnect") && (
                         <div className="ss-ch-f">
-                          {c.state === "reconnect"
-                            ? <button type="button" className="ss-chip dark" onClick={() => connect(b)}><Icon i={Refresh01Icon} size={14} />Reconnect now</button>
-                            : <button type="button" className={"ss-chip" + (c.state === "paused" ? " dark" : "")} onClick={() => togglePause(c)}><Icon i={c.state === "paused" ? PlayIcon : PauseIcon} size={14} />{c.state === "paused" ? "Resume" : "Pause"}</button>}
-                          <button type="button" className="ss-chip" onClick={() => onOpenProfile(b, c.platform)}><Icon i={UserCircleIcon} size={14} />Profile</button><button type="button" className="ss-chip" onClick={() => checkReadiness(b, c.platform)}>Readiness & actions</button>
+                          <button type="button" className="ss-chip" onClick={() => onOpenProfile(b, c.platform)}><Icon i={UserCircleIcon} size={14} />Profile</button>
+                          {!limited && c.state !== "reconnect" && <button type="button" className="ss-chip" onClick={() => togglePause(c)}>
+                            <Icon i={c.state === "paused" ? PlayIcon : PauseIcon} size={14} />{c.state === "paused" ? "Resume publishing" : "Pause publishing"}
+                          </button>}
                         </div>
                       )}
-                      {limited && c.state !== "reconnect" && <div className="ss-ch-f"><button type="button" className="ss-chip" onClick={() => onOpenProfile(b, c.platform)}><Icon i={UserCircleIcon} size={14} />Profile</button><button type="button" className="ss-chip" onClick={() => checkReadiness(b, c.platform)}>Readiness & actions</button></div>}
                     </article>
                   ))}
                   {missing.map((p) => (
@@ -472,7 +461,6 @@ export default function StudioPanel({ brand, tab, onTabChange, onBrandChange, on
                       <span>{acc
                         ? `Link ${b}'s Instagram business account to its Facebook Page "${acc.pageName}", then reconnect.`
                         : `${b} isn't connected yet, so its posts go out by hand.`}</span>
-                      {!limited && <button type="button" className="ss-chip dark" onClick={() => (acc ? connect(b) : setConnectFor(b))}>{acc ? "Reconnect" : "Connect"}</button>}
                     </div>
                   ))}
                 </div>
@@ -534,7 +522,7 @@ export default function StudioPanel({ brand, tab, onTabChange, onBrandChange, on
             <div className="ss-modal-h"><h3>Connect a channel</h3><button type="button" className="ss-btn" onClick={() => setConnectFor(null)} aria-label="Close">×</button></div>
             <div className="ss-field"><span>Brand</span>
               <Select value={connectFor} onChange={(val) => setConnectFor(val)} ariaLabel="Brand"
-                options={data.brands.map((b) => ({ value: b, label: data.accounts.some((a) => a.client === b) ? `${b} · connected (reconnect)` : b }))} />
+                options={unconnectedBrands} />
             </div>
             <div className="ss-plat"><span className="lg"><Icon i={InstagramIcon} size={18} /></span><span className="lg fb"><Icon i={Facebook01Icon} size={18} /></span>
               <div><b>Instagram + Facebook Page</b><small>Both connect together. Brands without an Instagram business account connect their Facebook Page only.</small></div></div>
@@ -545,29 +533,6 @@ export default function StudioPanel({ brand, tab, onTabChange, onBrandChange, on
             </ul>
             <div className="ss-modal-f"><button type="button" className="ss-chip" onClick={() => setConnectFor(null)}>Cancel</button><button type="button" className="ss-chip dark" disabled={!connectFor || connectingBrand !== null} onClick={() => connect(connectFor)}>{connectingBrand ? "Opening Meta…" : "Continue with Facebook"}</button></div>
           </div>
-        </div>
-      )}
-
-      {readiness && (
-        <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setReadiness(null); }}>
-          <aside className="adm-drawer ss-prof" role="dialog" aria-modal="true" aria-label="Meta readiness and actions">
-            <div className="ss-modal-h"><h3>{PNAME[readiness.platform]} readiness & actions</h3><button type="button" className="ss-btn" onClick={() => setReadiness(null)} aria-label="Close">×</button></div>
-            <p>{readiness.client}</p>
-            {!readiness.data && !readiness.error && <p role="status">Checking account access…</p>}
-            {readiness.error && <p className="ss-attn">{readiness.error}</p>}
-            {readiness.data && <>
-              <p className="ss-note">Checked {fmtWhen(readiness.data.checkedAt)}. This check reads account access; it does not edit a profile or publish a test post.</p>
-              {readiness.data.expiresAt && <p>Token expires {fmtWhen(readiness.data.expiresAt)}</p>}
-              {readiness.data.actions.map((action) => <div className="ss-prof-sec" key={action.id}>
-                <strong>{action.label}</strong><p><b>{action.state.replace(/_/g, " ")}</b> · {action.detail}</p>
-                {action.url && <a className="ss-chip" href={action.url} target="_blank" rel="noopener noreferrer">{action.id === "edit" ? "Edit on platform" : "Open profile"} ↗</a>}
-                {action.id === "view" && <button type="button" className="ss-chip" onClick={() => { onOpenProfile(readiness.client, readiness.platform); setReadiness(null); }}>View profile details</button>}
-                {action.id === "edit" && readiness.platform === "facebook" && !limited && action.state === "permission_granted" && <button type="button" className="ss-chip" onClick={() => { onOpenProfile(readiness.client, "facebook"); setReadiness(null); }}>Edit supported details</button>}
-              </div>)}
-              <details><DisclosureSummary>Granted scopes</DisclosureSummary><p className="ss-note">{readiness.data.scopes?.join(", ") || "Unknown — not verified"}</p></details>
-            </>}
-            <button type="button" className="ss-chip" disabled={!readiness.data && !readiness.error} onClick={() => checkReadiness(readiness.client, readiness.platform)}>Check again</button>
-          </aside>
         </div>
       )}
 

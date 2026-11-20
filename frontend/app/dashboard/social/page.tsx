@@ -3,12 +3,13 @@ import { DisclosureSummary, WorkspaceHero } from "@/components/admin/Workspace";
 import Link from "next/link";
 import SocialPostPreview from "@/components/admin/SocialPostPreview";
 import SocialProfileEditor from "@/components/admin/SocialProfileEditor";
+import WorkspaceActionMenu from "@/components/admin/WorkspaceActionMenu";
 import { LoadingRegion, Shimmer } from "@/components/admin/PageLoading";
 import { useShell } from "@/components/admin/shell/ShellContext";
 import "./social-workspace.css";
 import { useWorkflowDialog, useImportWizard } from "@/lib/useWorkflowDialog";
 import { hydrateEditor } from "@/lib/socialWorkMachine";
-import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { chainFor, isVideoFormat, makerFor, roleFor, nextStage, indiaToday, overdueAt, moveArtwork, type SocialRole as Role, type SocialStage as Stage } from "@/lib/socialWorkflow";
 import { api } from "@/lib/adminApi";
@@ -117,9 +118,7 @@ function nextHop(p: Pick<Post, "status" | "step" | "team" | "format">): { role: 
   const role = roleFor(status, p.format);
   return { role, patch: { status, ...(status === "production" ? { step: makerFor(p.format) } : {}) } };
 }
-const CLIENT_COLORS = ["#3e60ab", "#0f766e", "#be185d", "#a16207", "#7c5cff", "#0369a1", "#c2410c", "#15803d"];
 const FORMATS = ["Post", "Reel", "Carousel", "Video", "Story", "Video Story", "Influencer Reel"];
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const COL_PAGE = 20; // cards per board column before "Show more"
 /* Fields the drawer edits — time log + timer are written separately so a save never clobbers them. */
@@ -154,7 +153,6 @@ const normPost = (p: Post): Post => ({
   keywordHashtags: p.keywordHashtags === undefined ? true : !!p.keywordHashtags,
   team: typeof p.team === "string" ? (() => { try { return JSON.parse(p.team as unknown as string) || {}; } catch { return {}; } })() : (p.team || {}),
 });
-const uid = () => "tl-" + Math.random().toString(36).slice(2, 9);
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const todayIso = () => indiaToday();
 /* Default work deadline: one week before go-live (same rule as the server). */
@@ -185,9 +183,6 @@ function formatColors(f?: string): [string, string] {
   return ["#eef0f4", "#4b5466"];
 }
 const isDone = (p: Post) => p.status === "posted";
-/* Live = a real post link (http…) is in the channel links — plain text like
-   "Instagram" from a sheet doesn't count. */
-const hasLiveLink = (p: Partial<Post>) => /https?:\/\//i.test(p.channels || "");
 /* Timeline: `dueDate` holds the day work starts (default a week before
    go-live); the go-live date is the real deadline. */
 const startOn = (p: Post) => p.dueDate || p.postDate || "";
@@ -337,9 +332,7 @@ export default function SocialCalendar() {
   const [format, setFormat] = useState("");
   const [who, setWho] = useState("");
   const [query, setQuery] = useState("");
-  const [calMonth, setCalMonth] = useState("");
   const [calDay, setCalDay] = useState(todayIso());
-  const [showStarts, setShowStarts] = useState(true);
   const [tagCorrection, setTagCorrection] = useState<Post | null>(null);
   const [saveError, setSaveError] = useState("");
   const [conflictPost, setConflictPost] = useState<Post | null>(null);
@@ -368,9 +361,6 @@ export default function SocialCalendar() {
   }
   const [uploads, setUploads] = useState<Upload[] | null>(null); // admin Team & uploads panel (null = closed)
   const [deletingBrandCalendar, setDeletingBrandCalendar] = useState(false);
-  const coverScrolled = useRef("");
-  const [coverEdit, setCoverEdit] = useState<{ brand: string; role: Role } | null>(null); // "who covers" cell being edited
-  const [coverBusy, setCoverBusy] = useState<number | null>(null);
   const [overStage, setOverStage] = useState<Stage | null>(null);
   // Board columns render COL_PAGE cards at first; "Show N more" adds the next batch.
   const [colShown, setColShown] = useState<Partial<Record<Stage, number>>>({});
@@ -379,7 +369,6 @@ export default function SocialCalendar() {
   const firstLoadDone = useRef(false);
   // Auto-publishing
   const [accounts, setAccounts] = useState<SocialAcc[]>([]);
-  const [metaOk, setMetaOk] = useState<boolean | null>(null);
   const [jobs, setJobs] = useState<PubJob[]>([]);
   const [metaPick, setMetaPick] = useState<{ sel: string; brand: string; pages: { pageId: string; pageName: string; igUsername: string | null }[]; chosen: string } | null>(null);
   const [mediaCheck, setMediaCheck] = useState<{ post: Post; data: { files: { name: string; url: string; localStatus: string; jpeg: boolean | null; bytes: number | null; problems: string[] }[]; note: string } | null; error: string } | null>(null);
@@ -394,8 +383,8 @@ export default function SocialCalendar() {
   async function loadPublishing() {
     const accountsRequest = api.socialAccounts().then(rows => setAccounts(Array.isArray(rows) ? rows : []))
       .catch(() => {});
-    const [j, st] = await Promise.all([api.publishJobs().catch(() => []), api.metaStatus().catch(() => null), accountsRequest]);
-    setJobs(Array.isArray(j) ? j : []); setMetaOk(st ? !!st.configured : null);
+    const [j] = await Promise.all([api.publishJobs().catch(() => []), accountsRequest]);
+    setJobs(Array.isArray(j) ? j : []);
   }
   /* Back from Facebook's login: pick which Page (and its Instagram) is this brand's. */
   useEffect(() => {
@@ -487,7 +476,7 @@ export default function SocialCalendar() {
     if (!assignedToMe || !rolesReady || !meId) return;
     setView(limited ? "mine" : "board");
     setWho(limited ? "" : String(meId));
-    setClient(""); setMonth(""); setCalMonth(""); setFormat(""); setQuery("");
+    setClient(""); setMonth(""); setFormat(""); setQuery("");
     const url = new URL(location.href);
     url.searchParams.delete("assigned");
     window.history.replaceState(null, "", url.pathname + url.search + url.hash);
@@ -567,8 +556,6 @@ export default function SocialCalendar() {
     () => [...new Set([...clientRows.map((c) => c.name), ...posts.map((p) => p.client)].filter(Boolean))].sort((a, b) => a.localeCompare(b)),
     [clientRows, posts],
   );
-  const clientColor = (name?: string) => clientRows.find((c) => c.name === name)?.color
-    || CLIENT_COLORS[Math.max(0, clientNames.indexOf(name || "")) % CLIENT_COLORS.length];
   const userById = (id?: number | null) => users.find((u) => u.id === id);
   const scope = posts.filter((p) => !client || p.client === client);
   const months = [...new Set(scope.map((p) => (p.postDate || "").slice(0, 7)).filter(Boolean))].sort().reverse();
@@ -579,71 +566,6 @@ export default function SocialCalendar() {
       && (!query || [p.theme, p.topic, p.caption, p.festive, p.keywords, p.remarks].join(" ").toLowerCase().includes(query.toLowerCase())))
     .sort((a, b) => (a.postDate || "9").localeCompare(b.postDate || "9") || (a.postTime || "99").localeCompare(b.postTime || "99"));
 
-  /* Admin: people who could take a post at a role for a brand (role + brand ticked). */
-  const candidates = (role: Role, brand: string, exceptId?: number | null) => {
-    const brandId = String(clientRows.find((c) => c.name === brand)?.id ?? "");
-    return team.filter((u) => u.active !== false && u.id !== exceptId && (u.roles || []).includes(role)
-      && ((u.roles || []).includes("admin") || (u.socialClients || []).map(String).includes(brandId)));
-  };
-
-  /* Admin: tick / untick a person for a brand at a role, from the "Who covers
-     each brand" table. Someone without the role gets it added at the same time.
-     The server then hands waiting posts to them. */
-  async function toggleCover(u: TeamUser, brand: string, role: Role) {
-    const brandId = String(clientRows.find((c) => c.name === brand)?.id ?? "");
-    if (!brandId) return toast("Save the brand first", "warn", { description: `${brand} isn't a saved brand yet.` });
-    const brands = (u.socialClients || []).map(String);
-    const covers = brands.includes(brandId) && (u.roles || []).includes(role);
-    const nextBrands = covers ? brands.filter((b) => b !== brandId) : [...new Set([...brands, brandId])];
-    const nextRoles = covers || (u.roles || []).includes(role) ? u.roles : [...(u.roles || []), role];
-    setCoverBusy(u.id);
-    try {
-      await api.update("users", u.id, { socialClients: nextBrands, roles: nextRoles });
-      setTeam((t) => t.map((x) => (x.id === u.id ? { ...x, socialClients: nextBrands, roles: nextRoles } : x)));
-      toast(covers ? `${u.name} no longer covers ${brand}` : `${u.name} now covers ${brand}`, "ok", {
-        description: covers ? `As ${ROLE_META[role].label}.` : `As ${ROLE_META[role].label}${(u.roles || []).includes(role) ? "" : " (role added)"} — waiting posts go to them now.`,
-      });
-      load();
-    } catch (e: any) { toast("Couldn't update", "err", { description: e.message || "Try again." }); }
-    finally { setCoverBusy(null); }
-  }
-
-  /* Admin: take a role away from someone (all brands). Their open posts at
-     that stage are unassigned first, so the server hands them to someone else
-     with the role (or they wait). A user's last role can't be removed here —
-     a user with no roles would be treated as an admin. */
-  async function removeRole(u: TeamUser, role: Role) {
-    const label = ROLE_META[role].label;
-    const roles = (u.roles || []).filter((r) => r !== role);
-    if (!roles.length) {
-      return dialog.alert({
-        title: `${label} is ${u.name}'s only role`,
-        message: `Give ${u.name} another role first (tick them for a brand under another role), or deactivate them on the Users page.`,
-        confirmText: "OK",
-      });
-    }
-    const theirs = posts.filter((p) => p.assigneeId === u.id && p.status !== "posted" && roleFor(p.status, p.format, p.step) === role);
-    const ok = await dialog.confirm({
-      title: `Remove the ${label} role from ${u.name}?`,
-      message: `They'll stop covering every brand as ${label}.${theirs.length ? ` Their ${theirs.length} open ${label} post${theirs.length === 1 ? "" : "s"} will go to someone else with the role, or wait if nobody has it.` : ""}`,
-      confirmText: "Remove role", danger: true,
-    });
-    if (!ok) return;
-    setCoverBusy(u.id);
-    try {
-      for (const p of theirs) await api.update("social-posts", p.id, { assigneeId: null });
-      await api.update("users", u.id, { roles });
-      setTeam((t) => t.map((x) => (x.id === u.id ? { ...x, roles } : x)));
-      toast(`${u.name} is no longer ${/^[aeiou]/i.test(label) ? "an" : "a"} ${label}`, "ok", {
-        description: !theirs.length ? "Nothing of theirs needed handing on."
-          : team.some((x) => x.id !== u.id && x.active !== false && (x.roles || []).includes(role))
-            ? `${theirs.length} open post${theirs.length === 1 ? "" : "s"} handed on to others with the role.`
-            : `${theirs.length} open post${theirs.length === 1 ? "" : "s"} now waiting — nobody else has the ${label} role yet.`,
-      });
-      load();
-    } catch (e: any) { toast("Couldn't remove the role", "err", { description: e.message || "Try again." }); }
-    finally { setCoverBusy(null); }
-  }
 
   /* ── auto-publishing ── */
   const accFor = (brand?: string) => accounts.find((a) => a.client === brand && a.status === "connected");
@@ -661,11 +583,6 @@ export default function SocialCalendar() {
       toast(`${a.client} connected`, "ok", { description: [a.igUsername && `Instagram @${a.igUsername}`, a.pageName && `Facebook ${a.pageName}`].filter(Boolean).join(" · ") + ". Ready posts will publish at their go-live time." });
       loadPublishing();
     } catch (e: any) { toast("Couldn't connect", "err", { description: e.message }); }
-  }
-  async function disconnectBrand(brand: string) {
-    if (!(await dialog.confirm({ title: `Disconnect ${brand}?`, message: "Its scheduled posts stop publishing automatically. You can connect it again any time.", danger: true, confirmText: "Disconnect" }))) return;
-    try { await api.disconnectSocial(brand); toast(`${brand} disconnected`, "ok"); loadPublishing(); }
-    catch (e: any) { toast("Couldn't disconnect", "err", { description: e.message }); }
   }
   async function retryJob(j: PubJob) {
     if (j.status === "check" && !(await dialog.confirm({ title: "Confirm this post is not live", message: `Open ${PLATFORM_NAME[j.platform]} and inspect the brand’s posts first. Retrying a post that is already live can create a duplicate. Confirm only if you checked and it is absent.`, confirmText: "I checked — it is not live" }))) return;
@@ -696,15 +613,6 @@ export default function SocialCalendar() {
       if (ig.summary) toast("Ready for Instagram", "ok", { description: ig.summary });
     } catch (e: any) { toast("Upload failed", "err", { description: e.message || "Use JPG/PNG images or MP4/MOV videos." }); }
     finally { setMediaBusy(false); }
-  }
-  /* Small status for cards and the details card. */
-  function pubChip(p: Post) {
-    const js = jobsFor(p.id);
-    const pick = ["failed", "check", "publishing", "missed", "scheduled"].find((st) => js.some((j) => j.status === st));
-    if (!pick) return null;
-    const [label, bg, fg] = JOB_LABEL[pick];
-    const text = pick === "scheduled" ? `Auto · ${p.postTime ? fmtTime(p.postTime) : "10:00 AM"}` : pick === "failed" ? "Auto-post failed" : label;
-    return <span className="cal-chip" style={css({ "--bg": bg, "--fg": fg })}>{text}</span>;
   }
 
   /* ── writes ── */
@@ -747,10 +655,6 @@ export default function SocialCalendar() {
     }
     catch (e: any) { patchLocal(id, { status: p.status }); toast("Couldn't move the post", "err", { description: e.message || "It's back where it was — try again." }); }
   }
-  /* Done → the next person in the chain gets it (picked by the server). */
-  /* Approver: send it back to the video editor with a note. */
-  /* Send back → to the maker who made it (Video editor for reels, Graphic designer otherwise). */
-  function sendBack(p: Post) { const m = makerFor(p.format); askHandoff(p, m, STEP_AT[m], "back"); }
 
   /* Hand-off picker: every move asks who takes the post next. The person
      picked at upload (the post's team) is pre-selected. */
@@ -982,22 +886,6 @@ export default function SocialCalendar() {
     await api.remove("social-posts", gone); setViewId(null); setEditing(null); toast("Post deleted", "ok", { description: `“${editing.theme}” was removed from ${editing.client}.` });
     setPosts((ps) => ps.filter((x) => x.id !== gone)); loadPublishing(); window.dispatchEvent(new Event("fv-badges"));
   }
-  // Team members add posts to their own brands: pre-fill the open brand tab, or their only brand.
-
-  /* ── time tracking ── */
-
-  /* ── admin: why posts are waiting ── */
-  const waiting = limited ? [] : posts.filter((p) => !p.assigneeId);
-  const gaps = (() => {
-    const out: { brand: string; role: Role; count: number }[] = [];
-    for (const p of waiting) {
-      const role = roleFor(p.status, p.format, p.step);
-      if (candidates(role, p.client).length) continue;
-      const g = out.find((x) => x.brand === p.client && x.role === role);
-      if (g) g.count++; else out.push({ brand: p.client, role, count: 1 });
-    }
-    return out;
-  })();
 
   /* ── admin: Team & uploads panel ── */
   async function openUploads() {
@@ -1088,13 +976,6 @@ export default function SocialCalendar() {
   const badge = (p: Post) => { const d = dueInfo(p); return d ? <span className="cal-badge" style={css({ "--bg": d.bg, "--fg": d.fg })}>{d.text}</span> : null; };
   const fmtChip = (f?: string) => { if (!f) return null; const [bg, fg] = formatColors(f); return <span className="cal-chip" style={css({ "--bg": bg, "--fg": fg })}>{f}</span>; };
   const stageChip = (s: Stage) => { const st = STAGES.find((x) => x.id === s)!; return <span className="cal-chip" style={css({ "--bg": st.bg, "--fg": st.fg })}>{st.title}</span>; };
-  /* Assignee pill coloured by the role the post's stage calls for. */
-  const whoPill = (p: Post, size: "sm" | "md" = "sm") => {
-    const u = userById(p.assigneeId);
-    if (!u) return <span className={"cal-who none " + size}>Unassigned</span>;
-    const r = ROLE_META[roleFor(p.status, p.format, p.step)];
-    return <span className={"cal-who " + size} style={css({ "--bg": r.bg, "--fg": r.fg })} title={`${u.name} · ${r.label}`}><i>{initials(u.name)}</i>{u.name}</span>;
-  };
   const progress = (p: Post) => {
     const d = dueInfo(p);
     const color = d?.cls === "over" ? "#dc2626" : isDone(p) ? "#16a34a" : d?.cls === "soon" ? "#d97706" : "#3e60ab";
@@ -1121,18 +1002,6 @@ export default function SocialCalendar() {
       ))}
     </span>
   );
-  /* Time progress: dots fill from the start-work day to go-live. */
-  const timeDots = (p: Post) => {
-    const pct = progressPct(p), n = 12, on = Math.round((pct / 100) * n);
-    const left = p.postDate ? daysFrom(todayIso(), p.postDate) : null;
-    const label = isOverdue(p) ? left === 0 ? "Go-live time passed" : `Overdue ${-(left || 0)}d` : left === 0 ? "Goes live today" : left != null ? `${left} day${left === 1 ? "" : "s"} left` : "No date";
-    return (
-      <span className="fvc-prog">
-        <span className="fvc-prog-h"><span>Time used</span><b className={isOverdue(p) ? "late" : ""}>{pct}% · {label}</b></span>
-        <span className="fvc-dots" aria-label={`${pct}% of the time to go-live used`}>{Array.from({ length: n }, (_, i) => <i key={i} className={i < on ? "on" : ""} />)}</span>
-      </span>
-    );
-  };
 
   /* Render helpers are plain functions (not components) so a re-render mid-drag never remounts the board. */
   function renderCard(p: Post) {
@@ -1454,7 +1323,11 @@ export default function SocialCalendar() {
         {canEdit(p) && !posted && <div className="adm-drawer-actions cal-actions">
           {!ready && <button type="button" className="cal-primary wide" onClick={() => advance(p)}>{p.status === "client" ? "Resume work" : "Start work"}</button>}
           {ready && <button type="button" className="cal-primary wide" onClick={() => editForStage(p)}>Edit scheduled post</button>}
-          <details className="cal-task-more"><DisclosureSummary>More actions</DisclosureSummary><div className="cal-row">{p.status === "planned" && <button type="button" className="cal-btn" onClick={() => needFromClient(p)}>Need</button>}<button type="button" className="cal-btn" onClick={() => editForStage(p)}>{p.status === "client" ? "Edit client request" : "Edit post"}</button>{ready && <button type="button" className="cal-btn" onClick={() => advance(p)}>Confirm manual publication</button>}</div></details>
+          <details className="cal-task-more"><DisclosureSummary>More actions</DisclosureSummary><div className="cal-row">
+            {p.status === "planned" && <button type="button" className="cal-btn" onClick={() => needFromClient(p)}>Need</button>}
+            {ready ? <button type="button" className="cal-btn" onClick={() => advance(p)}>Confirm manual publication</button>
+              : <button type="button" className="cal-btn" onClick={() => editForStage(p)}>{p.status === "client" ? "Edit client request" : "Edit post"}</button>}
+          </div></details>
         </div>}
       </aside>
     </div>;
@@ -1515,47 +1388,7 @@ export default function SocialCalendar() {
     );
   }
 
-
-  /* Admin: Team & uploads — who covers each brand, and the sheet uploads. */
-  /* The "who covers" editor, shown right under the brand row that was clicked. */
-  function renderCoverEdit() {
-    if (!coverEdit) return null;
-              const brandId = String(clientRows.find((c) => c.name === coverEdit.brand)?.id ?? "");
-              const active = team.filter((u) => u.active !== false && !(u.roles || []).includes("admin"));
-              const withRole = active.filter((u) => (u.roles || []).includes(coverEdit.role));
-              const others = active.filter((u) => !(u.roles || []).includes(coverEdit.role));
-              const row = (u: TeamUser, addsRole: boolean) => {
-                const checked = !addsRole && (u.socialClients || []).map(String).includes(brandId);
-                return (
-                  <div key={u.id} className={"cal-cover-opt" + (checked ? " on" : "")}>
-                    <label>
-                      <input type="checkbox" checked={checked} disabled={coverBusy === u.id} onChange={() => toggleCover(u, coverEdit.brand, coverEdit.role)} />
-                      <span><b>{u.name}</b><small>{(u.roles || []).map((r) => ROLE_META[r as Role]?.label || r).join(", ") || "No role yet"}{addsRole ? ` · gets the ${ROLE_META[coverEdit.role].label} role` : ""}</small></span>
-                    </label>
-                    {!addsRole && (
-                      <button type="button" className="cal-cover-remove" disabled={coverBusy === u.id} onClick={() => removeRole(u, coverEdit.role)}
-                        aria-label={`Remove the ${ROLE_META[coverEdit.role].label} role from ${u.name}`}>Remove role</button>
-                    )}
-                  </div>
-                );
-              };
-              return (
-                <div className="cal-cover-edit" ref={(el) => { if (el && coverScrolled.current !== `${coverEdit.brand}|${coverEdit.role}`) { coverScrolled.current = `${coverEdit.brand}|${coverEdit.role}`; el.scrollIntoView({ block: "nearest", behavior: "smooth" }); } }} role="group" aria-label={`Who covers ${coverEdit.brand} as ${ROLE_META[coverEdit.role].label}`}>
-                  <div className="cal-cover-edit-head">
-                    <b>{coverEdit.brand} · <span style={{ color: ROLE_META[coverEdit.role].fg }}>{ROLE_META[coverEdit.role].label}</span></b>
-                    <button type="button" className="cal-link" onClick={() => setCoverEdit(null)}>Done</button>
-                  </div>
-                  <p className="adm-hint" style={{ margin: 0 }}>Tick who covers this brand. Posts at this stage go to the least busy ticked person.</p>
-                  {withRole.length ? withRole.map((u) => row(u, false)) : <p className="adm-hint" style={{ margin: 0 }}>Nobody has the {ROLE_META[coverEdit.role].label} role yet. Pick someone below to give it to them.</p>}
-                  {others.length > 0 && <>
-                    <span className="cal-cover-sub">Give the role to someone else</span>
-                    {others.map((u) => row(u, true))}
-                  </>}
-                </div>
-              );
-  }
-
-  function renderTeamPanel(ups: Upload[]) {
+  function renderUploadHistory(ups: Upload[]) {
     return (
       <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setUploads(null); }}>
         <div className="adm-drawer kb-drawer cal-view cal-wide" role="dialog" aria-modal="true" aria-label="Upload history">
@@ -1584,16 +1417,6 @@ export default function SocialCalendar() {
             )}
           </div>
 
-          <div className="cal-vsec">
-            <h4>Delete all posts of a brand</h4>
-            <p className="adm-hint" style={{ marginTop: 0 }}>For sheets uploaded before uploads were recorded, or to start a brand from scratch. You'll be asked to type the brand name.</p>
-            <div className="cal-links">
-              {clientNames.filter((n) => posts.some((p) => p.client === n)).length === 0 && <span className="adm-hint">No brand has posts right now.</span>}
-              {clientNames.filter((n) => posts.some((p) => p.client === n)).map((n) => (
-                <button key={n} type="button" className="cal-btn danger" disabled={deletingBrandCalendar} onClick={() => deleteBrand(n)}>Delete {posts.filter((p) => p.client === n).length} posts · {n}</button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -1625,46 +1448,37 @@ export default function SocialCalendar() {
 
   // Editor: who the post goes to at its stage, and whether the start date is automatic.
   const edRole = editing ? roleFor((editing.status || "planned") as Stage, editing.format, editing.step) : "graphic";
-  const edAssignee = editing ? userById(editing.assigneeId) : undefined;
   const edPlanning = !editing?.id || editing.status === "planned";
   const edScheduled = editing?.status === "ready";
   const edTitle = !editing?.id ? "New post" : edPlanning ? "Edit planning details" : edScheduled ? "Edit scheduled content" : "Edit review content";
   const edAutoStart = editing ? !editing.dueDate || String(editing.dueDate).slice(0, 10) === weekBefore(editing.postDate) : true;
-  const edCands = editing && !limited && editing.client ? candidates(edRole, editing.client) : [];
 
   return (
     <div className="cal-page">
       <Suspense fallback={null}><CalendarLinkReader onChange={setCalendarLink} /></Suspense>
-      <WorkspaceHero eyebrow="Social media" title={<>{limited ? "My work" : "Content calendar"}</>} description={<>{limited ? "Your brands, your next steps, and the work ready to move forward." : "Plan it, make it, review it, publish it. Every brand, in one clear flow."}</>} actions={<> <div className="cal-head-actions">
-            <Link className="cal-btn" href={`/dashboard/social-studio?tab=report${client ? `&brand=${encodeURIComponent(client)}` : ""}${month ? `&month=${month}` : ""}`}>Monthly brand report</Link>
-            <button type="button" className="cal-btn" onClick={() => setProfileOpen(true)}>Social profiles</button>
-            {profileOpen && <SocialProfileEditor initialClient={client || undefined} onClose={() => setProfileOpen(false)} />}
-          <input ref={fileRef} type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={(e) => { importCsv(e.target.files?.[0]); e.currentTarget.value = ""; }} />
+      <WorkspaceHero eyebrow="Social media" title={limited ? "My work" : "Content calendar"} description={limited ? "Review your assigned posts and upcoming deadlines." : "Plan, review, and publish posts across your brands."} actions={
+        <div className="cal-head-actions">
           <button type="button" className="cal-primary" onClick={newPost} disabled={controlsDisabled || (limited && !clientNames.length)}>+ New post</button>
-          <button type="button" className="cal-btn" disabled={controlsDisabled} onClick={() => fileRef.current?.click()}>Import sheet</button>
-          <details className="cal-tools" inert={controlsDisabled}>
-            <summary>Calendar tools</summary>
-            <div className="cal-tools-menu">
-              {!limited && <button type="button" className="cal-btn" onClick={openUploads}>Upload history</button>}
-              {!limited && <button type="button" className="cal-btn" onClick={() => setBulkMove({ from: "", to: "", brand: client, role: "", posts: null, skipped: 0, busy: false })}>Reassign pending</button>}
-              <ExportButton entity="social-posts" file={client ? `content-calendar-${client.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}` : "content-calendar"} sheet={client || "Content calendar"}
-                params={() => ({ client, q: query.trim(), assigneeId: activeView === "mine" ? String(meId ?? "none") : who, postFormat: format, from: month ? `${month}-01` : "", to: month ? iso(new Date(+month.slice(0, 4), +month.slice(5, 7), 0)) : "" })} />
-              {!limited && <div className="cal-tools-delete">
-                <button type="button" className="cal-btn danger" disabled={deletingBrandCalendar || !brandHasPosts}
-                  aria-describedby={!brandHasPosts ? "cal-tools-delete-hint" : undefined}
-                  onClick={(event) => {
-                    const tools = event.currentTarget.closest("details");
-                    if (tools) {
-                      tools.open = false;
-                      tools.querySelector("summary")?.focus();
-                    }
-                    void deleteBrand(client);
-                  }}>{deletingBrandCalendar ? "Deleting calendar…" : "Delete brand calendar"}</button>
-                {!brandHasPosts && <p id="cal-tools-delete-hint" className="adm-hint">{client ? "This brand has no calendar posts." : "Select a brand to delete its calendar."}</p>}
-              </div>}
-            </div>
-          </details>
-        </div> </>} />
+          <WorkspaceActionMenu label="Calendar tools" disabled={controlsDisabled}>
+            <button type="button" onClick={() => fileRef.current?.click()}>Import sheet</button>
+            {!limited && <button type="button" onClick={openUploads}>Upload history</button>}
+            {!limited && <button type="button" onClick={() => setBulkMove({ from: "", to: "", brand: client, role: "", posts: null, skipped: 0, busy: false })}>Reassign pending</button>}
+            <ExportButton entity="social-posts" file={client ? `content-calendar-${client.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}` : "content-calendar"} sheet={client || "Content calendar"}
+              params={() => ({ client, q: query.trim(), assigneeId: activeView === "mine" ? String(meId ?? "none") : who, postFormat: format, from: month ? `${month}-01` : "", to: month ? iso(new Date(+month.slice(0, 4), +month.slice(5, 7), 0)) : "" })} />
+            <hr />
+            <Link href={`/dashboard/social-studio?tab=report${client ? `&brand=${encodeURIComponent(client)}` : ""}${month ? `&month=${month}` : ""}`}>Monthly brand report</Link>
+            <button type="button" onClick={() => setProfileOpen(true)}>Social profiles</button>
+            {!limited && <>
+              <hr />
+              <button type="button" className="danger" disabled={deletingBrandCalendar || !brandHasPosts}
+                aria-describedby={!brandHasPosts ? "cal-tools-delete-hint" : undefined}
+                onClick={() => void deleteBrand(client)}>{deletingBrandCalendar ? "Deleting calendar…" : "Delete brand calendar"}</button>
+              {!brandHasPosts && <p id="cal-tools-delete-hint" className="adm-hint">{client ? "This brand has no calendar posts." : "Select a brand to delete its calendar."}</p>}
+            </>}
+          </WorkspaceActionMenu>
+        </div>} />
+      <input ref={fileRef} type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={(e) => { importCsv(e.target.files?.[0]); e.currentTarget.value = ""; }} />
+      {profileOpen && <SocialProfileEditor initialClient={client || undefined} onClose={() => setProfileOpen(false)} />}
 
       {loadError && <div className="cal-load-error" role="alert"><div><b>{hasLoadFailure ? "Couldn’t load the content calendar" : "Couldn’t refresh the content calendar"}</b><p>{loadError}</p></div><button type="button" className="cal-btn" onClick={load}>Try again</button></div>}
       <div className="cal-intro" aria-label="Calendar overview">
@@ -1680,8 +1494,8 @@ export default function SocialCalendar() {
             <button type="button" key={v} aria-pressed={activeView === v} className={activeView === v ? "on" : ""} onClick={() => { setView(v); if (v === "mine") setWho(""); }}>{label}</button>
           ))}
         </div>
-        <div className="sm-filter cal-brand-select"><Select value={client} onChange={(value) => { setClient(value); setMonth(""); setCalMonth(""); }} ariaLabel="Brand" options={[{ value: "", label: "All brands" }, ...clientNames.map((name) => ({ value: name, label: name }))]} /></div>
-        <div className="sm-filter"><DatePicker mode="month" value={month} onChange={(v) => { setMonth(v); setCalMonth(""); }} ariaLabel="Month"
+        <div className="sm-filter cal-brand-select"><Select value={client} onChange={(value) => { setClient(value); setMonth(""); }} ariaLabel="Brand" options={[{ value: "", label: "All brands" }, ...clientNames.map((name) => ({ value: name, label: name }))]} /></div>
+        <div className="sm-filter"><DatePicker mode="month" value={month} onChange={(v) => { setMonth(v); }} ariaLabel="Month"
           placeholder="All months" allowedMonths={months} min={months.at(-1)} max={months[0]} today={todayIso()} /></div>
         <details className="cal-advanced-filters"><summary>Filters{(format || who) && <span className="cal-filter-count">{Number(!!format) + Number(!!who)}</span>}</summary><div className="cal-filter-menu">        <div className="sm-filter"><Select value={format} onChange={setFormat} ariaLabel="Format"
           options={[{ value: "", label: "All formats" }, ...formats.map((f) => ({ value: f, label: f }))]} /></div>
@@ -1763,7 +1577,7 @@ export default function SocialCalendar() {
       }} />}
       {viewed && !editing && renderDetails(viewed)}
       {uploadId != null && posts.find((p) => p.id === uploadId) && renderUpload(posts.find((p) => p.id === uploadId)!)}
-      {uploads && renderTeamPanel(uploads)}
+      {uploads && renderUploadHistory(uploads)}
       {handoff && (() => {
         const h = handoff, list = peopleFor(h.role), meta = ROLE_META[h.role];
         const title = h.kind === "approve" ? "Approve & schedule" : h.kind === "back" ? "Send back for changes" : h.kind === "move" ? `Move to ${STAGES.find((x) => x.id === h.patch.status)?.title}` : `Done — who's next?`;

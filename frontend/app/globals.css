@@ -698,16 +698,6 @@ section{position:relative;z-index:2}
   font-size:10px;font-weight:700;display:grid;place-items:center;line-height:1}
 @keyframes errIn{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
 
-/* Phone input (react-phone-number-input) — dark theme */
-.phone-input .PhoneInput{display:flex;gap:8px;align-items:stretch;--PhoneInputCountryFlag-height:1.1em;--PhoneInputCountrySelectArrow-color:var(--muted-2)}
-.phone-input .PhoneInputCountry{margin:0;padding:0 10px;border:1px solid var(--line-2);border-radius:12px;
-  background:rgba(16,30,60,.03);display:flex;align-items:center;gap:7px;transition:.2s}
-.phone-input .PhoneInputCountry:hover{border-color:var(--blue-500)}
-.phone-input .PhoneInputInput{flex:1;min-width:0;padding:13px 15px;border-radius:12px;background:rgba(16,30,60,.03);
-  border:1px solid var(--line-2);color:var(--ink);font-family:inherit;font-size:14px;outline:none;transition:.3s}
-.phone-input .PhoneInputInput:focus{border-color:var(--blue-500);background:rgba(91,127,212,.06)}
-.phone-input .PhoneInputCountrySelectArrow{margin-left:2px;opacity:.7}
-
 /* =========================================================
    CTA band + Footer
    ========================================================= */
@@ -1893,11 +1883,7 @@ section{position:relative;z-index:2}
    leaves the whole page zoomed in. Force all form controls to 16px on phones so
    focus never triggers a zoom. Desktop keeps the smaller design sizes. */
 @media (max-width: 640px){
-  input, textarea, select,
-  .field input, .field textarea, .field select,
-  .adm-field input, .adm-field textarea, .adm-field select,
-  .adm-search input,
-  .phone-input .PhoneInputInput{
+  input, textarea, select, .field input, .field textarea, .field select, .adm-field input, .adm-field textarea, .adm-field select, .adm-search input{
     font-size:16px !important;
   }
 }
@@ -2252,9 +2238,6 @@ section{position:relative;z-index:2}
 
 .cal-chip{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--bg);color:var(--fg);white-space:nowrap}
 .cal-badge{display:inline-block;font-size:11px;font-weight:700;padding:3px 8px;border-radius:7px;background:var(--bg);color:var(--fg);white-space:nowrap}
-.cal-who{display:inline-flex;align-items:center;gap:6px;max-width:160px;padding:3px 9px 3px 3px;border-radius:999px;background:var(--bg);color:var(--fg);font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cal-who i{width:20px;height:20px;flex:none;border-radius:50%;background:var(--fg);color:#fff;display:grid;place-items:center;font-size:9.5px;font-weight:700;font-style:normal}
-.cal-who.none{padding:3px 9px;background:#eef0f4;color:#6b7590}
 .cal-bar{display:block;height:5px;border-radius:99px;background:#edf0f6;overflow:hidden}
 .cal-bar i{display:block;height:100%;border-radius:99px}
 .cal-fest{font-size:12px;font-weight:600;color:#6d3fd6}
@@ -2300,11 +2283,6 @@ section{position:relative;z-index:2}
 .cal-sub.strong{font-size:13.5px;font-weight:700;color:var(--ink);margin:0}
 .cal-timecell{display:inline-flex;align-items:center;gap:10px}
 .cal-timecell b{min-width:54px;font-variant-numeric:tabular-nums}.cal-timecell b.run{color:#b91c1c}
-.cal-cover{min-width:720px}
-.cal-cover td.gap{background:#fff3f3;color:#b91c1c}
-.cal-cover td.gap b{margin-right:8px}
-.cal-cover td.gap small{margin-right:8px;font-size:12px}
-.cal-cover td.gap a{font-weight:600;color:#b91c1c}
 
 .cal-mine{display:flex;flex-direction:column;gap:10px}
 .cal-task{background:#fff;border:1px solid #e3e7f0;border-radius:16px;padding:16px 18px;display:flex;flex-wrap:wrap;align-items:center;gap:14px 24px}
@@ -2373,7 +2351,6 @@ section{position:relative;z-index:2}
 .cal-vsec{padding-top:12px;border-top:1px solid #e3e7f0}
 .cal-vsec h4{margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#55617c}
 .cal-pre{margin:0 0 8px;padding:12px;border-radius:10px;background:#f6f8fc;white-space:pre-wrap;word-break:break-word;font-size:13.5px;line-height:1.6}
-.cal-links{display:flex;flex-wrap:wrap;gap:8px}
 .cal-linkchip{font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:999px;border:1px solid #d5dbe8;background:#fff;color:#2f55a4;text-decoration:none}
 .cal-linkchip:hover{border-color:#3e60ab}
 .cal-actions{flex-direction:column;align-items:stretch}
@@ -2518,9 +2495,9 @@ section{position:relative;z-index:2}
 @media (max-width:720px){
   .cal-head{gap:12px}
   .cal-head p{font-size:13px}
-  .cal-head-actions{width:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-  .cal-head-actions .cal-primary{grid-column:1/-1;order:-1;height:46px;font-size:15px}
-  .cal-head-actions .cal-btn{padding:0 6px;font-size:13px;min-height:44px;white-space:nowrap}
+  .cal-head-actions{width:100%;gap:8px}
+  .cal-head-actions > :is(.cal-primary,.fw-action-menu){flex:1 0 auto}
+  .cal-head-actions .fw-action-menu > .adm-btn{width:100%}
   .cal-tabs{margin:0 -16px;padding:2px 16px;scrollbar-width:none}
   .cal-tabs::-webkit-scrollbar{display:none}
   .cal-tab{flex:none}
@@ -2541,18 +2518,18 @@ section{position:relative;z-index:2}
   .cal-board{min-width:0;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:84vw;gap:12px}
   .cal-col{scroll-snap-align:start}
   /* schedule: each row becomes a card */
-  .cal-table-wrap:has(> .cal-table:not(.cal-cover)){background:transparent;border:0;overflow:visible}
-  .cal-table:not(.cal-cover){min-width:0;display:block}
-  .cal-table:not(.cal-cover) thead{display:none}
-  .cal-table:not(.cal-cover) tbody{display:flex;flex-direction:column;gap:10px}
-  .cal-table:not(.cal-cover) tr{display:flex;flex-direction:column;background:#fff;border:1px solid #e3e7f0;border-radius:14px;padding:12px 14px}
-  .cal-table:not(.cal-cover) td{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 0 0;margin-top:7px;
+  .cal-table-wrap:has(> .cal-table){background:transparent;border:0;overflow:visible}
+  .cal-table{min-width:0;display:block}
+  .cal-table thead{display:none}
+  .cal-table tbody{display:flex;flex-direction:column;gap:10px}
+  .cal-table tr{display:flex;flex-direction:column;background:#fff;border:1px solid #e3e7f0;border-radius:14px;padding:12px 14px}
+  .cal-table td{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 0 0;margin-top:7px;
     border:0;border-top:1px solid #eef1f8;white-space:normal;text-align:right}
-  .cal-table:not(.cal-cover) td[data-label]::before{content:attr(data-label);font-size:12.5px;color:#5b6785;text-align:left;flex:none}
-  .cal-table:not(.cal-cover) td br{display:none}
-  .cal-table:not(.cal-cover) td.nw .cal-muted{margin-left:6px}
-  .cal-table:not(.cal-cover) td.cal-tpost{order:-1;display:block;text-align:left;border:0;margin:0;padding:0 0 4px}
-  .cal-table:not(.cal-cover) td.cal-tpost .cal-link{font-size:15px;font-weight:700}
+  .cal-table td[data-label]::before{content:attr(data-label);font-size:12.5px;color:#5b6785;text-align:left;flex:none}
+  .cal-table td br{display:none}
+  .cal-table td.nw .cal-muted{margin-left:6px}
+  .cal-table td.cal-tpost{order:-1;display:block;text-align:left;border:0;margin:0;padding:0 0 4px}
+  .cal-table td.cal-tpost .cal-link{font-size:15px;font-weight:700}
   /* calendar: compact month grid with coloured dots; tap a day for its list */
   .cal-calhead{flex-wrap:wrap;gap:8px}
   .cal-calhead h2{font-size:18px}
@@ -2568,7 +2545,6 @@ section{position:relative;z-index:2}
   .cal-dots i.s{background:transparent;border:1.5px dashed #46536f;box-sizing:border-box;width:8px;height:8px}
   .cal-agenda{flex-basis:100%}
   /* panels */
-  .cal-cover{min-width:600px}
 }
 
 /* Project board on phones */
@@ -2729,27 +2705,6 @@ em.over,.kp-legend i.over{background:#e2603d}
 }
 
 /* Team & uploads: editable "who covers each brand" */
-.cal-cover td{padding:0!important}
-.cal-cover td:first-child{padding:10px 14px!important}
-.cal-cover-cell{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;width:100%;min-height:48px;padding:8px 14px;text-align:left;font:inherit;color:inherit;border-radius:0}
-.cal-cover-cell em{font-style:normal;font-size:12px;font-weight:600;color:#2f4f9e;opacity:0;transition:opacity .15s}
-.cal-cover-cell:hover,.cal-cover-cell:focus-visible{background:#f2f5fb}
-.cal-cover-cell:hover em,.cal-cover-cell:focus-visible em,.cal-cover td.gap .cal-cover-cell em{opacity:1}
-.cal-cover td.gap .cal-cover-cell{color:#b91c1c}
-.cal-cover td.gap .cal-cover-cell em{color:#b91c1c;text-decoration:underline}
-.cal-cover td.editing{box-shadow:inset 0 0 0 2px #2f4f9e}
-.cal-cover-edit{margin-top:12px;border:1px solid #c7d3ee;background:#f7f9fd;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px}
-.cal-cover-edit-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14.5px}
-.cal-cover-sub{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#5b6785;margin-top:6px}
-.cal-cover-opt{display:flex;align-items:center;gap:10px;padding:0 8px 0 0;border-radius:10px;background:#fff;border:1px solid #e4e9f4}
-.cal-cover-opt label{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:8px 10px;cursor:pointer}
-.cal-cover-remove{flex:none;font-size:12.5px;font-weight:600;color:#5b6785;padding:6px 10px;border-radius:8px}
-.cal-cover-remove:hover{background:#fdeaea;color:#b42323}
-.cal-cover-remove:disabled{opacity:.5}
-.cal-cover-opt.on{border-color:#2f4f9e;background:#eef3fd}
-.cal-cover-opt input{width:18px;height:18px;accent-color:#2f4f9e;flex:none}
-.cal-cover-opt b{display:block;font-size:13.5px;font-weight:600}
-.cal-cover-opt small{display:block;font-size:12px;color:#5b6785}
 
 /* ── Content calendar: auto-publishing ── */
 .cal-fs .cal-check{margin-left:0}
@@ -2782,8 +2737,6 @@ em.over,.kp-legend i.over{background:#e2603d}
 .cal-primary.sm{padding:7px 14px;font-size:13px}
 @media (max-width:560px){.cal-media-item,.cal-media-add{width:76px;height:76px}.sm-upload .cal-row{width:100%}}
 /* "Who covers" editor opens right under the clicked brand row */
-.cal-cover tr.cal-cover-editrow > td{padding:0 12px 14px;background:#fff}
-.cal-cover-editrow .cal-cover-edit{margin-top:2px;position:sticky;left:12px;max-width:min(620px,calc(100vw - 64px))}
 
 /* Renewals: Renewed / Terminate on each row */
 .adm-renew-btn{font:inherit;font-size:12px;font-weight:600;border-radius:8px;padding:5px 9px;cursor:pointer;white-space:nowrap;border:1px solid transparent}
@@ -2947,7 +2900,6 @@ em.over,.kp-legend i.over{background:#e2603d}
 .ss-pages label.on{border-color:var(--blue-500);background:#f3f6fd;color:var(--blue-500)}
 .ss-pages span{display:flex;flex-direction:column;flex:1;color:var(--ink)}
 .ss-pages small{font-size:12px;color:var(--muted);display:flex;gap:4px;align-items:center}
-.ss-prof{width:min(460px,100vw);display:flex;flex-direction:column;gap:14px;overflow-y:auto}
 .ss-prof-cover{height:96px;border-radius:18px;position:relative;margin-bottom:26px}
 .ss-prof-cover.instagram{background:radial-gradient(120% 140% at 0% 100%,#feda75 0%,#fa7e1e 25%,#d62976 55%,#962fbf 80%,#4f5bd5 100%)}
 .ss-prof-cover.facebook{background:linear-gradient(135deg,#1877f2,#0a3f9c)}
@@ -2955,17 +2907,12 @@ em.over,.kp-legend i.over{background:#e2603d}
 .ss-ava.big.ig{box-shadow:0 0 0 3px #d62976}
 .ss-prof-id b{display:block;font-size:18px}
 .ss-prof-id small{font-size:13px;color:var(--muted)}
-.ss-prof-sec{display:flex;flex-direction:column;gap:4px;font-size:13.5px}
-.ss-prof-sec span{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-2);font-weight:600}
-.ss-prof-sec p{margin:0;white-space:pre-wrap;color:var(--ink)}
-.ss-prof-sec a{color:var(--blue-500);word-break:break-all}
 .ss-prof-form{display:flex;flex-direction:column;gap:12px}
 .ss-field small{font-weight:400;color:var(--muted-2)}
 .ss-field input,.ss-field textarea{border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;font:inherit;font-size:14px;color:var(--ink);background:#fff;font-weight:400;resize:vertical}
 .ss-lbl{display:inline-flex;gap:6px;align-items:center}
 .ss-two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media (max-width:480px){.ss-two{grid-template-columns:1fr}}
-.ss-prof .ss-chip.dark{align-self:flex-start}
 .ss-btn{flex:none}
 .ss-kpis .ss-delta{white-space:normal;line-height:1.35}
 .ss-field input,.ss-field textarea,.ss-field select{width:100%;min-width:0;box-sizing:border-box}
@@ -3040,13 +2987,6 @@ em.over,.kp-legend i.over{background:#e2603d}
 .fvc-shot img,.fvc-shot video{width:100%;height:100%;object-fit:cover;display:block}
 .fvc-shot em{position:absolute;left:8px;bottom:8px;font-style:normal;font-size:11px;font-weight:600;color:#fff;background:rgba(0,0,0,.45);padding:3px 8px;border-radius:8px}
 .fvc-check{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--fg);font-weight:500}
-.fvc-prog{display:flex;flex-direction:column;gap:6px}
-.fvc-prog-h{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:#55617c}
-.fvc-prog-h b{color:var(--fg);font-weight:600;white-space:nowrap}
-.fvc-prog-h b.late{color:#b91c1c}
-.fvc-dots{display:flex;gap:4px}
-.fvc-dots i{flex:1;max-width:14px;aspect-ratio:1/1;border-radius:50%;background:rgba(255,255,255,.9);border:1.5px solid color-mix(in srgb,var(--dot) 25%,transparent)}
-.fvc-dots i.on{background:var(--dot);border-color:var(--dot)}
 .fvc-foot{display:flex;align-items:center;gap:8px}
 .fvc-stack{display:flex}
 .fvc-stack i{width:28px;height:28px;border-radius:50%;border:2px solid #fff;display:grid;place-items:center;color:#fff;font-size:9.5px;font-weight:700;font-style:normal;margin-left:-5px;letter-spacing:-.02em}

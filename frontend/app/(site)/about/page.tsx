@@ -5,7 +5,6 @@ import { testimonialInitials } from "@/lib/testimonialPresentation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Arrow } from "@/components/icons";
-import ContentIcon from "@/components/contentIcon";
 import BrandShowcase from "@/components/BrandShowcase";
 import ClientLogos from "@/components/ClientLogos";
 import { getTeam, getSeo, getBrands, getMilestones, getValues, getLogos } from "@/lib/api";

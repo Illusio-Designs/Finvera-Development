@@ -9,6 +9,7 @@ import { playSound, isSoundOn, setSoundOn } from "@/lib/sound";
 import { pushState, enablePush, disablePush, type PushState } from "@/lib/push";
 import { dialog } from "@/lib/dialog";
 import { visibleInterval } from "@/lib/visibleInterval";
+import { syncAppBadge } from "@/lib/appBadge";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Mail01Icon, Target02Icon, UserAdd01Icon, Comment01Icon, Clock01Icon, RepeatIcon, Notification03Icon,
@@ -59,12 +60,7 @@ function ago(iso: string) {
   } catch { return ""; }
 }
 
-/* The layout mounts two bells (phone bar + desktop header) and only one is
-   on screen at a time. Only the visible bell polls and pops up toasts, so
-   there is one request every 30s and each notification rings once. The
-   `announce` prop is kept for callers but no longer needed. */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export default function NotificationBell({ announce: _announce = false }: { announce?: boolean }) {
+export default function NotificationBell() {
   const router = useRouter();
   const [items, setItems] = useState<Notif[]>([]);
   const [unread, setUnread] = useState(0);
@@ -75,18 +71,36 @@ export default function NotificationBell({ announce: _announce = false }: { anno
   const [pushBusy, setPushBusy] = useState(false);
   // Highest notification id already seen — anything newer pops up as a toast.
   const seen = useRef<number | null>(null);
+  const loadRequest = useRef(0);
+  const writesInFlight = useRef(0);
 
   const onScreen = () => !!ref.current && ref.current.offsetParent !== null;
 
-  async function load() {
-    if (!getToken() || document.hidden || !onScreen()) return;
+  async function load(afterWrite = false) {
+    const token = getToken();
+    if (!token || writesInFlight.current || (!afterWrite && (document.hidden || !onScreen()))) return;
+    const request = ++loadRequest.current;
     try {
       const r = await api.listNotifications();
+      if (request !== loadRequest.current || token !== getToken()) return;
       const list: Notif[] = Array.isArray(r) ? r : (r?.items || []);
+      const count = typeof r?.unread === "number" ? r.unread : list.filter((n) => !n.isRead).length;
       setItems(list);
-      setUnread(typeof r?.unread === "number" ? r.unread : list.filter((n) => !n.isRead).length);
+      setUnread(count);
+      void syncAppBadge(count);
       announce(list);
     } catch { /* ignore */ }
+  }
+
+  async function saveReadState(write: () => Promise<unknown>) {
+    loadRequest.current++;
+    writesInFlight.current++;
+    try { await write(); }
+    catch { /* Refresh the server state if an optimistic change fails. */ }
+    finally {
+      writesInFlight.current--;
+      if (!writesInFlight.current) void load(true);
+    }
   }
 
   /* Pop up notifications that arrived since the last check (not on first load). */
@@ -109,12 +123,13 @@ export default function NotificationBell({ announce: _announce = false }: { anno
     setSound(isSoundOn()); load();
     // Polls every 30s only while the tab is visible; catches up straight away
     // when the tab comes back.
-    const stop = visibleInterval(load, 30000);
+    const stop = visibleInterval(() => load(), 30000);
     // Also catch up when the layout switches bells.
     const wake = () => load();
     window.addEventListener("resize", wake);
+    window.addEventListener("focus", wake);
     window.addEventListener("fv-push", wake); // a push just arrived (from the service worker)
-    return () => { stop(); window.removeEventListener("resize", wake); window.removeEventListener("fv-push", wake); };
+    return () => { stop(); loadRequest.current++; window.removeEventListener("resize", wake); window.removeEventListener("focus", wake); window.removeEventListener("fv-push", wake); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const toggleSound = () => { const on = !sound; setSound(on); setSoundOn(on); if (on) playSound("notify"); };
@@ -133,11 +148,12 @@ export default function NotificationBell({ announce: _announce = false }: { anno
   const toggle = () => {
     if (open) { close(); return; }
     setOpen(true);
+    void load();
     pushState().then(setPush).catch(() => setPush("unsupported"));
   };
   const markAll = async () => {
     setItems((xs) => xs.map(readNotification)); setUnread(0);
-    try { await api.markAllNotifRead(); } catch { /* ignore */ }
+    await saveReadState(api.markAllNotifRead);
   };
 
   const openItem = (n: Notif) => {
@@ -145,7 +161,7 @@ export default function NotificationBell({ announce: _announce = false }: { anno
     if (!n.isRead) {
       setItems((xs) => xs.map((x) => (x.id === n.id ? readNotification(x) : x)));
       setUnread((u) => Math.max(0, u - 1));
-      api.markNotifRead(n.id).catch(() => {});
+      void saveReadState(() => api.markNotifRead(n.id));
     }
     const href = hrefOf(n);
     if (href) router.push(href);
@@ -175,9 +191,8 @@ export default function NotificationBell({ announce: _announce = false }: { anno
     message: "iPhone and iPad only send notifications to the Home Screen app.\n\n1. In Safari, tap the Share button (the square with an arrow).\n2. Tap \u201cAdd to Home Screen\u201d, then \u201cAdd\u201d.\n3. Open Finvera from its new icon, tap the bell and tap Enable.",
     confirmText: "Got it",
   });
-  const clearAll = async () => { setItems([]); setUnread(0); try { await api.clearNotifs(); } catch { /* ignore */ } };
+  const clearAll = async () => { setItems([]); setUnread(0); await saveReadState(api.clearNotifs); };
 
-  const fresh = items.filter((n) => !n.isRead).length;
   const groups = [
     { label: "Today", list: items.filter((n) => isToday(n.createdAt)) },
     { label: "Earlier", list: items.filter((n) => !isToday(n.createdAt)) },
@@ -193,7 +208,7 @@ export default function NotificationBell({ announce: _announce = false }: { anno
         <div className="sh-pop sh-bellpop" role="dialog" aria-label="Notifications">
           <div className="sh-pop-h">
             <b>Notifications</b>
-            {fresh > 0
+            {unread > 0
               ? <button type="button" className="sh-link" onClick={markAll}>Mark all read</button>
               : <span className="sh-pill green">All caught up</span>}
             <button type="button" className="sh-icb sm plain" onClick={toggleSound} aria-pressed={sound}

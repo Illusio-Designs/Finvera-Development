@@ -1,12 +1,14 @@
 "use client";
 import { DisclosureSummary } from "@/components/admin/Workspace";
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { api } from "@/lib/adminApi";
 import { channelHealth, type HealthAccount, type HealthResult } from "@/lib/socialAccountHealth";
 import "./social-account-health.css";
-export default function SocialAccountHealth({ accounts, brand = "", canManage = false, onReconnect }: {
-  accounts: HealthAccount[]; brand?: string; canManage?: boolean; onReconnect: (brand: string) => void;
+export default function SocialAccountHealth({ accounts, brand = "", onCheckLogins, checkingLogins = false }: {
+  accounts: HealthAccount[];
+  brand?: string;
+  onCheckLogins?: () => void;
+  checkingLogins?: boolean;
 }) {
   const [results, setResults] = useState<Record<string, HealthResult>>({}), [checking, setChecking] = useState(false);
   const [, tick] = useState(0);
@@ -33,22 +35,48 @@ export default function SocialAccountHealth({ accounts, brand = "", canManage = 
     finally { if (id === generation.current) { lock.current = false; setChecking(false); } }
   }
   const attention = rows.filter(r => ["danger", "warning"].includes(channelHealth(r.account, r.platform, results[r.key]).state)).length;
-  const description = rows.length + " channels · " + (attention ? `${attention} need attention` : "Review connection and publishing access");
+  const description = `${rows.length} ${rows.length === 1 ? "channel" : "channels"}${attention ? ` · ${attention} need attention` : ""}`;
   return <details className="sah-panel" open={attention > 0 || undefined}>
-    <summary>
-      <span><b>Account health</b><small>{description}</small></span>
-      <span className={attention ? "sah-attention" : ""}>{attention ? "Needs attention" : "Connection overview"}</span>
-    </summary>
-    <div className="sah-body"><div className="sah-toolbar"><p>Checks read account access; they do not publish or edit profiles.</p><button type="button" className="adm-btn ghost" disabled={checking || !rows.length} onClick={() => check(rows)}>{checking ? "Checking access…" : "Check all accounts"}</button></div>
-      {!rows.length && <p>No connected accounts for this view. Connect a brand in Social studio to begin.</p>}
+    <DisclosureSummary><b>Connection checks</b><small className={attention ? "sah-attention" : undefined}>{description}</small></DisclosureSummary>
+    <div className="sah-body">
+      <div className="sah-toolbar">
+        <div>
+          <button type="button" className="adm-btn ghost" disabled={checking || checkingLogins || !rows.length} onClick={() => check(rows)}>
+            {checking ? "Checking permissions…" : "Check channel permissions"}
+          </button>
+          <small>Reads Meta permissions for the channels in this view.</small>
+        </div>
+        {onCheckLogins && <div>
+          <button type="button" className="adm-btn ghost" disabled={checkingLogins || checking || !accounts.length} onClick={onCheckLogins}>
+            {checkingLogins ? "Checking logins…" : "Check saved logins"}
+          </button>
+          <small>Refreshes the connection status for all connected brands.</small>
+        </div>}
+      </div>
+      {!rows.length && <p>No channels are connected in this view.</p>}
       <div className="sah-grid">{rows.map(row => {
         const result = results[row.key], health = channelHealth(row.account, row.platform, result);
         const expiry = result?.data?.expiresAt || row.account.tokenExpiresAt;
         return <article key={row.key} className={`sah-card ${health.state}`} aria-label={`${row.account.client} ${row.platform} account health`}><header><div><h3>{row.account.client}</h3><small>{row.platform === "facebook" ? "Facebook" : "Instagram"}</small></div><span className="sah-badge">{health.label}</span></header><p>{health.detail}</p>
           <small>Checked: {result?.data?.checkedAt ? new Date(result.data.checkedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) + " IST" : "Not checked in this session"}</small>
           <small>Access expiry: {expiry ? new Date(expiry).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) + " IST" : "Not reported"}</small>
-          {result?.data && <details><DisclosureSummary>Permission details</DisclosureSummary><ul>{result.data.actions.filter(a => ["token", "view", "publish", "edit", "stories", "covers"].includes(a.id)).map(a => <li key={a.id}><b>{a.label}: {a.state.replaceAll("_", " ")}</b><p>{a.detail}</p></li>)}</ul></details>}
-          <footer><button type="button" className="adm-btn ghost" disabled={checking} onClick={() => check([row])}>Check access</button>{health.reconnect && (canManage ? <button type="button" className="adm-btn primary" onClick={() => onReconnect(row.account.client)}>Reconnect brand</button> : <small>Ask an administrator to reconnect this brand.</small>)}{health.label === "Publishing paused" && <Link className="adm-btn ghost" href={`/dashboard/social-studio?tab=channels&brand=${encodeURIComponent(row.account.client)}`}>Manage channel</Link>}</footer>
+          {result?.data && <details>
+            <DisclosureSummary>Permission details</DisclosureSummary>
+            <ul>{result.data.actions.map(action => <li key={action.id}>
+              <b>{action.label} · {action.state.replaceAll("_", " ")}</b>
+              <p>{action.detail}</p>
+              {action.url && <a href={action.url} target="_blank" rel="noopener noreferrer">{action.label} ↗</a>}
+            </li>)}</ul>
+            <details><DisclosureSummary>Granted scopes</DisclosureSummary>
+              <small>{result.data.scopes?.join(", ") || "No scopes reported"}</small>
+            </details>
+          </details>}
+          <footer>
+            <button type="button" className="adm-btn ghost" disabled={checking || checkingLogins} onClick={() => check([row])}>
+              {result?.data ? "Check again" : "Check access"}
+            </button>
+            {health.reconnect && <small>{onCheckLogins ? "Use Reconnect Meta on this brand’s channel group." : "Ask an administrator to reconnect this brand."}</small>}
+          </footer>
         </article>;
       })}</div>
     </div>
