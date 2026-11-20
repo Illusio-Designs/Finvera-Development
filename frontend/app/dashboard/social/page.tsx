@@ -357,6 +357,7 @@ export default function SocialCalendar() {
     }
   }
   const [uploads, setUploads] = useState<Upload[] | null>(null); // admin Team & uploads panel (null = closed)
+  const [deletingBrandCalendar, setDeletingBrandCalendar] = useState(false);
   const coverScrolled = useRef("");
   const [coverEdit, setCoverEdit] = useState<{ brand: string; role: Role } | null>(null); // "who covers" cell being edited
   const [coverBusy, setCoverBusy] = useState<number | null>(null);
@@ -999,15 +1000,27 @@ export default function SocialCalendar() {
     } catch (e: any) { toast("Couldn't delete the upload", "err", { description: e.message }); }
   }
   async function deleteBrand(name: string) {
+    if (limited || deletingBrandCalendar || !name) return;
     const count = posts.filter((p) => p.client === name).length;
-    const typed = await dialog.prompt({ title: `Delete all ${count} posts of ${name}?`, message: `This removes every post of this brand (uploaded or added by hand), with time logs. Type the brand name to confirm.`, placeholder: name, confirmText: "Delete all posts", danger: true });
+    if (!count) return;
+    const typed = await dialog.prompt({
+      title: `Delete ${name}’s calendar?`,
+      message: `This permanently deletes ${count} calendar ${count === 1 ? "post" : "posts"} and their time logs across all months. Published posts and active or uncertain publishing jobs block deletion. Type the brand name to confirm.`,
+      placeholder: name,
+      confirmText: "Delete brand calendar",
+      danger: true,
+    });
     if (typed == null) return;
     if (typed.trim() !== name) return toast("Nothing deleted", "warn", { description: "The brand name didn't match." });
+    setDeletingBrandCalendar(true);
     try {
       const r = await api.deleteBrandPosts(name);
+      setUploads((current) => current?.filter((upload) => upload.client !== name) ?? null);
       toast("Posts deleted", "ok", { description: `${r.deleted} posts removed from ${name}.` });
-      await openUploads(); load();
+      await load();
+      window.dispatchEvent(new Event("fv-badges"));
     } catch (e: any) { toast("Couldn't delete the posts", "err", { description: e.message }); }
+    finally { setDeletingBrandCalendar(false); }
   }
 
   /* ── import ── */
@@ -1530,7 +1543,6 @@ export default function SocialCalendar() {
   }
 
   function renderTeamPanel(ups: Upload[]) {
-    const roles: Role[] = ["graphic", "video", "social"];
     return (
       <div className="adm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setUploads(null); }}>
         <div className="adm-drawer kb-drawer cal-view cal-wide" role="dialog" aria-modal="true" aria-label="Upload history">
@@ -1565,7 +1577,7 @@ export default function SocialCalendar() {
             <div className="cal-links">
               {clientNames.filter((n) => posts.some((p) => p.client === n)).length === 0 && <span className="adm-hint">No brand has posts right now.</span>}
               {clientNames.filter((n) => posts.some((p) => p.client === n)).map((n) => (
-                <button key={n} type="button" className="cal-btn danger" onClick={() => deleteBrand(n)}>Delete {posts.filter((p) => p.client === n).length} posts · {n}</button>
+                <button key={n} type="button" className="cal-btn danger" disabled={deletingBrandCalendar} onClick={() => deleteBrand(n)}>Delete {posts.filter((p) => p.client === n).length} posts · {n}</button>
               ))}
             </div>
           </div>
@@ -1596,6 +1608,7 @@ export default function SocialCalendar() {
   const initialLoading = loading || !rolesReady || !preferencesReady;
   const hasLoadFailure = !!loadError && !firstLoadDone.current;
   const controlsDisabled = initialLoading || hasLoadFailure;
+  const brandHasPosts = !!client && posts.some((post) => post.client === client);
 
   // Editor: who the post goes to at its stage, and whether the start date is automatic.
   const edRole = editing ? roleFor((editing.status || "planned") as Stage, editing.format, editing.step) : "graphic";
@@ -1622,6 +1635,19 @@ export default function SocialCalendar() {
               {!limited && <button type="button" className="cal-btn" onClick={() => setBulkMove({ from: "", to: "", brand: client, role: "", posts: null, skipped: 0, busy: false })}>Reassign pending</button>}
               <ExportButton entity="social-posts" file={client ? `content-calendar-${client.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}` : "content-calendar"} sheet={client || "Content calendar"}
                 params={() => ({ client, q: query.trim(), assigneeId: activeView === "mine" ? String(meId ?? "none") : who, postFormat: format, from: month ? `${month}-01` : "", to: month ? iso(new Date(+month.slice(0, 4), +month.slice(5, 7), 0)) : "" })} />
+              {!limited && <div className="cal-tools-delete">
+                <button type="button" className="cal-btn danger" disabled={deletingBrandCalendar || !brandHasPosts}
+                  aria-describedby={!brandHasPosts ? "cal-tools-delete-hint" : undefined}
+                  onClick={(event) => {
+                    const tools = event.currentTarget.closest("details");
+                    if (tools) {
+                      tools.open = false;
+                      tools.querySelector("summary")?.focus();
+                    }
+                    void deleteBrand(client);
+                  }}>{deletingBrandCalendar ? "Deleting calendar…" : "Delete brand calendar"}</button>
+                {!brandHasPosts && <p id="cal-tools-delete-hint" className="adm-hint">{client ? "This brand has no calendar posts." : "Select a brand to delete its calendar."}</p>}
+              </div>}
             </div>
           </details>
         </div> </>} />
