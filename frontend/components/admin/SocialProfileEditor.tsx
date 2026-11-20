@@ -17,6 +17,7 @@ type ReadinessAction = { id: string; label: string; state: string; detail: strin
 type ProfileReadiness = { actions: ReadinessAction[]; scopes?: string[] | null; checkedAt?: string | null };
 type Account = { client: string; pageId?: string; igUserId?: string; igUsername?: string; status: string };
 const fields = ["about", "description", "website", "phone", "email"] as const;
+const instagramEditUrl = "https://www.instagram.com/accounts/edit/";
 const draft = (p: Profile) => Object.fromEntries(fields.map(k => [k, p[k] || ""])) as Record<string, string>;
 
 type Props = {
@@ -40,13 +41,14 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
   const [status, setStatus] = useState<"loading" | "ready" | "saving" | "error">("loading");
   const [profile, setProfile] = useState<Profile | null>(null), [form, setForm] = useState<Record<string, string>>({});
   const [error, setError] = useState(""), [notice, setNotice] = useState(""), [photoBusy, setPhotoBusy] = useState(false);
+  const [detailsBusy, setDetailsBusy] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const leavingForMeta = useRef(false);
   const [readiness, setReadiness] = useState<ProfileReadiness | null>(null);
   const [readinessError, setReadinessError] = useState(false);
   const access = readiness?.actions.find(action => action.id === "edit")?.state ?? "unknown";
   const generation = useRef(0);
-  const dirty = !!profile && fields.some(k => form[k] !== (profile[k] || ""));
+  const dirty = platform === "facebook" && !!profile && fields.some(k => form[k] !== (profile[k] || ""));
   const studio = `/dashboard/social-studio?tab=channels&brand=${encodeURIComponent(client)}`;
   useEffect(() => {
     let active = true;
@@ -69,7 +71,7 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
       return;
     }
     const id = ++generation.current;
-    setStatus("loading"); setProfile(null); setError(""); setNotice(""); setReadiness(null); setReadinessError(false); setPhotoBusy(false);
+    setStatus("loading"); setProfile(null); setError(""); setNotice(""); setReadiness(null); setReadinessError(false); setPhotoBusy(false); setDetailsBusy(false);
     if (!onClose && !workspace) window.history.replaceState(null, "", `?brand=${encodeURIComponent(client)}&platform=${platform}`);
     api.channelProfile(client, platform).then(p => {
       if (generation.current !== id) return;
@@ -160,6 +162,24 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
     } catch (e: any) { if (id === generation.current) setError(e.message); }
     finally { if (id === generation.current) setPhotoBusy(false); }
   }
+  async function refreshInstagramDetails() {
+    const id = generation.current;
+    setDetailsBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await api.channelProfile(client, "instagram");
+      if (id !== generation.current) return;
+      setProfile(result);
+      setNotice("Instagram details refreshed.");
+    } catch (error) {
+      if (id === generation.current) {
+        setError(error instanceof Error ? error.message : "Could not refresh Instagram details.");
+      }
+    } finally {
+      if (id === generation.current) setDetailsBusy(false);
+    }
+  }
   const content = <div className={workspace ? "social-profiles sp-inline" : "social-profiles"}>
     {!workspace && <WorkspaceHero eyebrow="SOCIAL MEDIA" title="Social profiles" description="Update connected profiles without leaving your workspace." headingLevel={onClose ? 2 : 1} compact={Boolean(onClose)} actions={<> {onClose ? <button className="adm-btn ghost" type="button" disabled={busy} onClick={close} aria-label="Close profile editor">Close</button> : <Link className="adm-btn ghost" href={studio}>Manage connections</Link>} </>} />
     }
@@ -177,22 +197,43 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
         <div className="sp-loading-lines"><Shimmer width="82%" height={22} /><Shimmer width="60%" height={14} /><Shimmer width="68%" height={14} /></div>
         <Shimmer width={123} height={40} /><div className="sp-loading-note"><Shimmer width="100%" height={14} /><Shimmer width="72%" height={14} /></div>
       </section>
-      <section className="sp-loading-details">
+      {platform === "instagram" ? <section className="sp-instagram-details">
+        <div className="sp-instagram-header"><Shimmer width={175} height={24} /><Shimmer width={76} height={24} /></div>
+        <div className="sp-instagram-values">
+          <div><Shimmer width={32} height={16} /><Shimmer width="65%" height={20} /></div>
+          <div><Shimmer width={60} height={16} /><Shimmer width="45%" height={20} /></div>
+        </div>
+        <Shimmer width="85%" height={20} />
+        <div className="sp-instagram-actions"><Shimmer width={132} height={42} />{admin && <Shimmer width={146} height={42} />}</div>
+      </section> : <section className="sp-loading-details">
         <Shimmer width="38%" height={22} />
-        {platform === "facebook" && <Shimmer width="87%" height={16} />}
-        {(platform === "facebook" ? fields : ["bio", "website"]).map(field => <div className="adm-field" key={field}>
-          <Shimmer width={80} height={15} /><Shimmer height={field === "description" || field === "bio" ? 100 : "var(--ui-field-height, 42px)"} />
+        <Shimmer width="87%" height={16} />
+        {fields.map(field => <div className="adm-field" key={field}>
+          <Shimmer width={80} height={15} /><Shimmer height={field === "description" ? 100 : "var(--ui-field-height, 42px)"} />
         </div>)}
-        {platform === "facebook" && <Shimmer width={130} height={40} />}
-      </section>
+        <Shimmer width={130} height={40} />
+      </section>}
     </div></LoadingRegion>}
     {!client && status === "ready" && <section><h2>No connected profiles</h2><p>Connect a Facebook Page and its Instagram account to manage their details.</p>
       {workspace ? <button type="button" className="adm-btn ghost" onClick={workspace.onConnections}>Open channel connections</button> : <Link href={studio}>Open channel connections</Link>}</section>}
     {status === "error" && <p>Could not load this profile. {client && (workspace ? <button type="button" className="adm-btn ghost" onClick={workspace.onConnections}>Check this brand’s connection</button> : <Link href={studio}>Check this brand’s connection</Link>)}</p>}
     {profile && <div className="sp-grid">
-      <section className="sp-identity"><ChannelAvatar picture={profile.picture} label={profile.name || client} className="sp-avatar"/><div><h2>{profile.name || profile.username || client}</h2><p>{platform === "instagram" ? `@${profile.username || ""}` : profile.category || "Facebook Page"}</p><p>{profile.followers == null ? "Follower count unavailable" : `${Number(profile.followers).toLocaleString()} followers`}</p></div><button className="adm-btn ghost" type="button" onClick={refreshPhoto} disabled={photoBusy || busy}>{photoBusy ? "Refreshing…" : "Refresh photo"}</button><p className="sp-note">Photo refresh reads the current platform picture. Photo and name updates are unavailable in this editor.</p></section>
-      <section><h2>{platform === "facebook" ? "Page details" : "Instagram details"}</h2>
-        {platform === "instagram" ? <><div className="adm-field"><label htmlFor="profile-bio">Bio</label><textarea id="profile-bio" rows={4} value={profile.biography || ""} readOnly /></div><div className="adm-field"><label htmlFor="profile-website">Website</label><input id="profile-website" value={profile.website || ""} readOnly /></div><p className="sp-note">Instagram profile editing is unavailable through the connected Meta API. These details are read-only; publishing and scheduling posts remain available in Finvera.</p></> : <form onSubmit={e => { e.preventDefault(); void save(); }}>
+      <section className="sp-identity"><ChannelAvatar picture={profile.picture} label={profile.name || client} className="sp-avatar"/><div><h2>{profile.name || profile.username || client}</h2><p>{platform === "instagram" ? (profile.username ? `@${profile.username}` : "Instagram Business") : profile.category || "Facebook Page"}</p><p>{profile.followers == null ? "Follower count unavailable" : `${Number(profile.followers).toLocaleString()} followers`}</p></div><button className="adm-btn ghost" type="button" onClick={refreshPhoto} disabled={photoBusy || detailsBusy || busy}>{photoBusy ? "Refreshing…" : "Refresh photo"}</button><p className="sp-note">Photo refresh reads the current platform picture. Photo and name updates are unavailable in this editor.</p></section>
+      {platform === "instagram" ? <section className="sp-instagram-details">
+        <div className="sp-instagram-header"><h2>Instagram details</h2><span>Read-only</span></div>
+        <dl className="sp-instagram-values">
+          <div><dt>Bio</dt><dd>{profile.biography?.trim() || "No bio returned by Instagram"}</dd></div>
+          <div><dt>Website</dt><dd>{profile.website?.trim() || "No website returned by Instagram"}</dd></div>
+        </dl>
+        <p className="sp-note">{admin
+          ? <>Edit these details in Instagram{profile.username ? <> while signed in as <strong>@{profile.username}</strong></> : ""}, then refresh them here.</>
+          : "Instagram manages these profile details."}</p>
+        <div className="sp-instagram-actions">
+          {admin && <a className="adm-btn primary" href={instagramEditUrl} target="_blank" rel="noopener noreferrer" aria-label="Edit in Instagram (opens in a new tab)">Edit in Instagram</a>}
+          <button className="adm-btn ghost" type="button" onClick={refreshInstagramDetails} disabled={detailsBusy || photoBusy || busy}>{detailsBusy ? "Refreshing details…" : "Refresh details"}</button>
+        </div>
+      </section> : <section><h2>Page details</h2>
+        <form onSubmit={e => { e.preventDefault(); void save(); }}>
           {!admin && <p className="sp-note">An administrator can update these Page details.</p>}
           {admin && access !== "permission_granted" && <p className="sp-note">Meta has not confirmed Page editing access. Approve the permission in Meta, then reconnect this brand.</p>}
           {fields.map(k => <div className="adm-field" key={k}><label htmlFor={`profile-${k}`}>{k.charAt(0).toUpperCase() + k.slice(1)}</label>{k === "description" ? <textarea id={`profile-${k}`} rows={4} maxLength={5000} value={form[k] || ""} disabled={!admin || busy} onChange={e => setForm({ ...form, [k]: e.target.value })}/> : <input id={`profile-${k}`} type={k === "email" ? "email" : k === "website" ? "url" : "text"} maxLength={255} value={form[k] || ""} disabled={!admin || busy} onChange={e => setForm({ ...form, [k]: e.target.value })}/>}</div>)}
@@ -200,8 +241,8 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
             {onClose && <button className="adm-btn ghost" type="button" disabled={busy} onClick={close}>Cancel</button>}
             {admin && <button className="adm-btn primary" type="submit" disabled={!dirty || busy}>{busy ? "Saving…" : "Save changes"}</button>}
           </div>
-        </form>}
-      </section>
+        </form>
+      </section>}
     </div>}
     {workspace && client && <details className="sp-readiness" key={`${client}-${platform}`}>
       <DisclosureSummary>Readiness &amp; actions</DisclosureSummary>
