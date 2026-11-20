@@ -19,4 +19,14 @@ const makerFor = (format) => isVideoFormat(format) ? "video" : "graphic";
 const roleFor = (state, format) => ["approval", "ready", "posted"].includes(state) ? "social" : makerFor(format);
 const stepFor = (state, _legacyStep, format) => state === "production" ? makerFor(format) : null;
 
-module.exports = { STATES, TRANSITIONS, isState, transition, canMove, nextStage, isVideoFormat, makerFor, roleFor, stepFor };
+function teamOf(post) {
+  let team = post?.team;
+  if (typeof team === "string") {
+    try { team = JSON.parse(team); } catch { return {}; }
+  }
+  return team && typeof team === "object" && !Array.isArray(team) ? team : {};
+}
+
+const teamWithOwner = (post) => ({ ...teamOf(post), [roleFor(post.status, post.format)]: post.assigneeId ?? null });
+
+module.exports = { STATES, TRANSITIONS, isState, transition, canMove, nextStage, isVideoFormat, makerFor, roleFor, stepFor, teamOf, teamWithOwner };

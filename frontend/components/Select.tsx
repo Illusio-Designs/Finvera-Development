@@ -5,20 +5,19 @@ import { useDisclosure } from "@/lib/useDisclosure";
 import { positionPopover } from "@/lib/positionPopover";
 
 type Opt = { value: string; label: string };
-
-/* This field keeps the string value and optional form input independent of its menu. */
-export default function Select({
-  value, onChange, options, id, name, placeholder, disabled, ariaLabel,
-}: {
-  value?: string;
-  onChange?: (v: string) => void;
+type SelectProps = {
   options: (Opt | string)[];
   id?: string;
-  name?: string;
   placeholder?: string;
   disabled?: boolean;
   ariaLabel?: string;
-}) {
+} & (
+  { multiple?: false; value?: string; onChange?: (v: string) => void; name?: string }
+  | { multiple: true; value: string[]; onChange: (v: string[]) => void; selectAllLabel?: string }
+);
+
+export default function Select(props: SelectProps) {
+  const { options, id, placeholder, disabled, ariaLabel } = props;
   const [open, setOpen] = useDisclosure(false);
   const [active, setActive] = useState(0);
   const generatedId = useId();
@@ -28,8 +27,13 @@ export default function Select({
   const trigger = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLUListElement>(null);
   const opts = options.map(o => typeof o === "string" ? { value: o, label: o } : o);
-  const currentValue = value ?? "";
-  const selected = opts.find(o => o.value === currentValue);
+  const availableValues = opts.map(o => o.value);
+  const chosen = props.multiple ? opts.filter(o => props.value.includes(o.value)) : opts.filter(o => o.value === (props.value ?? ""));
+  const selectAllLabel = props.multiple ? props.selectAllLabel : undefined;
+  const allSelected = !!selectAllLabel && opts.length > 0 && chosen.length === opts.length;
+  const entries = selectAllLabel && opts.length ? [{ value: null, label: selectAllLabel }, ...opts] : opts;
+  const isSelected = (entry: typeof entries[number]) => entry.value === null ? allSelected : chosen.some(o => o.value === entry.value);
+  const selectedLabel = allSelected ? selectAllLabel : chosen.length > 1 ? `${chosen.length} selected` : chosen[0]?.label;
   const expanded = open && !disabled;
 
   useEffect(() => {
@@ -64,13 +68,19 @@ export default function Select({
   }
 
   function show() {
-    setActive(Math.max(0, opts.findIndex(o => o.value === currentValue)));
+    setActive(Math.max(0, entries.findIndex(isSelected)));
     setOpen(true);
   }
 
-  function pick(value: string) {
-    close();
-    onChange?.(value);
+  function pick(value: string | null) {
+    if (props.multiple) {
+      if (value === null) props.onChange(allSelected ? [] : availableValues);
+      else props.onChange(props.value.includes(value) ? props.value.filter(v => v !== value) : [...props.value, value]);
+      list.current?.focus({ preventScroll: true });
+    } else if (value !== null) {
+      close();
+      props.onChange?.(value);
+    }
   }
 
   function onKey(event: KeyboardEvent) {
@@ -90,11 +100,11 @@ export default function Select({
     event.preventDefault();
     event.stopPropagation();
     if (event.key === "Escape") close();
-    else if (event.key === "ArrowDown") setActive(index => Math.min(index + 1, Math.max(0, opts.length - 1)));
+    else if (event.key === "ArrowDown") setActive(index => Math.min(index + 1, Math.max(0, entries.length - 1)));
     else if (event.key === "ArrowUp") setActive(index => Math.max(0, index - 1));
     else if (event.key === "Home") setActive(0);
-    else if (event.key === "End") setActive(Math.max(0, opts.length - 1));
-    else if (opts[active]) pick(opts[active].value);
+    else if (event.key === "End") setActive(Math.max(0, entries.length - 1));
+    else if (entries[active]) pick(entries[active].value);
   }
 
   return (
@@ -102,29 +112,31 @@ export default function Select({
       onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
       <button type="button" id={triggerId} ref={trigger} className="cselect-btn" disabled={disabled}
         aria-haspopup="listbox" aria-expanded={expanded} aria-controls={expanded ? listId : undefined} aria-label={ariaLabel}
+        aria-describedby={props.multiple && ariaLabel ? `${triggerId}-value` : undefined}
         onClick={() => expanded ? close() : show()} onKeyDown={onKey}>
-        <span className={`cselect-val${selected ? "" : " ph"}`}>{selected?.label ?? placeholder ?? "Select…"}</span>
+        <span id={`${triggerId}-value`} className={`cselect-val${selectedLabel ? "" : " ph"}`}>{selectedLabel ?? placeholder ?? "Select…"}</span>
         <svg className="cselect-caret" viewBox="0 0 24 24" width="16" fill="none" stroke="currentColor" strokeWidth="2.2"
           strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
       </button>
-      {name && <input type="hidden" name={name} value={currentValue} />}
+      {!props.multiple && props.name && <input type="hidden" name={props.name} value={props.value ?? ""} />}
       {expanded && (
         <ul id={listId} ref={list} className="cselect-drop" popover="manual" role="listbox" tabIndex={-1}
-          aria-labelledby={triggerId} aria-activedescendant={opts[active] ? `${listId}-${active}` : undefined} onKeyDown={onKey}>
-          {opts.map((o, index) => (
-            <li key={o.value} role="none">
-              <button type="button" role="option" id={`${listId}-${index}`} tabIndex={-1} aria-selected={o.value === currentValue}
-                className={`cselect-opt${o.value === currentValue ? " on" : ""}${index === active ? " active" : ""}`}
+          aria-labelledby={triggerId} aria-activedescendant={entries[active] ? `${listId}-${active}` : undefined}
+          aria-multiselectable={props.multiple || undefined} onKeyDown={onKey}>
+          {entries.map((o, index) => (
+            <li key={o.value === null ? "all" : `option-${o.value}`} role="none">
+              <button type="button" role="option" id={`${listId}-${index}`} tabIndex={-1} aria-selected={isSelected(o)}
+                className={`cselect-opt${isSelected(o) ? " on" : ""}${index === active ? " active" : ""}`}
                 onMouseEnter={() => setActive(index)} onClick={() => pick(o.value)}>
                 <span>{o.label}</span>
-                {o.value === currentValue && (
+                {isSelected(o) && (
                   <svg viewBox="0 0 24 24" width="15" fill="none" stroke="currentColor" strokeWidth="2.4"
                     strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" /></svg>
                 )}
               </button>
             </li>
           ))}
-          {!opts.length && <li className="cselect-empty" role="presentation">No options available</li>}
+          {!entries.length && <li className="cselect-empty" role="presentation">No options available</li>}
         </ul>
       )}
     </div>

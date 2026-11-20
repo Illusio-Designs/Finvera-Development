@@ -3,12 +3,13 @@ import { DisclosureSummary, WorkspaceHero } from "@/components/admin/Workspace";
 import Link from "next/link";
 import SocialPostPreview from "@/components/admin/SocialPostPreview";
 import SocialProfileEditor from "@/components/admin/SocialProfileEditor";
-import { LoadingRegion, Shimmer } from "@/components/admin/PageLoading";
+import PageLoading, { LoadingRegion, Shimmer } from "@/components/admin/PageLoading";
 import { useShell } from "@/components/admin/shell/ShellContext";
 import "./social-workspace.css";
 import { useWorkflowDialog, useImportWizard } from "@/lib/useWorkflowDialog";
 import { hydrateEditor } from "@/lib/socialWorkMachine";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { chainFor, isVideoFormat, makerFor, roleFor, nextStage, indiaToday, overdueAt, moveArtwork, type SocialRole as Role, type SocialStage as Stage } from "@/lib/socialWorkflow";
 import { api } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
@@ -309,10 +310,19 @@ function sheetToPosts(rows: string[][], client: string): Partial<Post>[] {
 
 function initials(name = "") { return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"; }
 
-export default function SocialCalendar() {
+export default function SocialCalendarPage() {
+  return <Suspense fallback={<PageLoading label="Loading content calendar…" variant="board" count={4} />}>
+    <SocialCalendar />
+  </Suspense>;
+}
+
+function SocialCalendar() {
   const { roles, rolesReady, me } = useShell();
   const limited = !roles.includes("admin");
   const meId = me?.id ?? null;
+  const params = useSearchParams();
+  const linkedPost = params.get("post");
+  const assignedToMe = params.get("assigned") === "me";
   const [profileOpen, setProfileOpen] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
   const [clientRows, setClientRows] = useState<Client[]>([]);
@@ -347,7 +357,7 @@ export default function SocialCalendar() {
     const move = bulkMove;
     setBulkMove({ ...move, busy: true });
     try {
-      const result = await api.create("social-posts/reassign-pending", { fromId: Number(move.from), toId: Number(move.to), brand: move.brand, role: move.role, preview, ...(!preview ? { postIds: move.posts?.map((p) => p.id) } : {}) });
+      const result = await api.create("social-posts/reassign-pending", { fromId: move.from === "unassigned" ? null : Number(move.from), toId: Number(move.to), brand: move.brand, role: move.role, preview, ...(!preview ? { postIds: move.posts?.map((p) => p.id) } : {}) });
       if (preview) setBulkMove({ ...move, posts: result.posts, skipped: result.skipped, busy: false });
       else { setBulkMove(null); await load(); window.dispatchEvent(new Event("fv-badges")); toast(`${result.transferred} pending posts reassigned`, "ok"); }
     } catch (e: any) {
@@ -454,25 +464,33 @@ export default function SocialCalendar() {
       return full;
     } catch { return null; }
   }
-  /* ?post=ID (links from the home page and notifications) opens that post's
-     details once the board has loaded, even if it's outside the loaded dates. */
-  const deepLinked = useRef(false);
+  const linkRequest = useRef(0);
   useEffect(() => {
-    if (loading || deepLinked.current || typeof window === "undefined") return;
-    deepLinked.current = true;
-    const url = new URL(window.location.href);
-    const id = Number(url.searchParams.get("post"));
-    if (!id) return;
+    if (loading || !!editing || !linkedPost) return;
+    const request = ++linkRequest.current;
+    const id = Number(linkedPost);
+    const url = new URL(location.href);
     url.searchParams.delete("post");
     window.history.replaceState(null, "", url.pathname + (url.search || "") + url.hash);
+    if (!Number.isSafeInteger(id) || id <= 0) return;
     if (posts.some((x) => x.id === id)) { setViewId(id); return; }
     fetchFull(id).then((full) => {
+      if (request !== linkRequest.current) return;
       if (!full) { toast("That post isn't available", "info", { description: "It may have been deleted, or it belongs to a brand you can't see." }); return; }
       setPosts((ps) => (ps.some((x) => x.id === id) ? ps : [...ps, full]));
       setViewId(id);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
+  }, [loading, linkedPost, !!editing]);
+  useEffect(() => {
+    if (!assignedToMe || !rolesReady || !meId) return;
+    setView(limited ? "mine" : "board");
+    setWho(limited ? "" : String(meId));
+    setClient(""); setMonth(""); setCalMonth(""); setFormat(""); setQuery("");
+    const url = new URL(location.href);
+    url.searchParams.delete("assigned");
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+  }, [assignedToMe, rolesReady, limited, meId]);
   const viewedFull = viewId != null ? !!posts.find((x) => x.id === viewId)?._full : true;
   const uploadFull = uploadId != null ? !!posts.find((p) => p.id === uploadId)?._full : true;
   const editingFull = editing?.id ? !!editing._full : true;
@@ -1721,12 +1739,14 @@ export default function SocialCalendar() {
             <div className="cal-vtop"><h2>Reassign pending</h2><button type="button" className="cal-x" disabled={bulkMove.busy} onClick={() => setBulkMove(null)} aria-label="Close">×</button></div>
             <p className="cal-lead">Transfer pending work in one shot. Files, content, stage and go-live dates stay with each post.</p>
             <fieldset disabled={bulkMove.busy} style={{ border: 0, padding: 0 }}>
-              <div className="adm-field"><label>Current person</label><Select ariaLabel="Current person" value={bulkMove.from} onChange={(from) => setBulkMove({ ...bulkMove, from, posts: null })} options={[{ value: "", label: "Choose person" }, ...team.map((u) => ({ value: String(u.id), label: `${u.name}${u.active === false ? " (inactive)" : ""}` }))]} /></div>
-              <div className="adm-field"><label>Replacement</label><Select ariaLabel="Replacement" value={bulkMove.to} onChange={(to) => setBulkMove({ ...bulkMove, to, posts: null })} options={[{ value: "", label: "Choose replacement" }, ...team.filter((u) => u.active !== false && String(u.id) !== bulkMove.from).map((u) => ({ value: String(u.id), label: u.name }))]} /></div>
+              <div className="adm-field"><label>Current assignee</label><Select ariaLabel="Current assignee" value={bulkMove.from}
+                onChange={(from) => setBulkMove({ ...bulkMove, from, ...(from === bulkMove.to ? { to: "" } : {}), posts: null })}
+                options={[{ value: "", label: "Choose assignee" }, { value: "unassigned", label: "Unassigned" }, ...team.map((u) => ({ value: String(u.id), label: `${u.name}${u.active === false ? " (inactive)" : ""}` }))]} /></div>
+              <div className="adm-field"><label>Replacement</label><Select ariaLabel="Replacement" value={bulkMove.to} onChange={(to) => setBulkMove({ ...bulkMove, to, posts: null })} options={[{ value: "", label: "Choose replacement" }, ...team.filter((u) => u.active !== false && String(u.id) !== bulkMove.from && u.roles?.some(role => ["graphic", "video", "social"].includes(role))).map((u) => ({ value: String(u.id), label: u.name }))]} /></div>
               <div className="adm-field"><label>Brand</label><Select ariaLabel="Transfer brand" value={bulkMove.brand} onChange={(brand) => setBulkMove({ ...bulkMove, brand, posts: null })} options={[{ value: "", label: "All brands" }, ...clientNames.map((name) => ({ value: name, label: name }))]} /></div>
               <div className="adm-field"><label>Work type</label><Select ariaLabel="Transfer work type" value={bulkMove.role} onChange={(role) => setBulkMove({ ...bulkMove, role, posts: null })} options={[{ value: "", label: "All eligible work" }, ...(["graphic", "video", "social"] as Role[]).map((role) => ({ value: role, label: ROLE_META[role].label }))]} /></div>
             </fieldset>
-            <p className="adm-hint">Only the replacement’s matching work roles are transferred. Posted posts and posts currently publishing are excluded. Other people in the post’s team are retained.</p>
+            <p className="adm-hint">Use Unassigned for older posts without an owner. The replacement must have the role for each post’s current stage.</p>
             {bulkMove.posts && <div className="cal-vsec"><h4>{bulkMove.posts.length} posts to transfer</h4><p>{bulkMove.skipped} excluded by work type, role or publishing state.</p><ul>{bulkMove.posts.map((p) => <li key={p.id}>{p.theme} · {p.client} · {STAGES.find((s) => s.id === p.status)?.title}</li>)}</ul></div>}
             <div className="adm-drawer-actions cal-actions">
               <button type="button" className="cal-btn" disabled={bulkMove.busy || !bulkMove.from || !bulkMove.to || bulkMove.from === bulkMove.to} onClick={() => transferPending(true)}>{bulkMove.busy ? "Working…" : "Preview pending posts"}</button>
@@ -1933,11 +1953,14 @@ export default function SocialCalendar() {
                 <span className="cal-muted">At this stage it's for the <b style={{ color: ROLE_META[edRole].fg }}>{ROLE_META[edRole].label}</b>.</span>
               </div>
               <div className="adm-field"><label>Assigned to</label>
-                <Select value={editing.assigneeId ? String(editing.assigneeId) : ""} onChange={(v) => set({ assigneeId: v ? Number(v) : null })} ariaLabel="Assigned to"
+                <Select value={editing.assigneeId ? String(editing.assigneeId) : ""} onChange={(v) => {
+                  const assigneeId = v ? Number(v) : null;
+                  set({ assigneeId, team: { ...editing.team, [edRole]: assigneeId } });
+                }} ariaLabel="Assigned to"
                   options={[{ value: "", label: "Nobody yet" }, ...users.filter((user) => user.roles?.some((role) => role === edRole || role === "admin")).map((u) => ({ value: String(u.id), label: u.name }))]} />
                 <span className="adm-hint">Nothing is assigned automatically. When someone clicks Done they pick who's next; the people below are pre-selected.</span></div>
               <div className="cal-teamgrid">
-                {chainFor(editing.format).map((r) => (
+                {chainFor(editing.format).filter((role) => role !== edRole).map((r) => (
                   <div key={r} className="adm-field"><label style={{ color: ROLE_META[r].fg }}>{ROLE_META[r].label}</label>
                     <Select value={editing.team?.[r] ? String(editing.team[r]) : ""} ariaLabel={ROLE_META[r].label}
                       onChange={(v) => set({ team: { ...(editing.team || {}), [r]: v ? Number(v) : null } })}

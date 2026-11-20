@@ -32,6 +32,11 @@
 .fw-hero-compact .fw-hero-copy>:is(h1,h2){font-size:var(--ui-heading-md)}
 .fw-actions,.fw-actions>div{min-width:0;max-width:100%}
 .fw-actions :is(.sh-btn,.cal-btn,.adm-btn){white-space:normal;text-align:center}
+@media(min-width:1051px){
+  .fw-hero{flex-wrap:wrap}
+  .fw-hero-copy{flex:1 1 20rem}
+  .fw-actions{margin-inline-start:auto;justify-content:flex-end}
+}
 .fw-stat>span:not(.fw-stat-index),.fw-stat>small{font-size:var(--ui-text-sm);line-height:1.6}
 .fw-stat>b{font-size:var(--ui-page-title);font-family:var(--ui-font-heading)}
 .sr-client-view>.adm-btn{align-self:flex-start}

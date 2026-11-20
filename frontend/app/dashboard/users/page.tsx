@@ -31,8 +31,8 @@ const ROLES: { value: string; label: string }[] = [
   { value: "projects", label: "Projects — renewals + content calendar" },
   { value: "leads", label: "Leads — pipeline + contact inbox" },
   { value: "seo", label: "SEO — SEO + settings & pixels" },
-  { value: "social", label: "Social media — posts content (gets posts at Ready to post)" },
-  { value: "marketer", label: "Marketer — plans & shoots reels (gets reels at Planned / Need from client)" },
+  { value: "social", label: "Social media — reviews and publishes content" },
+  { value: "marketer", label: "Marketer — content planning" },
   { value: "video", label: "Video editor — edits reels (gets reels at In production)" },
   { value: "graphic", label: "Graphic designer — makes posts & carousels (gets them to design)" },
 ];
@@ -61,6 +61,18 @@ function MultiPick({ options, value, onChange, label }: { options: { value: stri
       })}
     </div>
   );
+}
+
+function BrandAccessField({ id, brands, value, onChange }: { id: string; brands: Brand[]; value: string[]; onChange: (value: string[]) => void }) {
+  return <div className="adm-field">
+    <label htmlFor={id}>Content planner brands</label>
+    {brands.length ? <>
+      <Select multiple id={id} ariaLabel="Content planner brands" value={value} onChange={onChange}
+        selectAllLabel="All brands" placeholder="Select brands"
+        options={brands.map(brand => ({ value: String(brand.id), label: brand.name }))} />
+      <p className="acc-hint">All brands selects every current brand. Choose individual brands for limited access.</p>
+    </> : <p className="acc-hint">No brands yet.</p>}
+  </div>;
 }
 
 function PhotoPick({ value, onChange, name, onBusyChange }: { value: string; onChange: (v: string) => void; name: string; onBusyChange: (busy: boolean) => void }) {
@@ -224,7 +236,12 @@ export default function AdminUsers() {
 
   return (
     <div className="acc-users fw-workspace users-workspace">
-      <WorkspaceHero eyebrow="People & permissions" title="Users & access" description="The right people. The right access. Give every member a clear role and the brands they need to do their best work." actions={tab === "members" ? <><ExportButton entity="users" /><button type="button" className="ss-chip" disabled={!users || loading} onClick={() => setEdit("new")}><Icon i={PlusSignIcon} size={15} />Add with password</button><button type="button" className="adm-btn primary" disabled={!users || loading} onClick={() => setInvite(true)}><Icon i={UserAdd01Icon} size={16} />Invite member</button></> : undefined} />
+      <WorkspaceHero eyebrow="People & permissions" title="Users & access" description="Manage team accounts, roles and content planner access."
+        actions={tab === "members" && <>
+          <ExportButton entity="users" />
+          <button type="button" className="adm-btn ghost" disabled={!users || loading} onClick={() => setEdit("new")}><Icon i={PlusSignIcon} size={16} />Add with password</button>
+          <button type="button" className="adm-btn primary" disabled={!users || loading} onClick={() => setInvite(true)}><Icon i={UserAdd01Icon} size={16} />Invite member</button>
+        </>} />
       <WorkspaceStats items={[
         { label: "Team directory", value: users ? users.length : "—", detail: "All member accounts", accent: true },
         { label: "Active members", value: users ? counts.active || 0 : "—", detail: "Ready to sign in and work" },
@@ -312,9 +329,11 @@ export default function AdminUsers() {
                       </div>
                     </div>
                     <div className="acc-ufoot">
-                      <button type="button" className="ss-chip" onClick={() => setEdit(u)}><Icon i={PencilEdit02Icon} size={15} />Edit</button>
-                      {u.status === "invited" && <button type="button" className="ss-chip" onClick={() => act(u, "resend")}><Icon i={Mail01Icon} size={15} />Resend invite</button>}
-                      {u.status === "locked" && <button type="button" className="ss-chip" onClick={() => act(u, "unlock")}><Icon i={SquareUnlock02Icon} size={15} />Unlock</button>}
+                      <div className="acc-card-actions">
+                        <button type="button" className="ss-chip" onClick={() => setEdit(u)}><Icon i={PencilEdit02Icon} size={15} />Edit</button>
+                        {u.status === "invited" && <button type="button" className="ss-chip" onClick={() => act(u, "resend")}><Icon i={Mail01Icon} size={15} />Resend invite</button>}
+                        {u.status === "locked" && <button type="button" className="ss-chip" onClick={() => act(u, "unlock")}><Icon i={SquareUnlock02Icon} size={15} />Unlock</button>}
+                      </div>
                       <div className="acc-menuwrap">
                         <button type="button" className="ss-chip acc-more" aria-haspopup="menu" aria-expanded={menu === u.id} aria-label={`More actions for ${u.name}`}
                           onClick={(e) => { setMenuUp(window.innerHeight - e.currentTarget.getBoundingClientRect().bottom < 400 && e.currentTarget.getBoundingClientRect().top > 420); setMenu(menu === u.id ? null : u.id); }}><Icon i={MoreVerticalIcon} size={16} /></button>
@@ -427,14 +446,7 @@ function InviteDrawer({ brands, onClose, onInvited }: { brands: Brand[]; onClose
           <MultiPick label="Roles" options={ROLES} value={f.roles} onChange={(v) => set("roles", v)} />
           <FieldError msg={errs.roles} />
         </div>
-        {!f.roles.includes("admin") && (
-          <div className="adm-field">
-            <label>Content planner brands</label>
-            <p className="acc-hint">Tick every brand they can see. None ticked = no planner access.</p>
-            {brands.length ? <MultiPick label="Brands" options={brands.map((b) => ({ value: String(b.id), label: b.name }))} value={f.brands} onChange={(v) => set("brands", v)} />
-              : <p className="acc-hint">No brands yet.</p>}
-          </div>
-        )}
+        {!f.roles.includes("admin") && <BrandAccessField id="iv-brands" brands={brands} value={f.brands} onChange={(v) => set("brands", v)} />}
         <div className="adm-field">
           <Toggle checked={f.sendEmail} onChange={(v) => set("sendEmail", v)} label="Email the invite to them" />
           <p className="acc-hint">You&apos;ll also get the link to copy or send on WhatsApp.</p>
@@ -520,14 +532,7 @@ function EditDrawer({ user, self, brands, onClose, onSaved }: {
           <MultiPick label="Roles" options={ROLES} value={f.roles} onChange={(v) => { if (self && user?.roles.includes("admin") && !v.includes("admin")) { setErrs({ roles: "Keep your Admin role. Ask another admin to change your access." }); return; } set("roles", v); }} />
           <FieldError msg={errs.roles} />
         </div>
-        {!f.roles.includes("admin") && (
-          <div className="adm-field">
-            <label>Content planner brands</label>
-            <p className="acc-hint">Tick every brand they can see. None ticked = no planner access; admins see all.</p>
-            {brands.length ? <MultiPick label="Brands" options={brands.map((b) => ({ value: String(b.id), label: b.name }))} value={f.brands} onChange={(v) => set("brands", v)} />
-              : <p className="acc-hint">No brands yet.</p>}
-          </div>
-        )}
+        {!f.roles.includes("admin") && <BrandAccessField id="ed-brands" brands={brands} value={f.brands} onChange={(v) => set("brands", v)} />}
         <div className="adm-field">
           <label htmlFor="ed-pw">{isNew ? "Password" : "New password"} {!isNew && <span className="acc-opt">(leave empty to keep it)</span>}</label>
           <PasswordInput id="ed-pw" value={f.password} onChange={(v) => set("password", v)} placeholder={isNew ? "At least 8 characters" : "Set a new password"} invalid={!!errs.password} describedBy="ed-pw-err" />

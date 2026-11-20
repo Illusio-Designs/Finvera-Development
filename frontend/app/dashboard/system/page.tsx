@@ -1,7 +1,7 @@
 "use client";
 /* System (admin): is everything running? Health cards for the server,
    database, email, backups, daily jobs, Instagram/Facebook logins, errors
-   and the spam guard; then Backups and Email setup. Refreshes every 60 s
+   and the spam guard, followed by backup controls. Refreshes every 60 s
    while the tab is visible. */
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -10,7 +10,7 @@ import {
   ServerStack01Icon, DatabaseIcon, Mail01Icon, DatabaseBackupIcon, Notification03Icon, Clock01Icon,
   InstagramIcon, Bug01Icon, Shield01Icon, Refresh01Icon, Alert02Icon,
 } from "@hugeicons/core-free-icons";
-import { api, opsApi } from "@/lib/adminApi";
+import { opsApi } from "@/lib/adminApi";
 import { visibleInterval } from "@/lib/visibleInterval";
 import { fmtBytes, hoursSince, timeAgo, uptime } from "@/lib/opsFormat";
 import PageLoading from "@/components/admin/PageLoading";
@@ -18,7 +18,6 @@ import { WorkspaceHero, WorkspaceStats } from "@/components/admin/Workspace";
 import "./system-workspace.css";
 import RestoreDrill from "@/components/admin/RestoreDrill";
 import SystemBackups from "@/components/admin/SystemBackups";
-import EmailSetup from "@/components/admin/EmailSetup";
 
 type Tone = "ok" | "warn" | "bad" | "off";
 type Status = {
@@ -55,8 +54,7 @@ export default function SystemPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [at, setAt] = useState<number | null>(null);
-  const [myEmail, setMyEmail] = useState("");
-  const [tick, setTick] = useState(0); // bumps the Backups / Email cards on a manual refresh
+  const [tick, setTick] = useState(0); // refreshes the backup list on a manual refresh
   const [, rerender] = useState(0);
 
   const inFlight = useRef(false);
@@ -69,7 +67,6 @@ export default function SystemPage() {
   }, []);
   useEffect(() => {
     load();
-    api.me().then((r) => setMyEmail((r?.user ?? r)?.email || "")).catch(() => {});
     const stop = visibleInterval(load, 60000);
     const t = setInterval(() => rerender((n) => n + 1), 30000); // keep "x min ago" fresh
     return () => { stop(); clearInterval(t); };
@@ -92,9 +89,9 @@ export default function SystemPage() {
       ]} />
       {error && <div className="fw-error" role="alert"><span>{error}{s ? " Previous results remain visible." : ""}</span><button type="button" disabled={loading} onClick={refresh}>Retry / reload</button></div>}
       {!s && !error && <PageLoading label="Checking system health…" variant="panel" count={3} />}
-      {health && <><div className="fw-section-title"><div><h2>Service overview</h2><p>Configuration and recent health signals. Email setup does not confirm mail delivery.</p></div><div className="sys-jumps"><a href="#backups">Backups ↗</a><a href="#email">Email setup ↗</a></div></div><div className="sys-grid">{health.cards}</div><p className="fw-caption">Error counts cover this application process since its last restart. Meta status reflects stored checks; open Social studio to recheck a channel.</p></>}
+      {health && <><div className="fw-section-title"><div><h2>Service overview</h2><p>Configuration and recent health signals.</p></div><div className="sys-jumps"><a href="#backups">Backups ↗</a></div></div><div className="sys-grid">{health.cards}</div><p className="fw-caption">Error counts cover this application process since its last restart. Meta status reflects stored checks; open Social studio to recheck a channel.</p></>}
       {s && <><SystemBackups offsiteEnabled={s.backups.offsiteEnabled} onChange={load} refreshKey={tick} />
-      <RestoreDrill /><EmailSetup myEmail={myEmail} refreshKey={tick} /></>}
+      <RestoreDrill /></>}
     </div>
   );
 }
@@ -130,7 +127,7 @@ function buildCards(s: Status) {
         : s.db.error}
     </Card>,
     <Card key="mail" icon={Mail01Icon} title="Email" tone={s.mail.configured ? "ok" : "off"} pill={s.mail.configured ? "Set up" : "Not set up"} value={s.mail.configured ? "Set up" : "Not set up"}>
-      {s.mail.configured ? <>Sends from {s.mail.from}</> : <>Alerts still show in the app. <a href="#email">How to set it up</a></>}
+      {s.mail.configured ? <>Sends from {s.mail.from}</> : "Alerts still show in the app."}
     </Card>,
     <Card key="bk" icon={DatabaseBackupIcon} title="Last backup" tone={bkTone} value={latest ? timeAgo(latest.createdAt, now) : "No backups yet"}>
       {failed
