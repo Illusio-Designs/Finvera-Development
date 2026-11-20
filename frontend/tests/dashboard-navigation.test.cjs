@@ -1,9 +1,23 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const vm=require('node:vm');const ts=require('typescript');const path=require('node:path');
 const ctx={exports:{},require:()=>({})};vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../components/admin/shell/nav.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,ctx);const nav=ctx.exports;
-test('all actual dashboard routes have an exact navigation entry',()=>{const root=path.join(__dirname,'../app/dashboard');const walk=dir=>fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(dir,e.name)):e.name==='page.tsx'?[path.join(dir,e.name)]:[]);const routes=walk(root).map(file=>'/dashboard'+path.relative(root,path.dirname(file)).split(path.sep).filter(Boolean).map(s=>'/'+s).join(''));assert.ok(routes.includes('/dashboard/reports'));for(const route of routes)assert.equal(nav.matchItem(route)?.href,route,route);assert.equal(new Set(nav.ALL_PAGES.map(p=>p.href)).size,routes.length)});
+const socialWorkspaceAliases = new Set(['/dashboard/reports','/dashboard/social-profiles']);
+test('dashboard routes have a navigation entry or a workspace alias',()=>{
+ const root=path.join(__dirname,'../app/dashboard');
+ const walk=dir=>fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(dir,e.name)):e.name==='page.tsx'?[path.join(dir,e.name)]:[]);
+ const routes=walk(root).map(file=>'/dashboard'+path.relative(root,path.dirname(file)).split(path.sep).filter(Boolean).map(s=>'/'+s).join(''));
+ for(const route of routes) assert.equal(nav.matchItem(route)?.href,socialWorkspaceAliases.has(route)?'/dashboard/social-studio':route,route);
+ assert.equal(new Set(nav.ALL_PAGES.map(p=>p.href)).size,routes.length-socialWorkspaceAliases.size);
+});
 test('nested site collections retain content permissions and website grouping',()=>{assert.equal(nav.SUB_PAGES.length,8);for(const p of nav.SUB_PAGES){const item=nav.matchItem(p.href);assert.equal(item.area,'content');assert.equal(nav.groupFor(item).key,'website');assert.equal(item.collection,true)}});
 test('SEO, settings, account and admin routes retain their own permission areas',()=>{for(const [id,area] of [['seo','seo'],['settings','settings'],['users','users'],['system','users'],['account',null]])assert.equal(nav.matchItem('/dashboard/'+id).area,area)});
 
-test('Reports appears in Social media with social-area access',()=>{const item=nav.matchItem('/dashboard/reports');assert.equal(item.area,'social');assert.equal(nav.groupFor(item).key,'social');});
-
-test('Social profiles has its own route and social access',()=>{const item=nav.matchItem('/dashboard/social-profiles');assert.equal(item.href,'/dashboard/social-profiles');assert.equal(item.area,'social');assert.equal(nav.groupFor(item).key,'social');});
+test('Social workspace routes share social access and a single navigation entry',()=>{
+ const studio=nav.matchItem('/dashboard/social-studio');
+ assert.equal(studio.label,'Social workspace');
+ assert.equal(studio.area,'social');
+ assert.equal(nav.groupFor(studio).key,'social');
+ for(const route of socialWorkspaceAliases) {
+  assert.equal(nav.matchItem(route),studio);
+  assert.equal(nav.ALL_PAGES.some(item=>item.href===route),false);
+ }
+});

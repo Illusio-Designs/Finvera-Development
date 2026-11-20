@@ -1,6 +1,6 @@
 "use client";
 import { WorkspaceHero } from "@/components/admin/Workspace";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { api } from "@/lib/adminApi";
@@ -13,18 +13,36 @@ import "./social-profile-editor.css";
 
 type Platform = "facebook" | "instagram";
 type Profile = Record<string, any>;
+type ReadinessAction = { id: string; label: string; state: string; detail: string; url?: string };
+type ProfileReadiness = { actions: ReadinessAction[]; scopes?: string[] | null; checkedAt?: string | null };
 type Account = { client: string; pageId?: string; igUserId?: string; igUsername?: string; status: string };
 const fields = ["about", "description", "website", "phone", "email"] as const;
 const draft = (p: Profile) => Object.fromEntries(fields.map(k => [k, p[k] || ""])) as Record<string, string>;
 
-type Props = { initialClient?: string; initialPlatform?: Platform; onClose?: () => void };
-export default function SocialProfileEditor({ initialClient, initialPlatform, onClose }: Props) {
+type Props = {
+  initialClient?: string;
+  initialPlatform?: Platform;
+  onClose?: () => void;
+  workspace?: {
+    brand: string;
+    platform: Platform;
+    navigationGuard: MutableRefObject<(() => Promise<boolean>) | null>;
+    onPlatformChange: (platform: Platform) => void;
+    onConnections: () => void;
+  };
+};
+export default function SocialProfileEditor({ initialClient, initialPlatform, onClose, workspace }: Props) {
   const [accounts, setAccounts] = useState<Account[]>([]), [admin, setAdmin] = useState(false);
-  const [client, setClient] = useState(""), [platform, setPlatform] = useState<Platform>("facebook");
+  const [selectedClient, setClient] = useState(""), [selectedPlatform, setPlatform] = useState<Platform>("facebook");
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
+  const client = workspace ? accounts.find(account => account.client === workspace.brand)?.client || "" : selectedClient;
+  const platform = workspace?.platform ?? selectedPlatform;
   const [status, setStatus] = useState<"loading" | "ready" | "saving" | "error">("loading");
   const [profile, setProfile] = useState<Profile | null>(null), [form, setForm] = useState<Record<string, string>>({});
   const [error, setError] = useState(""), [notice, setNotice] = useState(""), [photoBusy, setPhotoBusy] = useState(false);
-  const [access, setAccess] = useState<string>("unknown");
+  const [readiness, setReadiness] = useState<ProfileReadiness | null>(null);
+  const [readinessError, setReadinessError] = useState(false);
+  const access = readiness?.actions.find(action => action.id === "edit")?.state ?? "unknown";
   const generation = useRef(0);
   const dirty = !!profile && fields.some(k => form[k] !== (profile[k] || ""));
   const studio = `/dashboard/social-studio?tab=channels&brand=${encodeURIComponent(client)}`;
@@ -33,7 +51,7 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
     Promise.all([api.socialAccounts(), api.me()]).then(([rows, me]) => {
       if (!active) return;
       const list: Account[] = Array.isArray(rows) ? rows : rows.accounts || [];
-      setAccounts(list); setAdmin(userRoles(me?.user ?? me).includes("admin"));
+      setAccounts(list); setAccountsLoaded(true); setAdmin(userRoles(me?.user ?? me).includes("admin"));
       const query = new URLSearchParams(window.location.search);
       setPlatform(initialPlatform || (query.get("platform") === "instagram" ? "instagram" : "facebook"));
       setClient(list.find(a => a.client === (initialClient || query.get("brand")))?.client || list[0]?.client || "");
@@ -42,19 +60,24 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
     return () => { active = false; };
   }, [initialClient, initialPlatform]);
   useEffect(() => {
-    if (!client) return;
+    if (!client) {
+      setProfile(null);
+      setNotice("");
+      if (accountsLoaded) { setStatus("ready"); setError(""); }
+      return;
+    }
     const id = ++generation.current;
-    setStatus("loading"); setProfile(null); setError(""); setNotice(""); setAccess("unknown"); setPhotoBusy(false);
-    if (!onClose) window.history.replaceState(null, "", `?brand=${encodeURIComponent(client)}&platform=${platform}`);
+    setStatus("loading"); setProfile(null); setError(""); setNotice(""); setReadiness(null); setReadinessError(false); setPhotoBusy(false);
+    if (!onClose && !workspace) window.history.replaceState(null, "", `?brand=${encodeURIComponent(client)}&platform=${platform}`);
     api.channelProfile(client, platform).then(p => {
       if (generation.current !== id) return;
       setProfile(p); setForm(draft(p)); setStatus("ready");
     }).catch(e => { if (generation.current === id) { setError(e.message); setStatus("error"); } });
     api.channelCapabilities(client, platform).then(r => {
-      if (generation.current === id) setAccess(r.actions?.find((a: any) => a.id === "edit")?.state || "unknown");
-    }).catch(() => {});
+      if (generation.current === id) setReadiness({ ...r, actions: r.actions || [] });
+    }).catch(() => { if (generation.current === id) setReadinessError(true); });
     return () => { generation.current++; };
-  }, [client, platform]);
+  }, [client, platform, accountsLoaded]);
   useEffect(() => {
     const guard = (e: BeforeUnloadEvent) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } };
     window.addEventListener("beforeunload", guard); return () => window.removeEventListener("beforeunload", guard);
@@ -65,8 +88,16 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
   }
   async function switchTo(brand: string, channel: Platform) {
     if (busy || (brand === client && channel === platform) || !await discardChanges()) return;
-    setClient(brand); setPlatform(channel);
+    if (workspace) workspace.onPlatformChange(channel);
+    else { setClient(brand); setPlatform(channel); }
   }
+  const navigationGuard = workspace?.navigationGuard;
+  useEffect(() => {
+    if (!navigationGuard) return;
+    const canLeave = () => busy ? Promise.resolve(false) : discardChanges();
+    navigationGuard.current = canLeave;
+    return () => { if (navigationGuard.current === canLeave) navigationGuard.current = null; };
+  }, [navigationGuard, busy, dirty]);
   async function close() {
     if (!busy && await discardChanges()) onClose?.();
   }
@@ -113,11 +144,13 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
     } catch (e: any) { if (id === generation.current) setError(e.message); }
     finally { if (id === generation.current) setPhotoBusy(false); }
   }
-  const content = <div className="social-profiles">
-    <WorkspaceHero eyebrow="SOCIAL MEDIA" title="Social profiles" description="Update connected profiles without leaving your workspace." headingLevel={onClose ? 2 : 1} compact={Boolean(onClose)} actions={<> {onClose ? <button className="adm-btn ghost" type="button" disabled={busy} onClick={close} aria-label="Close profile editor">Close</button> : <Link className="adm-btn ghost" href={studio}>Manage connections</Link>} </>} />
+  const content = <div className={workspace ? "social-profiles sp-inline" : "social-profiles"}>
+    {!workspace && <WorkspaceHero eyebrow="SOCIAL MEDIA" title="Social profiles" description="Update connected profiles without leaving your workspace." headingLevel={onClose ? 2 : 1} compact={Boolean(onClose)} actions={<> {onClose ? <button className="adm-btn ghost" type="button" disabled={busy} onClick={close} aria-label="Close profile editor">Close</button> : <Link className="adm-btn ghost" href={studio}>Manage connections</Link>} </>} />
+    }
+    {workspace && <div><h2>Connected profiles</h2><p className="adm-hint">Review profile details and Meta permissions.</p></div>}
     <div className="sp-controls">
-      <div className="adm-field sp-brand"><label htmlFor="profile-brand">Brand</label><Select id="profile-brand" ariaLabel="Brand" value={client} disabled={busy} onChange={brand => switchTo(brand, platform)} options={accounts.map(a => a.client)} /></div>
-      <div role="group" aria-label="Platform" className="sp-platforms">{(["facebook", "instagram"] as const).map(p => <button className={"adm-btn " + (platform === p ? "primary" : "ghost")} key={p} aria-pressed={platform === p} disabled={busy} onClick={() => switchTo(client, p)}>{p === "facebook" ? "Facebook" : "Instagram"}</button>)}</div>
+      {!workspace && <div className="adm-field sp-brand"><label htmlFor="profile-brand">Brand</label><Select id="profile-brand" ariaLabel="Brand" value={client} disabled={busy} onChange={brand => switchTo(brand, platform)} options={accounts.map(a => a.client)} /></div>}
+      <div role="group" aria-label="Platform" className="sp-platforms">{(["facebook", "instagram"] as const).map(p => <button className={"adm-btn " + (platform === p ? "primary" : "ghost")} key={p} aria-pressed={platform === p} disabled={busy || !client} onClick={() => switchTo(client, p)}>{p === "facebook" ? "Facebook" : "Instagram"}</button>)}</div>
     </div>
     {error && <p className="sp-error" role="alert">{error}</p>}{notice && <p className="sp-success" role="status">{notice}</p>}
     {status === "loading" && <LoadingRegion label="Loading profile…"><div className="sp-grid">
@@ -135,8 +168,9 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
         {platform === "facebook" && <Shimmer width={130} height={40} />}
       </section>
     </div></LoadingRegion>}
-    {!accounts.length && status === "ready" && <section><h2>No connected profiles</h2><p>Connect a Facebook Page and its Instagram account to manage their details.</p><Link href={studio}>Open channel connections</Link></section>}
-    {status === "error" && <p>Could not load this profile. {client && <Link href={studio}>Check this brand’s connection</Link>}</p>}
+    {!client && status === "ready" && <section><h2>No connected profiles</h2><p>Connect a Facebook Page and its Instagram account to manage their details.</p>
+      {workspace ? <button type="button" className="adm-btn ghost" onClick={workspace.onConnections}>Open channel connections</button> : <Link href={studio}>Open channel connections</Link>}</section>}
+    {status === "error" && <p>Could not load this profile. {client && (workspace ? <button type="button" className="adm-btn ghost" onClick={workspace.onConnections}>Check this brand’s connection</button> : <Link href={studio}>Check this brand’s connection</Link>)}</p>}
     {profile && <div className="sp-grid">
       <section className="sp-identity"><ChannelAvatar picture={profile.picture} label={profile.name || client} className="sp-avatar"/><div><h2>{profile.name || profile.username || client}</h2><p>{platform === "instagram" ? `@${profile.username || ""}` : profile.category || "Facebook Page"}</p><p>{profile.followers == null ? "Follower count unavailable" : `${Number(profile.followers).toLocaleString()} followers`}</p></div><button className="adm-btn ghost" type="button" onClick={refreshPhoto} disabled={photoBusy || busy}>{photoBusy ? "Refreshing…" : "Refresh photo"}</button><p className="sp-note">Photo refresh reads the current platform picture. Photo and name updates are unavailable in this editor.</p></section>
       <section><h2>{platform === "facebook" ? "Page details" : "Instagram details"}</h2>
@@ -151,6 +185,21 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
         </form>}
       </section>
     </div>}
+    {workspace && client && <details className="sp-readiness" key={`${client}-${platform}`}>
+      <summary>Readiness &amp; actions</summary>
+      {readinessError ? <p>Could not verify Meta permissions. Check the brand’s connection.</p>
+        : !readiness ? <LoadingRegion label="Checking Meta permissions…"><Shimmer width="55%" height={16} /></LoadingRegion>
+        : !readiness.actions.length ? <p>No permission details available.</p>
+        : <dl>{readiness.actions.map(action => <div key={action.id}>
+          <dt>{action.label}</dt><dd><strong>{action.state.replace(/_/g, " ")}</strong> · {action.detail}
+            {action.url && <a className="adm-btn ghost" href={action.url} target="_blank" rel="noopener noreferrer">{action.id === "edit" ? "Edit on platform" : "Open profile"}</a>}
+          </dd>
+        </div>)}</dl>}
+      {readiness?.scopes && <details className="sp-grants"><summary>Granted scopes</summary>
+        <p>{readiness.scopes.length ? readiness.scopes.join(", ") : "No scopes reported."}</p>
+      </details>}
+      <button type="button" className="adm-btn ghost" onClick={workspace.onConnections}>Open channel connections</button>
+    </details>}
   </div>;
   return onClose && typeof document !== "undefined" ? createPortal(<div className="adm-overlay" onMouseDown={event => { if (event.target === event.currentTarget) void close(); }}><div className="adm-drawer sp-drawer" role="dialog" aria-modal="true" aria-label="Edit social profile" tabIndex={-1} ref={drawer}>{content}</div></div>, document.body) : <main>{content}</main>;
 }

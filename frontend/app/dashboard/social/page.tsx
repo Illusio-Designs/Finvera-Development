@@ -1609,7 +1609,7 @@ export default function SocialCalendar() {
   return (
     <div className="cal-page">
       <WorkspaceHero eyebrow="Social media" title={<>{limited ? "My work" : "Content calendar"}</>} description={<>{limited ? "Your brands, your next steps, and the work ready to move forward." : "Plan it, make it, review it, publish it. Every brand, in one clear flow."}</>} actions={<> <div className="cal-head-actions">
-            <Link className="cal-btn" href={`/dashboard/reports?view=client${client ? `&brand=${encodeURIComponent(client)}` : ""}${month ? `&month=${month}` : ""}`}>Monthly brand report</Link>
+            <Link className="cal-btn" href={`/dashboard/social-studio?tab=report${client ? `&brand=${encodeURIComponent(client)}` : ""}${month ? `&month=${month}` : ""}`}>Monthly brand report</Link>
             <button type="button" className="cal-btn" onClick={() => setProfileOpen(true)}>Social profiles</button>
             {profileOpen && <SocialProfileEditor initialClient={client || undefined} onClose={() => setProfileOpen(false)} />}
           <input ref={fileRef} type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={(e) => { importCsv(e.target.files?.[0]); e.currentTarget.value = ""; }} />

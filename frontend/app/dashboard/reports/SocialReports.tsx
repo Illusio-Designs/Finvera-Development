@@ -1,0 +1,165 @@
+"use client";
+import {reportCaptureAction} from "@/lib/editorMachine";
+import {useEffect,useRef,useState,type MutableRefObject} from 'react';
+import {useRouter} from 'next/navigation';
+import {HugeiconsIcon} from '@hugeicons/react';
+import {Image01Icon} from '@hugeicons/core-free-icons';
+import {reportsApi} from '@/lib/adminApi';
+import {type ReportData,type ReportPerson,type SavedReport,numberOrNA as fmt,indiaTime,reportSheets,printableReport,clientFacingReport} from '@/lib/socialReports';
+import {ROLE_LABELS} from '@/lib/permissions';
+import {downloadXlsx} from '@/lib/xlsxWrite';
+import {toast} from '@/lib/toast';
+import {dialog} from '@/lib/dialog';
+import {WorkspaceHero,WorkspaceStats} from '@/components/admin/Workspace';
+import PageLoading from '@/components/admin/PageLoading';
+import Select from '@/components/Select';
+import './reports.css';
+type Options={brands:{id:number;name:string;color:string}[];canSeeTeam:boolean;userId:number};
+const nowMonth=()=>new Date(Date.now()+330*60000).toISOString().slice(0,7);
+const months=Array.from({length:24},(_,i)=>{const d=new Date(nowMonth()+'-01T00:00:00Z');d.setUTCMonth(d.getUTCMonth()-i);return{value:d.toISOString().slice(0,7),label:d.toLocaleDateString('en-GB',{month:'long',year:'numeric',timeZone:'UTC'})}});
+const STAGES:Record<string,string>={planned:'Planned',client:'Need from client',production:'In production',approval:'In review',ready:'Ready to post'};
+function Metric({label,value,note,primary=false}:{label:string;value:React.ReactNode;note:string;primary?:boolean}){return <article className={'sr-metric'+(primary?' primary':'')}><span>{label}</span><b>{value}</b><small>{note}</small></article>}
+function Panel({title,note,children,action}:{title:string;note?:string;children:React.ReactNode;action?:React.ReactNode}){return <section className="sr-panel"><header><div><h2>{title}</h2>{note&&<p>{note}</p>}</div>{action}</header>{children}</section>}
+type ReportProps = {
+ initialView?: 'team' | 'client';
+ workspaceBrand?: string;
+ workspaceMonth?: string | null;
+ onWorkspaceMonthChange?: (month: string) => void;
+ navigationGuard?: MutableRefObject<(() => Promise<boolean>) | null>;
+};
+
+export default function SocialReports({initialView = 'client', workspaceBrand, workspaceMonth, onWorkspaceMonthChange, navigationGuard}: ReportProps){
+ const router = useRouter();
+ const embedded = workspaceBrand !== undefined;
+ const[view,setView]=useState<'team'|'client'>(initialView),[month,setMonth]=useState(nowMonth),[selectedBrand,setBrand]=useState(''),[person,setPerson]=useState(''),[role,setRole]=useState('');
+ const brand = workspaceBrand ?? selectedBrand;
+
+ const[options,setOptions]=useState<Options|null>(null),[data,setData]=useState<ReportData|null>(null),[saved,setSaved]=useState<SavedReport|null>(null),[history,setHistory]=useState<SavedReport[]>([]);
+ const[summary,setSummary]=useState(''),[busy,setBusy]=useState(true),[working,setWorking]=useState(false),[error,setError]=useState(''),[personDetail,setPersonDetail]=useState<ReportPerson|null>(null),[clientView,setClientView]=useState(false),[revision,setRevision]=useState(0),[historyPage,setHistoryPage]=useState(1),[historyMore,setHistoryMore]=useState(false),[historyBusy,setHistoryBusy]=useState(false),[historyError,setHistoryError]=useState('');
+ const request=useRef(0),historyRequest=useRef(0),lock=useRef(false);const dirty=summary!==(saved?.summary||'');
+ useEffect(()=>{if(!clientView)return;const previous=document.body.style.overflow;document.body.style.overflow='hidden';const key=(event:KeyboardEvent)=>{if(event.key==='Escape')setClientView(false)};document.addEventListener('keydown',key);return()=>{document.body.style.overflow=previous;document.removeEventListener('keydown',key)}},[clientView]);
+ async function setup(initial=false){setBusy(true);setError('');try{const o=await reportsApi.options();if(initial&&!embedded){const q=new URLSearchParams(location.search);setBrand(o.brands.find((b:Options["brands"][number])=>b.name===q.get("brand"))?.name||"");}setOptions(o);}catch(e){setError(e instanceof Error?e.message:'Couldn’t load reports.');setBusy(false);}}
+ async function refreshHistory(page=1){const seq=++historyRequest.current;setHistoryBusy(true);setHistoryError('');try{const result=await reportsApi.list({kind:view,month,...(brand?{brand}:{}),page:String(page)});if(seq!==historyRequest.current)return;setHistory(current=>page===1?result.items:[...current,...result.items]);setHistoryMore(result.hasMore);setHistoryPage(page);if(result.truncated)setHistoryError('Narrow the month/client filters to see all archived reports.');}catch(e){if(seq===historyRequest.current)setHistoryError(e instanceof Error?e.message:'Couldn’t load saved reports.');}finally{if(seq===historyRequest.current)setHistoryBusy(false)}}
+ useEffect(()=>{if(options)refreshHistory();return()=>{historyRequest.current++}},[options,view,month,brand]);
+ useEffect(()=>{setup(true);const q=new URLSearchParams(location.search);const requested=workspaceMonth ?? q.get('month');if(months.some(m=>m.value===requested))setMonth(requested!);},[]);
+ useEffect(()=>{if(!options||saved)return;const seq=++request.current;if(view==='client'&&!brand){if(!embedded&&options.brands.length)setBrand(options.brands[0].name);else{setData(null);setBusy(false);}return;}setBusy(true);setError('');reportsApi.preview({kind:view,month,...(brand?{brand}:{}),...(person?{personId:person}:{}),...(role?{role}:{})}).then(row=>{if(seq===request.current)setData(row)}).catch(e=>{if(seq===request.current){setData(null);setError(e.message)}}).finally(()=>{if(seq===request.current)setBusy(false)});return()=>{request.current++}},[view,month,brand,person,role,options,saved,revision]);
+ async function canLeave() {
+  if (working) return false;
+  return !dirty || await dialog.confirm({title:'Discard unsaved commentary?',message:'Save the report first to keep your summary.',confirmText:'Discard',cancelText:'Keep editing',danger:true});
+ }
+ useEffect(() => {
+  if (!navigationGuard) return;
+  navigationGuard.current = canLeave;
+  return () => { if (navigationGuard.current === canLeave) navigationGuard.current = null; };
+ }, [navigationGuard, dirty, working]);
+ async function change(action:()=>void){if(!await canLeave())return;request.current++;setSaved(null);setData(null);setSummary('');setClientView(false);action();}
+ async function open(row:SavedReport){if(working)return;if(dirty&&!await dialog.confirm({title:'Open saved report?',message:'Your unsaved commentary will be replaced.',confirmText:'Open report',cancelText:'Keep editing'}))return;const seq=++request.current;setBusy(true);setError('');try{const result=await reportsApi.get(row.id);if(seq!==request.current)return;setSaved(result);setData(result.data);setView(result.kind);setMonth(result.period);setBrand(result.client||'');setSummary(result.summary||'');setPerson('');setRole('');}catch(e){setError(e instanceof Error?e.message:'Couldn’t open the report.')}finally{if(seq===request.current)setBusy(false)}}
+ async function capture(status?:'draft'|'reviewed'):Promise<SavedReport>{let report=saved;const action=reportCaptureAction(!!report,dirty,status);if(action==='create'){report=await reportsApi.create({kind:view,month,brand,personId:person,role,summary,expectedFingerprint:data?.fingerprint});}else if(action==='update'){report=await reportsApi.update(report!.id,{summary,status:status||(dirty?'draft':report!.status),expectedVersion:report!.version});}else{report=await reportsApi.get(report!.id);}if(status&&report!.status!==status)report=await reportsApi.update(report!.id,{summary,status,expectedVersion:report!.version});request.current++;setSaved(report);setData(report!.data);setSummary(report!.summary||'');await refreshHistory();return report!;}
+ async function act(kind:'save'|'review'|'csv'|'excel'|'pdf'){if(lock.current||!data)return;lock.current=true;setWorking(true);setError('');const popup=kind==='pdf'?window.open('','_blank'):null;try{if(kind==='pdf'&&!popup)throw new Error('Allow the print window, then try again.');const captured=await capture(kind==='review'?'reviewed':undefined);const result={...captured,data:clientFacingReport(captured.data)};if(kind==='csv'){const url=URL.createObjectURL(await reportsApi.csv(result.id)),a=document.createElement('a');a.href=url;a.download=`finvera-${result.kind}-${(result.client||result.kind).replace(/[^a-z0-9]+/gi,'-').slice(0,45)}-${result.period}-${result.id}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}if(kind==='excel')downloadXlsx(`finvera-${result.kind}-${(result.client||result.kind).replace(/[^a-z0-9]+/gi,'-').slice(0,45)}-${result.period}-${result.id}.xlsx`,[...reportSheets(result.data),{name:'Report details',columns:['Field','Value'],rows:[['Report',result.title],['Snapshot',result.id],['Revision',result.version],['Status',result.status],['From',result.data.period.from],['To',result.data.period.to],['Snapshot IST',indiaTime(result.data.generatedAt)],['Commentary',result.summary],...Object.entries(result.data.totals).filter(([,v])=>v===null||typeof v==='number').map(([k,v])=>[k,v??'Not available']),['Metrics',result.data.kind==='client'?result.data.coverage.metricTimeBasis:'Go-live deadline; completed handoffs in period; current open queue']]}]);if(kind==='pdf'&&popup){popup.document.open();popup.document.write(printableReport(result));popup.document.close();popup.focus();popup.print();}toast(kind==='review'?'Report marked reviewed':kind==='save'?'Report snapshot saved':'Report prepared','ok');}catch(e){popup?.close();setError(e instanceof Error?e.message:'Couldn’t save this report.');}finally{lock.current=false;setWorking(false)}}
+ const rawData=saved?.data||data;
+ const shownData=rawData?clientFacingReport(rawData):null;
+ const toolbar=<div className="sr-actions"><button className="adm-btn ghost" disabled={working||!data||busy} onClick={()=>act('save')}>{working?'Preparing…':saved?dirty?'Save commentary':'Snapshot saved':'Save report'}</button><button className="adm-btn ghost" disabled={working||!data||busy} onClick={()=>act('excel')}>Excel ↓</button><button className="adm-btn ghost" disabled={working||!data||busy} onClick={()=>act('csv')}>CSV ↓</button><button className="adm-btn primary" disabled={working||!data||busy} onClick={()=>act('pdf')}>Print / save PDF</button></div>;
+ return <div className={'reports-workspace'+(clientView?' sr-client-view':'')}>
+ {embedded && !clientView ? <header className="sr-meta">
+  <div><h2>Monthly brand report</h2><p>Published content and available Meta results.</p></div>{toolbar}
+ </header> : <WorkspaceHero eyebrow={view==='client'?'Client reports':'Internal reporting'}
+  title={clientView?`${shownData?.client} · Social report`:view==='client'?'Monthly brand report':'Team performance'}
+  description={view==='team'?'Understand the work behind every post, with fair credit and clear deadlines.':'Published content and available Meta results for your selected brand and month.'} actions={toolbar}/>}
+ {clientView ? <button className="adm-btn ghost" onClick={()=>setClientView(false)}>← Back to report editor</button> : <>
+  <div className="sr-filters">
+   <div className="adm-field"><label htmlFor="report-month">Reporting month · India time</label>
+    <Select id="report-month" value={month} options={months} disabled={!!saved||working}
+      onChange={v=>change(()=>{setMonth(v);onWorkspaceMonthChange?.(v);})}/></div>
+   {!embedded && <div className="adm-field"><label htmlFor="report-brand">Brand</label>
+    <Select id="report-brand" value={brand} disabled={!!saved||working} onChange={v=>change(()=>setBrand(v))}
+      options={[{value:'',label:'All authorized brands'},...(options?.brands||[]).map(b=>({value:b.name,label:b.name}))]}/></div>}
+   {view==='team'&&options?.canSeeTeam&&<><div className="adm-field"><label htmlFor="report-role">Role</label><Select id="report-role" value={role} disabled={!!saved||working} onChange={v=>change(()=>{setRole(v);setPerson('')})} options={[{value:'',label:'All roles'},...Object.entries(ROLE_LABELS).filter(([k])=>k!=='editor').map(([value,label])=>({value,label}))]}/></div><div className="adm-field"><label htmlFor="report-person">Team member</label><Select id="report-person" value={person} disabled={!!saved||working} onChange={v=>change(()=>setPerson(v))} options={[{value:'',label:'All team members'},...(shownData?.people||[]).map(p=>({value:String(p.id),label:p.name}))]}/></div></>}
+   <button type="button" className="adm-btn ghost" disabled={working} onClick={()=>change(()=>{setRevision(v=>v+1);setup()})}>{saved?'Back to live report':'Refresh'}</button>
+   {embedded ? <button type="button" className="adm-btn ghost" disabled={working}
+    onClick={()=>change(()=>router.push(`/dashboard/reports?${new URLSearchParams({view:'team',brand,month})}`))}>Team performance</button>
+    : <button type="button" className="adm-btn ghost" disabled={working}
+       onClick={()=>change(()=>router.push(`/dashboard/social-studio?${new URLSearchParams({tab:'report',brand,month})}`))}>Monthly brand report</button>}
+  </div>
+ </>}
+
+ {error&&<div className="sr-error" role="alert">{error}<button className="adm-btn ghost" onClick={()=>{if(!options)setup();else if(saved)open(saved);else setRevision(v=>v+1)}}>Retry / reload</button></div>}
+ {busy?<PageLoading label="Loading report…" variant="panel" count={3}/>:shownData?<>
+ <div className="sr-meta"><span>{shownData.period.from} – {shownData.period.to}{shownData.period.partial?' · Month to date':''} · Snapshot {indiaTime(shownData.generatedAt)} IST</span><span className={'sr-pill '+(saved?.status==='reviewed'?'green':'amber')}>{saved?`${saved.status==='reviewed'?'Reviewed':'Draft'} · #${saved.id} · revision ${saved.version}`:'Live preview · save to keep this snapshot'}</span></div>
+ <ReportBody data={shownData} onPerson={setPersonDetail}/>
+ <Panel title={view==='client'?"The period’s story":'Report commentary'} note={clientView?undefined:'Review your narrative before preparing the final report.'} action={!clientView&&<button className="adm-btn ghost" disabled={working||saved?.status==='reviewed'&&!dirty} onClick={()=>act('review')}>Mark reviewed</button>}>{clientView?<p className="sr-summary">{summary||'No commentary added.'}</p>:<div className="adm-field sr-commentary"><textarea className="sr-summary-input" aria-label="Report commentary" maxLength={5000} disabled={working} value={summary} onChange={e=>setSummary(e.target.value)} placeholder="Explain the results, context and next actions…"/></div>}</Panel>
+ {view==='client'&&!clientView&&<button className="adm-btn ghost" disabled={working} onClick={()=>setClientView(true)}>Client-safe preview ↗</button>}
+ </>:!error&&<div className="sr-empty"><h2>{view==='client'?'Choose an authorized client':'No report data available'}</h2><p>{view==='client'&&!options?.brands.length?'An administrator must assign a brand to your account first.':'Try another month or refresh the report.'}</p></div>}
+ {!clientView&&<Panel title="Saved reports" note="Fixed data snapshots. Commentary and review status have their own revision."><div className="sr-saved">{historyError&&<p role="alert">{historyError}<button className="sr-text-btn" onClick={()=>refreshHistory()}>Retry</button></p>}{history.filter(r=>r.kind===view).map(row=><button type="button" key={row.id} onClick={()=>open(row)} disabled={working}><span><b>{row.title}</b><small>{indiaTime(row.createdAt)} IST</small></span><span className={'sr-pill '+(row.status==='reviewed'?'green':'amber')}>{row.status}</span></button>)}{!history.filter(r=>r.kind===view).length&&<p>{historyBusy?"Loading saved reports…":"No saved reports match this month/client."}</p>}{historyMore&&<button className="adm-btn ghost" disabled={historyBusy||working} onClick={()=>refreshHistory(historyPage+1)}>{historyBusy?"Loading…":"Load more reports"}</button>}</div></Panel>}
+ {personDetail&&<PersonPanel row={personDetail} onClose={()=>setPersonDetail(null)}/>}
+ </div>;
+}
+function ReportBody({data,onPerson}:{data:ReportData;onPerson:(p:ReportPerson)=>void}){const t=data.totals;
+ if(data.kind==='team'){const weeks=new Map<string,{onTime:number;late:number;undated:number}>();for(const p of data.people||[])for(const row of p.completed){const week=Math.floor((Date.parse(row.day)-Date.parse(data.period.from))/604800000);const key=new Date(Date.parse(data.period.from)+week*604800000).toISOString().slice(0,10);const w=weeks.get(key)||{onTime:0,late:0,undated:0};w[row.onTime===null?'undated':row.onTime?'onTime':'late']++;weeks.set(key,w)}const bars=[...weeks].sort(([a],[b])=>a.localeCompare(b));const max=Math.max(1,...bars.map(([,v])=>v.onTime+v.late+v.undated));return <><div className="sr-metrics"><Metric label="Completed work" value={fmt(t.delivered)} note="Completed handoffs in the selected period" primary/><Metric label="On-time completion" value={t.onTime===null?'Not available':`${t.onTime}%`} note={`${t.dated} dated completions · ${t.undated} undated`}/><Metric label="Open work now" value={fmt(t.open)} note="Current assignments, not a period total"/><Metric label="Overdue now" value={fmt(t.overdue)} note="Open work past the go-live deadline"/></div><div className="sr-split"><Panel title="Delivery rhythm" note="Completed handoffs by week in this report period"><div className="sr-chart">{bars.map(([day,v])=><div key={day}><div className="sr-bars" aria-label={`${day}: ${v.onTime} on time, ${v.late} late, ${v.undated} undated`}><i style={{height:Math.max(0,120*v.onTime/max)}}/><i className="late" style={{height:Math.max(0,120*v.late/max)}}/><i className="undated" style={{height:Math.max(0,120*v.undated/max)}}/></div><small>{day.slice(5)}</small></div>)}{!bars.length&&<p>No completed handoffs in this period.</p>}</div><p className="sr-note">Blue: on time · amber: late · grey: undated. Starting, scheduling and reassignment are not completions.</p></Panel><Panel title="Where work is waiting" note="Current assignment snapshot"><div className="sr-stages">{data.stages?.map(row=><div key={row.status}><span>{STAGES[row.status]}</span><i><b style={{width:`${t.open?100*row.count/t.open:0}%`}}/></i><strong>{row.count}</strong></div>)}</div></Panel></div><Panel title="People & progress" note={data.scope==='own'?'Your work in your authorized brands.':'Includes inactive contributors with historical work.'}><div className="sr-table-scroll"><table><thead><tr>{['Team member','Recorded assigned*','Completed','On time','Open now','Overdue now','Hours',''].map((h,i)=><th key={i}>{h}</th>)}</tr></thead><tbody>{data.people?.map(p=><tr key={p.id}><td><b>{p.name}</b><small>{p.role}{!p.active?' · Inactive':''}</small></td><td>{fmt(p.assigned)}</td><td>{p.delivered}</td><td>{p.onTime===null?'Not available':`${p.onTime}%`}</td><td>{p.open}</td><td><span className={p.overdue?'sr-pill amber':''}>{p.overdue}</span></td><td>{p.hours} h</td><td><button className="sr-text-btn" onClick={()=>onPerson(p)} aria-label={`View work for ${p.name}`}>View work ↗</button></td></tr>)}{!data.people?.length&&<tr><td colSpan={8}>No people match this report.</td></tr>}</tbody></table></div></Panel><p className="sr-note">* Distinct recorded assignments in this period; unavailable when history does not cover the full period. Assignment and completion dates differ. Open/overdue are current snapshots. Go-live date/time determines on-time completion; legacy date-only events keep day-level precision. Credit stays with the outgoing assignee.</p></>}
+ const changes=(data.channels||[]).map(c=>c.followerChange);const followerChange=changes.length&&changes.every(v=>typeof v==='number')?changes.reduce((a,b)=>a+b,0):null;
+ return <><WorkspaceStats items={[{label:'Posts published',value:fmt(t.published),detail:'Unique confirmed posts published in this month',accent:true},{label:'Reported interactions',value:fmt(t.interactions),detail:'Available likes + comments + shares'},{label:'Follower change',value:followerChange===null?'Not available':`${followerChange>0?'+':''}${fmt(followerChange)}`,detail:'Comparable channel snapshots; not unique people'},{label:'Channel publications',value:fmt(t.publications),detail:'Confirmed Facebook and Instagram publications'}]}/><div className="sr-split"><Panel title="Channel snapshot" note="Unique posts and channel publications have different counts."><div className="sr-channels">{data.channels?.map(c=><article key={c.platform}><span className="sr-channel-icon">{c.platform==='instagram'?'◎':'f'}</span><div><b>{c.platform==='instagram'?'Instagram':'Facebook'}</b><small>Reported interactions: {fmt(c.metrics.interactions)}</small><small>Follower snapshots: {c.baselineDay||"Not available"} → {c.latestDay||"Not available"}</small></div><strong>{c.publications}<small>publications</small></strong></article>)}</div></Panel><Panel title="Meta data coverage"><div className="sr-coverage"><b>{data.coverage.reportedRows} of {data.coverage.publicationRows} publication rows have metrics</b><p>Last Meta refresh: {data.refreshedAt ? `${indiaTime(data.refreshedAt)} IST` : "Pending"}</p><p>Likes: {t.coverage.likes} rows · comments: {t.coverage.comments} · shares: {t.coverage.shares}</p></div></Panel></div><ClientContentHighlights data={data}/><PublishedContent posts={data.posts || []}/><p className="sr-note">{data.coverage.metricTimeBasis} Follower account totals may include the same person on more than one channel.</p></>;
+}
+type Publication = {
+ id: number;
+ channel: 'facebook' | 'instagram';
+ title: string;
+ format?: string | null;
+ publishedAt: string;
+ picture?: string | null;
+ url?: string | null;
+ likes?: number | null;
+ comments?: number | null;
+ shares?: number | null;
+ interactions?: number | null;
+};
+
+const publicationMetrics = [
+ ['likes', 'Likes'],
+ ['comments', 'Comments'],
+ ['shares', 'Shares'],
+ ['interactions', 'Reported interactions'],
+] as const;
+
+function PublicationThumbnail({src}: {src?: string | null}) {
+ const [failed, setFailed] = useState(false);
+ return <span className="sr-post-thumb" aria-hidden="true">
+  {src && !failed ? <img src={src} alt="" loading="lazy" onError={() => setFailed(true)}/> :
+   <HugeiconsIcon icon={Image01Icon} size={20} strokeWidth={1.5}/>}
+ </span>;
+}
+
+function PublishedContent({posts}: {posts: Publication[]}) {
+ return <Panel title="Published content" note="Each row shows one channel publication. A dash means Meta did not return that metric.">
+  {posts.length ? <ul className="sr-publications" role="list">
+   {posts.map(post => <li className="sr-publication" key={`${post.id}-${post.channel}`}>
+    <div className="sr-publication-content">
+     <PublicationThumbnail key={post.picture} src={post.picture}/>
+     <div>
+      <strong>{post.title}</strong>
+      {post.format && <small>{post.format}</small>}
+      {post.url && <a href={post.url} target="_blank" rel="noopener noreferrer" aria-label={`View ${post.title} on ${post.channel === 'instagram' ? 'Instagram' : 'Facebook'}`}>View post ↗</a>}
+     </div>
+    </div>
+    <div className="sr-publication-channel">
+     <span className={`sr-pill sr-platform-${post.channel}`}>{post.channel === 'instagram' ? 'Instagram' : 'Facebook'}</span>
+     <time dateTime={post.publishedAt}>{indiaTime(post.publishedAt)} IST</time>
+    </div>
+    <dl className="sr-publication-metrics">
+     {publicationMetrics.map(([field, label]) => <div key={field}>
+      <dt>{label}</dt>
+      <dd>{post[field] == null ? <><span aria-hidden="true">—</span><span className="sr-publication-sr-only">Unavailable</span></> : fmt(post[field])}</dd>
+     </div>)}
+    </dl>
+   </li>)}
+  </ul> : <p className="sr-note">No confirmed publications in this period.</p>}
+ </Panel>;
+}
+
+function ClientContentHighlights({data}:{data:ReportData}) {
+ const best=(data.posts||[]).filter(p=>typeof p.interactions==='number').slice().sort((a,b)=>b.interactions-a.interactions).slice(0,3);
+ const formats=new Map<string,number>();
+ for(const post of new Map((data.posts||[]).map(p=>[p.id,p])).values()) {const format=post.format||'Post';formats.set(format,(formats.get(format)||0)+1);}
+ return <>
+ <div className="sr-split"><Panel title="Content mix" note="Unique confirmed posts, counted once across channels."><div className="sr-client-content">{[...formats].map(([format,count])=><p key={format}><b>{format}</b> · {count}</p>)}{!formats.size&&<p>No confirmed posts in this month.</p>}</div></Panel><Panel title="Top content from Meta" note="Ranked by available likes, comments and shares; latest totals for content published this month.">{best.map(post=><article className="sr-work-row" key={`${post.id}-${post.channel}`}><div><b>{post.title}</b><small>{post.channel} · {post.format||'Post'}</small></div><strong>{fmt(post.interactions)} interactions</strong></article>)}{!best.length&&<p>Meta has not returned content metrics for this period.</p>}<p className="sr-note">Reach, impressions and watch time are not collected by this integration. Missing metrics remain unavailable.</p></Panel></div></>;
+}
+
+function PersonPanel({row,onClose}:{row:ReportPerson;onClose:()=>void}){const ref=useRef<HTMLElement>(null);useEffect(()=>{const old=document.body.style.overflow,focused=document.activeElement as HTMLElement|null;document.body.style.overflow='hidden';ref.current?.querySelector<HTMLButtonElement>('button')?.focus();const key=(e:KeyboardEvent)=>{if(e.key==='Escape')onClose();if(e.key==='Tab'){const els=Array.from(ref.current?.querySelectorAll<HTMLElement>('button,a[href]')||[]);if(e.shiftKey&&document.activeElement===els[0]){e.preventDefault();els.at(-1)?.focus()}else if(!e.shiftKey&&document.activeElement===els.at(-1)){e.preventDefault();els[0]?.focus()}}};document.addEventListener('keydown',key);return()=>{document.body.style.overflow=old;document.removeEventListener('keydown',key);focused?.isConnected&&focused.focus()}},[onClose]);return <div className="sr-overlay"><section className="sr-drawer" ref={ref} role="dialog" aria-modal="true" aria-label={`${row.name} work report`}><header><div><span className="sr-eyebrow">THE WORK BEHIND THE NUMBERS</span><h2>{row.name}</h2><p>{row.role}</p></div><button className="adm-ibtn" onClick={onClose} aria-label="Close work report">×</button></header><div className="sr-drawer-body"><h3>Completed handoffs · selected period</h3>{row.completed.map((r,i)=><article className="sr-work-row" key={`${r.postId}-${i}`}><div><b>{r.theme}</b><small>{r.client} · {r.day} · {r.deadlinePrecision==='day'?'Day-level deadline':'Exact go-live deadline'}</small></div><span className={'sr-pill '+(r.onTime?'green':'amber')}>{r.onTime===null?'Undated':r.onTime?'On time':'Late'}</span></article>)}{!row.completed.length&&<p>No completed handoffs in this period.</p>}<h3>Open work now</h3>{row.queue.map(r=><article className="sr-work-row" key={r.id}><div><b>{r.theme}</b><small>{r.client} · Go-live {r.postDate||'not set'} {r.postTime} IST</small></div><span className={'sr-pill '+(r.overdue?'amber':'blue')}>{r.overdue?'Overdue':STAGES[r.status]||r.status}</span></article>)}{!row.queue.length&&<p>No current open assignments.</p>}</div></section></div>}
