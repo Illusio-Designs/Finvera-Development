@@ -8,6 +8,7 @@ import Select from "@/components/Select";
 import { api, apiErr, peopleApi } from "@/lib/adminApi";
 import { ROLE_LABELS, ROLE_OPTIONS } from "@/lib/permissions";
 import { indiaToday } from "@/lib/socialWorkflow";
+import EmployeeDocuments from "./EmployeeDocuments";
 import type { EmployeeLinks, EmployeeOnboardingInput, EmployeeOnboardingResult } from "@/lib/peopleTypes";
 
 type Mode = "create" | "existing" | "none";
@@ -68,7 +69,7 @@ export default function EmployeeOnboarding({ busy, save, close }: { busy: boolea
       } : teamMode === "existing" ? { mode: "existing", id: Number(existingTeam) } : { mode: "none" },
     };
     void save(async () => {
-      const result = await peopleApi.onboard(data);
+      const result = await peopleApi.onboard(data, form);
       if (result.invite) setInvite(result.invite);
       else close();
     }, "Employee setup saved.");
@@ -82,6 +83,7 @@ export default function EmployeeOnboarding({ busy, save, close }: { busy: boolea
       <div className="adm-field"><label htmlFor="onboard-starts">Joining date</label><DatePicker id="onboard-starts" name="startsOn" defaultValue={indiaToday()} clearable={false} /></div>
       <div className="adm-field"><label htmlFor="onboard-ends">Last working date (optional)</label><DatePicker id="onboard-ends" name="endsOn" /></div>
       <label className="adm-field">Monthly salary (₹)<input name="salary" type="number" required min={0} max={10000000} step="0.01" /></label>
+      <EmployeeDocuments />
       <h3 className="people-wide">Finvera login & roles</h3>
       <div className="adm-field"><label htmlFor="onboard-login">Login setup</label>
         <Select id="onboard-login" ariaLabel="Login setup" value={loginMode} onChange={choice => setLoginMode(choice as Mode)} disabled={busy}

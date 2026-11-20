@@ -10,7 +10,10 @@ interface DatePickerProps {
   name?: string;
   placeholder?: string;
   defaultValue?: string;
-  mode?: "date" | "month";
+  mode?: "date" | "month" | "datetime" | "time";
+  ariaLabel?: string;
+  allowedMonths?: readonly string[];
+  today?: string;
   min?: string;
   max?: string;
   disabled?: boolean;
@@ -54,7 +57,7 @@ function parseISO(v: string | undefined): Date | null {
 
 /** Format a Date as ISO YYYY-MM-DD in local time. */
 function toISO(d: Date): string {
-  const y = d.getFullYear();
+  const y = String(d.getFullYear()).padStart(4, "0");
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
@@ -82,6 +85,9 @@ export default function DatePicker({
   placeholder,
   defaultValue = "",
   mode = "date",
+  ariaLabel,
+  allowedMonths,
+  today: referenceDay,
   min,
   max,
   disabled,
@@ -90,44 +96,95 @@ export default function DatePicker({
   const [localValue, setLocalValue] = useState(defaultValue);
   const current = value ?? localValue;
   const monthOnly = mode === "month";
-  const selected = useMemo(() => parseISO(monthOnly ? current + "-01" : current), [current, monthOnly]);
-  const valid = (choice: string) => (!min || choice >= min) && (!max || choice <= max);
-  const change = (choice: string) => {
-    if (value === undefined) setLocalValue(choice);
-    onChange?.(choice);
-  };
+  const timeOnly = mode === "time";
+  const withTime = timeOnly || mode === "datetime";
+  const currentDate = monthOnly ? current + "-01" : current.split("T")[0];
+  const currentTime = (timeOnly ? current : current.split("T")[1] || "").slice(0, 5);
+  const selected = useMemo(() => timeOnly ? null : parseISO(currentDate), [currentDate, timeOnly]);
+  const valid = (choice: string) => (!min || choice >= min) && (!max || choice <= max)
+    && (!monthOnly || !allowedMonths || allowedMonths.includes(choice));
   const [open, setOpen] = useDisclosure(false);
   const [viewDate, setViewDate] = useState<Date>(() => selected ?? new Date());
+  const [draftDate, setDraftDate] = useState("");
+  const [draftTime, setDraftTime] = useState("");
   const rootRef = useRef<HTMLDivElement | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
+  const popover = useRef<HTMLDivElement | null>(null);
+  const today = parseISO(referenceDay) ?? new Date();
+  const todayChoice = monthOnly ? toISO(today).slice(0, 7) : toISO(today);
 
-  // When the popover opens, sync the visible month to the selected date.
-  useEffect(() => {
-    if (open) {
-      setViewDate(selected ?? parseISO(min && (monthOnly ? min + "-01" : min)) ?? new Date());
-    }
-  }, [open, selected, min, monthOnly]);
+  function close() {
+    setOpen(false);
+    trigger.current?.focus();
+  }
 
-  // Close on outside mousedown / Escape.
+  function change(choice: string) {
+    if (value === undefined) setLocalValue(choice);
+    onChange?.(choice);
+    close();
+  }
+
+  function toggle() {
+    if (open) { close(); return; }
+    const bound = min && todayChoice < min ? min : max && todayChoice > max ? max : undefined;
+    setViewDate(selected ?? parseISO(bound && (monthOnly ? bound + "-01" : bound.slice(0, 10))) ?? today);
+    setDraftDate(selected ? toISO(selected) : "");
+    setDraftTime(currentTime);
+    setOpen(true);
+  }
+
   useEffect(() => {
     if (!open) return;
-    function handlePointer(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+    const panel = popover.current;
+    if (!panel || !trigger.current) return;
+    // The top layer keeps the picker visible inside scrolling drawers and filters.
+    panel.showPopover?.();
+    const viewport = window.visualViewport;
+    function position() {
+      const anchor = trigger.current?.getBoundingClientRect();
+      if (!anchor || !panel) return;
+      const left = viewport?.offsetLeft ?? 0;
+      const top = viewport?.offsetTop ?? 0;
+      const width = viewport?.width ?? document.documentElement.clientWidth;
+      const height = viewport?.height ?? window.innerHeight;
+      const gap = 8;
+      const panelWidth = Math.min(timeOnly ? 248 : 288, width - 2 * gap);
+      const below = top + height - anchor.bottom - 2 * gap;
+      const above = anchor.top - top - 2 * gap;
+      const opensUp = below < panel.scrollHeight && above > below;
+      Object.assign(panel.style, {
+        width: `${panelWidth}px`,
+        left: `${Math.max(left + gap, Math.min(anchor.left, left + width - panelWidth - gap))}px`,
+        top: opensUp ? "auto" : `${Math.max(top + gap, anchor.bottom + gap)}px`,
+        bottom: opensUp ? `${Math.max(gap, window.innerHeight - anchor.top + gap)}px` : "auto",
+        maxHeight: `${Math.max(0, opensUp ? above : below)}px`,
+      });
     }
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") { setOpen(false); trigger.current?.focus(); }
+    position();
+    function handlePointer(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     }
-    document.addEventListener("mousedown", handlePointer);
-    document.addEventListener("keydown", handleKey);
+    function handleKey(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    }
+    document.addEventListener("pointerdown", handlePointer);
+    document.addEventListener("keydown", handleKey, true);
+    window.addEventListener("resize", position);
+    window.addEventListener("scroll", position, true);
+    viewport?.addEventListener("resize", position);
+    viewport?.addEventListener("scroll", position);
     return () => {
-      document.removeEventListener("mousedown", handlePointer);
-      document.removeEventListener("keydown", handleKey);
+      document.removeEventListener("pointerdown", handlePointer);
+      document.removeEventListener("keydown", handleKey, true);
+      window.removeEventListener("resize", position);
+      window.removeEventListener("scroll", position, true);
+      viewport?.removeEventListener("resize", position);
+      viewport?.removeEventListener("scroll", position);
     };
-  }, [open]);
-
-  const today = useMemo(() => new Date(), []);
+  }, [open, timeOnly]);
 
   const grid = useMemo(() => {
     const year = viewDate.getFullYear();
@@ -141,24 +198,38 @@ export default function DatePicker({
     return cells;
   }, [viewDate]);
 
-  const commit = (d: Date) => {
-    const choice = monthOnly ? toISO(d).slice(0, 7) : toISO(d);
-    if (!valid(choice)) return;
-    change(choice);
-    setOpen(false);
-    trigger.current?.focus();
+  const commit = (date: Date) => {
+    const choice = monthOnly ? toISO(date).slice(0, 7) : toISO(date);
+    if (mode === "datetime") setDraftDate(choice);
+    else if (valid(choice)) change(choice);
   };
-
-  const goMonth = (delta: number) => {
-    setViewDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta * (monthOnly ? 12 : 1), 1));
+  function viewAfter(delta: number) {
+    return new Date(viewDate.getFullYear(), viewDate.getMonth() + delta * (monthOnly ? 12 : 1), 1);
+  }
+  function canNavigate(delta: number) {
+    const next = viewAfter(delta);
+    const first = monthOnly ? toISO(next).slice(0, 4) + "-01" : toISO(next);
+    const last = monthOnly ? toISO(next).slice(0, 4) + "-12"
+      : toISO(new Date(next.getFullYear(), next.getMonth() + 1, 0));
+    return next.getFullYear() >= 100 && next.getFullYear() <= 9999
+      && (!min || last >= min.slice(0, last.length)) && (!max || first <= max.slice(0, first.length));
+  }
+  const [hour, minute = ""] = draftTime.split(":");
+  const updateTime = (part: "hour" | "minute", text: string) => {
+    const digits = text.replace(/\D/g, "").slice(0, 2);
+    setDraftTime(part === "hour" ? `${digits}:${minute}` : `${hour}:${digits}`);
   };
-
-  const handleButtonKey = (e: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      setOpen((o) => !o);
-    }
-  };
+  const formatTime = (value: string) => value.padStart(2, "0");
+  const timeValue = `${formatTime(hour)}:${formatTime(minute)}`;
+  const timeChoice = timeOnly ? timeValue : `${draftDate}T${timeValue}`;
+  const canApply = !!hour && !!minute && Number(hour) < 24 && Number(minute) < 60
+    && (timeOnly || !!draftDate) && valid(timeChoice);
+  const validDay = (choice: string) => mode === "datetime"
+    ? (!min || choice >= min.slice(0, 10)) && (!max || choice <= max.slice(0, 10))
+    : valid(choice);
+  const dateLabel = selected ? monthOnly ? `${MONTHS[selected.getMonth()]} ${selected.getFullYear()}` : formatLabel(selected) : "";
+  const label = withTime ? (timeOnly ? currentTime : [dateLabel, currentTime].filter(Boolean).join(" · ")) : dateLabel;
+  const dialogLabel = timeOnly ? "Choose time" : mode === "datetime" ? "Choose date and time" : monthOnly ? "Choose month" : "Choose date";
 
   return (
     <div className="dp-root" ref={rootRef}>
@@ -168,20 +239,22 @@ export default function DatePicker({
         ref={trigger}
         disabled={disabled}
         className="dp-trigger"
+        aria-label={ariaLabel ? label ? `${ariaLabel}, ${label}` : ariaLabel : undefined}
         aria-haspopup="dialog"
         aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        onKeyDown={handleButtonKey}
+        onClick={toggle}
       >
         <span className="dp-cal-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
+          {timeOnly ? <svg viewBox="0 0 24 24" fill="none" width="16" height="16" stroke="currentColor" strokeWidth="1.6">
+            <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" strokeLinecap="round" />
+          </svg> : <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
             <rect x="3" y="4.5" width="18" height="16" rx="2.5" stroke="currentColor" strokeWidth="1.6" />
             <path d="M3 9h18" stroke="currentColor" strokeWidth="1.6" />
             <path d="M8 2.5v4M16 2.5v4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
+          </svg>}
         </span>
-        <span className={selected ? "dp-value" : "dp-value dp-placeholder"}>
-          {selected ? monthOnly ? MONTHS[selected.getMonth()] + " " + selected.getFullYear() : formatLabel(selected) : placeholder || (monthOnly ? "Select a month" : "Select a date")}
+        <span className={label ? "dp-value" : "dp-value dp-placeholder"}>
+          {label || placeholder || (timeOnly ? "Select a time" : monthOnly ? "Select a month" : mode === "datetime" ? "Select date and time" : "Select a date")}
         </span>
         <span className={open ? "dp-caret dp-caret-open" : "dp-caret"} aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" width="14" height="14">
@@ -190,16 +263,18 @@ export default function DatePicker({
         </span>
       </button>
 
-      {name ? <input type="hidden" name={name} value={current} /> : null}
+      {name ? <input type="hidden" name={name} value={current} disabled={disabled} /> : null}
 
       {open && (
-        <div className="dp-pop" role="dialog" aria-label={monthOnly ? "Choose month" : "Choose date"}>
+        <div className="dp-pop" popover="manual" ref={popover} role="dialog" aria-label={dialogLabel}>
+          {!timeOnly && <>
           <div className="dp-head">
             <button
               type="button"
               className="dp-nav"
               aria-label={monthOnly ? "Previous year" : "Previous month"}
-              onClick={() => goMonth(-1)}
+              disabled={!canNavigate(-1)}
+              onClick={() => setViewDate(viewAfter(-1))}
             >
               <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
                 <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -212,7 +287,8 @@ export default function DatePicker({
               type="button"
               className="dp-nav"
               aria-label={monthOnly ? "Next year" : "Next month"}
-              onClick={() => goMonth(1)}
+              disabled={!canNavigate(1)}
+              onClick={() => setViewDate(viewAfter(1))}
             >
               <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
                 <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -240,7 +316,8 @@ export default function DatePicker({
             {grid.map((cell, i) => {
               if (!cell) return <span key={`b-${i}`} className="dp-blank" />;
               const isToday = isSameDay(cell, today);
-              const isSelected = selected ? isSameDay(cell, selected) : false;
+              const choice = toISO(cell);
+              const isSelected = mode === "datetime" ? choice === draftDate : choice === currentDate;
               const cls = [
                 "dp-day",
                 isToday ? "dp-today" : "",
@@ -254,7 +331,7 @@ export default function DatePicker({
                   type="button"
                   className={cls}
                   aria-pressed={isSelected}
-                  disabled={!valid(toISO(cell))}
+                  disabled={!validDay(choice)}
                   onClick={() => commit(cell)}
                 >
                   {cell.getDate()}
@@ -264,20 +341,28 @@ export default function DatePicker({
           </div>
 
           </>}
+          </>}
+          {withTime && <div className="dp-time" onKeyDown={event => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            if (canApply) change(timeChoice);
+          }}>
+            <span>24-hour time</span>
+            <div>
+              <input aria-label="Hours" inputMode="numeric" value={hour} placeholder="HH" onChange={event => updateTime("hour", event.target.value)} />
+              <span aria-hidden="true">:</span>
+              <input aria-label="Minutes" inputMode="numeric" value={minute} placeholder="MM" onChange={event => updateTime("minute", event.target.value)} />
+            </div>
+          </div>}
           <div className="dp-foot">
-            <button
-              type="button"
-              className="dp-foot-btn"
-              disabled={!valid(monthOnly ? toISO(today).slice(0, 7) : toISO(today))}
-              onClick={() => commit(new Date())}
-            >
-              {monthOnly ? "This month" : "Today"}
-            </button>
-            {clearable && <button type="button" className="dp-foot-btn" onClick={() => {
-              change("");
-              setOpen(false);
-              trigger.current?.focus();
-            }}>Clear</button>}
+            {!timeOnly && <button type="button" className="dp-foot-btn" disabled={!validDay(todayChoice)}
+              onClick={() => {
+                setViewDate(today);
+                commit(today);
+              }}>{monthOnly ? "This month" : "Today"}</button>}
+            {clearable && <button type="button" className="dp-foot-btn" onClick={() => change("")}>Clear</button>}
+            {withTime && <button type="button" className="dp-foot-btn dp-apply" disabled={!canApply}
+              onClick={() => change(timeChoice)}>Apply</button>}
           </div>
         </div>
       )}
@@ -335,9 +420,11 @@ export default function DatePicker({
           transform: rotate(180deg);
         }
         .dp-pop {
-          position: absolute;
-          top: calc(100% + 8px);
-          left: 0;
+          position: fixed;
+          inset: auto;
+          margin: 0;
+          overflow: auto;
+          box-sizing: border-box;
           z-index: 1000;
           width: min(288px, calc(100vw - 32px));
           padding: 14px;
@@ -451,10 +538,24 @@ export default function DatePicker({
         .dp-selected.dp-today {
           box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.7);
         }
+        .dp-time { display: grid; gap: 6px; margin-top: 10px; color: var(--muted); font-size: 13px; }
+        .dp-time > div { display: flex; align-items: center; gap: 8px; }
+        .dp-time input {
+          width: 52px;
+          min-width: 0;
+          padding: 7px;
+          border: 1px solid var(--line-2);
+          border-radius: 8px;
+          background: var(--panel);
+          color: var(--ink);
+          text-align: center;
+          font: inherit;
+          font-size: 16px;
+        }
         .dp-foot {
           display: flex;
           align-items: center;
-          justify-content: space-between;
+          gap: 4px;
           margin-top: 12px;
           padding-top: 10px;
           border-top: 1px solid var(--line);
@@ -473,6 +574,7 @@ export default function DatePicker({
         .dp-foot-btn:hover {
           background: var(--bg-2);
         }
+        .dp-foot-btn.dp-apply { margin-left: auto; color: #fff; background: var(--blue-500); }
         .dp-foot-btn:focus-visible {
           outline: none;
           box-shadow: 0 0 0 3px rgba(62, 96, 171, 0.2);

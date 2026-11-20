@@ -168,7 +168,8 @@ export function LeadTouchPanel({ lead, patch, reload, showContact = true, preset
         <textarea className="fu-note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} aria-label="Note"
           placeholder={type === "note" ? "Write a note…" : type === "meeting" ? "What was agreed? (optional)" : "What happened? (optional)"} />
         {type === "meeting" && (
-          <label className="fu-inline"><span>Meeting time</span><input type="datetime-local" value={meetAt} onChange={(e) => setMeetAt(e.target.value)} /></label>
+          <div className="fu-inline"><label htmlFor="lead-touch-meeting">Meeting time</label>
+            <DatePicker id="lead-touch-meeting" mode="datetime" value={meetAt} onChange={setMeetAt} /></div>
         )}
         <div className="fu-next">
           <span className="fu-next-label">Next follow-up</span>

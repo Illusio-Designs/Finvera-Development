@@ -54,3 +54,9 @@
 @media (max-width: 480px) {
   .cal-page .sah-panel > summary small { min-height: 3.2em; }
 }
+
+@media (max-width: 700px) {
+  .cal-page .cal-head-actions { position: relative; }
+  .cal-page .cal-tools { position: static; }
+  .cal-page .cal-tools-menu { left: 0; right: auto; min-width: min(235px, 100%); }
+}

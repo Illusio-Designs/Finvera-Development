@@ -11,6 +11,7 @@ import { dialog } from "@/lib/dialog";
 import { indiaToday } from "@/lib/socialWorkflow";
 import type { Employee, Leave, PayrollRow, PeopleMonth } from "@/lib/peopleTypes";
 import EmployeeOnboarding from "./EmployeeOnboarding";
+import EmployeeDocuments from "./EmployeeDocuments";
 import RecordLinks from "./RecordLinks";
 import "./people.css";
 
@@ -47,7 +48,7 @@ function EmployeeEditor({ row, busy, save, close }: { row: Employee; busy: boole
     void save(() => peopleApi.employee({
       name: string(form, "name"), title: string(form, "title"), startsOn: string(form, "startsOn"),
       endsOn: string(form, "endsOn") || null, salary: paise(form, "salary"),
-    }, row.id), "Employee updated.", close);
+    }, row.id, form), "Employee updated.", close);
   }
   return <form onSubmit={submit}>
     <fieldset className="people-fields" disabled={busy}>
@@ -56,7 +57,8 @@ function EmployeeEditor({ row, busy, save, close }: { row: Employee; busy: boole
       <div className="adm-field"><label htmlFor="edit-starts-on">Joining date</label><DatePicker id="edit-starts-on" name="startsOn" defaultValue={row.startsOn} clearable={false} /></div>
       <div className="adm-field"><label htmlFor="edit-ends-on">Last working date <small>(optional)</small></label><DatePicker id="edit-ends-on" name="endsOn" defaultValue={row.endsOn || ""} /></div>
       <label className="adm-field">Monthly salary (₹)<input name="salary" {...amountProps} defaultValue={row.salary / 100} /></label>
-      <p className="fw-caption">Salary edits apply to draft months. Finalized payroll keeps its recorded amounts.</p>
+      <p className="fw-caption people-wide">Salary edits apply to draft months. Finalized payroll keeps its recorded amounts.</p>
+      <EmployeeDocuments employeeId={row.id} />
       <div className="people-actions people-wide"><button className="sh-btn pri" type="submit">Save employee</button><button className="sh-btn" type="button" onClick={close}>Cancel</button></div>
     </fieldset>
   </form>;
@@ -191,7 +193,7 @@ function PeopleWorkspace({ month, changeMonth, tab, setTab }: { month: string; c
     {data && <>
       <nav className="people-actions" aria-label="People sections">{tabs.map(value => <button key={value} type="button" className={`sh-btn${tab === value ? " pri" : ""}`} aria-pressed={tab === value} disabled={busy} onClick={() => { setTab(value); setMessage(""); setError(""); }}>{value}</button>)}</nav>
       {locked && <p className="fw-caption">Payroll finalized for {month}. Salary figures and rules are locked.</p>}
-      {tab === "Employees" && <Panel title="Employees" detail="Set up employment, salary, login and website profile together." action={<button type="button" className="sh-btn pri" disabled={busy} onClick={() => setEditing("new")}>Add employee</button>}>
+      {tab === "Employees" && <Panel title="Employees" detail="Set up employment, salary, documents, login and website profile together." action={<button type="button" className="sh-btn pri" disabled={busy} onClick={() => setEditing("new")}>Add employee</button>}>
         {editing === "new" && <EmployeeOnboarding busy={busy} save={save} close={() => setEditing(null)} />}
         {editing && editing !== "new" && <EmployeeEditor key={editing.id} row={editing} busy={busy} save={save} close={() => setEditing(null)} />}
         {data.employees.length ? <Table headers={["Employee", "Joining date", "Last working date", "Monthly salary", "Action"]}>{data.employees.map(employee => <tr key={employee.id}>

@@ -1,0 +1,49 @@
+.sys-card.access-matrix { padding: 0; }
+.access-matrix > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  list-style: none;
+  border-radius: inherit;
+  cursor: pointer;
+}
+.access-matrix > summary::-webkit-details-marker { display: none; }
+.access-matrix > summary:focus-visible { outline: 2px solid var(--blue-500); outline-offset: 2px; }
+.access-matrix-icon {
+  width: 39px;
+  height: 39px;
+  flex: 0 0 39px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: #345da6;
+  background: #edf3ff;
+}
+.access-matrix-heading { flex: 1; min-width: 0; }
+.access-matrix-heading strong { display: block; color: var(--ink); font-family: var(--ui-font-heading); font-size: var(--ui-heading-xs); }
+.access-matrix-heading small { display: block; margin-top: 2px; color: var(--muted-2); font-size: var(--ui-text-xs); }
+.access-matrix-chevron { flex-shrink: 0; color: var(--muted-2); }
+.access-matrix[open] > summary { border-bottom: 1px solid var(--line-2); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.access-matrix[open] .access-matrix-chevron { transform: rotate(180deg); }
+.access-matrix-content { display: grid; gap: 14px; padding: 16px 20px 20px; container-type: inline-size; }
+.access-matrix-table { overflow-x: auto; border: 1px solid var(--line-2); border-radius: 12px; }
+.access-matrix table { width: 100%; border-collapse: collapse; min-width: 680px; font-size: var(--ui-text-sm); }
+.access-matrix th, .access-matrix td { padding: 8px 10px; text-align: center; }
+.access-matrix th:first-child { text-align: left; padding-left: 14px; }
+.access-matrix thead { background: #f3f6fb; color: #435a80; }
+.access-matrix tbody tr + tr { border-top: 1px solid var(--line-2); }
+.access-matrix tbody th { font-weight: 600; }
+.access-matrix-granted { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: #e8f4ed; color: #216344; vertical-align: middle; }
+.access-matrix-denied { color: var(--muted-2); }
+.access-matrix-roles { display: none; margin: 0; padding: 0; list-style: none; }
+.access-matrix-roles li { min-width: 0; display: grid; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line-2); }
+.access-matrix-roles li div { display: flex; flex-wrap: wrap; gap: 5px; }
+.access-matrix-roles li span { padding: 3px 7px; background: #edf3ff; color: #345883; border-radius: 7px; font-size: var(--ui-text-xs); }
+.access-matrix-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.access-matrix-error { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.access-matrix-shimmer { display: grid; gap: 4px; }
+@container (max-width: 720px) {
+  .access-matrix-table { display: none; }
+  .access-matrix-roles { display: block; }
+}

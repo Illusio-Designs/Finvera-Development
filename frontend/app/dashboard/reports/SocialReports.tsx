@@ -13,10 +13,16 @@ import {dialog} from '@/lib/dialog';
 import {WorkspaceHero,WorkspaceStats} from '@/components/admin/Workspace';
 import PageLoading from '@/components/admin/PageLoading';
 import Select from '@/components/Select';
+import DatePicker from '@/components/ui/DatePicker';
+import {indiaToday} from '@/lib/socialWorkflow';
 import './reports.css';
 type Options={brands:{id:number;name:string;color:string}[];canSeeTeam:boolean;userId:number};
 const nowMonth=()=>new Date(Date.now()+330*60000).toISOString().slice(0,7);
-const months=Array.from({length:24},(_,i)=>{const d=new Date(nowMonth()+'-01T00:00:00Z');d.setUTCMonth(d.getUTCMonth()-i);return{value:d.toISOString().slice(0,7),label:d.toLocaleDateString('en-GB',{month:'long',year:'numeric',timeZone:'UTC'})}});
+function oldestMonth(current: string) {
+ const date = new Date(current + '-01T00:00:00Z');
+ date.setUTCMonth(date.getUTCMonth() - 23);
+ return date.toISOString().slice(0, 7);
+}
 const STAGES:Record<string,string>={planned:'Planned',client:'Need from client',production:'In production',approval:'In review',ready:'Ready to post'};
 function Metric({label,value,note,primary=false}:{label:string;value:React.ReactNode;note:string;primary?:boolean}){return <article className={'sr-metric'+(primary?' primary':'')}><span>{label}</span><b>{value}</b><small>{note}</small></article>}
 function Panel({title,note,children,action}:{title:string;note?:string;children:React.ReactNode;action?:React.ReactNode}){return <section className="sr-panel"><header><div><h2>{title}</h2>{note&&<p>{note}</p>}</div>{action}</header>{children}</section>}
@@ -41,7 +47,7 @@ export default function SocialReports({initialView = 'client', workspaceBrand, w
  async function setup(initial=false){setBusy(true);setError('');try{const o=await reportsApi.options();if(initial&&!embedded){const q=new URLSearchParams(location.search);setBrand(o.brands.find((b:Options["brands"][number])=>b.name===q.get("brand"))?.name||"");}setOptions(o);}catch(e){setError(e instanceof Error?e.message:'Couldn’t load reports.');setBusy(false);}}
  async function refreshHistory(page=1){const seq=++historyRequest.current;setHistoryBusy(true);setHistoryError('');try{const result=await reportsApi.list({kind:view,month,...(brand?{brand}:{}),page:String(page)});if(seq!==historyRequest.current)return;setHistory(current=>page===1?result.items:[...current,...result.items]);setHistoryMore(result.hasMore);setHistoryPage(page);if(result.truncated)setHistoryError('Narrow the month/client filters to see all archived reports.');}catch(e){if(seq===historyRequest.current)setHistoryError(e instanceof Error?e.message:'Couldn’t load saved reports.');}finally{if(seq===historyRequest.current)setHistoryBusy(false)}}
  useEffect(()=>{if(options)refreshHistory();return()=>{historyRequest.current++}},[options,view,month,brand]);
- useEffect(()=>{setup(true);const q=new URLSearchParams(location.search);const requested=workspaceMonth ?? q.get('month');if(months.some(m=>m.value===requested))setMonth(requested!);},[]);
+ useEffect(()=>{setup(true);const q=new URLSearchParams(location.search);const requested=workspaceMonth ?? q.get('month');const current=nowMonth();if(requested&&/^\d{4}-(0[1-9]|1[0-2])$/.test(requested)&&requested>=oldestMonth(current)&&requested<=current)setMonth(requested);},[]);
  useEffect(()=>{if(!options||saved)return;const seq=++request.current;if(view==='client'&&!brand){if(!embedded&&options.brands.length)setBrand(options.brands[0].name);else{setData(null);setBusy(false);}return;}setBusy(true);setError('');reportsApi.preview({kind:view,month,...(brand?{brand}:{}),...(person?{personId:person}:{}),...(role?{role}:{})}).then(row=>{if(seq===request.current)setData(row)}).catch(e=>{if(seq===request.current){setData(null);setError(e.message)}}).finally(()=>{if(seq===request.current)setBusy(false)});return()=>{request.current++}},[view,month,brand,person,role,options,saved,revision]);
  async function canLeave() {
   if (working) return false;
@@ -68,7 +74,7 @@ export default function SocialReports({initialView = 'client', workspaceBrand, w
  {clientView ? <button className="adm-btn ghost" onClick={()=>setClientView(false)}>← Back to report editor</button> : <>
   <div className="sr-filters">
    <div className="adm-field"><label htmlFor="report-month">Reporting month · India time</label>
-    <Select id="report-month" value={month} options={months} disabled={!!saved||working}
+    <DatePicker id="report-month" mode="month" value={month} min={oldestMonth(nowMonth())} max={nowMonth()} today={indiaToday()} clearable={false} disabled={!!saved||working}
       onChange={v=>change(()=>{setMonth(v);onWorkspaceMonthChange?.(v);})}/></div>
    {!embedded && <div className="adm-field"><label htmlFor="report-brand">Brand</label>
     <Select id="report-brand" value={brand} disabled={!!saved||working} onChange={v=>change(()=>setBrand(v))}
