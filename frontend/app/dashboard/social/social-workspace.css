@@ -72,3 +72,5 @@
 .cal-task-focused .cal-task-section[open] > summary { margin-bottom: 8px; }
 .cal-page .cal-tools { flex: none; }
 .cal-page .cal-tools > summary { white-space: nowrap; }
+.cal-tools-delete { display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line-2); }
+.cal-tools-delete .adm-hint { margin: 0; }
