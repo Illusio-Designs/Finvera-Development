@@ -1,4 +1,5 @@
 "use client";
+import { DisclosureSummary } from "@/components/admin/Workspace";
 import PageLoading from "@/components/admin/PageLoading";
 import { useDisclosure } from "@/lib/useDisclosure";
 /* "History" for one item (lead, renewal, card, post, site content …):
@@ -66,7 +67,7 @@ export default function HistoryList({ entity, id, open: startOpen = false, refre
                         </div>
                         <time dateTime={r.createdAt} title={whenOf(r.createdAt)}>{relative(r.createdAt)} · {whenOf(r.createdAt)}</time>
                         {entity === "social-post" && r.changes?.media && <details>
-                          <summary>Artwork versions</summary>
+                          <DisclosureSummary>Artwork versions</DisclosureSummary>
                           {([0, 1] as const).map((index) => <div key={index}>
                             <small>{index === 0 ? "Previous artwork" : "Updated artwork"}</small>
                             <ul>{mediaLinks(r.changes!.media[index]).map((media, i) => <li key={media.url + i}><a href={media.url} target="_blank" rel="noopener noreferrer">{media.name || `Open file ${i + 1}`} ↗</a></li>)}</ul>

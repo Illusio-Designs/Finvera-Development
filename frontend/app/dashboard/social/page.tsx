@@ -1,5 +1,5 @@
 "use client";
-import { WorkspaceHero } from "@/components/admin/Workspace";
+import { DisclosureSummary, WorkspaceHero } from "@/components/admin/Workspace";
 import Link from "next/link";
 import SocialAccountHealth from "@/components/admin/SocialAccountHealth";
 import SocialPostPreview from "@/components/admin/SocialPostPreview";
@@ -1418,9 +1418,9 @@ export default function SocialCalendar() {
         {!ready && !posted && <section className="cal-vsec"><h3>{p.status === "client" ? "Next step" : "Ready to start?"}</h3><p>{p.status === "client" ? "Resume production when the missing input is ready." : `The ${isVideoFormat(p.format) ? "video editor" : "graphic designer"} starts work, uploads the finished artwork and sends it for review.`}</p></section>}
         {posted && urls.length > 0 && <div className="cal-live-links">{urls.map((url) => <a className="cal-btn" href={url} key={url} target="_blank" rel="noopener noreferrer">Open live post ↗</a>)}</div>}
         {p._full && <SocialPostPreview post={p} connected={accFor(p.client) ? [...(accFor(p.client)?.igUsername ? ["instagram"] : []), "facebook"] : []} instagramName={accFor(p.client)?.igUsername} facebookName={accFor(p.client)?.pageName} />}
-        <details className="cal-task-section" open={p.status === "planned"}><summary>Content &amp; requirements</summary><p className="cal-pre">{composeCaption(p).text || "No caption added."}</p>{p.requirements && <p className="cal-pre">Requirements: {p.requirements}</p>}{p.reference && <p className="cal-pre">Reference: {p.reference}</p>}{p.tags && <p>Instagram tags: {p.tags}</p>}{p.remarks && <p className="cal-pre">Team notes: {p.remarks}</p>}</details>
-        <details className="cal-task-section"><summary>Team &amp; planning</summary><div className="cal-track">{chain.map((role) => <div className="cal-step" key={role}><b>{ROLE_META[role].label}</b><span>{userById(p.team?.[role] || null)?.name || "Not picked"}</span></div>)}</div><p>Start work on {fmtDay(startOf(p))}</p>{p.dataStatus && <p>Data status: {p.dataStatus}</p>}</details>
-        <details className="cal-task-section"><summary>History</summary><HistoryList entity="social-post" id={p.id} refreshKey={p.updatedAt || p.status} /></details>
+        <details className="cal-task-section" open={p.status === "planned"}><DisclosureSummary>Content &amp; requirements</DisclosureSummary><p className="cal-pre">{composeCaption(p).text || "No caption added."}</p>{p.requirements && <p className="cal-pre">Requirements: {p.requirements}</p>}{p.reference && <p className="cal-pre">Reference: {p.reference}</p>}{p.tags && <p>Instagram tags: {p.tags}</p>}{p.remarks && <p className="cal-pre">Team notes: {p.remarks}</p>}</details>
+        <details className="cal-task-section"><DisclosureSummary>Team &amp; planning</DisclosureSummary><div className="cal-track">{chain.map((role) => <div className="cal-step" key={role}><b>{ROLE_META[role].label}</b><span>{userById(p.team?.[role] || null)?.name || "Not picked"}</span></div>)}</div><p>Start work on {fmtDay(startOf(p))}</p>{p.dataStatus && <p>Data status: {p.dataStatus}</p>}</details>
+        <details className="cal-task-section"><DisclosureSummary>History</DisclosureSummary><HistoryList entity="social-post" id={p.id} refreshKey={p.updatedAt || p.status} /></details>
         {posted && <button type="button" className="cal-btn" onClick={async () => {
           const full = p._full ? p : await fetchFull(p.id); if (!full) { toast("Couldn't load the saved post", "err"); return; }
           dirty.current = new Set(); setEditing({ ...full, id: undefined, status: "planned", channels: "", updatedAt: undefined, theme: `${full.theme} (revision)`, assigneeId: full.team?.[makerFor(full.format)] || null }); setViewId(null);
@@ -1428,7 +1428,7 @@ export default function SocialCalendar() {
         {canEdit(p) && !posted && <div className="adm-drawer-actions cal-actions">
           {!ready && <button type="button" className="cal-primary wide" onClick={() => advance(p)}>{p.status === "client" ? "Resume work" : "Start work"}</button>}
           {ready && <button type="button" className="cal-primary wide" onClick={() => editForStage(p)}>Edit scheduled post</button>}
-          <details className="cal-task-more"><summary>More actions</summary><div className="cal-row">{p.status === "planned" && <button type="button" className="cal-btn" onClick={() => needFromClient(p)}>Need</button>}<button type="button" className="cal-btn" onClick={() => editForStage(p)}>{p.status === "client" ? "Edit client request" : "Edit post"}</button>{ready && <button type="button" className="cal-btn" onClick={() => advance(p)}>Confirm manual publication</button>}</div></details>
+          <details className="cal-task-more"><DisclosureSummary>More actions</DisclosureSummary><div className="cal-row">{p.status === "planned" && <button type="button" className="cal-btn" onClick={() => needFromClient(p)}>Need</button>}<button type="button" className="cal-btn" onClick={() => editForStage(p)}>{p.status === "client" ? "Edit client request" : "Edit post"}</button>{ready && <button type="button" className="cal-btn" onClick={() => advance(p)}>Confirm manual publication</button>}</div></details>
         </div>}
       </aside>
     </div>;
@@ -1452,7 +1452,7 @@ export default function SocialCalendar() {
     return (
       <div className="cal-vsec cal-pub">
         <h4>Auto-publishing</h4>
-        <details className="cal-task-section"><summary>Media diagnostics</summary><button type="button" className="cal-btn sm" onClick={() => inspectArtwork(p)}>Check media</button></details>
+        <details className="cal-task-section"><DisclosureSummary>Media diagnostics</DisclosureSummary><button type="button" className="cal-btn sm" onClick={() => inspectArtwork(p)}>Check media</button></details>
         {!js.length && <p className="adm-hint" style={{ margin: 0 }}>
           {p.status === "posted" ? "Already posted." : `Goes out on ${platformsFor(p).map((x) => PLATFORM_NAME[x]).join(" and ") || "—"} by itself at ${when} once it's in Ready to post.`}
           {!media.length && p.status !== "posted" && platformsFor(p).includes("instagram") && " Add the image or video in Edit post — Instagram needs it."}
@@ -1477,7 +1477,7 @@ export default function SocialCalendar() {
                   dirty.current = new Set(); setEditing({ ...full }); setViewId(null);
                 }}>{js.some((job) => job.status === "published") ? "Correct Instagram tags" : "Edit tags & content"}</button>}
                 {(["failed", "missed"].includes(j.status) || (j.status === "check" && !limited)) && <button type="button" className="cal-btn sm" onClick={() => retryJob(j)}>{j.status === "check" ? "Confirm absent & retry" : j.status === "missed" ? "Post now" : "Retry"}</button>}
-                {["failed", "check", "missed"].includes(j.status) && <details className="cal-task-more"><summary>Already posted manually?</summary><button type="button" className="cal-btn sm" onClick={() => markJobPosted(j)}>I posted it myself</button></details>}
+                {["failed", "check", "missed"].includes(j.status) && <details className="cal-task-more"><DisclosureSummary>Already posted manually?</DisclosureSummary><button type="button" className="cal-btn sm" onClick={() => markJobPosted(j)}>I posted it myself</button></details>}
               </div>
             </div>
           );

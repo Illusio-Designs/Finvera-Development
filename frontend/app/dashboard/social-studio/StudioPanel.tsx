@@ -2,6 +2,7 @@
 import SocialAccountHealth from "@/components/admin/SocialAccountHealth";
 import ChannelAvatar from "@/components/admin/ChannelAvatar";
 import PageLoading from "@/components/admin/PageLoading";
+import { DisclosureSummary } from "@/components/admin/Workspace";
 /* Social studio — analytics, channels and published posts for the brand
    picked in the dropdown (or all brands). Numbers come from Instagram and
    Facebook for connected channels (followers, likes, comments, shares) and
@@ -120,6 +121,7 @@ export default function StudioPanel({ brand, tab, onReport, onTabChange, onBrand
   const [postFilter, setPostFilter] = useState<"published" | "scheduled">("published");
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [connectingBrand, setConnectingBrand] = useState<string | null>(null);
   const [connectFor, setConnectFor] = useState<string | null>(null);
   const [metaPick, setMetaPick] = useState<{ sel: string; brand: string; pages: { pageId: string; pageName: string; igUsername: string | null }[]; chosen: string } | null>(null);
   const [pageQ, setPageQ] = useState("");
@@ -231,8 +233,15 @@ export default function StudioPanel({ brand, tab, onReport, onTabChange, onBrand
     catch (e: any) { toast("Couldn't change it", "err", { description: e.message }); }
   }
   async function connect(b: string) {
-    try { const r = await api.metaStart(b); window.location.href = r.authUrl; }
-    catch (e: any) { toast("Couldn't start connecting", "err", { description: e.message }); }
+    if (connectingBrand) return;
+    setConnectingBrand(b);
+    try {
+      const { authUrl } = await api.metaStart(b);
+      window.location.assign(authUrl);
+    } catch (error) {
+      setConnectingBrand(null);
+      toast("Couldn't start connecting", "err", { description: error instanceof Error ? error.message : undefined });
+    }
   }
   async function disconnect(b: string) {
     if (!(await dialog.confirm({ title: `Disconnect ${b}?`, message: "Both its Instagram and Facebook stop publishing automatically. You can connect again any time.", danger: true, confirmText: "Disconnect" }))) return;
@@ -262,7 +271,7 @@ export default function StudioPanel({ brand, tab, onReport, onTabChange, onBrand
     } catch (e: any) { toast("Couldn't connect", "err", { description: e.message }); }
   }
 
-  if (!data || !v) return <div className="ss studio-workspace">{loadError ? <div className="ss-load-error" role="alert"><p>{loadError}</p><button type="button" className="ss-btn" onClick={() => load()}>Try again</button></div> : <PageLoading label="Loading Social studio…" variant="panel" count={3} />}</div>;
+  if (!data || !v) return <div className="ss studio-workspace">{loadError ? <div className="ss-load-error" role="alert"><p>{loadError}</p><button type="button" className="adm-btn ghost" onClick={() => load()}>Try again</button></div> : <PageLoading label="Loading Social studio…" variant="panel" count={3} />}</div>;
 
   const brandLabel = brand || "All brands";
   const color = (b: string) => colors[b] || COLORS[0];
@@ -288,14 +297,16 @@ export default function StudioPanel({ brand, tab, onReport, onTabChange, onBrand
 
   return (
     <div className="ss studio-workspace">
-      {loadError && <div className="ss-load-error" role="alert"><p>Couldn’t refresh this view: {loadError}</p><button type="button" className="ss-btn" onClick={() => load()}>Try again</button></div>}
+      {loadError && <div className="ss-load-error" role="alert"><p>Couldn’t refresh this view: {loadError}</p><button type="button" className="adm-btn ghost" onClick={() => load()}>Try again</button></div>}
       {/* ── Hero ── */}
       <section className="ss-hero">
-        <div className="ss-hero-actions">
-          <button type="button" className="ss-btn" onClick={() => load()} disabled={busy}><Icon i={Refresh01Icon} />{busy ? "Refreshing…" : "Refresh saved data"}</button>
+        <div className="ss-refresh-row">
+          <p className="ss-saved-note" role="status">{data.refreshedAt ? `Platform metrics last saved ${timeAgo(data.refreshedAt)}.` : "Platform metrics have not been saved yet."} {data.refreshing && "A background refresh is running."}</p>
+          <button type="button" className="adm-btn ghost" onClick={() => load()} disabled={busy}>
+            <Icon i={Refresh01Icon} size={16} /><span>{busy ? "Refreshing…" : "Refresh saved data"}</span>
+          </button>
         </div>
-        <p className="ss-saved-note">{data.refreshedAt ? `Platform metrics last saved ${timeAgo(data.refreshedAt)}.` : "Platform metrics have not been saved yet."} {data.refreshing && "A background refresh is running."}</p>
-        {tab === "overview" && <details className="ss-weekly-highlights"><summary>Weekly highlights · {weekLabel}</summary><h2 className="ss-weekly-title">{title}</h2><div className="ss-hero-grid">
+        {tab === "overview" && <details className="ss-weekly-highlights"><DisclosureSummary>Weekly highlights · {weekLabel}</DisclosureSummary><h2 className="ss-weekly-title">{title}</h2><div className="ss-hero-grid">
           <div className="ss-glass">
             <div className="ss-big"><b>{postsWeek}</b><span>post{postsWeek === 1 ? "" : "s"} published</span><Delta now={postsWeek} prev={postsPrev} /></div>
             <div className="ss-kpis">
@@ -417,8 +428,17 @@ export default function StudioPanel({ brand, tab, onReport, onTabChange, onBrand
                 <div className="ss-group-h">
                   <i style={{ background: color(b) }}>{b[0]}</i>
                   <div><b>{b}</b><small>{s.text}</small></div>
-                  {!brand && <button type="button" className="ss-chip" onClick={() => onBrandChange(b)}>View brand <Icon i={ArrowUpRight01Icon} size={14} /></button>}
-                  {acc && !limited && <button type="button" className="ss-chip ghost" onClick={() => disconnect(b)} aria-label={`Disconnect ${b}`}><Icon i={Unlink04Icon} size={14} />Disconnect</button>}
+                  {(!brand || (acc && !limited)) && <div className="ss-group-actions">
+                    {!brand && <button type="button" className="adm-btn ghost" onClick={() => onBrandChange(b)}>View brand <Icon i={ArrowUpRight01Icon} size={14} /></button>}
+                    {acc && !limited && <>
+                      <button type="button" className="adm-btn ghost" disabled={connectingBrand !== null}
+                        onClick={() => connect(b)} aria-label={`Reconnect Meta for ${b}`}>
+                        <Icon i={Refresh01Icon} size={16} />{connectingBrand === b ? "Opening Meta…" : "Reconnect Meta"}
+                      </button>
+                      <button type="button" className="adm-btn ghost" disabled={connectingBrand !== null} onClick={() => disconnect(b)}
+                        aria-label={`Disconnect ${b}`}><Icon i={Unlink04Icon} size={14} />Disconnect</button>
+                    </>}
+                  </div>}
                 </div>
                 <div className="ss-chs">
                   {chs.map((c) => (
@@ -534,7 +554,7 @@ export default function StudioPanel({ brand, tab, onReport, onTabChange, onBrand
               <li><Icon i={Tick02Icon} size={15} />Instagram must be a Business or Creator account linked to that Page.</li>
               <li><Icon i={Tick02Icon} size={15} />Only posts in Ready to post go out. You can pause or disconnect any time.</li>
             </ul>
-            <div className="ss-modal-f"><button type="button" className="ss-chip" onClick={() => setConnectFor(null)}>Cancel</button><button type="button" className="ss-chip dark" disabled={!connectFor} onClick={() => connect(connectFor)}>Continue with Facebook</button></div>
+            <div className="ss-modal-f"><button type="button" className="ss-chip" onClick={() => setConnectFor(null)}>Cancel</button><button type="button" className="ss-chip dark" disabled={!connectFor || connectingBrand !== null} onClick={() => connect(connectFor)}>{connectingBrand ? "Opening Meta…" : "Continue with Facebook"}</button></div>
           </div>
         </div>
       )}
@@ -555,7 +575,7 @@ export default function StudioPanel({ brand, tab, onReport, onTabChange, onBrand
                 {action.id === "view" && <button type="button" className="ss-chip" onClick={() => { onOpenProfile(readiness.client, readiness.platform); setReadiness(null); }}>View profile details</button>}
                 {action.id === "edit" && readiness.platform === "facebook" && !limited && action.state === "permission_granted" && <button type="button" className="ss-chip" onClick={() => { onOpenProfile(readiness.client, "facebook"); setReadiness(null); }}>Edit supported details</button>}
               </div>)}
-              <details><summary>Granted scopes</summary><p className="ss-note">{readiness.data.scopes?.join(", ") || "Unknown — not verified"}</p></details>
+              <details><DisclosureSummary>Granted scopes</DisclosureSummary><p className="ss-note">{readiness.data.scopes?.join(", ") || "Unknown — not verified"}</p></details>
             </>}
             <button type="button" className="ss-chip" disabled={!readiness.data && !readiness.error} onClick={() => checkReadiness(readiness.client, readiness.platform)}>Check again</button>
           </aside>

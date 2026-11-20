@@ -1,4 +1,5 @@
 "use client";
+import { DisclosureSummary } from "@/components/admin/Workspace";
 import { useEffect, useState } from "react";
 import ChannelAvatar from "./ChannelAvatar";
 import { previewCaption, previewKind, previewTargets, type PreviewPost } from "@/lib/socialPostPreview";
@@ -28,7 +29,7 @@ export default function SocialPostPreview({ post, connected = [], instagramName,
       {kind !== "story" && <><div className="spp-actions" aria-hidden="true">{platform === "instagram" ? "♡　♧　↗" : "Like　·　Comment　·　Share"}</div>{(platform === "instagram" || kind === "reel") && <div className="spp-caption"><b>{name} </b>{expanded || caption.length < 150 ? caption || "No caption added." : caption.slice(0, 150) + "…"}{caption.length >= 150 && <button type="button" onClick={() => setExpanded(!expanded)}>{expanded ? "Show less" : "More"}</button>}</div>}</>}
     </div>
     {kind === "story" && <p className="spp-note">Story notes, hashtags, tags and interactive stickers are not added to the published artwork.</p>}
-    {kind === "reel" && active?.coverUrl && <details className="spp-cover"><summary>Saved Reel cover</summary><img src={active.coverUrl} alt="Saved Reel cover"/></details>}
+    {kind === "reel" && active?.coverUrl && <details className="spp-cover"><DisclosureSummary>Saved Reel cover</DisclosureSummary><img src={active.coverUrl} alt="Saved Reel cover"/></details>}
     <p className="spp-note">Go-live: {post.postDate || "Date not set"} · {post.postTime || "10:00"} IST. Previewing does not save, schedule or publish.</p>
   </section>;
 }

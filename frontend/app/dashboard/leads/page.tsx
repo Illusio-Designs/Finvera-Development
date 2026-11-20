@@ -1,5 +1,5 @@
 "use client";
-import { WorkspaceHero } from "@/components/admin/Workspace";
+import { DisclosureSummary, WorkspaceHero } from "@/components/admin/Workspace";
 import PageLoading from "@/components/admin/PageLoading";
 /* Leads — the business-development pipeline.
    One request for the data (GET /api/leads); everything else (totals,
@@ -246,7 +246,7 @@ function Leads() {
         <>
           {rows && rows.length > 0 && <div className="ld-next-work"><div><span className="ld-section-kicker">YOUR NEXT CONVERSATION</span><h2>Follow-ups first</h2><p>Choose a date group to focus the pipeline below.</p></div><FollowUpStrip rows={rows} value={range} onChange={setRange} /></div>}
 
-          <details className="ld-performance"><summary>Pipeline performance <span>{rows ? `${totals.open} open · ${inrShort(totals.pipe)}` : "Loading totals…"}</span></summary><div className="td-kpis">
+          <details className="ld-performance"><DisclosureSummary>Pipeline performance <span>{rows ? `${totals.open} open · ${inrShort(totals.pipe)}` : "Loading totals…"}</span></DisclosureSummary><div className="td-kpis">
             {k("Open pipeline", RupeeIcon, "blue", inrShort(totals.pipe), `${plural(totals.open, "open lead")} · ${inr(totals.pipe)}`)}
             {k("Open leads", Target02Icon, "amber", String(totals.open), totals.due ? `${plural(totals.due, "follow-up")} due or overdue` : "No follow-ups due today")}
             {k("Won this month", CheckmarkCircle02Icon, "green", inrShort(totals.wonMonth), `${plural(totals.wonMonthN, "deal")} · ${inrShort(totals.wonValue)} won in all`)}

@@ -12,6 +12,10 @@ export function WorkspaceHero({ eyebrow, title, description, actions, children, 
     {variant === "panel" && <span className="fw-decoration" aria-hidden="true"><span className="fw-orbit" /></span>}
   </header>;
 }
+export function DisclosureSummary({ children }: { children: ReactNode }) {
+  return <summary className="fw-disclosure-summary"><span>{children}</span></summary>;
+}
+
 export function WorkspaceStats({ items }: { items: { label: string; value: ReactNode; detail: string; accent?: boolean }[] }) {
   return <div className="fw-stats">{items.map((item, i) => <article className={"fw-stat" + (item.accent ? " accent" : "")} key={item.label}><span className="fw-stat-index">{String(i + 1).padStart(2, "0")}</span><span>{item.label}</span><b>{item.value}</b><small>{item.detail}</small></article>)}</div>;
 }

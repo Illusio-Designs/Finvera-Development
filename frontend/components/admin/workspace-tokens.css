@@ -51,3 +51,33 @@
 .adm.sh .fw-surface [role=tablist] [role=tab]{font-family:var(--ui-font-body);font-size:var(--ui-text-md);line-height:1.4;min-height:40px}
 .adm.sh .fw-surface th:not(:is(.tiptap,.ProseMirror) th){font-family:var(--ui-font-body);font-size:var(--ui-text-sm);line-height:1.5}
 .adm.sh .fw-surface td:not(:is(.tiptap,.ProseMirror) td){font-family:var(--ui-font-body);font-size:var(--ui-text-md);line-height:1.55}
+
+.fw-disclosure-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 8px;
+  color: var(--blue-600);
+  font-family: var(--ui-font-body);
+  font-size: var(--ui-text-sm);
+  font-weight: 600;
+  line-height: 1.5;
+}
+.fw-disclosure-summary::-webkit-details-marker { display: none; }
+.fw-disclosure-summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  margin: 0 4px 4px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+}
+details[open] > .fw-disclosure-summary::after { margin-bottom: 0; transform: rotate(225deg); }
+.fw-disclosure-summary > span { min-width: 0; overflow-wrap: anywhere; }
+.fw-disclosure-summary:focus-visible { outline: 2px solid var(--blue-500); outline-offset: 3px; }

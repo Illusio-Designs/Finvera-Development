@@ -1,5 +1,5 @@
 "use client";
-import { WorkspaceHero } from "@/components/admin/Workspace";
+import { DisclosureSummary, WorkspaceHero } from "@/components/admin/Workspace";
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
@@ -204,7 +204,7 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
       </section>
     </div>}
     {workspace && client && <details className="sp-readiness" key={`${client}-${platform}`}>
-      <summary>Readiness &amp; actions</summary>
+      <DisclosureSummary>Readiness &amp; actions</DisclosureSummary>
       {readinessError ? <p>Could not verify Meta permissions. Check the brand’s connection.</p>
         : !readiness ? <LoadingRegion label="Checking Meta permissions…"><Shimmer width="55%" height={16} /></LoadingRegion>
         : !readiness.actions.length ? <p>No permission details available.</p>
@@ -213,7 +213,7 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
             {action.url && <a className="adm-btn ghost" href={action.url} target="_blank" rel="noopener noreferrer">{action.id === "edit" ? "Edit on platform" : "Open profile"}</a>}
           </dd>
         </div>)}</dl>}
-      {readiness?.scopes && <details className="sp-grants"><summary>Granted scopes</summary>
+      {readiness?.scopes && <details className="sp-grants"><DisclosureSummary>Granted scopes</DisclosureSummary>
         <p>{readiness.scopes.length ? readiness.scopes.join(", ") : "No scopes reported."}</p>
       </details>}
       <button type="button" className="adm-btn ghost" onClick={workspace.onConnections}>Open channel connections</button>

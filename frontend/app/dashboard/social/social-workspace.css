@@ -60,3 +60,15 @@
   .cal-page .cal-tools { position: static; }
   .cal-page .cal-tools-menu { left: 0; right: auto; min-width: min(235px, 100%); }
 }
+
+.cal-task-focused .cal-task-section { padding: 5px 0; }
+.cal-task-focused .fw-disclosure-summary {
+  min-height: 44px;
+  padding: 8px 10px;
+  font-size: var(--ui-text-md);
+  line-height: 1.5;
+}
+.cal-task-focused .fw-disclosure-summary:hover { background: #eaf0fa; }
+.cal-task-focused .cal-task-section[open] > summary { margin-bottom: 8px; }
+.cal-page .cal-tools { flex: none; }
+.cal-page .cal-tools > summary { white-space: nowrap; }
