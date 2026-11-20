@@ -12,7 +12,8 @@ const eventOf = (p, { from = null, fromAssigneeId = null, byUserId = null } = {}
 });
 const { asyncHandler } = require("../utils/crud");
 const { rolesOf } = require("../utils/permissions");
-const { notifyUsers } = require("../utils/notify");
+const { notifyAssignments } = require("../utils/socialNotifications");
+const { makerFor, roleFor: stageRole, stepFor, teamOf, teamWithOwner } = require("../utils/socialPostMachine");
 
 /* JSON arrays can come back as strings on some MySQL setups — coerce. */
 const asArr = (v) => (Array.isArray(v) ? v : (typeof v === "string" && v.trim().startsWith("[") ? (() => { try { return JSON.parse(v); } catch { return []; } })() : []));
@@ -60,7 +61,6 @@ function postOf(req) {
 }
 
 /* Who was picked for a role on this post (people choose; nothing is automatic). */
-const teamOf = (p) => { const t = p && p.team; if (t && typeof t === "object") return t; try { return JSON.parse(t || "{}") || {}; } catch { return {}; } };
 const pickedFor = (p, role) => { const id = Number(teamOf(p)[role]); return Number.isFinite(id) && id > 0 ? id : null; };
 
 /* Someone picked for a brand's post gets that brand in their access list,
@@ -170,15 +170,6 @@ const listPosts = () => asyncHandler(async (req, res) => {
    The maker uploads the finished work and clicks Done; it goes to the
    Social media manager, who approves it and it's scheduled. */
 const STEPS = ["graphic", "video", "social"];
-const isVideoFormat = (format) => /reel|video/i.test(String(format || ""));
-const makerFor = (format) => (isVideoFormat(format) ? "video" : "graphic");
-function stageRole(status, format, step) {
-  if (status === "ready" || status === "posted" || status === "approval") return "social";
-  if (status === "production") return makerFor(format);
-  return makerFor(format);
-}
-/* The step a post is on inside In production: the maker for its format. */
-const stepFor = (status, step, format) => (status === "production" ? makerFor(format) : null);
 
 /* Least-loaded active user holding `role` who can see `client`, or null.
    `ctx` caches users / brand ids / open-post counts across a bulk import. */
@@ -252,16 +243,21 @@ const assignOnCreate = asyncHandler(async (req, _res, next) => {
   const b = req.body || {};
   b.step = stepFor(b.status || "planned", b.step, b.format);
   // No automatic pick: the person chosen, or whoever the post's team has for this step.
-  if (!b.assigneeId && b.client) b.assigneeId = pickedFor(b, stageRole(b.status || "planned", b.format, b.step));
+  const role = stageRole(b.status || "planned", b.format);
+  if (!b.assigneeId && b.client) b.assigneeId = pickedFor(b, role);
+  if (b.assigneeId) {
+    const user = await User.findByPk(b.assigneeId);
+    if (!user?.active || !rolesOf(user).some(r => r === role || r === "admin")) {
+      throw Object.assign(new Error("Choose an active assignee with the role for this post."), { status: 400 });
+    }
+    b.team = teamWithOwner(b);
+  }
   next();
 });
 
 /* Stage changed → hand the post to the role for the new stage. Skipped when
-   the same save picks an assignee by hand, or the current assignee already
-   holds the new stage's role (e.g. Planned → In production stays put).
-   Ready to post is the exception: it always goes to a DIFFERENT person than
-   the one who made it (a second pair of eyes before posting) — the maker
-   keeps it only when no other Social media person has the brand. */
+   the same save chooses the assignee. Retain the current owner when the
+   stage changes within the same role, including older posts with no team. */
 const assignOnStageChange = asyncHandler(async (req, _res, next) => {
   const b = req.body || {};
   if (b.status === undefined && b.step === undefined && b.format === undefined) return next();
@@ -271,12 +267,13 @@ const assignOnStageChange = asyncHandler(async (req, _res, next) => {
   // Production uses the maker for the selected format, including legacy steps.
   b.step = stepFor(status, b.step !== undefined ? b.step : (status === post.status ? post.step : null), b.format !== undefined ? b.format : post.format);
   if (status === post.status && (b.step || null) === (post.step || null) && makerFor(b.format !== undefined ? b.format : post.format) === makerFor(post.format)) return next();
-  if (b.assigneeId !== undefined && Number(b.assigneeId || 0) !== Number(post.assigneeId || 0)) return next();
+  if (b.assigneeId !== undefined) return next();
   if (status === "posted") return next(); // whoever posted it keeps it
   // No automatic pick: the person the post's team has for the new step, else unassigned until someone is chosen.
   const role = stageRole(status, b.format !== undefined ? b.format : post.format, b.step);
   const team = b.team !== undefined ? b.team : post.team;
-  b.assigneeId = pickedFor({ team }, role);
+  const sameRole = role === stageRole(post.status, post.format, post.step);
+  b.assigneeId = (sameRole ? post.assigneeId : null) ?? pickedFor({ team }, role);
   next();
 });
 
@@ -293,7 +290,7 @@ async function assignUnassigned({ force = false } = {}) {
   // Only fills a post from the people picked for it (its team); never picks anyone by itself.
   const posts = await SocialPost.findAll({ where: { assigneeId: null, status: ["planned", "client", "production", "approval"], team: { [Op.ne]: null } }, order: [["postDate", "ASC"]] });
   if (!posts.length) return;
-  const gained = {};
+  const gained = [];
   for (const p of posts) {
     const who = pickedFor(p, stageRole(p.status, p.format, p.step));
     if (!who) continue;
@@ -301,15 +298,9 @@ async function assignUnassigned({ force = false } = {}) {
       const result = await require("../utils/socialUpdate").updateRecord({ params: { id: p.id }, body: { assigneeId: who, _expectedUpdatedAt: p.updatedAt }, user: { roles: ["admin"] } });
       Object.assign(p, result.item.toJSON());
     } catch (error) { if ([400, 409].includes(error.status)) continue; throw error; }
-    if (p.status !== "posted") (gained[who] = gained[who] || []).push(p);
+    if (p.status !== "posted") gained.push(p);
   }
-  for (const [uid, ps] of Object.entries(gained)) {
-    await notifyUsers([Number(uid)], {
-      type: "assigned",
-      title: ps.length === 1 ? `Social post assigned to you: ${ps[0].theme}` : `${ps.length} social posts assigned to you`,
-      link: "/dashboard/social",
-    });
-  }
+  await notifyAssignments(gained);
 }
 
 /* A post is really live only with a real post link (http…) in its channel
@@ -381,6 +372,7 @@ const matchKey = (r) => `${String(r.postDate || "").slice(0, 10)}|${String(r.the
 async function importRows(rows, req = {}) {
   const batch = `up-${Date.now()}`;
   const toCreate = [];
+  const assigned = [];
   const skipped = [];
   let updated = 0;
   const updatedBy = {};
@@ -406,9 +398,19 @@ async function importRows(rows, req = {}) {
       // Re-import only changes unfinished planning. Reviewed, active and live
       // work must be edited through its stage panel, never overwritten by a sheet.
       if (!["planned", "client"].includes(hit.status)) { skipped.push({ id: hit.id, theme: hit.theme, reason: "Work has started; use the task panel to preserve artwork, review and publishing results." }); continue; }
+      const format = patch.format ?? hit.format;
+      const role = stageRole(hit.status, format);
+      const sameRole = role === stageRole(hit.status, hit.format);
+      if (patch.team !== undefined || !sameRole) {
+        const team = { ...teamOf(hit), ...teamOf(patch) };
+        const owner = (sameRole ? hit.assigneeId : null) ?? pickedFor({ team }, role);
+        patch.team = owner ? teamWithOwner({ status: hit.status, format, team, assigneeId: owner }) : team;
+        if (owner || !sameRole) patch.assigneeId = owner;
+      }
       try {
         const { item, before } = await require("../utils/socialUpdate").updateRecord({ ...req, params: { id: hit.id }, body: { ...patch, _importPlanningOnly: true, _expectedUpdatedAt: hit.updatedAt } });
         await recordEvents([eventOf(item, { from: before.status, fromAssigneeId: before.assigneeId, byUserId: req.user?.id || null })]);
+        if (item.assigneeId && Number(item.assigneeId) !== Number(before.assigneeId)) assigned.push(item);
       } catch (error) {
         if (![400, 403, 409].includes(error.status)) throw error;
         skipped.push({ id: hit.id, theme: hit.theme, reason: error.message }); continue;
@@ -420,6 +422,10 @@ async function importRows(rows, req = {}) {
   await assignRows(toCreate);
   const made = await SocialPost.bulkCreate(toCreate);
   await recordEvents(made.filter((p) => p.id).map((p) => eventOf(p)));
+  for (const client of new Set(assigned.map(post => post.client))) {
+    await grantBrand(assigned.filter(post => post.client === client).map(post => post.assigneeId), client);
+  }
+  await notifyAssignments([...assigned, ...made], req.user?.id);
   const createdBy = {};
   for (const r of toCreate) createdBy[r.client] = (createdBy[r.client] || 0) + 1;
   return { created: toCreate.length, updated, batch, createdBy, updatedBy, skipped };
@@ -453,7 +459,17 @@ const deleteBrandPosts = asyncHandler(async (req, res) => {
 /* Bulk import: fill assignees row by row, keeping the load balance honest. */
 async function assignRows(rows) {
   // The person picked for the first step at upload (no automatic pick).
-  for (const r of rows) if (!r.assigneeId) r.assigneeId = pickedFor(r, stageRole(r.status || "planned", r.format, r.step));
+  for (const r of rows) {
+    if (!r.assigneeId) r.assigneeId = pickedFor(r, stageRole(r.status || "planned", r.format, r.step));
+  }
+  const ids = [...new Set(rows.map(row => Number(row.assigneeId)).filter(id => id > 0))];
+  const owners = new Map(ids.length ? (await User.findAll({ where: { id: ids, active: true } })).map(user => [Number(user.id), rolesOf(user)]) : []);
+  for (const r of rows) {
+    if (!r.assigneeId) continue;
+    const role = stageRole(r.status, r.format);
+    if (!owners.get(Number(r.assigneeId))?.some(r => r === role || r === "admin")) r.assigneeId = null;
+    r.team = teamWithOwner(r);
+  }
   for (const client of [...new Set(rows.map((r) => r.client))]) {
     const ids = rows.filter((r) => r.client === client).flatMap((r) => Object.values(teamOf(r)));
     await grantBrand(ids, client);
