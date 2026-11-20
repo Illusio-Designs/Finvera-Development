@@ -16,14 +16,6 @@
 
 .social-profiles.sp-inline { width: 100%; max-width: none; margin: 0; padding: 0; }
 .sp-inline > div > h2 { margin-bottom: 4px; }
-.sp-readiness { padding: 16px 20px; border: 1px solid var(--line-2); border-radius: 14px; background: var(--surface, #fff); }
-.sp-readiness summary { font-weight: 600; cursor: pointer; }
-.sp-readiness dl { display: grid; gap: 12px; margin: 14px 0; }
-.sp-readiness dt { font-weight: 600; }
-.sp-readiness dd { margin: 2px 0 0; color: var(--muted-2); overflow-wrap: anywhere; }
-.sp-readiness dd a { margin-left: 8px; }
-.sp-readiness > button, .sp-readiness > p { margin-top: 12px; }
-.sp-grants p { margin-top: 8px; overflow-wrap: anywhere; color: var(--muted-2); }
 
 .sp-instagram-details, .sp-instagram-values { display: grid; align-content: start; gap: 16px; }
 .sp-instagram-header, .sp-instagram-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
