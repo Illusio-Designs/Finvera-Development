@@ -2,7 +2,7 @@
 
 Open Social media → Social workspace → Profiles, or choose Profile on a Studio channel. The profile editor stays in the workspace and shares the brand selector with Studio and Monthly report. The calendar’s Social profiles button still opens the shared editor in a drawer. The editor reuses the dashboard Select, field/button styles, avatar and discard-confirmation dialog. Deep links accept `?brand=...&platform=facebook` or `instagram`.
 
-Administrators can update Facebook About, description, website, phone and email. Failed saves preserve the draft. Members can view permitted brands. Instagram details are read-only. Instagram edits and Facebook name/photo writes are unavailable in the connected editor; it does not redirect users to an external editing page. Refresh photo retrieves the current platform picture; it does not upload one.
+Administrators can update Facebook About, description, website, phone and email. Failed saves preserve the draft. Members can view permitted brands. Instagram bio and website are read-only in Finvera. Administrators can choose **Edit in Instagram** to open Instagram settings in a new tab. Use **Refresh details** to retrieve the latest profile after saving there. **Refresh photo** retrieves the current platform picture. To change a Facebook Page’s name or photo, use Facebook.
 
 ## Meta app visible only to the owner
 

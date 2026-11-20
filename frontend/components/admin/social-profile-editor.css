@@ -24,3 +24,14 @@
 .sp-readiness dd a { margin-left: 8px; }
 .sp-readiness > button, .sp-readiness > p { margin-top: 12px; }
 .sp-grants p { margin-top: 8px; overflow-wrap: anywhere; color: var(--muted-2); }
+
+.sp-instagram-details, .sp-instagram-values { display: grid; align-content: start; gap: 16px; }
+.sp-instagram-header, .sp-instagram-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.sp-instagram-header { justify-content: space-between; }
+.sp-instagram-header h2 { margin: 0; }
+.sp-instagram-header span:not([aria-hidden]) { padding: 4px 10px; border-radius: 999px; background: var(--surface-2, #edf2f9); color: var(--muted-2); font-size: var(--ui-text-sm); font-weight: 600; }
+.sp-instagram-values { margin: 0; padding: 14px 16px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--surface-2, #f6f8fc); }
+.sp-instagram-values > div { display: grid; gap: 4px; min-width: 0; }
+.sp-instagram-values dt { color: var(--muted-2); font-size: var(--ui-text-sm); font-weight: 600; }
+.sp-instagram-values dd { margin: 0; white-space: pre-wrap; }
+.sp-instagram-details .sp-note { margin: 0; }
