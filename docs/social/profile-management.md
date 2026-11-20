@@ -1,6 +1,6 @@
 # Social profile management
 
-Open Social media → Social profiles, the calendar’s Social profiles button, or a Studio Profile button. Calendar and Studio open the shared editor in a drawer without changing the current route. The editor reuses the dashboard Select, field/button styles, avatar and discard-confirmation dialog. Deep links accept `?brand=...&platform=facebook` or `instagram`.
+Open Social media → Social workspace → Profiles, or choose Profile on a Studio channel. The profile editor stays in the workspace and shares the brand selector with Studio and Monthly report. The calendar’s Social profiles button still opens the shared editor in a drawer. The editor reuses the dashboard Select, field/button styles, avatar and discard-confirmation dialog. Deep links accept `?brand=...&platform=facebook` or `instagram`.
 
 Administrators can update Facebook About, description, website, phone and email. Failed saves preserve the draft. Members can view permitted brands. Instagram details are read-only. Instagram edits and Facebook name/photo writes are unavailable in the connected editor; it does not redirect users to an external editing page. Refresh photo retrieves the current platform picture; it does not upload one.
 

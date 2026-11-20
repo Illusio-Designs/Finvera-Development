@@ -24,9 +24,7 @@ export const NAV_GROUPS: NavGroup[] = [
   ] },
   { key: "social", label: "Social media", shortLabel: "Social", icon: Calendar03Icon, eyebrow: "Make & publish", description: "From first idea to live post.", items: [
     { href: "/dashboard/social", label: "Content calendar", icon: Calendar03Icon, area: "social", description: "Plan, produce & publish" },
-    { href: "/dashboard/social-profiles", label: "Social profiles", icon: UserIcon, area: "social", description: "Profile details & photos" },
-    { href: "/dashboard/social-studio", label: "Social studio", icon: AnalyticsUpIcon, area: "social", description: "Accounts & performance" },
-    { href: "/dashboard/reports", label: "Social reports", icon: AnalyticsUpIcon, area: "social", description: "Team work & client results" },
+    { href: "/dashboard/social-studio", label: "Social workspace", icon: AnalyticsUpIcon, area: "social", description: "Studio, monthly reports & profiles" },
   ] },
   { key: "sales", label: "Sales", shortLabel: "Sales", icon: Target02Icon, eyebrow: "Conversations that count", description: "Give every opportunity a next step.", items: [
     { href: "/dashboard/leads", label: "Leads", icon: Target02Icon, area: "leads", description: "Conversations to opportunities" },
@@ -75,7 +73,10 @@ export const QUICK_ACTIONS: QuickAction[] = [
 
 export const ALL_PAGES: NavItem[] = [...NAV_GROUPS.flatMap((group) => group.items), ...EXTRA_PAGES];
 export function matchItem(pathname: string): NavItem | undefined {
-  return ALL_PAGES.filter((item) => item.href === "/dashboard" ? pathname === item.href : pathname === item.href || pathname.startsWith(item.href + "/"))
+  const route = pathname === "/dashboard/reports" || pathname === "/dashboard/social-profiles"
+    ? "/dashboard/social-studio"
+    : pathname;
+  return ALL_PAGES.filter((item) => item.href === "/dashboard" ? route === item.href : route === item.href || route.startsWith(item.href + "/"))
     .sort((a, b) => b.href.length - a.href.length)[0];
 }
 export const groupFor = (item: NavItem | undefined) => item ? NAV_GROUPS.find((group) => group.items.includes(item)) : undefined;
