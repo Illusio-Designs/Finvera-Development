@@ -1,7 +1,6 @@
 "use client";
 import { DisclosureSummary, WorkspaceHero } from "@/components/admin/Workspace";
 import Link from "next/link";
-import SocialAccountHealth from "@/components/admin/SocialAccountHealth";
 import SocialPostPreview from "@/components/admin/SocialPostPreview";
 import SocialProfileEditor from "@/components/admin/SocialProfileEditor";
 import { LoadingRegion, Shimmer } from "@/components/admin/PageLoading";
@@ -369,7 +368,6 @@ export default function SocialCalendar() {
   const firstLoadDone = useRef(false);
   // Auto-publishing
   const [accounts, setAccounts] = useState<SocialAcc[]>([]);
-  const [accountsLoading, setAccountsLoading] = useState(true);
   const [metaOk, setMetaOk] = useState<boolean | null>(null);
   const [jobs, setJobs] = useState<PubJob[]>([]);
   const [metaPick, setMetaPick] = useState<{ sel: string; brand: string; pages: { pageId: string; pageName: string; igUsername: string | null }[]; chosen: string } | null>(null);
@@ -384,7 +382,7 @@ export default function SocialCalendar() {
 
   async function loadPublishing() {
     const accountsRequest = api.socialAccounts().then(rows => setAccounts(Array.isArray(rows) ? rows : []))
-      .catch(() => {}).finally(() => setAccountsLoading(false));
+      .catch(() => {});
     const [j, st] = await Promise.all([api.publishJobs().catch(() => []), api.metaStatus().catch(() => null), accountsRequest]);
     setJobs(Array.isArray(j) ? j : []); setMetaOk(st ? !!st.configured : null);
   }
@@ -636,10 +634,6 @@ export default function SocialCalendar() {
     const connected = [...(a.igUsername ? ["instagram"] : []), "facebook"];
     return p.publishTo == null ? connected : connected.filter((x) => (p.publishTo || []).includes(x));
   };
-  async function connectBrand(brand: string) {
-    try { const r = await api.metaStart(brand); window.location.href = r.authUrl; }
-    catch (e: any) { toast("Couldn't start connecting", "err", { description: e.message }); }
-  }
   async function finishConnect() {
     if (!metaPick?.chosen) return;
     try {
@@ -1653,7 +1647,6 @@ export default function SocialCalendar() {
         </div> </>} />
 
       {loadError && <div className="cal-load-error" role="alert"><div><b>{hasLoadFailure ? "Couldn’t load the content calendar" : "Couldn’t refresh the content calendar"}</b><p>{loadError}</p></div><button type="button" className="cal-btn" onClick={load}>Try again</button></div>}
-      <SocialAccountHealth accounts={accounts} loading={accountsLoading} expandOnAttention={false} brand={client} canManage={rolesReady && !limited} onReconnect={connectBrand} />
       <div className="cal-intro" aria-label="Calendar overview">
         <span><b>{initialLoading ? <Shimmer width="3ch" height={15} /> : list.length}</b> posts in this view</span>
         <span className="review"><i /><b>{initialLoading ? <Shimmer width="3ch" height={15} /> : list.filter((post) => post.status === "approval").length}</b> ready for review</span>

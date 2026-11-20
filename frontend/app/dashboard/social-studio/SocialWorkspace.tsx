@@ -104,7 +104,6 @@ export default function SocialWorkspace() {
       <p>{loadError}</p><button type="button" className="adm-btn ghost" onClick={() => { setLoadError(""); setRetry(value => value + 1); }}>Try again</button>
     </div> : !brands ? <PageLoading label="Loading brands…" variant="panel" count={3} />
       : view === "studio" ? <StudioPanel brand={brand} tab={section}
-        onReport={() => switchView("report")}
         onTabChange={value => update({ tab: value === "overview" ? "studio" : value })}
         onBrandChange={value => void navigate({ brand: value })}
         onOpenProfile={(client, channel) => void navigate({ tab: "profiles", brand: client, platform: channel })}

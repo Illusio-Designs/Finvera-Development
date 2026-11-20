@@ -51,10 +51,6 @@
 .cal-shimmer-card-action { margin-top: 5px; width: 100%; }
 .cal-week-shimmer { position: absolute; top: 100px; inset-inline: 8px; }
 .cal-page .cal-task-main:has(.page-shimmer) { display: grid; gap: 8px; width: 100%; }
-@media (max-width: 480px) {
-  .cal-page .sah-panel > summary small { min-height: 3.2em; }
-}
-
 @media (max-width: 720px) {
   .cal-page .cal-head-actions { position: relative; }
   .cal-page .cal-tools { position: static; grid-column: 1 / -1; justify-self: start; }

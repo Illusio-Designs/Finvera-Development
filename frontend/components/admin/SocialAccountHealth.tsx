@@ -4,11 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/adminApi";
 import { channelHealth, type HealthAccount, type HealthResult } from "@/lib/socialAccountHealth";
-import { Shimmer } from "@/components/admin/PageLoading";
 import "./social-account-health.css";
-export default function SocialAccountHealth({ accounts, brand = "", canManage = false, onReconnect, loading = false, expandOnAttention = true }: {
+export default function SocialAccountHealth({ accounts, brand = "", canManage = false, onReconnect }: {
   accounts: HealthAccount[]; brand?: string; canManage?: boolean; onReconnect: (brand: string) => void;
-  loading?: boolean; expandOnAttention?: boolean;
 }) {
   const [results, setResults] = useState<Record<string, HealthResult>>({}), [checking, setChecking] = useState(false);
   const [, tick] = useState(0);
@@ -36,9 +34,9 @@ export default function SocialAccountHealth({ accounts, brand = "", canManage = 
   }
   const attention = rows.filter(r => ["danger", "warning"].includes(channelHealth(r.account, r.platform, results[r.key]).state)).length;
   const description = rows.length + " channels · " + (attention ? `${attention} need attention` : "Review connection and publishing access");
-  return <details className="sah-panel" open={expandOnAttention && attention > 0 || undefined} aria-busy={loading}>
-    <summary aria-disabled={loading} onClick={event => { if (loading) event.preventDefault(); }}>
-      <span><b>Account health</b>{loading ? <small className="sah-loading-copy"><span aria-hidden="true">00 channels · Review connection and publishing access</span><Shimmer height={13} /><span className="page-loading-label">Loading account health</span></small> : <small>{description}</small>}</span>
+  return <details className="sah-panel" open={attention > 0 || undefined}>
+    <summary>
+      <span><b>Account health</b><small>{description}</small></span>
       <span className={attention ? "sah-attention" : ""}>{attention ? "Needs attention" : "Connection overview"}</span>
     </summary>
     <div className="sah-body"><div className="sah-toolbar"><p>Checks read account access; they do not publish or edit profiles.</p><button type="button" className="adm-btn ghost" disabled={checking || !rows.length} onClick={() => check(rows)}>{checking ? "Checking access…" : "Check all accounts"}</button></div>

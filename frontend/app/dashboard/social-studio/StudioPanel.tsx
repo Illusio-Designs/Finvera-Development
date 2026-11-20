@@ -107,13 +107,12 @@ type StudioPanelProps = {
   brand: string;
   tab: Tab;
   onTabChange: (tab: Tab) => void;
-  onReport: () => void;
   onBrandChange: (brand: string) => void;
   onOpenProfile: (brand: string, platform: Platform) => void;
   onMetaReturn: (brand?: string) => void;
 };
 
-export default function StudioPanel({ brand, tab, onReport, onTabChange, onBrandChange, onOpenProfile, onMetaReturn }: StudioPanelProps) {
+export default function StudioPanel({ brand, tab, onTabChange, onBrandChange, onOpenProfile, onMetaReturn }: StudioPanelProps) {
   const [data, setData] = useState<Data | null>(null);
   const [colors, setColors] = useState<Record<string, string>>({});
   const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
@@ -293,7 +292,6 @@ export default function StudioPanel({ brand, tab, onReport, onTabChange, onBrand
   const thumb = (j?: Job | null, p?: Post | null) => j?.metrics?.picture || p?.picture?.thumbUrl || p?.picture?.url || null;
   const hasMetrics = v.month.some((j) => hasReportedMetrics(j.metrics));
   const activity = [...v.upcoming.slice(0, 2), ...v.published.slice(0, 3)];
-  const health = <SocialAccountHealth accounts={data.accounts} brand={brand} canManage={!limited} onReconnect={connect} />;
 
   return (
     <div className="ss studio-workspace">
@@ -361,16 +359,7 @@ export default function StudioPanel({ brand, tab, onReport, onTabChange, onBrand
         ))}
       </div>
 
-      {tab === "overview" && <>
-        <div className="social-workspace-overview">
-          <div>{health}</div>
-          <article className="social-workspace-total">
-            <span>Last 30 days</span>
-            <strong>{v.uniq(v.month)}</strong>
-            <span>Confirmed posts published</span>
-            <button type="button" className="adm-btn ghost" onClick={onReport}>View monthly report <Icon i={ArrowUpRight01Icon} size={14} /></button>
-          </article>
-        </div>
+      {tab === "overview" && (
         <section className="social-workspace-activity">
           <header><h2>Publishing activity</h2><button type="button" className="adm-btn ghost" onClick={() => onTabChange("posts")}>View posts</button></header>
           {activity.length ? <ul>{activity.map(job => {
@@ -385,7 +374,7 @@ export default function StudioPanel({ brand, tab, onReport, onTabChange, onBrand
             </li>;
           })}</ul> : <p>No scheduled or published posts for this view yet.</p>}
         </section>
-      </>}
+      )}
 
       {/* ── Analytics ── */}
       {tab === "overview" && (
@@ -407,9 +396,9 @@ export default function StudioPanel({ brand, tab, onReport, onTabChange, onBrand
         </section>
       )}
 
-      {tab !== "overview" && health}
       {/* ── Channels ── */}
-      {tab === "channels" && (
+      {tab === "channels" && <>
+        <SocialAccountHealth accounts={data.accounts} brand={brand} canManage={!limited} onReconnect={connect} />
         <section className="ss-groups">
           {!limited && (
             <div className="ss-groups-h">
@@ -492,7 +481,7 @@ export default function StudioPanel({ brand, tab, onReport, onTabChange, onBrand
           })}
           {!v.brands.length && <div className="ss-empty">No brands yet. Add one in the content calendar.</div>}
         </section>
-      )}
+      </>}
 
       {/* ── Posts ── */}
       {tab === "posts" && (

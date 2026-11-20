@@ -2,7 +2,7 @@
 
 ## Account health
 
-The content calendar and Social studio show the same Account health panel, filtered by the current brand. Saved connection status, token expiry and channel pause status provide immediate warnings. Check all accounts (or Check access on one channel) runs the existing read-only Meta capabilities endpoint, with at most three concurrent checks and independent failure handling.
+Open **Social workspace → Studio → Channels** to see the Account health panel for the selected brand. Saved connection status, token expiry and channel pause status provide immediate warnings. **Check all accounts** or **Check access** on one channel runs the read-only Meta capabilities endpoint, with at most three concurrent checks and independent failure handling.
 
 Access verified requires a current token, a successful asset read and publishing permission evidence. Results become stale after 15 minutes. This does not certify app review, account eligibility or a successful media publish. Expired access, missing publishing permissions and paused publishing are separate states. Administrators can reconnect the brand; scoped members see an administrator action request.
 
