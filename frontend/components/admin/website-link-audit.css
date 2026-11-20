@@ -1,0 +1,8 @@
+.website-link-audit.sys-card { padding: 10px 20px; }
+.website-link-audit > summary { font-family: var(--ui-font-heading); font-size: var(--ui-heading-xs); color: var(--ink); }
+.website-link-audit-body { display: grid; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line-2); }
+.website-link-audit-controls { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 10px; }
+.website-link-audit-controls .adm-field { width: min(240px, 100%); margin: 0; }
+.website-link-audit-body ul { list-style: none; margin: 0; padding: 0; }
+.website-link-audit-body li { display: grid; gap: 6px; padding: 12px 0; border-top: 1px solid var(--line-2); overflow-wrap: anywhere; }
+.website-link-audit-body li > a { justify-self: start; max-width: 100%; }

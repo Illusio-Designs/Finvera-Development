@@ -1,4 +1,5 @@
 "use client";
+import { DisclosureSummary } from "@/components/admin/Workspace";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/adminApi";
@@ -48,7 +49,7 @@ export default function SocialAccountHealth({ accounts, brand = "", canManage = 
         return <article key={row.key} className={`sah-card ${health.state}`} aria-label={`${row.account.client} ${row.platform} account health`}><header><div><h3>{row.account.client}</h3><small>{row.platform === "facebook" ? "Facebook" : "Instagram"}</small></div><span className="sah-badge">{health.label}</span></header><p>{health.detail}</p>
           <small>Checked: {result?.data?.checkedAt ? new Date(result.data.checkedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) + " IST" : "Not checked in this session"}</small>
           <small>Access expiry: {expiry ? new Date(expiry).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) + " IST" : "Not reported"}</small>
-          {result?.data && <details><summary>Permission details</summary><ul>{result.data.actions.filter(a => ["token", "view", "publish", "edit", "stories", "covers"].includes(a.id)).map(a => <li key={a.id}><b>{a.label}: {a.state.replaceAll("_", " ")}</b><p>{a.detail}</p></li>)}</ul></details>}
+          {result?.data && <details><DisclosureSummary>Permission details</DisclosureSummary><ul>{result.data.actions.filter(a => ["token", "view", "publish", "edit", "stories", "covers"].includes(a.id)).map(a => <li key={a.id}><b>{a.label}: {a.state.replaceAll("_", " ")}</b><p>{a.detail}</p></li>)}</ul></details>}
           <footer><button type="button" className="adm-btn ghost" disabled={checking} onClick={() => check([row])}>Check access</button>{health.reconnect && (canManage ? <button type="button" className="adm-btn primary" onClick={() => onReconnect(row.account.client)}>Reconnect brand</button> : <small>Ask an administrator to reconnect this brand.</small>)}{health.label === "Publishing paused" && <Link className="adm-btn ghost" href={`/dashboard/social-studio?tab=channels&brand=${encodeURIComponent(row.account.client)}`}>Manage channel</Link>}</footer>
         </article>;
       })}</div>

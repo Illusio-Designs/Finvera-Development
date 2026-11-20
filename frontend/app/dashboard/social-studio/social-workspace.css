@@ -115,7 +115,7 @@
 }
 @media (max-width: 440px) {
   .social-workspace-tabs { width: 100%; }
-  .social-workspace-tabs .adm-btn { flex: 1; justify-content: center; padding-inline: 7px; }
+  .social-workspace-tabs .adm-btn { flex: 1 0 auto; justify-content: center; }
   .social-workspace-tabs svg { display: none; }
   .social-workspace-activity li { grid-template-columns: 38px minmax(0, 1fr); }
   .social-workspace-activity li > span:last-child { grid-column: 2; justify-self: start; }

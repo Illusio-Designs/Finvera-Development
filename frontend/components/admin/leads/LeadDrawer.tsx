@@ -1,4 +1,5 @@
 "use client";
+import { DisclosureSummary } from "@/components/admin/Workspace";
 import { useSaveWorkflow } from "@/lib/useSaveWorkflow";
 /* The lead drawer (also "Add lead"): name / company, the stage picker (which
    sets the progress score), quick actions (call, WhatsApp, email, join /
@@ -228,7 +229,7 @@ export default function LeadDrawer({ lead, defaults, calendlyUrl, initialTab = "
                   <Select id="ld-priority" value={String(draft.priority || "")} onChange={(v) => set("priority", v)} options={PRIORITIES.map((p) => ({ value: p, label: cap(p) }))} ariaLabel="Priority" /></div>
               </div>
 
-              <details className="ld-form-section"><summary>Follow-up &amp; meeting{draft.nextFollowUpAt ? ` · ${String(draft.nextFollowUpAt).slice(0,10)}` : ""}</summary>
+              <details className="ld-form-section"><DisclosureSummary>Follow-up &amp; meeting{draft.nextFollowUpAt ? ` · ${String(draft.nextFollowUpAt).slice(0,10)}` : ""}</DisclosureSummary>
               <div className="ld-frow">
                 <div className="ld-field"><label htmlFor="ld-next">Next follow-up</label>
                   <DatePicker id="ld-next" value={String(draft.nextFollowUpAt || "").slice(0, 10)} onChange={(v) => set("nextFollowUpAt", v)} placeholder="Pick a date" />
