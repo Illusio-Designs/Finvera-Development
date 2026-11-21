@@ -32,7 +32,7 @@ const ROLES: { value: string; label: string }[] = [
   { value: "projects", label: "Projects — renewals + content calendar" },
   { value: "leads", label: "Leads — pipeline + contact inbox" },
   { value: "seo", label: "SEO — SEO + settings & pixels" },
-  { value: "social", label: "Social media — reviews and publishes content" },
+  { value: "social", label: "Social media manager — reviews, publishes and edits assigned brand profiles" },
   { value: "marketer", label: "Marketer — content planning" },
   { value: "video", label: "Video editor — edits reels (gets reels at In production)" },
   { value: "graphic", label: "Graphic designer — makes posts & carousels (gets them to design)" },

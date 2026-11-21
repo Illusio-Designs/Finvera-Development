@@ -24,7 +24,7 @@ export const ROLE_LABELS: Record<string, string> = {
   projects: "Projects",
   leads: "Leads",
   seo: "SEO",
-  social: "Social media",
+  social: "Social media manager",
   marketer: "Marketer",
   video: "Video editor",
   graphic: "Graphic designer",

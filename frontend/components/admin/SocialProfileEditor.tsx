@@ -31,7 +31,9 @@ type Props = {
   };
 };
 export default function SocialProfileEditor({ initialClient, initialPlatform, onClose, workspace }: Props) {
-  const [accounts, setAccounts] = useState<Account[]>([]), [admin, setAdmin] = useState(false);
+  const [accounts, setAccounts] = useState<Account[]>([]), [roles, setRoles] = useState<string[]>([]);
+  const admin = roles.includes("admin");
+  const canEditProfile = admin || roles.includes("social");
   const [selectedClient, setClient] = useState(""), [selectedPlatform, setPlatform] = useState<Platform>("facebook");
   const [accountsLoaded, setAccountsLoaded] = useState(false);
   const client = workspace ? accounts.find(account => account.client === workspace.brand)?.client || "" : selectedClient;
@@ -51,7 +53,7 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
     Promise.all([api.socialAccounts(), api.me()]).then(([rows, me]) => {
       if (!active) return;
       const list: Account[] = Array.isArray(rows) ? rows : rows.accounts || [];
-      setAccounts(list); setAccountsLoaded(true); setAdmin(userRoles(me?.user ?? me).includes("admin"));
+      setAccounts(list); setAccountsLoaded(true); setRoles(userRoles(me?.user ?? me));
       const query = new URLSearchParams(window.location.search);
       setPlatform(initialPlatform || (query.get("platform") === "instagram" ? "instagram" : "facebook"));
       setClient(list.find(a => a.client === (initialClient || query.get("brand")))?.client || list[0]?.client || "");
@@ -73,7 +75,7 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
       if (generation.current !== id) return;
       setProfile(p); setForm(draft(p)); setStatus("ready");
     }).catch(e => { if (generation.current === id) { setError(e.message); setStatus("error"); } });
-    if (admin && platform === "facebook") {
+    if (canEditProfile && platform === "facebook") {
       api.channelCapabilities(client, platform).then(r => {
         if (generation.current !== id) return;
         setMissingPagePermission(r.actions?.some((action: { id: string; state: string }) =>
@@ -81,7 +83,7 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
       }).catch(() => { /* Saving reports any Meta access errors directly. */ });
     }
     return () => { generation.current++; };
-  }, [client, platform, accountsLoaded, admin]);
+  }, [client, platform, accountsLoaded, canEditProfile]);
   useEffect(() => {
     const guard = (e: BeforeUnloadEvent) => { if (dirty && !leavingForMeta.current) { e.preventDefault(); e.returnValue = ""; } };
     window.addEventListener("beforeunload", guard); return () => window.removeEventListener("beforeunload", guard);
@@ -130,7 +132,7 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
     return () => { document.body.style.overflow = overflow; document.removeEventListener("keydown", keydown); previous?.focus(); };
   }, [embedded]);
   async function save() {
-    if (!admin || platform !== "facebook" || busy || !dirty) return;
+    if (!canEditProfile || platform !== "facebook" || busy || !dirty) return;
     const id = generation.current;
     setStatus("saving"); setError(""); setNotice("");
     try {
@@ -209,7 +211,7 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
           <div><Shimmer width={60} height={16} /><Shimmer width="45%" height={20} /></div>
         </div>
         <Shimmer width="85%" height={20} />
-        <div className="sp-instagram-actions"><Shimmer width={132} height={42} />{admin && <Shimmer width={146} height={42} />}</div>
+        <div className="sp-instagram-actions"><Shimmer width={132} height={42} />{canEditProfile && <Shimmer width={146} height={42} />}</div>
       </section> : <section className="sp-loading-details">
         <Shimmer width="38%" height={22} />
         <Shimmer width="87%" height={16} />
@@ -230,21 +232,23 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
           <div><dt>Bio</dt><dd>{profile.biography?.trim() || "No bio returned by Instagram"}</dd></div>
           <div><dt>Website</dt><dd>{profile.website?.trim() || "No website returned by Instagram"}</dd></div>
         </dl>
-        <p className="sp-note">{admin
+        <p className="sp-note">{canEditProfile
           ? <>Edit these details in Instagram{profile.username ? <> while signed in as <strong>@{profile.username}</strong></> : ""}, then refresh them here.</>
           : "Instagram manages these profile details."}</p>
         <div className="sp-instagram-actions">
-          {admin && <a className="adm-btn primary" href={instagramEditUrl} target="_blank" rel="noopener noreferrer" aria-label="Edit in Instagram (opens in a new tab)">Edit in Instagram</a>}
+          {canEditProfile && <a className="adm-btn primary" href={instagramEditUrl} target="_blank" rel="noopener noreferrer" aria-label="Edit in Instagram (opens in a new tab)">Edit in Instagram</a>}
           <button className="adm-btn ghost" type="button" onClick={refreshInstagramDetails} disabled={detailsBusy || photoBusy || busy}>{detailsBusy ? "Refreshing details…" : "Refresh details"}</button>
         </div>
       </section> : <section><h2>Page details</h2>
         <form onSubmit={e => { e.preventDefault(); void save(); }}>
-          {!admin && <p className="sp-note">An administrator can update these Page details.</p>}
-          {admin && missingPagePermission && <p className="sp-note">This connection is missing permission to edit Page details. Approve the permission in Meta, then reconnect this brand.</p>}
-          {fields.map(k => <div className="adm-field" key={k}><label htmlFor={`profile-${k}`}>{k.charAt(0).toUpperCase() + k.slice(1)}</label>{k === "description" ? <textarea id={`profile-${k}`} rows={4} maxLength={5000} value={form[k] || ""} disabled={!admin || busy} onChange={e => setForm({ ...form, [k]: e.target.value })}/> : <input id={`profile-${k}`} type={k === "email" ? "email" : k === "website" ? "url" : "text"} maxLength={255} value={form[k] || ""} disabled={!admin || busy} onChange={e => setForm({ ...form, [k]: e.target.value })}/>}</div>)}
+          {!canEditProfile && <p className="sp-note">Administrators and social media managers can update these Page details.</p>}
+          {canEditProfile && missingPagePermission && <p className="sp-note">{admin
+            ? "This connection is missing permission to edit Page details. Approve the permission in Meta, then reconnect this brand."
+            : "This connection is missing permission to edit Page details. Ask an administrator to check the Meta permissions and reconnect this brand."}</p>}
+          {fields.map(k => <div className="adm-field" key={k}><label htmlFor={`profile-${k}`}>{k.charAt(0).toUpperCase() + k.slice(1)}</label>{k === "description" ? <textarea id={`profile-${k}`} rows={4} maxLength={5000} value={form[k] || ""} disabled={!canEditProfile || busy} onChange={e => setForm({ ...form, [k]: e.target.value })}/> : <input id={`profile-${k}`} type={k === "email" ? "email" : k === "website" ? "url" : "text"} maxLength={255} value={form[k] || ""} disabled={!canEditProfile || busy} onChange={e => setForm({ ...form, [k]: e.target.value })}/>}</div>)}
           <div className="adm-drawer-actions">
             {onClose && <button className="adm-btn ghost" type="button" disabled={busy} onClick={close}>Cancel</button>}
-            {admin && <button className="adm-btn primary" type="submit" disabled={!dirty || busy}>{busy ? "Saving…" : "Save changes"}</button>}
+            {canEditProfile && <button className="adm-btn primary" type="submit" disabled={!dirty || busy}>{busy ? "Saving…" : "Save changes"}</button>}
           </div>
         </form>
       </section>}
