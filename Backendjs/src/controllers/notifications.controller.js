@@ -2,6 +2,7 @@ const { Notification } = require("../models");
 const { readPatch } = require("../utils/notificationMachine");
 const { asyncHandler } = require("../utils/crud");
 const { maybeRunDaily } = require("../utils/dailyReminders");
+const { pushEnabled } = require("../utils/notify");
 
 /* The current user's notifications (newest first) + unread count. */
 const list = asyncHandler(async (req, res) => {
@@ -14,7 +15,10 @@ const list = asyncHandler(async (req, res) => {
     limit: 40,
   });
   const unread = await Notification.count({ where: { userId: req.user.id, isRead: false } });
-  res.json({ items, unread });
+  res.json({
+    items: items.map((item) => ({ ...item.toJSON(), pushEnabled: pushEnabled(req.userRow, { type: item.type, url: item.link }) })),
+    unread,
+  });
 });
 
 const read = asyncHandler(async (req, res) => {
