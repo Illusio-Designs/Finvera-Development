@@ -144,13 +144,22 @@ async function teamFor(p) {
 }
 
 /* Every platform for this post is out → Posted, with the live links. */
-async function afterPublished(p) {
-  const jobs = (await SocialPublishJob.findAll({ where: { postId: p.id } })).filter((j) => j.status !== "cancelled");
-  if (!jobs.length || jobs.some((j) => j.status !== "published")) return;
-  const links = jobs.map((j) => j.url).filter(Boolean);
-  const channels = [...new Set([...String(p.channels || "").split(/\s*\n\s*|\s+(?=https?:)/).filter(Boolean), ...links])].join("\n");
-  const before = { status: p.status, assigneeId: p.assigneeId };
-  await p.update({ status: "posted", channels });
+async function afterPublished(postId) {
+  const published = await sequelize.transaction(async (transaction) => {
+    // More than one platform can finish together. Only the call changing the stage sends an alert.
+    const lock = transaction.LOCK.UPDATE;
+    const post = await SocialPost.findByPk(postId, { transaction, lock });
+    if (!post) return null;
+    const jobs = (await SocialPublishJob.findAll({ where: { postId }, transaction, lock })).filter((j) => j.status !== "cancelled");
+    if (!jobs.length || jobs.some((j) => j.status !== "published")) return null;
+    const links = jobs.map((j) => j.url).filter(Boolean);
+    const channels = [...new Set([...String(post.channels || "").split(/\s*\n\s*|\s+(?=https?:)/).filter(Boolean), ...links])].join("\n");
+    const before = { status: post.status, assigneeId: post.assigneeId };
+    await post.update({ status: "posted", channels }, { transaction });
+    return before.status === "posted" ? null : { p: post, jobs, before };
+  });
+  if (!published) return;
+  const { p, jobs, before } = published;
   // Retain uploaded assets so the published version remains reviewable.
   try {
     const social = require("../controllers/social.controller");
@@ -185,8 +194,9 @@ async function runJob(job) {
   const finish = (fields) => SocialPublishJob.update({ ...fields, leaseToken: null, leaseUntil: null }, { where: { id: j.id, leaseToken: token } });
   const problem = precheck(p, j.platform) || await require("./socialMediaHealth").mediaProblem(p, j.platform);
   const acc = await SocialAccount.findOne({ where: { client: p.client } });
-  const fail = async (status, error) => {
-    await finish({ status, error });
+  const fail = async (status, error, fields = {}) => {
+    const [changed] = await finish({ ...fields, status, error });
+    if (!changed) return;
     await notifyUsers(await teamFor(p), {
       type: "due", title: status === "check" ? `Check ${NAMES[j.platform]}: ${p.theme}` : `Auto-post failed: ${p.theme}`,
       body: `${p.client} · ${NAMES[j.platform]}: ${error}`, link: "/dashboard/social", meta: { socialPostId: p.id },
@@ -203,7 +213,7 @@ async function runJob(job) {
       ? await meta.publishInstagram(acc, media, caption, cp, save, p.tags, { format: p.format })
       : await meta.publishFacebook(acc, media, caption, cp, save, { format: p.format });
     await finish({ status: "published", remoteId: res.id, url: res.url, error: null, publishedAt: new Date() });
-    try { await afterPublished(await SocialPost.findByPk(p.id)); } catch (e) { console.warn("Post-publish settlement:", e.message); }
+    try { await afterPublished(p.id); } catch (e) { console.warn("Post-publish settlement:", e.message); }
   } catch (e) {
     const msg = e.message || "Meta returned an error.";
     if ((e.publishStage !== "cover" || [190, 102].includes(Number(e.meta?.code))) && /token|session|OAuthException|permission/i.test(`${e.meta?.type || ""} ${msg}`) && [190, 102, 10, 200].includes(Number(e.meta?.code))) {
@@ -211,7 +221,7 @@ async function runJob(job) {
       await acc.update({ status: "reconnect", lastError: msg }).catch(() => {});
       if (was === "connected") require("./metaHealth").alertReconnect(acc, msg).catch(() => {});
     }
-    if (cp.publishedConfirmed && cp.coverPending && e.publishStage === "cover") { await finish({ remoteId: cp.publishedId, url: cp.publishedUrl }); return fail("failed", msg); }
+    if (cp.publishedConfirmed && cp.coverPending && e.publishStage === "cover") return fail("failed", msg, { remoteId: cp.publishedId, url: cp.publishedUrl });
     if (cp.publishCalled) return fail("check", `No clear answer from ${NAMES[j.platform]} after publishing started (${msg}). Check the account before retrying.`);
     if (isRetryable(e) && j.attempts < MAX_ATTEMPTS) {
       await finish({ status: "scheduled", error: msg, checkpoint: retryCheckpoint(cp, e), runAt: new Date(Date.now() + Math.min(15 * 60000, 30000 * 2 ** j.attempts)) });

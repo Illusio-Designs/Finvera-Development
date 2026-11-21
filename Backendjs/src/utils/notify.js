@@ -4,9 +4,12 @@
    break the underlying action (creating a lead, posting a comment, etc.). */
 
 const { Op } = require("sequelize");
-const { Notification, User, PushSubscription, SocialClient } = require("../models");
+const { sequelize, Notification, User, PushSubscription, SocialClient } = require("../models");
 const { rolesOf } = require("./permissions");
 const webpush = require("./webpush");
+const { object, pushCategory, pushPreferences } = require("./workspaceTools");
+
+const pushEnabled = (user, message) => pushPreferences(user)[pushCategory(message)] !== false;
 
 const asArr = (v) => {
   if (Array.isArray(v)) return v;
@@ -16,16 +19,15 @@ const asArr = (v) => {
 
 /* Push one message to all of a user's devices; drop subscriptions the push
    service says are gone (app removed, permission revoked). */
-async function pushToUser(userId, message) {
-  const user=await User.findByPk(userId,{attributes:['id','active','emailPrefs']});
-  const {pushCategory,pushPreferences}=require('./workspaceTools');
-  if(!user||user.active===false||pushPreferences(user)[pushCategory(message)]===false)return {sent:0,devices:0};
-  const subs = await PushSubscription.findAll({ where: { userId } });
+async function pushToUser(userId, message, { endpointHash, topic } = {}) {
+  const user = await User.findByPk(userId, { attributes: ["id", "active", "emailPrefs"] });
+  if (!user || user.active === false || (!endpointHash && !pushEnabled(user, message))) return { sent: 0, devices: 0 };
+  const subs = await PushSubscription.findAll({ where: { userId, ...(endpointHash ? { endpointHash } : {}) } });
   if (!subs.length) return { sent: 0, devices: 0 };
   const unread = await Notification.count({ where: { userId, isRead: false } });
   let sent = 0;
   for (const s of subs) {
-    const status = await webpush.send(s, { ...message, badge: unread });
+    const status = await webpush.send(s, { ...message, badge: unread }, { topic });
     if (status >= 200 && status < 300) { sent++; s.update({ lastSuccessAt: new Date() }).catch(() => {}); }
     else if (status === 404 || status === 410) await s.destroy().catch(() => {});
     else if (status) console.warn(`push ${status} for user ${userId}`);
@@ -38,7 +40,7 @@ function pushLater(rows) {
   setImmediate(async () => {
     for (const n of rows) {
       try {
-        await pushToUser(n.userId, { title: n.title, body: n.body || "", url: n.link || "/dashboard", tag: n.tag || `n${n.id}`, type: n.type });
+        await pushToUser(n.userId, { title: n.title, body: n.body || "", url: n.link || "/dashboard", tag: n.tag || `n${n.id}`, type: n.type }, { topic: `n${n.id}` });
       } catch (e) { console.warn("push:", e.message); }
     }
   });
@@ -51,36 +53,38 @@ function pushLater(rows) {
 async function createFor(userIds, payload, opts = {}) {
   const ids = [...new Set((userIds || []).filter((id) => id != null).map(Number))];
   if (!ids.length) return;
-  const fresh = [];
-  const merge = opts.merge;
-  for (const userId of ids) {
-    if (merge?.key) {
-      const since = new Date(Date.now() - (merge.minutes || 15) * 60000);
-      const recent = await Notification.findAll({ where: { userId, isRead: false, type: payload.type || "info", createdAt: { [Op.gte]: since } }, order: [["createdAt", "DESC"]], limit: 20 });
-      const hit = recent.find((n) => {
-        const m = typeof n.meta === "string" ? (() => { try { return JSON.parse(n.meta); } catch { return {}; } })() : (n.meta || {});
-        return m.mergeKey === merge.key;
-      });
-      if (hit) {
-        // Combine the change notes of both alerts and re-render the body.
-        const m = typeof hit.meta === "string" ? (() => { try { return JSON.parse(hit.meta); } catch { return {}; } })() : (hit.meta || {});
-        const notes = [...new Set([...(m.notes || []), ...(merge.notes || [])])];
-        await hit.update({ title: payload.title, body: merge.render ? merge.render(notes) : payload.body, meta: { ...m, notes } });
-        continue;
-      }
-    }
-    fresh.push({
-      userId,
-      type: payload.type || "info",
-      title: String(payload.title).slice(0, 250),
-      body: payload.body || null,
-      link: payload.link || null,
-      meta: merge?.key ? { ...(payload.meta || {}), mergeKey: merge.key, notes: merge.notes || [] } : (payload.meta || null),
-    });
+  const { merge } = opts;
+  const fields = {
+    type: payload.type || "info",
+    title: String(payload.title).slice(0, 250),
+    body: payload.body || null,
+    link: payload.link || null,
+    meta: payload.meta || null,
+  };
+  if (!merge?.key) {
+    const rows = await Notification.bulkCreate(ids.map((userId) => ({ userId, ...fields })));
+    pushLater(rows.map((row) => ({ ...row.toJSON(), tag: payload.tag })));
+    return;
   }
-  if (!fresh.length) return;
-  const rows = await Notification.bulkCreate(fresh);
-  pushLater(rows.map((r) => ({ ...r.toJSON(), tag: payload.tag })));
+  for (const userId of ids) {
+    const row = await sequelize.transaction(async (transaction) => {
+      // Serialize a burst of edits for the same recipient, including the first insert.
+      if (!await User.findByPk(userId, { attributes: ["id"], transaction, lock: transaction.LOCK.UPDATE })) return null;
+      const since = new Date(Date.now() - (merge.minutes || 15) * 60000);
+      const recent = await Notification.findAll({
+        where: { userId, isRead: false, type: fields.type, createdAt: { [Op.gte]: since } },
+        order: [["id", "DESC"]],
+        transaction,
+      });
+      const hit = recent.find((notification) => object(notification.meta).mergeKey === merge.key);
+      if (!hit) return Notification.create({ userId, ...fields, meta: { ...fields.meta, mergeKey: merge.key, notes: merge.notes || [] } }, { transaction });
+      const meta = object(hit.meta);
+      const notes = [...new Set([...(meta.notes || []), ...(merge.notes || [])])];
+      await hit.update({ title: fields.title, body: merge.render ? merge.render(notes) : fields.body, meta: { ...meta, notes } }, { transaction });
+      return null;
+    });
+    if (row) pushLater([{ ...row.toJSON(), tag: payload.tag }]);
+  }
 }
 
 /* Notify every active user whose role set intersects `roles` (admins always). */
@@ -88,11 +92,11 @@ async function notifyRoles(roles, payload, exceptUserId, opts) {
   try {
     const users = await User.findAll({ where: { active: true } });
     const targets = ["admin", ...(roles || [])];
+    const excluded = [exceptUserId].flat().map(Number);
     const ids = users
       .filter((u) => rolesOf(u).some((r) => targets.includes(r)))
-      .map((u) => u.id)
-      .filter((id) => id !== exceptUserId);
-    await createFor(ids, payload, opts);
+      .map((u) => u.id);
+    await createFor([...ids, ...(opts?.alsoUserIds || [])].filter((id) => !excluded.includes(Number(id))), payload, opts);
   } catch (e) { console.warn("notifyRoles:", e.message); }
 }
 
@@ -111,7 +115,10 @@ async function notifyByName(name, payload, exceptUserId, opts) {
   try {
     if (!name) return;
     const u = await User.findOne({ where: { name } });
-    if (u && u.id !== exceptUserId) await createFor([u.id], payload, opts);
+    if (u && u.active !== false && Number(u.id) !== Number(exceptUserId)) {
+      await createFor([u.id], payload, opts);
+      return u.id;
+    }
   } catch (e) { console.warn("notifyByName:", e.message); }
 }
 
@@ -134,4 +141,4 @@ async function createRows(rows) {
   pushLater(saved.map((r) => r.toJSON()));
 }
 
-module.exports = { notifyRoles, notifyAdmins, notifyUsers, notifyByName, brandUserIds, createRows, pushToUser };
+module.exports = { notifyRoles, notifyAdmins, notifyUsers, notifyByName, brandUserIds, createRows, pushEnabled, pushToUser };

@@ -175,8 +175,8 @@ const leadCtrl = crudController(Lead, {
   onRemove: (lead) => leadsCtrl.forgetLead(lead.id), // its touches go with it
   order: [["position", "ASC"], ["createdAt", "DESC"]], searchable: ["name", "company", "email", "source", "owner", "purpose"],
   onCreate: async (lead, req) => {
-    await notifyRoles(["leads"], { type: "lead", title: `New lead: ${lead.name}`, body: lead.company || undefined, link: "/dashboard/leads", meta: { leadId: lead.id } }, req.user?.id);
-    if (lead.owner) await notifyByName(lead.owner, { type: "assigned", title: `Lead assigned to you: ${lead.name}`, link: "/dashboard/leads", meta: { leadId: lead.id } }, req.user?.id);
+    const assignedTo = await notifyByName(lead.owner, { type: "assigned", title: `Lead assigned to you: ${lead.name}`, link: "/dashboard/leads", meta: { leadId: lead.id } }, req.user?.id);
+    await notifyRoles(["leads"], { type: "lead", title: `New lead: ${lead.name}`, body: lead.company || undefined, link: "/dashboard/leads", meta: { leadId: lead.id } }, [req.user?.id, assignedTo]);
   },
   onUpdate: async (lead, req, before) => {
     if (lead.owner && lead.owner !== before.owner) await notifyByName(lead.owner, { type: "assigned", title: `Lead assigned to you: ${lead.name}`, link: "/dashboard/leads", meta: { leadId: lead.id } }, req.user?.id);
@@ -289,6 +289,12 @@ const socialPostCtrl = crudController(SocialPost, {
     // KPIs read stages, assignees and go-live dates → recompute after any of them changes.
     if (before.status !== p.status || (before.step || null) !== (p.step || null) || before.assigneeId !== p.assigneeId || day(before.postDate) !== day(p.postDate))
       kpiCtrl.bumpKpiCache();
+    if (p.status === "posted" && before.status !== "posted") {
+      try { await require("../utils/purgeMedia").purgeMedia(p); } catch (e) { console.warn("purge media:", e.message); } // live → delete our copies
+      const alsoUserIds = p.assigneeId === before.assigneeId ? [p.assigneeId] : [];
+      await notifyAdmins({ type: "done", title: `Posted: ${p.theme}`, body: `${p.client} · by ${req.user?.name || "someone"}`, link: "/dashboard/social", meta: { socialPostId: p.id } }, req.user?.id, { alsoUserIds });
+      return;
+    }
     const reassigned = p.assigneeId && p.assigneeId !== before.assigneeId;
     if (reassigned) await notifyUsers([p.assigneeId], socialAssigned(p), req.user?.id);
     // Changes by someone else → the person who has it (unless they just got it, above).
@@ -298,10 +304,6 @@ const socialPostCtrl = crudController(SocialPost, {
       const render = (ns) => `${p.client} · ${ns.join("; ")} · by ${req.user?.name || "someone"}`;
       await notifyUsers([p.assigneeId], { type: "update", title: `${head}: ${p.theme}`, body: render(notes), link: "/dashboard/social", meta: { socialPostId: p.id } },
         req.user?.id, kind === "edit" ? { merge: { key: `post-${p.id}`, minutes: 15, notes, render } } : undefined); // only plain edits merge
-    }
-    if (p.status === "posted" && before.status !== "posted") {
-      try { await require("../utils/purgeMedia").purgeMedia(p); } catch (e) { console.warn("purge media:", e.message); } // live → delete our copies
-      await notifyAdmins({ type: "done", title: `Posted: ${p.theme}`, body: `${p.client} · by ${req.user?.name || "someone"}`, link: "/dashboard/social", meta: { socialPostId: p.id } }, req.user?.id);
     }
   },
 });
