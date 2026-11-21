@@ -3,4 +3,8 @@
 .users-workspace .acc-ufoot { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
 .users-workspace .acc-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .users-workspace .acc-ufoot .ss-chip { min-height: 36px; }
+.users-workspace .acc-brand-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; min-height: 38px; font-size: var(--ui-text-sm); }
+.users-workspace .acc-brand-summary .ss-chip { min-height: 38px; }
+.users-workspace .acc-brand-list { display: grid; gap: 8px; padding: 0; margin: 0; list-style: none; }
+.users-workspace .acc-brand-list .acc-bchip { display: flex; padding: 10px 12px; overflow-wrap: anywhere; white-space: normal; }
 .users-workspace .acc-more { min-width: 36px; }
