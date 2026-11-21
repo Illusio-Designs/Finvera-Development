@@ -22,7 +22,8 @@ const currency = new Intl.NumberFormat("en-IN", { style: "currency", currency: "
 const inr = (paise: number) => currency.format(paise / 100);
 const displayDate = (day: string) => new Date(day + "T00:00:00Z").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const weekdayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const bases = [{ value: "calendar", label: "Actual calendar days" }, { value: "working", label: "Working days" }, { value: "fixed30", label: "Fixed 30 days" }];
+const bases = [{ value: "calendar", label: "Actual calendar days" }, { value: "working", label: "Working days" }, { value: "fixed30", label: "Monthly salary ÷ 30" }];
+const leaveStatusLabels: Record<Leave["status"], string> = { pending: "Pending approval", approved: "Approved", rejected: "Rejected", cancelled: "Cancelled" };
 const formData = (event: FormEvent<HTMLFormElement>) => {
   event.preventDefault();
   return new FormData(event.currentTarget);
@@ -72,17 +73,23 @@ function LeaveEditor({ data, busy, save, close }: { data: PeopleMonth; busy: boo
     void save(() => peopleApi.recordLeave({
       employeeId: Number(person), from: string(form, "from"), to: string(form, "to"),
       kind: kind as Leave["kind"], half: form.has("half"), reason: string(form, "reason"),
-    }), "Leave added for review.", close);
+    }), "Leave submitted for approval.", close);
   }
   return <form onSubmit={submit}>
     <fieldset className="people-fields" disabled={busy}>
       <div className="adm-field"><label>Employee</label><Select ariaLabel="Employee" value={person} onChange={setPerson} disabled={busy} options={data.employees.map(row => ({ value: String(row.id), label: row.name }))} /></div>
-      <div className="adm-field"><label>Leave type</label><Select ariaLabel="Leave type" value={kind} onChange={setKind} disabled={busy} options={[{ value: "paid", label: "Use paid leave allowance" }, { value: "unpaid", label: "Unpaid leave" }]} /></div>
-      <div className="adm-field"><label htmlFor="leave-from">From</label><DatePicker id="leave-from" name="from" defaultValue={data.month + "-01"} clearable={false} /></div>
-      <div className="adm-field"><label htmlFor="leave-to">To</label><DatePicker id="leave-to" name="to" defaultValue={data.month + "-01"} clearable={false} /></div>
-      <label className="adm-field">Reason<input name="reason" required maxLength={255} /></label>
-      <label className="people-check"><input type="checkbox" name="half" /> Half day on one date</label>
-      <div className="people-actions people-wide"><button className="sh-btn pri" type="submit">Add to review</button><button className="sh-btn" type="button" onClick={close}>Cancel</button></div>
+      <div className="adm-field"><label htmlFor="leave-type">Leave type</label>
+        <Select id="leave-type" ariaLabel="Leave type" value={kind} onChange={setKind} disabled={busy}
+          options={[{ value: "paid", label: "Company Leave (paid)" }, { value: "unpaid", label: "Unpaid leave (salary deducted)" }]} />
+        <p className="fw-caption people-leave-hint">{kind === "paid"
+          ? "Counts toward the employee’s 1 paid day for the month. Approved working days beyond the allowance are unpaid."
+          : "Approved unpaid leave reduces salary and does not use the employee’s Company Leave allowance."}</p>
+      </div>
+      <div className="adm-field"><label htmlFor="leave-from">Start date</label><DatePicker id="leave-from" name="from" defaultValue={data.month + "-01"} clearable={false} /></div>
+      <div className="adm-field"><label htmlFor="leave-to">End date</label><DatePicker id="leave-to" name="to" defaultValue={data.month + "-01"} clearable={false} /></div>
+      <label className="adm-field">Reason for leave<input name="reason" required maxLength={255} /></label>
+      <label className="people-check"><input type="checkbox" name="half" /> Half-day leave (one date only)</label>
+      <div className="people-actions people-wide"><button className="sh-btn pri" type="submit">Submit for approval</button><button className="sh-btn" type="button" onClick={close}>Cancel</button></div>
     </fieldset>
   </form>;
 }
@@ -95,14 +102,14 @@ function RulesEditor({ data, busy, save }: { data: PeopleMonth; busy: boolean; s
     event.preventDefault();
     void save(() => peopleApi.rules(data.month, { holidays }), "Monthly holidays saved.");
   }
-  return <Panel title="Monthly rules" detail={data.rules.paidLeaveDays == null ? "Rules recorded when this payroll was finalized." : "Each employee gets one paid leave day per month, up to 12 per year. Unused days expire at month end."}>
+  return <Panel title="Leave and salary rules" detail={data.rules.paidLeaveDays == null ? "Rules recorded when this payroll was finalized." : "Each employee gets 1 paid Company Leave day per month, up to 12 per year. Unused days expire at month end. Weekly days off and company holidays do not count as leave."}>
     <dl className="people-breakdown">
-      <div><dt>Salary basis</dt><dd>{bases.find(basis => basis.value === data.rules.basis)?.label}</dd></div>
+      <div><dt>Daily salary calculation</dt><dd>{bases.find(basis => basis.value === data.rules.basis)?.label}</dd></div>
       <div><dt>Weekly days off</dt><dd>{data.rules.weeklyOff.map(day => weekdayNames[day]).join(", ") || "None"}</dd></div>
-      {data.rules.paidLeaveDays != null && <div><dt>Monthly paid leave</dt><dd>{data.rules.paidLeaveDays} day</dd></div>}
+      {data.rules.paidLeaveDays != null && <div><dt>Monthly Company Leave allowance</dt><dd>{data.rules.paidLeaveDays} paid day</dd></div>}
     </dl>
     <form onSubmit={submit}><fieldset className="people-fields" disabled={disabled}>
-      <div className="adm-field people-wide"><label htmlFor="people-holiday">Holidays in this month</label>
+      <div className="adm-field people-wide"><label htmlFor="people-holiday">Company holidays this month</label>
         <div className="people-actions"><div className="people-holiday-picker"><DatePicker id="people-holiday" value={holiday} min={data.month + "-01"} max={data.month + "-31"} onChange={setHoliday} /></div>
           <button type="button" className="sh-btn" disabled={!holiday.startsWith(data.month + "-") || holidays.includes(holiday)} onClick={() => { setHolidays([...holidays, holiday].sort()); setHoliday(""); }}>Add holiday</button></div>
         {holidays.length > 0 && <ul className="people-holidays">{holidays.map(day => <li key={day}>{displayDate(day)} {!disabled && <button type="button" className="sh-btn sm" aria-label={`Remove ${displayDate(day)}`} onClick={() => setHolidays(holidays.filter(date => date !== day))}>Remove</button>}</li>)}</ul>}
@@ -113,11 +120,13 @@ function RulesEditor({ data, busy, save }: { data: PeopleMonth; busy: boolean; s
 }
 
 function SalaryDetail({ row, data, save, busy }: { row: PayrollRow; data: PeopleMonth; save: Save; busy: boolean }) {
+  const companyLeave = data.rules.paidLeaveDays;
   const lines = [
-    ["Monthly salary", inr(row.salary)], ["Day basis", row.divisor], ["Eligible days", row.eligible],
-    ["Paid leave days used", row.paidDays], ["Unpaid leave days", row.unpaidDays],
-    ...(data.rules.paidLeaveDays != null ? [["Paid leave days remaining", Math.max(0, data.rules.paidLeaveDays - row.paidDays)]] : []),
-    ["Earned salary", inr(row.earned)], ["Unpaid leave deduction", inr(row.unpaidDeduction)],
+    ["Monthly salary", inr(row.salary)], ["Daily rate divisor (days)", row.divisor], ["Employment days counted", row.eligible],
+    [companyLeave == null ? "Paid leave used (days)" : "Company Leave used (days)", row.paidDays],
+    ...(companyLeave != null ? [["Company Leave remaining (days)", Math.max(0, companyLeave - row.paidDays)]] : []),
+    ["Unpaid leave (days)", row.unpaidDays],
+    ["Base pay for month", inr(row.earned)], ["Unpaid leave deduction", inr(row.unpaidDeduction)],
     ["Bonus / additions", inr(row.bonus)], ["Advance / other deductions", inr(row.deduction)],
     ["Net salary", inr(row.net)],
   ];
@@ -203,12 +212,12 @@ function PeopleWorkspace({ month, changeMonth, tab, setTab }: { month: string; c
         </tr>)}</Table> : !editing && <p className="people-empty">Add the first employee to start tracking leave and salary.</p>}
       </Panel>}
       {tab === "Record links" && <RecordLinks />}
-      {tab === "Leave management" && <Panel title="Leave register" detail={data.rules.paidLeaveDays == null ? "Leave records for this finalized month." : "Approved leave marked for the paid allowance uses up to one day per month. Additional days and explicitly unpaid leave reduce draft salary."} action={!locked && <button type="button" className="sh-btn pri" disabled={busy || !data.employees.length} onClick={() => setRecording(true)}>Record leave</button>}>
+      {tab === "Leave management" && <Panel title="Leave requests" detail={data.rules.paidLeaveDays == null ? "Leave records for this finalized month." : "Company Leave covers 1 paid day per employee each month. Approved days beyond that allowance, and any leave recorded as unpaid, reduce salary."} action={!locked && <button type="button" className="sh-btn pri" disabled={busy || !data.employees.length} onClick={() => setRecording(true)}>Record leave</button>}>
         {recording && !locked && <LeaveEditor data={data} busy={busy} save={save} close={() => setRecording(false)} />}
-        {data.leaves.length ? <Table headers={["Employee", "Leave", "Days this month", "Status", "Review"]}>{data.leaves.map(leave => <tr key={leave.id}>
+        {data.leaves.length ? <Table headers={["Employee", "Leave details", "Leave days this month", "Approval status", "Review"]}>{data.leaves.map(leave => <tr key={leave.id}>
           <td><strong>{names.get(leave.employeeId)}</strong></td>
-          <td><strong>{leave.kind === "paid" ? (data.rules.paidLeaveDays == null ? "Paid" : "Paid allowance") : "Unpaid"}{leave.half ? " · Half day" : ""}</strong><small>{displayDate(leave.from)}{leave.to !== leave.from && ` – ${displayDate(leave.to)}`}</small><small>{leave.reason}</small></td>
-          <td>{leave.days}</td><td className="people-status">{leave.status}{leave.reviewedAt && <small>{displayDate(leave.reviewedAt.slice(0, 10))}</small>}</td>
+          <td><strong>{leave.kind === "paid" ? (data.rules.paidLeaveDays == null ? "Paid leave" : "Company Leave") : "Unpaid leave"}{leave.half ? " · Half day" : ""}</strong><small>{displayDate(leave.from)}{leave.to !== leave.from && ` – ${displayDate(leave.to)}`}</small><small>{leave.reason}</small></td>
+          <td>{leave.days}</td><td>{leaveStatusLabels[leave.status]}{leave.reviewedAt && <small>{displayDate(leave.reviewedAt.slice(0, 10))}</small>}</td>
           <td>{!locked && leave.status === "pending" ? <div className="people-actions">
             <button type="button" className="sh-btn sm pri" disabled={busy} onClick={() => void review(leave, "approved")}>Approve</button>
             <button type="button" className="sh-btn sm" disabled={busy} onClick={() => void review(leave, "rejected")}>Reject</button>
@@ -218,7 +227,7 @@ function PeopleWorkspace({ month, changeMonth, tab, setTab }: { month: string; c
       {tab === "Salary calculation" && <>
         <Panel title={locked ? "Finalized payroll" : "Monthly salary draft"} detail={`Total ${inr(data.rows.reduce((sum, item) => sum + item.net, 0))} · ${data.rows.length} employees`}
           action={!locked && <button type="button" className="sh-btn pri" disabled={busy || month >= indiaToday().slice(0, 7) || !data.rows.length} onClick={() => void finalize()}>Finalize payroll</button>}>
-          {data.rows.length ? <Table headers={["Employee", "Earned", "Unpaid leave", "Net salary", "Breakdown"]}>{data.rows.map(item => <tr key={item.employeeId}>
+          {data.rows.length ? <Table headers={["Employee", "Base pay for month", "Unpaid leave deduction", "Net salary", "Breakdown"]}>{data.rows.map(item => <tr key={item.employeeId}>
             <td><strong>{item.name}</strong></td><td>{inr(item.earned)}</td><td>{inr(item.unpaidDeduction)}</td><td><strong>{inr(item.net)}</strong></td>
             <td><button type="button" className="sh-btn sm" aria-pressed={row?.employeeId === item.employeeId} disabled={busy} onClick={() => setSelected(item.employeeId)}>View details</button></td>
           </tr>)}</Table> : <p className="people-empty">No employees were employed during this month.</p>}

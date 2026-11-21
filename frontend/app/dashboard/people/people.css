@@ -22,7 +22,7 @@
 .people-table :is(td, th) { padding: 12px 16px; border-top: 1px solid #e9eef7; vertical-align: top; }
 .people-table th { color: #536988; background: #f7f9fe; }
 .people-table small { display: block; font-size: var(--ui-text-sm); color: #637991; overflow-wrap: anywhere; }
-.people-status { text-transform: capitalize; }
+.people-leave-hint { margin: 0; }
 .people-check { display: inline-flex; align-items: center; gap: 5px; font-size: var(--ui-text-sm); }
 .people-check input { width: 16px; min-height: 16px; margin: 0; }
 .people-empty { margin: 0; padding: 14px 22px; color: #637991; font-size: var(--ui-text-sm); }
