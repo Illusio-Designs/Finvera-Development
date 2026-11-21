@@ -380,7 +380,7 @@ router.post("/social-accounts/:client/pause", ...canSocial, social.requireAllBra
 router.get("/social-accounts/:client/picture", ...canSocial, studio.picture);
 router.get("/social-accounts/:client/profile", ...canSocial, studio.profile);
 router.get("/social-accounts/:client/capabilities", ...canSocial, studio.capabilities);
-router.put("/social-accounts/:client/profile", ...canSocial, social.requireAllBrands, studio.updateProfile);
+router.put("/social-accounts/:client/profile", ...canSocial, requireRole("admin", "social"), studio.updateProfile);
 router.get("/social-connect/meta/status", ...canSocial, pub.status);
 router.get("/social-connect/meta/start", ...canSocial, social.requireAllBrands, pub.start);
 router.get("/social-connect/meta/callback", pub.callback);               // Facebook redirects here
