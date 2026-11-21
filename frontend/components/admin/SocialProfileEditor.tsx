@@ -15,7 +15,6 @@ type Platform = "facebook" | "instagram";
 type Profile = Record<string, any>;
 type Account = { client: string; pageId?: string; igUserId?: string; igUsername?: string; status: string };
 const fields = ["about", "description", "website", "phone", "email"] as const;
-const instagramEditUrl = "https://www.instagram.com/accounts/edit/";
 const draft = (p: Profile) => Object.fromEntries(fields.map(k => [k, p[k] || ""])) as Record<string, string>;
 
 type Props = {
@@ -211,7 +210,7 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
           <div><Shimmer width={60} height={16} /><Shimmer width="45%" height={20} /></div>
         </div>
         <Shimmer width="85%" height={20} />
-        <div className="sp-instagram-actions"><Shimmer width={132} height={42} />{canEditProfile && <Shimmer width={146} height={42} />}</div>
+        <div className="sp-instagram-actions"><Shimmer width={132} height={42} /></div>
       </section> : <section className="sp-loading-details">
         <Shimmer width="38%" height={22} />
         <Shimmer width="87%" height={16} />
@@ -232,11 +231,8 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
           <div><dt>Bio</dt><dd>{profile.biography?.trim() || "No bio returned by Instagram"}</dd></div>
           <div><dt>Website</dt><dd>{profile.website?.trim() || "No website returned by Instagram"}</dd></div>
         </dl>
-        <p className="sp-note">{canEditProfile
-          ? <>Edit these details in Instagram{profile.username ? <> while signed in as <strong>@{profile.username}</strong></> : ""}, then refresh them here.</>
-          : "Instagram manages these profile details."}</p>
+        <p className="sp-note">Meta’s API provides read-only access to these Instagram profile details.</p>
         <div className="sp-instagram-actions">
-          {canEditProfile && <a className="adm-btn primary" href={instagramEditUrl} target="_blank" rel="noopener noreferrer" aria-label="Edit in Instagram (opens in a new tab)">Edit in Instagram</a>}
           <button className="adm-btn ghost" type="button" onClick={refreshInstagramDetails} disabled={detailsBusy || photoBusy || busy}>{detailsBusy ? "Refreshing details…" : "Refresh details"}</button>
         </div>
       </section> : <section><h2>Page details</h2>
