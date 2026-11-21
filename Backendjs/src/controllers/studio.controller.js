@@ -178,7 +178,7 @@ const picture = asyncHandler(async (req, res) => {
 });
 const updateProfile = asyncHandler(async (req, res) => {
   const acc = await SocialAccount.findOne({ where: { client: req.params.client } });
-  if (!acc) return res.status(404).json({ message: "This brand isn't connected." });
+  if (!acc || (req.socialScope !== null && !req.socialScope?.has(acc.client))) return res.status(404).json({ message: "This brand isn't connected." });
   const b = req.body || {};
   if (b.website && !/^https?:\/\//i.test(b.website)) return res.status(400).json({ message: "The website must start with https://" });
   if (b.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.email)) return res.status(400).json({ message: "That email doesn't look right." });
