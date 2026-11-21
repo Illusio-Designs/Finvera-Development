@@ -177,7 +177,7 @@ const markPosted = asyncHandler(async (req, res) => {
   });
   if (!outcome) return res.status(409).json({ message: "Only the reviewer or admin can confirm a live result, and publishing must have finished." });
   require("../utils/audit").record(req, { action: "other", entity: "social-post", entityId: original.postId, summary: `Confirmed live ${original.platform} post: ${url}` });
-  await auto.afterPublished(await SocialPost.findByPk(original.postId));
+  await auto.afterPublished(original.postId);
   res.json({ ok: true });
 });
 
