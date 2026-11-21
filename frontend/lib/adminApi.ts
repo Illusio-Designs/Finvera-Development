@@ -209,7 +209,7 @@ export const api = {
   pushKey: () => req(`/push/key`),
   pushSubscribe: (subscription: any) => req(`/push/subscribe`, { method: "POST", body: JSON.stringify({ subscription }) }),
   pushUnsubscribe: (endpoint: string) => req(`/push/unsubscribe`, { method: "POST", body: JSON.stringify({ endpoint }) }),
-  pushTest: () => req(`/push/test`, { method: "POST" }),
+  pushTest: (endpoint: string): Promise<{ sent: number }> => req(`/push/test`, { method: "POST", body: JSON.stringify({ endpoint }) }),
   socialKpis: (period: string, brand = "") => req(`/social-kpis?period=${encodeURIComponent(period)}${brand ? `&brand=${encodeURIComponent(brand)}` : ""}`),
 
   /* Sidebar counts in one small call (scoped to the signed-in user). */

@@ -20,8 +20,7 @@ const subscribe = asyncHandler(async (req, res) => {
   if (!/^https:\/\//.test(endpoint) || !p256dh || !auth) return res.status(400).json({ message: "That isn't a valid push subscription." });
   const endpointHash = hash(endpoint);
   const data = { userId: req.user.id, endpoint, endpointHash, p256dh: String(p256dh), auth: String(auth), userAgent: String(req.get("user-agent") || "").slice(0, 250) };
-  const existing = await PushSubscription.findOne({ where: { endpointHash } });
-  if (existing) await existing.update(data); else await PushSubscription.create(data);
+  await PushSubscription.upsert(data);
   res.json({ ok: true, devices: await PushSubscription.count({ where: { userId: req.user.id } }) });
 });
 
@@ -31,13 +30,15 @@ const unsubscribe = asyncHandler(async (req, res) => {
   res.json({ ok: true });
 });
 
-/* One test push to the caller's devices (sent right after enabling). */
+/* One test push to the subscription just enabled by the caller. */
 const test = asyncHandler(async (req, res) => {
+  const endpoint = req.body?.endpoint;
+  if (typeof endpoint !== "string" || !endpoint) return res.status(400).json({ message: "A device subscription is required." });
   const r = await pushToUser(req.user.id, {
     title: "Notifications are on",
     body: "You'll get assignments, updates and reminders here, even when Finvera is closed.",
     url: "/dashboard", tag: "push-test", type: "info",
-  });
+  }, { endpointHash: hash(endpoint), topic: "push-test" });
   res.json(r);
 });
 

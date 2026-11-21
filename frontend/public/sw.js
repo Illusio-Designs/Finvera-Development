@@ -13,7 +13,7 @@ self.addEventListener("push", (event) => {
 
   event.waitUntil((async () => {
     const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    const appOnScreen = notificationMode(wins) === "quiet";
+    const quiet = notificationMode(wins) === "quiet" && d.tag !== "push-test";
 
     // Unread count on the app icon (iPhone Home Screen app, installed desktop app).
     if (typeof d.badge === "number" && self.navigator && "setAppBadge" in self.navigator) {
@@ -29,9 +29,10 @@ self.addEventListener("push", (event) => {
       icon: "/icons/icon-192.png?v=3",
       badge: "/icons/badge-96.png",
       tag: d.tag || undefined,
+      renotify: false,
       data: { url: d.url || "/dashboard" },
-      silent: appOnScreen,
-      vibrate: appOnScreen ? undefined : [120, 60, 120],
+      silent: quiet,
+      vibrate: quiet ? undefined : [120, 60, 120],
       timestamp: Date.now(),
     });
   })());
