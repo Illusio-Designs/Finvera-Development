@@ -187,7 +187,7 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
     }
   }
   const content = <div className={workspace ? "social-profiles sp-inline" : "social-profiles"}>
-    {!workspace && <WorkspaceHero eyebrow="SOCIAL MEDIA" title="Social profiles" description="Update connected profiles without leaving your workspace." headingLevel={onClose ? 2 : 1} compact={Boolean(onClose)} actions={<> {onClose ? <button className="adm-btn ghost" type="button" disabled={busy} onClick={close} aria-label="Close profile editor">Close</button> : <Link className="adm-btn ghost" href={studio}>Manage connections</Link>} </>} />
+    {!workspace && <WorkspaceHero eyebrow="SOCIAL MEDIA" title="Social profiles" description="View connected profiles and edit supported Facebook Page details." headingLevel={onClose ? 2 : 1} compact={Boolean(onClose)} actions={<> {onClose ? <button className="adm-btn ghost" type="button" disabled={busy} onClick={close} aria-label="Close profile editor">Close</button> : <Link className="adm-btn ghost" href={studio}>Manage connections</Link>} </>} />
     }
     {workspace && <div><h2>Connected profiles</h2></div>}
     <div className="sp-controls">
@@ -220,7 +220,7 @@ export default function SocialProfileEditor({ initialClient, initialPlatform, on
         <Shimmer width={130} height={40} />
       </section>}
     </div></LoadingRegion>}
-    {!client && status === "ready" && <section><h2>No connected profiles</h2><p>Connect a Facebook Page and its Instagram account to manage their details.</p>
+    {!client && status === "ready" && <section><h2>No connected profiles</h2><p>Connect a Facebook Page and its Instagram account to see them here.</p>
       {workspace ? <button type="button" className="adm-btn ghost" onClick={workspace.onConnections}>Open channel connections</button> : <Link href={studio}>Open channel connections</Link>}</section>}
     {status === "error" && <p>Could not load this profile. {client && (workspace ? <button type="button" className="adm-btn ghost" onClick={workspace.onConnections}>Check this brand’s connection</button> : <Link href={studio}>Check this brand’s connection</Link>)}</p>}
     {profile && <div className="sp-grid">
