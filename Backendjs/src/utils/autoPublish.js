@@ -23,6 +23,7 @@ const { sequelize, SocialPost, SocialAccount, SocialPublishJob, User } = require
 const meta = require("./meta");
 const { contentHash } = require("./socialSafety");
 const { notifyUsers } = require("./notify");
+const { postLink } = require("./socialNotifications");
 const { rolesOf } = require("./permissions");
 
 const PLATFORMS = ["instagram", "facebook"];
@@ -168,7 +169,7 @@ async function afterPublished(postId) {
   try { require("../controllers/kpi.controller").bumpKpiCache(); } catch { /* cache only */ } // new stage → fresh KPIs
   await notifyUsers(await teamFor(p), {
     type: "done", title: `Published: ${p.theme}`,
-    body: `${p.client} · ${jobs.map((j) => NAMES[j.platform]).join(", ")}`, link: "/dashboard/social", meta: { socialPostId: p.id },
+    body: `${p.client} · ${jobs.map((j) => NAMES[j.platform]).join(", ")}`, link: postLink(p.id), meta: { socialPostId: p.id },
   });
 }
 
@@ -199,7 +200,7 @@ async function runJob(job) {
     if (!changed) return;
     await notifyUsers(await teamFor(p), {
       type: "due", title: status === "check" ? `Check ${NAMES[j.platform]}: ${p.theme}` : `Auto-post failed: ${p.theme}`,
-      body: `${p.client} · ${NAMES[j.platform]}: ${error}`, link: "/dashboard/social", meta: { socialPostId: p.id },
+      body: `${p.client} · ${NAMES[j.platform]}: ${error}`, link: postLink(p.id), meta: { socialPostId: p.id },
     });
     emailPublishProblem(p, { title: status === "check" ? `Check ${NAMES[j.platform]}: ${p.theme}` : `Auto-post failed: ${p.theme}`, detail: `${NAMES[j.platform]}: ${error}` });
   };

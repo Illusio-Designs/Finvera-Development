@@ -1,5 +1,6 @@
 const { sequelize, SocialPost, SocialPublishJob, SocialAccount, User } = require("../models");
 const { prepareUpdate, contentHash } = require("./socialSafety");
+const { roleFor, teamWithOwner } = require("./socialPostMachine");
 
 async function updateRecord(req) {
   return sequelize.transaction(async (transaction) => {
@@ -18,11 +19,13 @@ async function updateRecord(req) {
       reviewPlatforms = require("./autoPublish").targetsFor({ ...before, ...incoming }, account);
     }
     const data = prepareUpdate(before, incoming, req.userRow || req.user, jobs, reviewPlatforms);
-    if (data.assigneeId != null && Number(data.assigneeId) !== Number(before.assigneeId)) {
+    const assigned = { ...before, ...data };
+    const needed = roleFor(assigned.status, assigned.format);
+    if (data.assigneeId != null && (Number(data.assigneeId) !== Number(before.assigneeId) || needed !== roleFor(before.status, before.format))) {
       const owner = await User.findByPk(data.assigneeId, { transaction });
-      const needed = ["approval", "ready"].includes(data.status || before.status) ? "social" : /reel|video/i.test(data.format || before.format || "") ? "video" : "graphic";
       if (!owner?.active || !require("./permissions").rolesOf(owner).some((role) => role === needed || role === "admin")) throw Object.assign(new Error(`Choose an active ${needed === "social" ? "social reviewer" : needed === "video" ? "video editor" : "graphic designer"}.`), { status: 400 });
     }
+    if (data.assigneeId !== undefined && assigned.status !== "posted") data.team = teamWithOwner(assigned);
     if (incoming.status === "ready") for (const platform of reviewPlatforms || []) {
       if (jobs.some((job) => job.platform === platform && job.status === "published")) continue;
       const problem = await require("./socialMediaHealth").mediaProblem({ ...before, ...data }, platform);

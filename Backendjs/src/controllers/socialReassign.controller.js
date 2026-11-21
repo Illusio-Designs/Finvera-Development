@@ -3,13 +3,14 @@ const { sequelize, SocialPost, SocialPublishJob, SocialPostEvent, User, SocialCl
 const { asyncHandler } = require("../utils/crud");
 const { rolesOf } = require("../utils/permissions");
 const social = require("./social.controller");
-const { notifyUsers } = require("../utils/notify");
+const { teamWithOwner } = require("../utils/socialPostMachine");
+const { notifyAssignments } = require("../utils/socialNotifications");
 
 const reassignPending = asyncHandler(async (req, res) => {
   const { fromId, toId, brand = "", role = "", preview = false, postIds } = req.body || {};
-  const from = Number(fromId), to = Number(toId);
-  if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from <= 0 || to <= 0 || from === to)
-    return res.status(400).json({ message: "Choose two different people." });
+  const from = fromId === null ? null : Number(fromId), to = Number(toId);
+  if ((from !== null && (!Number.isSafeInteger(from) || from <= 0)) || !Number.isSafeInteger(to) || to <= 0 || from === to)
+    return res.status(400).json({ message: "Choose a valid current assignee and a different replacement." });
   if (role && !["graphic", "video", "social"].includes(role)) return res.status(400).json({ message: "Choose a valid work type." });
   const target = await User.findByPk(to);
   if (!target || !target.active) return res.status(400).json({ message: "Choose an active replacement." });
@@ -37,19 +38,19 @@ const reassignPending = asyncHandler(async (req, res) => {
     if (access) await lockedTarget.update({ socialClients: [...new Set([...access, ...brands.map((b) => String(b.id))])] }, { transaction });
     const events = [];
     for (const p of posts) {
-      await p.update({ assigneeId: to, team: { ...social.teamOf(p), [social.stageRole(p.status, p.format, p.step)]: to } }, { transaction });
+      await p.update({ assigneeId: to, team: teamWithOwner({ status: p.status, format: p.format, team: p.team, assigneeId: to }) }, { transaction });
       events.push(social.eventOf(p, { from: p.status, fromAssigneeId: from, byUserId: req.user.id }));
     }
     await SocialPostEvent.bulkCreate(events, { transaction });
-    return posts.length;
+    return posts;
   });
   if (changed == null) return res.status(409).json({ message: "Some posts or permissions changed, or publishing started. Preview again; nothing was transferred." });
   for (const id of postIds) require("../utils/audit").record(req, { action: "other", entity: "social-post", entityId: id, summary: `Pending work reassigned to ${target.name || "replacement"}`, changes: { assigneeId: [from, to] } });
   require("../middleware/auth").forgetUser(to);
   require("./kpi.controller").bumpKpiCache();
   // A notification failure must not make a successful transaction look failed.
-  try { await notifyUsers([to], { type: "assigned", title: `${changed} pending social posts assigned to you`, body: "Your existing files, stage and go-live dates are retained.", link: "/dashboard/social" }, req.user.id); } catch (e) { console.warn("Bulk reassignment notification:", e.message); }
-  res.json({ transferred: changed });
+  try { await notifyAssignments(changed, req.user.id); } catch (e) { console.warn("Bulk reassignment notification:", e.message); }
+  res.json({ transferred: changed.length });
 });
 
 module.exports = { reassignPending };
