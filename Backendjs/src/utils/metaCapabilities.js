@@ -39,12 +39,12 @@ async function checkCapabilities(acc, platform, adapter = meta) {
   add("publish", "Publish supported posts", instagram && !acc.igUserId ? "unavailable" : publishing,
     publishing === "permission_granted" ? "Required scopes are present. Verify each supported media format with an authorized test post; no publishing test was performed here." : "Check app review, granted permissions, asset access and the supported media formats.");
   if (instagram) {
-    add("edit", "Edit profile", "external", "Finvera does not implement Instagram profile writes. Open Instagram to edit this account.", "https://www.instagram.com/accounts/edit/");
+    add("edit", "Update Instagram profile", "unavailable", "Meta’s API provides read-only access to the Instagram profile, including its bio, website, name and picture.");
   } else {
     const editing = permission(["pages_manage_metadata"]);
     add("edit", "Edit supported Page details", editing, "Finvera implements About, description, website, phone and email. Scope presence alone does not verify field-specific write access. Name and picture edits open Facebook.");
+    add("identity", "Edit Page name and profile picture", "external", "Finvera does not implement these identity changes. Open the account on the platform.", profileUrl);
   }
-  add("identity", instagram ? "Edit name and profile picture" : "Edit Page name and profile picture", "external", "Finvera does not implement these identity changes. Open the account on the platform.", instagram ? "https://www.instagram.com/accounts/edit/" : profileUrl);
   add("picture", "Read profile picture", pictureReadable ? "verified" : "unknown", pictureReadable ? "Meta returned a picture URL. Browser loading still depends on the image URL remaining valid." : "Meta has not returned a verified picture URL. Use Refresh photo; your saved image is kept on failure.");
   add("stories", "Publish Stories", instagram && !acc.igUserId ? "unavailable" : permission(instagram ? ["instagram_basic", "instagram_content_publish"] : ["pages_show_list", "pages_read_engagement", "pages_manage_posts"]), "Story-specific publishing is implemented. Confirm account eligibility, Page tasks and media requirements with a test account; this read-only check does not publish.");
   add("covers", "Upload Reel covers", permission(instagram ? ["instagram_basic", "instagram_content_publish"] : ["pages_read_user_content", "pages_manage_engagement", "pages_show_list"]), instagram ? "Finvera passes the saved cover_url on Reel creation. Verify the public JPEG cover URL and account publishing access." : "Finvera uploads a preferred video thumbnail. Meta's current reference lists these scopes; check them against the app's Graph version and review access before publishing a cover.");
