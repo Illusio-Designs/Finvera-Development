@@ -39,7 +39,7 @@ export async function pushState(): Promise<PushState> {
 }
 
 /* Ask permission (call directly from a tap), subscribe, save on the server. */
-export async function enablePush(): Promise<{ ok: boolean; reason?: "denied" | "dismissed" | "error"; message?: string }> {
+export async function enablePush(): Promise<{ ok: true; endpoint: string } | { ok: false; reason: "denied" | "dismissed" | "error"; message?: string }> {
   if (!supported()) return { ok: false, reason: "error", message: "This browser can't receive notifications." };
   const permission = await Notification.requestPermission();
   if (permission !== "granted") return { ok: false, reason: permission === "denied" ? "denied" : "dismissed" };
@@ -52,7 +52,7 @@ export async function enablePush(): Promise<{ ok: boolean; reason?: "denied" | "
     if (subscriptionAction(!!sub, sameKey(sub?.options.applicationServerKey, key)) === "replace" && sub) { await sub.unsubscribe(); sub = null; }
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
     await api.pushSubscribe(sub.toJSON());
-    return { ok: true };
+    return { ok: true, endpoint: sub.endpoint };
   } catch (e) {
     return { ok: false, reason: "error", message: e instanceof Error ? e.message : String(e) };
   }

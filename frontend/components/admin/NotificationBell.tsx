@@ -16,7 +16,7 @@ import {
   Alert02Icon, CheckmarkCircle02Icon, VolumeHighIcon, VolumeOffIcon,
 } from "@hugeicons/core-free-icons";
 
-type Notif = { id: number; type: string; title: string; body?: string | null; link?: string | null; isRead: boolean; createdAt: string; meta?: Record<string, unknown> | null };
+type Notif = { id: number; type: string; title: string; body?: string | null; link?: string | null; isRead: boolean; createdAt: string; pushEnabled?: boolean; meta?: Record<string, unknown> | null };
 function hrefOf(n: Notif) {
   if (!n.link || n.link.startsWith("/dashboard/kanban")) return "";
   const id = n.meta?.socialPostId;
@@ -81,14 +81,14 @@ export default function NotificationBell() {
     if (!token || writesInFlight.current || (!afterWrite && (document.hidden || !onScreen()))) return;
     const request = ++loadRequest.current;
     try {
-      const r = await api.listNotifications();
+      const [r, devicePush] = await Promise.all([api.listNotifications(), pushState().catch(() => "unsupported")]);
       if (request !== loadRequest.current || token !== getToken()) return;
       const list: Notif[] = Array.isArray(r) ? r : (r?.items || []);
       const count = typeof r?.unread === "number" ? r.unread : list.filter((n) => !n.isRead).length;
       setItems(list);
       setUnread(count);
       void syncAppBadge(count);
-      announce(list);
+      announce(list, devicePush === "on");
     } catch { /* ignore */ }
   }
 
@@ -104,19 +104,22 @@ export default function NotificationBell() {
   }
 
   /* Pop up notifications that arrived since the last check (not on first load). */
-  function announce(list: Notif[]) {
+  function announce(list: Notif[], devicePush: boolean) {
     const maxId = list.reduce((m, n) => Math.max(m, n.id), 0);
-    if (seen.current !== null) {
-      const fresh = list.filter((n) => !n.isRead && n.id > (seen.current as number)).sort((a, b) => a.id - b.id);
-      fresh.slice(0, 3).forEach((n) => toast(split(n.title).label || n.title, "info", {
+    const lastSeen = seen.current;
+    seen.current = Math.max(maxId, lastSeen ?? 0);
+    if (lastSeen !== null && document.hasFocus()) {
+      const fresh = list.filter((n) => !n.isRead && n.id > lastSeen);
+      // On subscribed devices the system already displays push-enabled alerts.
+      const inApp = fresh.filter((n) => !devicePush || n.pushEnabled === false).sort((a, b) => a.id - b.id);
+      inApp.slice(0, 3).forEach((n) => toast(split(n.title).label || n.title, "info", {
         description: [split(n.title).label ? split(n.title).subject : "", n.body].filter(Boolean).join(" · ") || "New in your notifications",
         action: hrefOf(n) ? { label: "Open", onClick: () => router.push(hrefOf(n)) } : undefined,
         sound: false, duration: 7000,
       }));
-      if (fresh.length > 3) toast(`${fresh.length - 3} more notifications`, "info", { description: "Open the bell to see them all.", sound: false });
+      if (inApp.length > 3) toast(`${inApp.length - 3} more notifications`, "info", { description: "Open the bell to see them all.", sound: false });
       if (fresh.length) playSound("notify");
     }
-    seen.current = Math.max(maxId, seen.current ?? 0);
   }
 
   useEffect(() => {
@@ -171,18 +174,21 @@ export default function NotificationBell() {
      test notification so the person sees it working straight away. */
   const turnOnPush = async () => {
     setPushBusy(true);
-    const r = await enablePush();
-    setPushBusy(false);
-    if (r.ok) {
-      setPush("on");
-      toast("Notifications are on", "ok", { description: "A test notification is on its way to this device." });
-      api.pushTest().catch(() => {});
-    } else if (r.reason === "denied") {
-      setPush("denied");
-    } else if (r.reason === "dismissed") {
-      toast("Notifications not turned on", "info", { description: "Tap Enable again and choose Allow when your device asks." });
-    } else {
-      toast("Couldn't turn on notifications", "err", { description: r.message || "Please try again." });
+    try {
+      const r = await enablePush();
+      if (r.ok) {
+        setPush("on");
+        const result = await api.pushTest(r.endpoint).catch(() => null);
+        if (!result?.sent) toast("Notifications are on", "info", { description: "The test notification couldn't be sent to this device." });
+      } else if (r.reason === "denied") {
+        setPush("denied");
+      } else if (r.reason === "dismissed") {
+        toast("Notifications not turned on", "info", { description: "Tap Enable again and choose Allow when your device asks." });
+      } else {
+        toast("Couldn't turn on notifications", "err", { description: r.message || "Please try again." });
+      }
+    } finally {
+      setPushBusy(false);
     }
   };
   const turnOffPush = async () => { setPushBusy(true); await disablePush(); setPushBusy(false); setPush("off"); toast("Notifications turned off for this device", "info"); };

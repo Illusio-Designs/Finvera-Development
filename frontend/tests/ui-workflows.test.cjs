@@ -41,6 +41,29 @@ test("push permission and install requirements are separate from subscription ke
   assert.equal(notifications.subscriptionAction(true, true), "reuse");
   assert.equal(notifications.installState(true, true, true), "installed");
 });
+test("a repeated push uses the same system alert tag without renotifying and refreshes the badge", async () => {
+  const listeners = new Map(), notifications = new Map(), badges = [], messages = [];
+  const client = { visibilityState: "visible", postMessage: (message) => messages.push(message) };
+  const self = {
+    addEventListener: (name, listener) => listeners.set(name, listener),
+    clients: { matchAll: async () => [client] },
+    registration: { showNotification: async (title, options) => notifications.set(options.tag, { title, ...options }) },
+    navigator: { setAppBadge: async (count) => badges.push(count), clearAppBadge: async () => badges.push(0) },
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../public/sw.js"), "utf8"), { self });
+  const receive = (data) => new Promise((resolve, reject) => listeners.get("push")({ data: { json: () => data }, waitUntil: (work) => work.then(resolve, reject) }));
+  await receive({ title: "New assignment", tag: "n22", badge: 4 });
+  await receive({ title: "New assignment", tag: "n22", badge: 3 });
+  assert.equal(notifications.size, 1);
+  assert.equal(notifications.get("n22").renotify, false);
+  assert.equal(notifications.get("n22").silent, true);
+  assert.equal(messages[1].type, "fv-push");
+  await receive({ title: "Second assignment", tag: "n23", badge: 2 });
+  await receive({ title: "Notifications are on", tag: "push-test", badge: 0 });
+  assert.equal(notifications.size, 3);
+  assert.equal(notifications.get("push-test").silent, false);
+  assert.deepEqual(badges, [4, 3, 2, 0]);
+});
 test("refresh failures retain prior data and paging completion does not end an overlapping refresh", () => {
   let state = { data: [1], request: "idle", error: "" };
   state = resources.resourceTransition(state, { type: "LOADING", value: true });
