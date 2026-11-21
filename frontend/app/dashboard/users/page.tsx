@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   UserAdd01Icon, PencilEdit02Icon, MoreVerticalIcon, Mail01Icon, Key01Icon, LockPasswordIcon, SquareUnlock02Icon, SecurityCheckIcon,
   ComputerIcon, Activity01Icon, UserBlock01Icon, UserCheck01Icon, Delete02Icon, Search01Icon, UserMultipleIcon, Shield01Icon,
-  Logout03Icon, Alert02Icon, PlusSignIcon, Clock01Icon,
+  Logout03Icon, Alert02Icon, PlusSignIcon, Clock01Icon, ViewIcon,
 } from "@hugeicons/core-free-icons";
 import { api, apiErr, type AdminUser, type SecPage, type Session, type ShareLink, type UserStatus } from "@/lib/adminApi";
 import { toast } from "@/lib/toast";
@@ -151,6 +151,7 @@ export default function AdminUsers() {
   const [share, setShare] = useState<(ShareLink & { name: string; email: string; kind: "invite" | "reset" }) | null>(null);
   const [devicesOf, setDevicesOf] = useState<AdminUser | null>(null);
   const [activityOf, setActivityOf] = useState<AdminUser | null>(null);
+  const [brandsOf, setBrandsOf] = useState<AdminUser | null>(null);
   const [menu, setMenu] = useState<number | null>(null);
   const [menuUp, setMenuUp] = useState(false); // open the actions menu upwards near the bottom of the screen
 
@@ -180,6 +181,9 @@ export default function AdminUsers() {
     window.history.replaceState(null, "", t === "log" ? "?tab=log" : window.location.pathname);
   };
   const brandName = useMemo(() => new Map(brands.map((b) => [b.id, b])), [brands]);
+  const allBrandsInDrawer = brandsOf?.roles.includes("admin") ?? false;
+  const viewedBrands = allBrandsInDrawer ? brands : (brandsOf?.socialClients || []).map((id) =>
+    brandName.get(Number(id)) || { id: Number(id), name: `Brand #${id}`, color: null });
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: users?.length || 0 };
     (users || []).forEach((u) => { c[u.status] = (c[u.status] || 0) + 1; });
@@ -298,6 +302,7 @@ export default function AdminUsers() {
                 const isAdmin = u.roles.includes("admin");
                 const self = u.id === meId;
                 const social = u.roles.some((r) => SOCIAL_ROLES.includes(r));
+                const brandCount = (u.socialClients || []).length;
                 return (
                   <article key={u.id} className={"acc-ucard" + (u.status === "deactivated" ? " off" : "")}>
                     <div className="acc-uhd">
@@ -327,12 +332,13 @@ export default function AdminUsers() {
                     </div>
                     <div>
                       <div className="acc-lbl2">Content planner brands</div>
-                      <div className="acc-tags">
-                        {isAdmin ? <span className="acc-bchip"><i style={{ background: "var(--blue-500)" }}>★</i>All brands</span>
-                          : (u.socialClients || []).length ? u.socialClients.map((id) => {
-                            const b = brandName.get(Number(id));
-                            return <span key={id} className="acc-bchip"><i style={{ background: b?.color || "#3e60ab" }}>{(b?.name || "?")[0]}</i>{b?.name || `Brand #${id}`}</span>;
-                          }) : <span className="acc-none">{social ? "No brands ticked, so no planner access" : "Not a social media role"}</span>}
+                      <div className="acc-brand-summary">
+                        <span>{isAdmin ? "All brands" : brandCount ? `${brandCount} ${brandCount === 1 ? "brand" : "brands"}` : social ? "No brands assigned" : "No planner access"}</span>
+                        {(isAdmin || brandCount > 0) && (
+                          <button type="button" className="ss-chip" aria-haspopup="dialog" aria-label={`View brands for ${u.name}`} onClick={() => setBrandsOf(u)}>
+                            <Icon i={ViewIcon} size={15} />View brands
+                          </button>
+                        )}
                       </div>
                     </div>
                     <div className="acc-ufoot">
@@ -383,6 +389,20 @@ export default function AdminUsers() {
       )}
       {devicesOf && <DevicesDrawer user={devicesOf} onClose={() => setDevicesOf(null)} />}
       {activityOf && <ActivityDrawer user={activityOf} onClose={() => setActivityOf(null)} />}
+      {brandsOf && (
+        <Drawer title={`Brands for ${brandsOf.name}`} sub={allBrandsInDrawer ? "Admins have access to all planner brands." : "Assigned content planner brands"} onClose={() => setBrandsOf(null)}>
+          {viewedBrands.length ? (
+            <ul className="acc-brand-list">
+              {viewedBrands.map((brand) => (
+                <li className="acc-bchip" key={brand.id}>
+                  <i aria-hidden="true" style={{ background: brand.color || "var(--blue-500)" }}>{brand.name.charAt(0).toUpperCase()}</i>
+                  {brand.name}
+                </li>
+              ))}
+            </ul>
+          ) : <p className="ss-empty">No brands have been added yet.</p>}
+        </Drawer>
+      )}
     </div>
   );
 }
