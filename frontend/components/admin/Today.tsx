@@ -1,18 +1,16 @@
 "use client";
-import { WorkspaceHero } from "@/components/admin/Workspace";
+import { DisclosureSummary, WorkspaceHero } from "@/components/admin/Workspace";
 import { useDisclosure } from "@/lib/useDisclosure";
 import { useResourceState } from "@/lib/useResourceState";
 import PageLoading from "@/components/admin/PageLoading";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Mark } from "@/components/icons";
 import "./today.css";
-import { useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Mail01Icon, Alert02Icon, CheckmarkCircle02Icon, RupeeIcon, Clock01Icon, RepeatIcon, UserAdd01Icon, Target02Icon,
-  Calendar03Icon, Add01Icon, ArrowRight01Icon, ArrowDown01Icon, Upload01Icon, News01Icon, Briefcase01Icon, Rocket01Icon,
-  Task01Icon, Refresh01Icon, CallIcon, LayoutTable01Icon, Search01Icon, Settings02Icon,
+  Mail01Icon, Alert02Icon, CheckmarkCircle02Icon, Clock01Icon, RepeatIcon, UserAdd01Icon, Target02Icon,
+  Calendar03Icon, Add01Icon, ArrowRight01Icon, ArrowDown01Icon, Upload01Icon, News01Icon, Briefcase01Icon,
+  Refresh01Icon, CallIcon, Search01Icon, Settings02Icon,
 } from "@hugeicons/core-free-icons";
 import { api, type Overview, type Today as TodayData, type TodayNeed } from "@/lib/adminApi";
 import { useShell } from "@/components/admin/shell/ShellContext";
@@ -23,32 +21,24 @@ import { rolesCan } from "@/lib/permissions";
 import { toast } from "@/lib/toast";
 import { visibleInterval } from "@/lib/visibleInterval";
 
-/* Dashboard home ("Today"). Two requests at most, side by side:
-   GET /api/today (social area) and GET /api/overview (content / contact /
-   leads), each skipped when the roles can't see it. A team member also
-   loads their own assigned posts (light card fields) to see their work
-   first. Each card shows its own skeleton, empty state and error. */
-
-type Src<T> = { data: T | null; error: string; loading: boolean };
 const msg = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong");
 
 function useSource<T>(run: () => Promise<T>, enabled: boolean, key: string) {
-  const { data, error, loading, setData, setError, setLoading } = useResourceState<T | null>(null, false);
+  const { data, error, setData, setError } = useResourceState<T | null>(null, false);
   const runRef = useRef(run);
   runRef.current = run;
   const load = useCallback(async () => {
-    setLoading(true); setError("");
-    try { const next = await runRef.current(); setData(next); setError(""); setLoading(false); }
-    catch (e) { setError(msg(e)); setLoading(false); }
-  }, [setData, setError, setLoading]);
-  useEffect(() => { if (enabled) load(); else { setData(null); setError(""); setLoading(false); } }, [enabled, key, load, setData, setError, setLoading]);
+    try { setData(await runRef.current()); setError(""); }
+    catch (e) { setError(msg(e)); }
+  }, [setData, setError]);
+  useEffect(() => { if (enabled) load(); else { setData(null); setError(""); } }, [enabled, key, load, setData, setError]);
   useEffect(() => {
     if (!enabled) return;
     const stop = visibleInterval(load, 120000);
     window.addEventListener("fv-badges", load);
     return () => { stop(); window.removeEventListener("fv-badges", load); };
   }, [enabled, key, load]);
-  return { data, error, loading, reload: load, setData: (fn: (d: T) => T) => setData(previous => previous ? fn(previous) : previous) };
+  return { data, error, reload: load, setData: (fn: (d: T) => T) => setData(previous => previous ? fn(previous) : previous) };
 }
 
 /* ── formatting ── */
@@ -81,49 +71,24 @@ const OPEN_STAGES = ["new", "contacted", "qualified", "proposal"];
 /* ── small pieces ── */
 const Ic = ({ i, size = 18 }: { i: Icon; size?: number }) => <HugeiconsIcon icon={i} size={size} strokeWidth={1.8} className="hgi" />;
 
-function CardError({ text, onRetry }: { text: string; onRetry: () => void }) {
+function CardError({ text, onRetry }: { text: string; onRetry: () => Promise<void> }) {
+  const [retrying, setRetrying] = useState(false);
   return (
     <div className="sh-empty err" role="alert">
       <Ic i={Alert02Icon} size={20} />
       <b>Couldn&apos;t load this</b>
       <span>{text}</span>
-      <button type="button" className="sh-btn sm" onClick={onRetry}><Ic i={Refresh01Icon} size={15} />Try again</button>
+      <button type="button" className="sh-btn sm" disabled={retrying} onClick={async () => {
+        setRetrying(true);
+        try { await onRetry(); } finally { setRetrying(false); }
+      }}><Ic i={Refresh01Icon} size={15} />{retrying ? "Trying again…" : "Try again"}</button>
     </div>
   );
 }
-const SkelRows = ({ n = 4, h = 44 }: { n?: number; h?: number }) => (
-  <div aria-busy="true" aria-label="Loading" style={{ display: "grid", gap: 14 }}>
-    {Array.from({ length: n }).map((_, i) => (
-      <div key={i} style={{ display: "flex", gap: 14, alignItems: "center" }}>
-        <span className="skel" style={{ width: h - 4, height: h - 4, borderRadius: 12, flex: "none" }} />
-        <span style={{ flex: 1, display: "grid", gap: 7 }}>
-          <span className="skel skel-line" style={{ width: `${70 - i * 8}%` }} />
-          <span className="skel skel-line" style={{ width: `${45 - i * 4}%`, height: 10 }} />
-        </span>
-      </div>
-    ))}
-  </div>
-);
-
-/* ── KPI card ── */
-type Kpi = { key: string; label: string; icon: Icon; tone: "red" | "violet" | "blue" | "amber" | "green"; href: string; value?: string | number; sub?: string; loading?: boolean; error?: boolean };
-function KpiCard({ k, hero }: { k: Kpi; hero: boolean }) {
-  return (
-    <Link href={k.href} className={"td-kpi " + (hero ? "td-hero" : k.tone)} aria-busy={k.loading || undefined}>
-      <span className="td-k"><span className="td-kic"><Ic i={k.icon} size={17} /></span>{k.label}</span>
-      {k.loading ? <span className="skel" style={{ width: 70, height: 34, borderRadius: 9, margin: "6px 0 4px", opacity: hero ? 0.5 : 1 }} />
-        : <span className="td-v">{k.error ? "—" : k.value}</span>}
-      {k.loading ? <span className="skel skel-line" style={{ width: "70%", height: 10, opacity: hero ? 0.5 : 1 }} />
-        : <span className="td-s">{k.error ? "Couldn't load" : k.sub}</span>}
-    </Link>
-  );
-}
-
-/* ── Needs you ── */
 type Need = {
-  key: string; tone: "red" | "violet" | "amber" | "blue" | "green"; icon: Icon; title: string;
+  key: string; tone: "red" | "violet" | "amber" | "blue"; icon: Icon; title: string; postId?: number;
   pill?: { text: string; tone: string }; meta?: string;
-  action: { label: string; href: string } | { label: string; run: () => Promise<void>; primary?: boolean };
+  action?: { label: string; href: string } | { label: string; run: () => Promise<void>; primary?: boolean };
 };
 
 function NeedRow({ n }: { n: Need }) {
@@ -136,69 +101,59 @@ function NeedRow({ n }: { n: Need }) {
         <b>{n.title}</b>
         {(n.pill || n.meta) && <div className="td-meta">{n.pill && <span className={"sh-pill nodot " + n.pill.tone}>{n.pill.text}</span>}{n.meta && <span className="td-meta-t">{n.meta}</span>}</div>}
       </div>
-      {"href" in a
+      {a && ("href" in a
         ? <Link href={a.href} className="sh-btn sm">{a.label}<Ic i={ArrowRight01Icon} size={15} /></Link>
         : <button type="button" className={"sh-btn sm" + (a.primary ? " pri" : "")} disabled={busy}
           onClick={async () => { setBusy(true); try { await a.run(); } finally { setBusy(false); } }}>
           {busy ? "Working…" : a.label}<Ic i={ArrowRight01Icon} size={15} />
-        </button>}
+        </button>)}
     </div>
   );
 }
 
-/* ── This-week chart (Mon–Sun, today highlighted) ── */
-function WeekChart({ week, today }: { week: TodayData["week"]; today: string }) {
-  const router = useRouter();
-  const open = () => router.push("/dashboard/social");
-  const W = 560, H = 200, pl = 26, pb = 34, pt = 22, bw = 46, gap = (W - pl - 7 * bw) / 7;
-  const max = Math.max(4, ...week.map((w) => w.total));
-  const y = (v: number) => pt + (H - pt - pb) * (1 - v / max);
-  const ticks = [0, Math.round(max / 2), max];
-  const label = week.map((w) => `${dayFmt(w.day, { weekday: "long" })}: ${w.total} (${w.ready} ready or live)`).join("; ");
+function PublishingWeek({ data }: { data: TodayData }) {
+  const max = Math.max(1, ...data.week.map((day) => day.total));
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Posts going live each day this week. ${label}`} className="td-chart">
-      {ticks.map((t) => (
-        <g key={t}>
-          <line x1={pl} x2={W} y1={y(t)} y2={y(t)} stroke="var(--td-line)" strokeDasharray={t ? "3 4" : undefined} />
-          <text x={pl - 8} y={y(t) + 4} textAnchor="end">{t}</text>
-        </g>
-      ))}
-      {week.map((w, i) => {
-        const x = pl + gap / 2 + i * (bw + gap);
-        const making = Math.max(0, w.total - w.ready);
-        const yr = y(w.ready), ym = y(w.total);
-        const isT = w.day === today;
-        return (
-          <g key={w.day} className="td-day" role="link" tabIndex={0} onClick={open}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }}
-            aria-label={`${dayFmt(w.day, { weekday: "long", day: "numeric", month: "long" })}: ${plural(w.total, "post")}, ${w.ready} ready or live. Open the calendar`}>
-              {isT && <rect x={x - 6} y={pt - 14} width={bw + 12} height={H - pb - pt + 14} rx={12} fill="var(--td-brand-soft)" />}
-              <rect x={x - 4} y={pt - 14} width={bw + 8} height={H - pb - pt + 14} fill="transparent" />
-              {w.ready > 0 && <rect x={x} y={yr} width={bw} height={y(0) - yr} rx={8} fill="var(--td-brand)" />}
-              {making > 0 && <rect x={x + 1} y={ym + 1} width={bw - 2} height={Math.max(2, yr - ym - 3)} rx={8} fill="var(--td-amber-bg)" stroke="var(--td-amber)" strokeDasharray="4 3" />}
-              {w.total > 0 && <text className="lbl" x={x + bw / 2} y={ym - 6} textAnchor="middle">{w.total}</text>}
-              <text x={x + bw / 2} y={H - 14} textAnchor="middle" className={isT ? "now" : undefined}>{isT ? "Today" : dayFmt(w.day, { weekday: "short" })}</text>
-              <text x={x + bw / 2} y={H - 1} textAnchor="middle">{Number(w.day.slice(8, 10))}</text>
-          </g>
-        );
-      })}
-    </svg>
+    <>
+      <ul className="td-week-chart" aria-label="Posts by go-live date in India time" role="list">
+        {data.week.map(({ day, total, ready }) => (
+          <li key={day} className="td-week-day" aria-current={day === data.today ? "date" : undefined}>
+            <span className="td-visually-hidden">
+              {dayFmt(day, { weekday: "long", day: "numeric", month: "long" })},
+              {" "}{plural(total, "post")}, {ready} ready or live
+            </span>
+            <div className="td-week-pillar" aria-hidden="true">
+              <b>{total}</b>
+              {total > 0 && (
+                <div className="td-week-bar" style={{ height: `calc(var(--td-week-bar-height) * ${total / max})` }}>
+                  {total > ready && <span className="td-week-pending" style={{ flexGrow: total - ready }} />}
+                  {ready > 0 && <span className="td-week-ready" style={{ flexGrow: ready }} />}
+                </div>
+              )}
+            </div>
+            <time dateTime={day} aria-hidden="true">
+              {dayFmt(day, { weekday: "short" })}<strong>{Number(day.slice(8, 10))}</strong>
+            </time>
+          </li>
+        ))}
+      </ul>
+      <div className="td-week-legend">
+        <span><i className="td-week-ready" />Ready or live</span>
+        <span><i className="td-week-pending" />Not ready</span>
+      </div>
+    </>
   );
 }
 
-/* Mounts SocialKpis only when it scrolls near the screen (saves a request). */
-function LazyKpis({ mode }: { mode: "team" | "me" }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [show, setShow] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || show) return;
-    if (!("IntersectionObserver" in window)) { setShow(true); return; }
-    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { setShow(true); io.disconnect(); } }, { rootMargin: "300px" });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [show]);
-  return <div ref={ref} className="td-kpis-perf" id="performance">{show ? <SocialKpis mode={mode} /> : <div className="sh-card"><SkelRows n={2} /></div>}</div>;
+function Performance({ mode }: { mode: "team" | "me" }) {
+  const [opened, setOpened] = useState(false);
+  return (
+    <details className="sh-card td-performance" id="performance"
+      onToggle={(event) => { if (event.currentTarget.open) setOpened(true); }}>
+      <DisclosureSummary>{mode === "team" ? "Social media performance" : "My performance"}</DisclosureSummary>
+      {opened && <SocialKpis mode={mode} />}
+    </details>
+  );
 }
 
 /* ── Create menu ── */
@@ -262,14 +217,14 @@ export default function Today() {
     } catch (e) { toast("Couldn't retry it", "err", { description: msg(e) }); }
   }, [today]);
 
-  /* ── Needs you (most urgent first) ── */
+  /* Keep actionable items in priority order. */
   const needs = useMemo<Need[]>(() => {
     const out: Need[] = [];
     const items = t?.needsYou || [];
     for (const n of items.filter((x) => x.kind === "failed")) {
       const retryable = n.status === "failed" || n.status === "missed";
       out.push({
-        key: `f${n.id}`, tone: "red", icon: Alert02Icon, title: n.title,
+        key: `f${n.id}`, postId: n.postId, tone: "red", icon: Alert02Icon, title: n.title,
         pill: { text: n.status === "check" ? "Check it posted" : n.status === "missed" ? "Missed" : "Failed", tone: n.status === "check" ? "amber" : "red" },
         meta: n.sub,
         action: retryable ? { label: "Retry now", run: () => retry(n), primary: true } : { label: "Check post", href: n.link },
@@ -279,25 +234,25 @@ export default function Today() {
     const apprCount = isAdmin ? Math.max(appr.length, t?.counts.approvals || 0) : appr.length;
     if (apprCount === 1 && appr[0]) {
       const a = appr[0];
-      out.push({ key: `a${a.id}`, tone: "violet", icon: CheckmarkCircle02Icon, title: a.title.replace(/^Approve: /, "Approve “") + (a.title.startsWith("Approve: ") ? "”" : ""), pill: { text: "Pending approval", tone: "violet" }, meta: a.sub, action: { label: "Review", href: a.link } });
-    } else if (apprCount > 1) {
+      out.push({ key: `a${a.id}`, postId: a.postId ?? a.id, tone: "violet", icon: CheckmarkCircle02Icon, title: a.title.replace(/^Approve: /, "Approve “") + (a.title.startsWith("Approve: ") ? "”" : ""), pill: { text: "Pending approval", tone: "violet" }, meta: a.sub, action: { label: "Review", href: a.link } });
+    } else if (apprCount > 0) {
       const brands = [...new Set(appr.map((x) => x.client).filter(Boolean))];
       out.push({
-        key: "appr", tone: "violet", icon: CheckmarkCircle02Icon, title: `${apprCount} posts are waiting for your approval`,
+        key: "appr", tone: "violet", icon: CheckmarkCircle02Icon, title: `${plural(apprCount, "post is", "posts are")} waiting for your approval`,
         pill: appr[0] ? { text: appr[0].sub.split(" · ").pop() || "Pending approval", tone: "violet" } : { text: "Pending approval", tone: "violet" },
-        meta: brands.join(", "), action: { label: `Review ${apprCount}`, href: appr.length === 1 ? appr[0].link : "/dashboard/social" },
+        meta: brands.join(", "), action: { label: "Review posts", href: appr.length === 1 ? appr[0].link : "/dashboard/social" },
       });
     }
-    const overdue = teamHome ? mine.data?.overdue || 0 : t?.counts.overdue || 0;
+    const overdue = teamHome ? 0 : t?.counts.overdue || 0;
     if (overdue > 0) {
       out.push({
         key: "late", tone: "amber", icon: Clock01Icon,
-        title: teamHome ? `${plural(overdue, "of your posts is", "of your posts are")} past the go-live date` : `${plural(overdue, "post")} past the go-live date`,
-        pill: { text: "Overdue", tone: "amber" }, meta: "Not posted yet", action: { label: "Open calendar", href: "/dashboard/social" },
+        title: `${plural(overdue, "post")} past the go-live date`,
+        meta: "Overdue",
       });
     }
     for (const n of items.filter((x) => x.kind === "atRisk")) {
-      out.push({ key: `r${n.id}`, tone: "amber", icon: Clock01Icon, title: n.title, pill: { text: "At risk", tone: "amber" }, meta: n.sub, action: { label: "Open post", href: n.link } });
+      out.push({ key: `r${n.id}`, postId: n.postId ?? n.id, tone: "amber", icon: Clock01Icon, title: n.title, pill: { text: "At risk", tone: "amber" }, meta: n.sub, action: { label: "Open post", href: n.link } });
     }
     for (const l of (o?.leads?.due || []).slice(0, 3)) {
       const d = String(l.nextFollowUpAt || "").slice(0, 10);
@@ -330,59 +285,8 @@ export default function Today() {
         pill: { text: l.source || "New", tone: "blue" }, meta: l.value ? `Est. ${inr(l.value)}` : undefined, action: { label: "Open lead", href: `/dashboard/leads?lead=${l.id}` },
       });
     }
-    const unread = o?.contact?.unread || 0;
-    if (unread > 0) {
-      const un = (o?.contact?.recent || []).filter((m) => !m.isRead);
-      out.push({
-        key: "inbox", tone: "blue", icon: Mail01Icon, title: `${plural(unread, "unread message")} in the contact inbox`,
-        meta: un.length ? `From ${[...new Set(un.map((m) => m.name))].join(", ")}` : undefined,
-        action: { label: "Read", href: unread === 1 && un[0] ? `/dashboard/contact?msg=${un[0].id}` : "/dashboard/contact" },
-      });
-    }
     return out;
-  }, [t, o, isAdmin, teamHome, mine.data, todayIso, retry]);
-
-  /* ── KPIs: the four most useful for these roles ── */
-  const kpis = useMemo<Kpi[]>(() => {
-    const L = (s: Src<unknown>) => ({ loading: s.loading && !s.data, error: !!s.error && !s.data });
-    const list: Kpi[] = [];
-    if (teamHome) {
-      const m = { loading: !mine.data && !mine.error, error: !!mine.error && !mine.data };
-      const d = mine.data;
-      list.push(
-        { key: "now", label: "Work on now", icon: Task01Icon, tone: "blue", href: "/dashboard/social", value: d?.workNow ?? 0, sub: d ? (d.open ? `${plural(d.open, "open post")} across ${plural(d.brands, "brand")}` : "Nothing assigned right now") : "", ...m },
-        { key: "late", label: "Overdue", icon: Alert02Icon, tone: "red", href: "/dashboard/social", value: d?.overdue ?? 0, sub: "Go-live time passed · IST", ...m },
-        { key: "start", label: "Starting this week", icon: Rocket01Icon, tone: "amber", href: "/dashboard/social", value: d?.startingSoon ?? 0, sub: "Start date in the next 7 days", ...m },
-        { key: "live", label: "Going live this week", icon: Calendar03Icon, tone: "violet", href: "/dashboard/social", value: d?.goingLive ?? 0, sub: "Go-live in the next 7 days", ...m },
-      );
-      return list;
-    }
-    if (canContact) {
-      const un = (o?.contact?.recent || []).find((m) => !m.isRead);
-      list.push({ key: "unread", label: "Unread messages", icon: Mail01Icon, tone: "blue", href: "/dashboard/contact", value: o?.contact?.unread ?? 0, sub: o?.contact?.unread ? (un ? `Latest from ${un.name}, ${dateFmt(un.createdAt)}` : "In the contact inbox") : "Inbox zero", ...L(ov) });
-    }
-    if (canSocial) {
-      list.push({ key: "late", label: "Overdue posts", icon: Alert02Icon, tone: "red", href: "/dashboard/social", value: t?.counts.overdue ?? 0, sub: "Go-live time passed · not posted", ...L(today) });
-      list.push({ key: "appr", label: "Waiting for approval", icon: CheckmarkCircle02Icon, tone: "violet", href: "/dashboard/social", value: t?.counts.approvals ?? 0, sub: isAdmin ? "Sent to you by the team" : "In Pending approval", ...L(today) });
-    }
-    if (canLeads) {
-      const by = o?.leads?.byStage || {};
-      const pipe = OPEN_STAGES.reduce((s, k) => s + (by[k]?.value || 0), 0);
-      const openN = OPEN_STAGES.reduce((s, k) => s + (by[k]?.count || 0), 0);
-      const fu = (o?.leads?.followUpToday || 0) + (o?.leads?.followUpOverdue || 0);
-      list.push({ key: "pipe", label: "Leads pipeline", icon: RupeeIcon, tone: "blue", href: "/dashboard/leads", value: inrShort(pipe), sub: `${plural(openN, "open lead")} · ${fu ? `${plural(fu, "follow-up")} due` : `${by.won?.count || 0} won`}`, ...L(ov) });
-      list.push({ key: "fu", label: "Follow-ups due", icon: CallIcon, tone: "amber", href: "/dashboard/leads", value: fu, sub: `${o?.leads?.followUpOverdue || 0} overdue · ${o?.leads?.followUpToday || 0} today`, ...L(ov) });
-    }
-    if (canSocial) {
-      list.push({ key: "week", label: "Going live this week", icon: Calendar03Icon, tone: "blue", href: "/dashboard/social", value: t?.counts.goingLiveWeek ?? 0, sub: t ? `${t.counts.scheduledWeek} ready or live · ${Math.max(0, t.counts.goingLiveWeek - t.counts.scheduledWeek)} still being made` : "", ...L(today) });
-      list.push({ key: "ontime", label: "On time this month", icon: CheckmarkCircle02Icon, tone: "green", href: "#performance", value: t?.counts.onTimeMonthPct == null ? "—" : `${t.counts.onTimeMonthPct}%`, sub: "Posts finished by their due date", ...L(today) });
-    }
-    if (canContent) {
-      const c = o?.counts || {};
-      list.push({ key: "content", label: "Website items", icon: LayoutTable01Icon, tone: "blue", href: "/dashboard/projects", value: Object.values(c).reduce((a, b) => a + (Number(b) || 0), 0), sub: `${c.projects || 0} projects · ${c.blog || 0} blog posts`, ...L(ov) });
-    }
-    return list.slice(0, 4);
-  }, [teamHome, mine.data, mine.error, canContact, canSocial, canLeads, canContent, isAdmin, o, t, ov, today]);
+  }, [t, o, isAdmin, teamHome, todayIso, retry]);
 
   const createItems = [
     canContent && { label: "New case study", href: "/dashboard/projects", icon: Briefcase01Icon },
@@ -392,186 +296,150 @@ export default function Today() {
     canRenewals && { label: "Add a renewal", href: "/dashboard/renewals", icon: RepeatIcon },
   ].filter(Boolean) as { label: string; href: string; icon: Icon }[];
 
-  const needsLoading = !ready || (canSocial && today.loading && !t) || ((canContact || canLeads) && ov.loading && !o) || (teamHome && !mine.data && !mine.error);
-  const needsErr = [canSocial && today.error && !t ? today : null, (canContact || canLeads) && ov.error && !o ? ov : null].filter(Boolean) as { error: string; reload: () => void }[];
-  const weekTotal = t?.counts.goingLiveWeek ?? 0;
-  const subline = [
-    needsLoading ? null : needs.length ? `${plural(needs.length, "thing needs", "things need")} you today` : "Nothing needs you right now",
-    canSocial && t ? `${plural(weekTotal, "post goes", "posts go")} live this week` : null,
-  ].filter(Boolean).join(" · ");
-
-  /* Nothing to show for this role (e.g. SEO): a short list of their pages. */
   const bare = ready && !canSocial && !canContact && !canLeads && !canContent;
+  const showNeeds = (canSocial && t) || (canLeads && o);
+  const showWeek = canSocial && t;
+  const showMessages = canContact && o;
+  const showPipeline = canLeads && o;
+  const showContent = canContent && o;
+  const alertPostIds = new Set(needs.map((need) => need.postId));
+  const queue = mine.data?.queue.filter(({ p }) => !alertPostIds.has(p.id)) || [];
 
   const by = o?.leads?.byStage || {};
   const stageRows = STAGES.map((s) => ({ ...s, n: by[s.id]?.count || 0, v: by[s.id]?.value || 0 }));
-  const totalV = stageRows.reduce((a, s) => a + s.v, 0);
-  const won = by.won?.count || 0, lost = by.lost?.count || 0;
-  const content = (["projects", "services", "testimonials", "team", "blog"] as const).map((k) => ({ k, label: k === "blog" ? "Blog posts" : k === "projects" ? "Portfolio" : k === "team" ? "Website team" : k[0].toUpperCase() + k.slice(1), n: o?.counts?.[k] || 0 }));
-  const cmax = Math.max(1, ...content.map((c) => c.n));
+  const pipelineValue = OPEN_STAGES.reduce((sum, stage) => sum + (by[stage]?.value || 0), 0);
+  const closedLeads = (by.won?.count || 0) + (by.lost?.count || 0);
+  const winRate = closedLeads ? Math.round(((by.won?.count || 0) / closedLeads) * 100) : null;
+  const content = [
+    { key: "projects", label: "Portfolio" },
+    { key: "services", label: "Services" },
+    { key: "testimonials", label: "Testimonials" },
+    { key: "team", label: "Website team" },
+    { key: "blog", label: "Blog posts" },
+  ].map((item) => ({ ...item, count: o?.counts?.[item.key] || 0 }));
+  const contentMax = Math.max(1, ...content.map((item) => item.count));
+  const unread = o?.contact?.unread || 0;
+  const isLoading = !ready || (canSocial && !t && !today.error) ||
+    ((canContent || canContact || canLeads) && !o && !ov.error) || (teamHome && !mine.data && !mine.error);
+  const date = now?.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: IST });
 
-  if (!ready || (canSocial && !t && !today.error) || ((canContent || canContact || canLeads) && !o && !ov.error) || (teamHome && !mine.data && !mine.error)) return <div className="td td-overview"><WorkspaceHero title="Overview" eyebrow="Workspace" /><PageLoading label="Loading your workspace…" variant="panel" count={3} /></div>;
   return (
-    <div className="td td-overview">
-      <WorkspaceHero eyebrow={<>{now ? now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: IST }) : " "}</>} title={<>{teamHome ? "My work, in focus." : "Your day, in focus."}</>} description={<>{hello}{first ? `, ${first}` : ""}. {subline || "Your workspace is getting ready."}</>} actions={<> <div className="td-acts">
-          <CreateMenu items={createItems} />
-        </div> </>} />
+    <div className="td">
+      <WorkspaceHero eyebrow={date || "Overview"} title={teamHome ? "My work" : "Dashboard"}
+        description={first && now ? `${hello}, ${first}.` : undefined}
+        actions={ready && createItems.length ? <CreateMenu items={createItems} /> : undefined} />
 
-      <div className="td-focus-grid">
-        <section className="td-focus-hero" aria-labelledby="td-focus-heading">
-          <Mark className="td-focus-mark" />
-          <span className="td-focus-eyebrow">Your workspace, in focus</span>
-          <h2 id="td-focus-heading">Good work starts<br /><span>with a clear next step.</span></h2>
-          <div className="td-focus-bottom"><p role="status">{needsLoading ? "Checking your workspace…" : needsErr.length || (teamHome && mine.error) ? "Some updates need a retry. Check the panels below." : needs.length ? `${plural(needs.length, "next action")} ready for your attention.` : "All clear. Make room for your next idea."}</p>
-            {canSocial ? <Link href="/dashboard/social" className="sh-btn">{teamHome ? "Open my work" : "Open calendar"}<Ic i={ArrowRight01Icon} size={16} /></Link> : createItems[0] ? <Link href={createItems[0].href} className="sh-btn">Open workspace<Ic i={ArrowRight01Icon} size={16} /></Link> : <Link href={can("seo") ? "/dashboard/seo" : "/dashboard/account"} className="sh-btn">Open workspace<Ic i={ArrowRight01Icon} size={16} /></Link>}
-          </div>
-        </section>
-        <section className="sh-card td-focus-week" aria-labelledby="td-focus-week">
-          <div className="sh-card-h"><h2 id="td-focus-week">{canSocial ? "Your week, at a glance" : "Your workspace"}<small>{canSocial ? "Posts by go-live date · India time" : "Shortcuts shaped by your access"}</small></h2></div>
-          {canSocial ? today.error && !t ? <CardError text={today.error} onRetry={today.reload} /> : !t ? <SkelRows n={2} h={30} /> : <>
-            <div className="td-miniweek">{t.week.map((weekDay) => <Link key={weekDay.day} href="/dashboard/social" className={weekDay.day === t.today ? "on" : ""} aria-label={`${dayFmt(weekDay.day, { weekday: "long", day: "numeric", month: "long" })}: ${plural(weekDay.total, "post")}, ${weekDay.ready} ready or live`}><span>{dayFmt(weekDay.day, { weekday: "short" })}</span><b>{Number(weekDay.day.slice(8, 10))}</b><small>{weekDay.total ? plural(weekDay.total, "post") : "—"}</small></Link>)}</div>
-            <p className="td-week-note"><Ic i={Calendar03Icon} size={16} />{plural(t.counts.goingLiveWeek, "post")} this week · {t.counts.scheduledWeek} ready or live</p>
-          </> : <div className="td-focus-shortcuts">{createItems.slice(0, 3).map((item) => <Link key={item.href} href={item.href}><Ic i={item.icon} size={18} /><span>{item.label}</span><Ic i={ArrowRight01Icon} size={15} /></Link>)}{!createItems.length && <Link href={can("seo") ? "/dashboard/seo" : "/dashboard/account"}><Ic i={Settings02Icon} size={18} /><span>{can("seo") ? "SEO & sharing" : "My account"}</span></Link>}</div>}
-        </section>
-      </div>
-
-      {!ready ? (
-        <div className="td-kpis">{[0, 1, 2, 3].map((i) => <KpiCard key={i} hero={false} k={{ key: String(i), label: " ", icon: Task01Icon, tone: "blue", href: "#", loading: true }} />)}</div>
-      ) : kpis.length > 0 && (
-        <div className="td-kpis">{kpis.map((k) => <KpiCard key={k.key} k={k} hero={false} />)}</div>
-      )}
-
-      {bare ? (
-        <section className="sh-card">
-          <div className="sh-card-h"><h2>Your pages<small>Jump straight to your work</small></h2></div>
+      {isLoading ? <PageLoading label="Loading your workspace…" variant="panel" count={3} /> : bare ? (
+        <section className="sh-card" aria-labelledby="td-pages">
+          <div className="sh-card-h"><h2 id="td-pages">Your pages</h2></div>
           <div className="td-links">
             {can("seo") && <Link href="/dashboard/seo" className="sh-btn"><Ic i={Search01Icon} size={17} />SEO</Link>}
             {can("settings") && <Link href="/dashboard/settings" className="sh-btn"><Ic i={Settings02Icon} size={17} />Settings &amp; pixels</Link>}
-            {can("renewals") && <Link href="/dashboard/renewals" className="sh-btn"><Ic i={RepeatIcon} size={17} />Renewals</Link>}
+            {canRenewals && <Link href="/dashboard/renewals" className="sh-btn"><Ic i={RepeatIcon} size={17} />Renewals</Link>}
+            <Link href="/dashboard/account" className="sh-btn">My account</Link>
           </div>
         </section>
       ) : (
-        <div className="td-grid">
-          <div className="td-col">
-            <section className="sh-card" aria-labelledby="td-needs">
-              <div className="sh-card-h"><h2 id="td-needs">Needs you<small>{needsLoading ? "Checking…" : needs.length ? `${plural(needs.length, "item")} · most urgent first` : "Nothing waiting on you"}</small></h2></div>
-              {needsLoading ? <SkelRows n={4} /> : (
-                <>
-                  {needsErr.map((s, i) => <div key={i} style={{ marginBottom: 12 }}><CardError text={s.error} onRetry={s.reload} /></div>)}
-                  {needs.length > 0 ? <div className="td-needs">{needs.map((n) => <NeedRow key={n.key} n={n} />)}</div>
-                    : !needsErr.length && <div className="sh-empty"><Ic i={CheckmarkCircle02Icon} size={20} /><b>All clear</b><span>Nothing needs you right now. New approvals, failed posts and follow-ups show up here.</span></div>}
-                </>
+        <>
+          {canSocial && !t && today.error && <CardError text={`Content calendar: ${today.error}`} onRetry={today.reload} />}
+          {(canContent || canContact || canLeads) && !o && ov.error && (
+            <CardError text={`Website overview: ${ov.error}`} onRetry={ov.reload} />
+          )}
+          {(showNeeds || teamHome || showWeek || showMessages) && <div className="td-home-grid">
+            {(showNeeds || teamHome) && <div className="td-home-column">
+              {showNeeds && <section className="sh-card" aria-labelledby="td-needs">
+                <div className="sh-card-h">
+                  <h2 id="td-needs">Needs attention</h2>
+                </div>
+                {needs.length > 0 ? (
+                  <div className="td-needs">{needs.map((need) => <NeedRow key={need.key} n={need} />)}</div>
+                ) : (
+                  <div className="sh-empty"><Ic i={CheckmarkCircle02Icon} size={20} /><b>No urgent items</b></div>
+                )}
+              </section>}
+              {teamHome && (
+                <section className="sh-card" aria-labelledby="td-queue">
+                  <div className="sh-card-h"><h2 id="td-queue">My queue
+                    {!!mine.data?.overdue && <small>{plural(mine.data.overdue, "assigned post")} past the go-live date</small>}
+                  </h2><Link href="/dashboard/social?assigned=me" className="sh-link">View assigned posts<Ic i={ArrowRight01Icon} size={15} /></Link></div>
+                  {mine.error && !mine.data ? <CardError text={mine.error} onRetry={mine.reload} />
+                    : <MyQueue queue={queue} emptyText={mine.data?.queue.length ? "Your assigned posts are listed under Needs attention." : undefined} />}
+                </section>
               )}
-            </section>
-
-            {teamHome && (
-              <section className="sh-card" aria-labelledby="td-queue">
-                <div className="sh-card-h"><h2 id="td-queue">My queue<small>Posts assigned to you, most urgent first</small></h2><Link href="/dashboard/social" className="sh-link">Open calendar<Ic i={ArrowRight01Icon} size={15} /></Link></div>
-                {mine.error && !mine.data ? <CardError text={mine.error} onRetry={mine.reload} /> : !mine.data ? <SkelRows n={4} h={36} /> : <MyQueue data={mine.data} />}
-              </section>
-            )}
-
-            {canSocial && (
-              <section className="sh-card td-chartcard" aria-labelledby="td-week">
-                <div className="sh-card-h">
-                  <h2 id="td-week">Posts going live this week<small>{t ? `${dayFmt(t.weekFrom, { day: "numeric", month: "short" })} – ${dayFmt(t.weekTo, { day: "numeric", month: "short" })} · tap a day to open the calendar` : "This week"}</small></h2>
-                  <div className="td-legend"><span><i style={{ background: "var(--td-brand)" }} />Ready / live</span><span><i className="dash" />Still being made</span></div>
-                </div>
-                {today.error && !t ? <CardError text={today.error} onRetry={today.reload} />
-                  : !t ? <span className="skel" style={{ height: 200, borderRadius: 14 }} />
-                    : t.week.every((w) => !w.total) ? <div className="sh-empty"><Ic i={Calendar03Icon} size={20} /><b>Nothing goes live this week</b><span>Posts with a go-live date this week will show here.</span></div>
-                      : <WeekChart week={t.week} today={t.today} />}
-              </section>
-            )}
-
-            {canLeads && (
-              <section className="sh-card" aria-labelledby="td-leads">
-                <div className="sh-card-h">
-                  <h2 id="td-leads">Leads pipeline<small>{o?.leads ? `${inr(totalV)} across ${plural(o.leads.total, "lead")} · win rate ${won + lost ? Math.round((won / (won + lost)) * 100) : 0}%` : "By stage"}</small></h2>
-                  <Link href="/dashboard/leads" className="sh-link">Open leads<Ic i={ArrowRight01Icon} size={15} /></Link>
-                </div>
-                {ov.error && !o ? <CardError text={ov.error} onRetry={ov.reload} />
-                  : !o ? <SkelRows n={2} />
-                    : !o.leads?.total ? <div className="sh-empty"><Ic i={Target02Icon} size={20} /><b>No leads yet</b><span>Leads from the website form and the ones you add show up here.</span><Link href="/dashboard/leads" className="sh-btn sm">Add a lead</Link></div>
-                      : <>
-                        {totalV > 0 && <div className="td-stack" role="img" aria-label="Pipeline value by stage">{stageRows.filter((s) => s.v).map((s) => <i key={s.id} style={{ width: `${(s.v / totalV) * 100}%`, background: s.c }} title={`${s.name}: ${inr(s.v)}`} />)}</div>}
-                        <div className="td-stages">
-                          {stageRows.map((s) => (
-                            <Link key={s.id} href="/dashboard/leads" className="td-stg">
-                              <small><i style={{ background: s.c }} />{s.name}</small>
-                              <b>{s.n}</b>
-                              <span>{inrShort(s.v)}</span>
-                            </Link>
-                          ))}
-                        </div>
-                      </>}
-              </section>
-            )}
-          </div>
-
-          <div className="td-col">
-            {canContact && (
-              <section className="sh-card" aria-labelledby="td-msgs">
-                <div className="sh-card-h"><h2 id="td-msgs">Recent messages</h2><Link href="/dashboard/contact" className="sh-link">View all<Ic i={ArrowRight01Icon} size={15} /></Link></div>
-                {ov.error && !o ? <CardError text={ov.error} onRetry={ov.reload} />
-                  : !o ? <SkelRows n={4} h={36} />
-                    : !o.contact?.recent.length ? <div className="sh-empty"><Ic i={Mail01Icon} size={20} /><b>No messages yet</b><span>Messages from the website contact form land here.</span></div>
-                      : <div>{o.contact.recent.slice(0, 4).map((m) => (
+            </div>}
+            {(showWeek || showMessages) && <div className="td-home-column">
+              {showWeek && (
+                <section className="sh-card" aria-labelledby="td-week">
+                  <div className="sh-card-h">
+                    <h2 id="td-week">Publishing this week
+                      <small>{dayFmt(showWeek.weekFrom, { day: "numeric", month: "short" })} – {dayFmt(showWeek.weekTo, { day: "numeric", month: "short" })}{showWeek.counts.goingLiveWeek > 0 && ` · ${plural(showWeek.counts.goingLiveWeek, "post")}`}</small>
+                    </h2>
+                    <Link href="/dashboard/social" className="sh-link">Open calendar<Ic i={ArrowRight01Icon} size={15} /></Link>
+                  </div>
+                  {showWeek.counts.goingLiveWeek > 0 ? <PublishingWeek data={showWeek} /> : (
+                    <div className="sh-empty"><Ic i={Calendar03Icon} size={20} /><b>No posts scheduled to go live</b></div>
+                  )}
+                </section>
+              )}
+              {showMessages && (
+                <section className="sh-card" aria-labelledby="td-msgs">
+                  <div className="sh-card-h">
+                    <h2 id="td-msgs">Recent messages{unread > 0 && <small>{unread} unread</small>}</h2>
+                    <Link href="/dashboard/contact" className="sh-link">Open inbox<Ic i={ArrowRight01Icon} size={15} /></Link>
+                  </div>
+                  {!showMessages.contact?.recent.length ? <div className="sh-empty"><Ic i={Mail01Icon} size={20} /><b>No messages yet</b></div>
+                      : <div>{showMessages.contact.recent.slice(0, 4).map((m) => (
                         <Link key={m.id} href={`/dashboard/contact?msg=${m.id}`} className="td-msg">
                           <span className="sh-av" style={{ background: avColor(m.name), width: 32, height: 32, fontSize: 11 }}>{initials(m.name)}</span>
                           <span className="td-msg-tx"><b>{m.name}</b><small>{[m.projectType, m.message || m.email].filter(Boolean).join(" · ")}</small></span>
                           {m.isRead ? <small className="td-msg-d">{dateFmt(m.createdAt)}</small> : <span className="sh-pill blue">New</span>}
                         </Link>
                       ))}</div>}
+                </section>
+              )}
+            </div>}
+          </div>}
+
+          {(showPipeline || showContent) && <div className="td-home-grid">
+            {showPipeline && (
+              <section className="sh-card" aria-labelledby="td-leads">
+                <div className="sh-card-h">
+                  <h2 id="td-leads">Leads pipeline
+                    {!!showPipeline.leads?.total && <small>{inr(pipelineValue)} in open leads{winRate == null ? "" : ` · ${winRate}% win rate`}</small>}
+                  </h2>
+                  <Link href="/dashboard/leads" className="sh-link">Open leads<Ic i={ArrowRight01Icon} size={15} /></Link>
+                </div>
+                {!showPipeline.leads?.total ? <div className="sh-empty"><Ic i={Target02Icon} size={20} /><b>No leads yet</b></div>
+                    : <dl className="td-stages">
+                      {stageRows.map((s) => (
+                        <div key={s.id} className="td-stg">
+                          <dt><i style={{ background: s.c }} />{s.name}</dt>
+                          <dd><b>{s.n}<span className="td-visually-hidden"> leads</span></b><span>{inrShort(s.v)}</span></dd>
+                        </div>
+                      ))}
+                    </dl>}
               </section>
             )}
-
-            {canSocial && (
-              <section className="sh-card" aria-labelledby="td-team">
-                <div className="sh-card-h"><h2 id="td-team">{t && t.team.length === 1 ? "You this month" : "Team this month"}<small>Posts finished by their due date · line marks the 90% goal</small></h2></div>
-                {today.error && !t ? <CardError text={today.error} onRetry={today.reload} />
-                  : !t ? <SkelRows n={3} h={34} />
-                    : !t.team.length ? <div className="sh-empty"><Ic i={CheckmarkCircle02Icon} size={20} /><b>No finished posts yet this month</b><span>On-time rates show once posts move to Posted.</span></div>
-                      : <div>{t.team.map((p) => {
-                        const pct = p.onTimePct;
-                        const col = pct == null ? "var(--td-faint)" : pct >= 90 ? "var(--td-green)" : pct >= 75 ? "var(--td-amber)" : "var(--td-red)";
-                        const onTime = pct == null ? 0 : Math.round((pct * p.delivered) / 100);
-                        return (
-                          <div key={p.id} className="td-perf">
-                            {p.avatar
-                              // eslint-disable-next-line @next/next/no-img-element
-                              ? <img className="sh-av" src={p.avatar} alt="" style={{ width: 32, height: 32 }} />
-                              : <span className="sh-av" style={{ background: avColor(p.name), width: 32, height: 32, fontSize: 11 }}>{initials(p.name)}</span>}
-                            <div className="td-perf-m">
-                              <b>{p.name}<small>{p.delivered ? `${onTime} of ${p.delivered} on time` : "Nothing finished yet"}{p.overdue ? ` · ${p.overdue} overdue` : ""}</small></b>
-                              <div className="td-track goal"><i style={{ width: `${pct ?? 0}%`, background: col }} /></div>
-                            </div>
-                            <span className="td-pct" style={{ color: col }}>{pct == null ? "—" : `${pct}%`}</span>
-                          </div>
-                        );
-                      })}</div>}
-              </section>
-            )}
-
-            {canContent && (
+            {showContent && (
               <section className="sh-card" aria-labelledby="td-content">
-                <div className="sh-card-h"><h2 id="td-content">Content breakdown<small>{o ? `${plural(content.reduce((a, c) => a + c.n, 0), "item")} on the website` : "Website content"}</small></h2></div>
-                {ov.error && !o ? <CardError text={ov.error} onRetry={ov.reload} />
-                  : !o ? <SkelRows n={4} h={22} />
-                    : <div className="td-bars">{content.map((c) => (
-                      <Link key={c.k} href={`/dashboard/${c.k}`} className="td-barrow">
-                        <span>{c.label}</span>
-                        <span className="td-track"><i style={{ width: `${(c.n / cmax) * 100}%` }} /></span>
-                        <b>{c.n}</b>
-                      </Link>
-                    ))}</div>}
+                <div className="sh-card-h">
+                  <h2 id="td-content">Website content
+                    <small>{plural(content.reduce((sum, item) => sum + item.count, 0), "item")}</small>
+                  </h2>
+                </div>
+                <div className="td-bars">{content.map((item) => (
+                    <Link key={item.key} href={`/dashboard/${item.key}`} className="td-barrow">
+                      <span>{item.label}</span>
+                      <span className="td-track" aria-hidden="true"><i style={{ width: `${(item.count / contentMax) * 100}%` }} /></span>
+                      <b>{item.count}</b>
+                    </Link>
+                  ))}</div>
               </section>
             )}
-          </div>
-        </div>
+          </div>}
+          {(isAdmin || teamHome) && <Performance mode={isAdmin ? "team" : "me"} />}
+        </>
       )}
-
-      {ready && (isAdmin ? <LazyKpis mode="team" /> : teamHome ? <LazyKpis mode="me" /> : null)}
     </div>
   );
 }
