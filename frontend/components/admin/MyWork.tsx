@@ -35,16 +35,10 @@ function due(p: Post, t: string) {
 export type MyWorkData = ReturnType<typeof summarise>;
 function summarise(posts: Post[]) {
   const t = istIso();
-  const weekEnd = addDays(t, 7);
   const open = posts.filter((p) => p.status !== "posted");
   const queue = open.map((p) => ({ p, d: due(p, t) })).sort((a, b) => a.d.rank - b.d.rank);
   return {
-    open: open.length,
-    brands: new Set(open.map((p) => p.client)).size,
     overdue: queue.filter((x) => x.d.cls === "red").length,
-    workNow: open.filter((p) => { const live = day(p.postDate), start = day(p.dueDate) || (live ? addDays(live, -7) : ""); return start && start <= t && !overdueAt(p); }).length,
-    startingSoon: open.filter((p) => { const s = day(p.dueDate); return s > t && s <= weekEnd; }).length,
-    goingLive: open.filter((p) => { const l = day(p.postDate); return l >= t && l <= weekEnd; }).length,
     queue,
   };
 }
@@ -65,13 +59,13 @@ export function useMyWork(meId: number | null | undefined, enabled: boolean) {
 }
 
 /* "My queue" rows (most urgent first). */
-export function MyQueue({ data, limit = 7 }: { data: MyWorkData; limit?: number }) {
-  if (!data.queue.length) {
-    return <div className="sh-empty"><b>All clear</b><span>New posts for your brands will show up here when they reach your stage.</span></div>;
+export function MyQueue({ queue, emptyText }: { queue: MyWorkData["queue"]; emptyText?: string }) {
+  if (!queue.length) {
+    return <div className="sh-empty"><b>{emptyText || "No assigned posts"}</b></div>;
   }
   return (
     <div className="td-queue">
-      {data.queue.slice(0, limit).map(({ p, d }) => (
+      {queue.slice(0, 7).map(({ p, d }) => (
         <Link key={p.id} href={`/dashboard/social?post=${p.id}`} className="td-qrow">
           <span className="td-qmain">
             <b>{p.theme}</b>

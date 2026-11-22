@@ -82,10 +82,6 @@ export default function SocialKpis({ mode }: { mode: "team" | "me" }) {
 
   const head = (
     <div className="kp-head">
-      <div>
-        <h2>{mode === "team" ? "Social media performance" : "My performance"}</h2>
-        <p>{mode === "team" ? "Delivery, deadlines and time on the content calendar." : "Your content calendar work, compared with the team."}</p>
-      </div>
       <div className="kp-controls">
         <div className="kp-seg" role="group" aria-label="Period">
           {PERIODS.map(([k, l]) => <button key={k} type="button" aria-pressed={period === k} className={period === k ? "on" : ""} onClick={() => setPeriod(k)}>{l}</button>)}
@@ -118,17 +114,10 @@ export default function SocialKpis({ mode }: { mode: "team" | "me" }) {
         <div className="kp-cards four">
           <div className="kp-card"><span>Completed assignments</span><b>{me.delivered}</b><Delta now={me.delivered} prev={me.deliveredPrev} /></div>
           <div className="kp-card"><span>On-time rate</span><b className={tone(me.onTime)}>{me.onTime == null ? "—" : `${me.onTime}%`}</b><span className="kp-delta">Team {t.onTime == null ? "—" : `${t.onTime}%`}</span></div>
-          <div className="kp-card"><span>Open now</span><b className="blue">{me.open}</b><span className="kp-delta">{me.overdue ? `${me.overdue} overdue` : me.startsToday ? `${me.startsToday} start today` : "Nothing overdue"}</span></div>
+          <div className="kp-card"><span>Open now</span><b className="blue">{me.open}</b><span className="kp-delta">{me.startsToday ? `${me.startsToday} start today` : "Assigned posts"}</span></div>
           <div className="kp-card"><span>Days per stage</span><b className="blue">{days(me.avgStageDays)}</b><span className="kp-delta">Team {days(t.avgStageDays)}</span></div>
         </div>
-        <div className="kp-grid">
-          <div className="kp-panel"><h3>Delivered per week</h3><Bars weeks={me.weeks} /><Legend /></div>
-          <div className="kp-panel">
-            <h3>Compared with the team</h3>
-            <div className="kp-kv"><span>Days in my stage</span><b>{days(me.avgStageDays)} <small>· team {days(t.avgStageDays)}</small></b></div>
-            <div className="kp-kv"><span>On-time rate</span><b>{me.onTime == null ? "—" : `${me.onTime}%`} <small>· team {t.onTime == null ? "—" : `${t.onTime}%`}</small></b></div>
-          </div>
-        </div>
+        <div className="kp-panel"><h3>Delivered per week</h3><Bars weeks={me.weeks} /><Legend /></div>
         <p className="kp-note">{completionNote} {historyNote}</p>
       </section>
     );
@@ -143,7 +132,7 @@ export default function SocialKpis({ mode }: { mode: "team" | "me" }) {
       <div className="kp-cards four">
         <div className="kp-card"><span>Completed assignments</span><b>{t.delivered}</b><Delta now={t.delivered} prev={t.deliveredPrev} /></div>
         <div className="kp-card"><span>On-time rate</span><b className={tone(t.onTime)}>{t.onTime == null ? "—" : `${t.onTime}%`}</b><Delta now={t.onTime} prev={t.onTimePrev} unit=" pts" /></div>
-        <div className="kp-card"><span>Overdue now</span><b className={t.overdue ? "bad" : "good"}>{t.overdue}</b><span className="kp-delta">{t.open} posts open</span></div>
+        <div className="kp-card"><span>Open posts</span><b className="blue">{t.open}</b>{brand && <span className="kp-delta">{t.overdue} overdue</span>}</div>
         <div className="kp-card"><span>Avg days per stage</span><b className="blue">{days(t.avgStageDays)}</b><span className="kp-delta">From stage moves</span></div>
       </div>
 
