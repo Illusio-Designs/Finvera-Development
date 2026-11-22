@@ -50,7 +50,7 @@ export default function DialogHost() {
             placeholder={opts.placeholder}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}
-            style={{ resize: "vertical", fontFamily: "var(--mono)", fontSize: 12.5, lineHeight: 1.5 }}
+            style={{ resize: "vertical", fontFamily: "var(--mono)", lineHeight: 1.5 }}
           />
         ) : (
           <input

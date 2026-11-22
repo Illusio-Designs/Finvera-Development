@@ -356,7 +356,7 @@ export default function DatePicker({
           border: 1px solid var(--line-2);
           background: var(--panel);
           color: var(--ink);
-          font-size: 14px;
+          font-size: var(--ui-text-md, .875rem);
           cursor: pointer;
           text-align: left;
           transition: border-color 0.25s var(--ease), box-shadow 0.25s var(--ease),
@@ -427,7 +427,7 @@ export default function DatePicker({
           margin-bottom: 10px;
         }
         .dp-title {
-          font-size: 14px;
+          font-size: var(--ui-text-md, .875rem);
           font-weight: 600;
           color: var(--ink);
         }
@@ -461,7 +461,7 @@ export default function DatePicker({
         }
         .dp-weekday {
           text-align: center;
-          font-size: 11px;
+          font-size: var(--ui-text-xs, .75rem);
           font-weight: 600;
           color: var(--muted-2);
           padding: 4px 0;
@@ -483,7 +483,7 @@ export default function DatePicker({
           border-radius: 9px;
           background: transparent;
           color: var(--ink);
-          font-size: 13px;
+          font-size: var(--ui-text-sm, .8125rem);
           cursor: pointer;
           transition: background 0.18s var(--ease), color 0.18s var(--ease),
             box-shadow 0.18s var(--ease);
@@ -510,7 +510,7 @@ export default function DatePicker({
         .dp-selected.dp-today {
           box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.7);
         }
-        .dp-time { display: grid; gap: 6px; margin-top: 10px; color: var(--muted); font-size: 13px; }
+        .dp-time { display: grid; gap: 6px; margin-top: 10px; color: var(--muted); font-size: var(--ui-text-sm, .8125rem); }
         .dp-time > div { display: flex; align-items: center; gap: 8px; }
         .dp-time input {
           width: 52px;
@@ -522,7 +522,7 @@ export default function DatePicker({
           color: var(--ink);
           text-align: center;
           font: inherit;
-          font-size: 16px;
+          font-size: var(--ui-text-lg, 1rem);
         }
         .dp-foot {
           display: flex;
@@ -536,7 +536,7 @@ export default function DatePicker({
           border: none;
           background: transparent;
           color: var(--blue-600);
-          font-size: 13px;
+          font-size: var(--ui-text-sm, .8125rem);
           font-weight: 600;
           padding: 4px 8px;
           border-radius: 8px;
