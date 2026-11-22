@@ -2,23 +2,30 @@
 :root{
   --ui-font-body:var(--font-inter),system-ui,sans-serif;
   --ui-font-heading:var(--font-sora),var(--font-inter),system-ui,sans-serif;
-  --ui-text-xs:11px;--ui-text-sm:12px;--ui-text-md:14px;--ui-text-lg:16px;
-  --ui-heading-xs:18px;--ui-heading-sm:20px;--ui-heading-md:22px;--ui-heading-lg:24px;
-  --ui-page-title:32px;--ui-page-title-mobile:26px;
   --ui-field-height:42px;--ui-radius:12px;--ui-card-gap:12px;--ui-page-gap:24px;
 }
-.adm.sh .fw-surface{font-family:var(--ui-font-body);font-size:var(--ui-text-md);line-height:1.65}
+.adm.sh,.adm.sh .fw-surface,:where(.adm-overlay,.sr-client-view){font-family:var(--ui-font-body);font-size:var(--ui-text-md);line-height:1.65}
+:where(.adm.sh,.adm-overlay,.sr-client-view) small:not(:where(.prose *,.tiptap *)){font-size:var(--ui-text-sm)}
+:where(.adm.sh,.adm-overlay,.sr-client-view) :is(h2,h3,h4):not(:where(.prose *,.tiptap *)){
+  font-family:var(--ui-font-heading);line-height:1.35;
+}
+:where(.adm.sh,.adm-overlay,.sr-client-view) h2:not(:where(.prose *,.tiptap *)){font-size:var(--ui-heading-sm)}
+:where(.adm.sh,.adm-overlay,.sr-client-view) h3:not(:where(.prose *,.tiptap *)){font-size:var(--ui-heading-xs)}
+:where(.adm.sh,.adm-overlay,.sr-client-view) h4:not(:where(.prose *,.tiptap *)){font-size:var(--ui-text-lg)}
+:where(.adm.sh,.adm-overlay,.sr-client-view) .cselect-opt{font-size:var(--ui-text-md);line-height:1.5}
+:where(.adm.sh,.adm-overlay,.sr-client-view) .cselect-empty{font-size:var(--ui-text-sm)}
 .adm.sh .fw-surface :is(.adm-btn,.sh-btn,.cal-btn,.cal-primary,.ss-btn,.sys-btn,button.ss-chip,a.ss-chip),
 .adm-overlay :is(.adm-btn,.cal-btn,.cal-primary),[role=dialog][aria-modal=true] :is(.adm-btn,.sh-btn,.cal-btn,.cal-primary,.ss-btn,button.ss-chip,a.ss-chip),.sr-client-view .adm-btn{
   font-family:var(--ui-font-body);font-size:var(--ui-text-md);font-weight:600;line-height:1.4;
   min-height:var(--ui-field-height);min-width:var(--ui-field-height);height:auto;padding:10px 12px;display:inline-flex;align-items:center;justify-content:center;gap:8px;flex-shrink:0;
 }
 .adm.sh .fw-surface :is(.adm-btn,.sh-btn,.cal-btn,.ss-btn).sm{min-height:32px;padding:6px 10px;font-size:var(--ui-text-sm)}
-.adm.sh .fw-surface :is(.adm-field,.field)>label,.adm-overlay .adm-field>label,[role=dialog][aria-modal=true] .adm-field>label{
+.adm.sh .fw-surface :is(.adm-field>label,.field>label,label.adm-field),
+:is(.adm-overlay,[role=dialog][aria-modal=true]) :is(.adm-field>label,label.adm-field){
   font-family:var(--ui-font-body);font-size:var(--ui-text-sm);line-height:1.5;font-weight:600;
 }
-.adm.sh .fw-surface :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]),textarea,.cselect-btn),
-.adm-overlay :is(.adm-field input:not([type=checkbox]):not([type=radio]),.adm-field textarea,.cselect-btn),[role=dialog][aria-modal=true] :is(.adm-field input:not([type=checkbox]):not([type=radio]),.adm-field textarea,.cselect-btn){
+.adm.sh .fw-surface :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]),textarea,select,.cselect-btn,.dp-trigger),
+:is(.adm-overlay,[role=dialog][aria-modal=true]) :is(.adm-field input:not([type=checkbox]):not([type=radio]):not([type=file]),.adm-field textarea,.adm-field select,.adm-dialog-input,.cselect-btn,.dp-trigger){
   font-family:var(--ui-font-body);font-size:var(--ui-text-md);line-height:1.5;
 }
 .adm.sh .fw-surface .cselect-btn,.adm-overlay .cselect-btn{min-height:var(--ui-field-height)}
@@ -48,6 +55,8 @@
   .fw-hero .fw-actions{width:100%}
   .fw-stat>span:not(.fw-stat-index),.fw-stat>small{font-size:var(--ui-text-sm)}
   .inbox-workspace.ib-reading>.fw-hero{display:none}
+  .adm.sh .fw-surface :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]),textarea,select),
+  :is(.adm-overlay,[role=dialog][aria-modal=true]) :is(.adm-field input:not([type=checkbox]):not([type=radio]):not([type=file]),.adm-field textarea,.adm-field select,.adm-dialog-input){font-size:var(--ui-text-lg)}
 }
 .adm.sh .fw-surface :is(.sh-card-h,.sr-panel>header,.ss-panel-h,.st-card-h,.sys-card-h,.wh-group-title) h2{
   font-family:var(--ui-font-heading);font-size:var(--ui-heading-xs);font-weight:600;line-height:1.45;

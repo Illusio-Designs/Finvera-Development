@@ -39,8 +39,8 @@ export default function BackendStatus({ variant = "pill" }: { variant?: "pill" |
       <div className="adm-panel" style={{ padding: 20, display: "flex", alignItems: "center", gap: 14, marginBottom: 26 }}>
         <span className={"adm-statusdot" + (state === "online" ? " live" : "")} style={{ background: color }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <b style={{ fontSize: 15 }}>{label}</b>
-          <div style={{ color: "var(--muted-2)", fontSize: 12.5, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <b style={{ fontSize: "var(--ui-text-md)" }}>{label}</b>
+          <div style={{ color: "var(--muted-2)", fontSize: "var(--ui-text-sm)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {host}{info?.db ? ` · db ${info.db}` : ""}{uptime ? ` · up ${uptime}` : ""}{info?.env ? ` · ${info.env}` : ""}
           </div>
         </div>
